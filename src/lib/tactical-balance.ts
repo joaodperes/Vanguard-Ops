@@ -50,6 +50,38 @@ export function isTaserAdsBlocked(adsBlockedUntil:number,now:number):boolean {
 export const MINE_TRIGGER_RADIUS = 1.55;
 export const MINE_SPLASH_RADIUS = 2.4;
 export const MINE_SPLASH_MAX_DAMAGE = 38;
+export const MINE_SHOT_RADIUS = 0.38;
+
+/** A mine has a low, broad body on the floor. Return the FIRST intersection
+ * of a normalised bullet ray with its hittable volume (or null). No shooting
+ * through solid cover: callers cap maxDistance at the ballistic obstruction. */
+export function mineShotDistance(origin: Vec3, direction: Vec3, mine: Vec3, maxDistance: number): number | null {
+  const dx = mine[0] - origin[0], dy = mine[1] + 0.11 - origin[1], dz = mine[2] - origin[2];
+  const projection = dx * direction[0] + dy * direction[1] + dz * direction[2];
+  if (projection < -MINE_SHOT_RADIUS || projection > maxDistance + MINE_SHOT_RADIUS) return null;
+  const perpendicularSq = Math.max(0, dx * dx + dy * dy + dz * dz - projection * projection);
+  if (perpendicularSq > MINE_SHOT_RADIUS * MINE_SHOT_RADIUS) return null;
+  const distance = Math.max(0, projection - Math.sqrt(MINE_SHOT_RADIUS * MINE_SHOT_RADIUS - perpendicularSq));
+  return distance <= maxDistance ? distance : null;
+}
+
+/** Choose the nearest armed mine hit by a bullet. The shooter is irrelevant:
+ * any shot may detonate any mine, but its owner always deals the damage. */
+export function closestShotMine<T extends { pos: Vec3 }>(
+  mines: Iterable<T>, origin: Vec3, direction: Vec3, maxDistance: number,
+): { mine: T; distance: number } | null {
+  let nearest: { mine: T; distance: number } | null = null;
+  for (const mine of mines) {
+    const distance = mineShotDistance(origin, direction, mine.pos, maxDistance);
+    if (distance !== null && (!nearest || distance < nearest.distance)) nearest = { mine, distance };
+  }
+  return nearest;
+}
+
+/** Mines have no fuse/expiry; only an active owner may keep them deployed. */
+export function mineOwnerActive(owner: { alive: boolean } | null | undefined): boolean {
+  return !!owner?.alive;
+}
 
 /** Mine throws project 1.2m ahead of the player. Snap the mine to the actual
  * supporting tread/platform there, not the thrower's feet height. A low step
