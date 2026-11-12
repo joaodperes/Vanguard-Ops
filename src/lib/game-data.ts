@@ -68,6 +68,11 @@ export function isStandardMeleeWeapon(weapon: WeaponDef): boolean {
 export function activeMeleeWeaponId(id: string | null | undefined): string {
   return WEAPONS.find(w => w.id === id && isStandardMeleeWeapon(w))?.id ?? "knife_tactical";
 }
+/** Mounting charms is only supported for ordinary ranged firearms.
+ * Wonders have no charm slot, including their controller and melee variants. */
+export function weaponSupportsCharm(weapon: Pick<WeaponDef, "wonder" | "category">): boolean {
+  return !weapon.wonder && weapon.category !== "melee";
+}
 /** Shield Wonders use a normal P-9 magazine; ownership is still Wonder-only. */
 export function usesWonderCharges(weapon: WeaponDef): boolean { return !!weapon.wonder && weapon.wonder.kind !== "shield"; }
 

@@ -2,8 +2,17 @@ import { describe, test, expect } from "bun:test";
 import * as THREE from "three";
 import { CHARM_SCALE, createWeaponCharm, weaponCharmMountPoint, swingWeaponCharm } from "../src/lib/weapon-charms";
 import { WEAPON_VISUALS, firstPersonSupportGrip } from "../src/lib/weapon-models";
+import { WEAPONS, weaponSupportsCharm, weaponById } from "../src/lib/game-data";
 
 describe("weapon charms remain visible on gun models",()=>{
+  test("every Wonder Weapon, including melee and controller variants, rejects charms",()=>{
+    const wonders=WEAPONS.filter(w=>w.wonder);
+    expect(wonders.length).toBeGreaterThan(5);
+    for(const wonder of wonders)expect(weaponSupportsCharm(wonder)).toBe(false);
+    expect(weaponSupportsCharm(weaponById("rifle_ar"))).toBe(true);
+    expect(weaponSupportsCharm(weaponById("pistol_side"))).toBe(true);
+    expect(weaponSupportsCharm(weaponById("knife_tactical"))).toBe(false);
+  });
   test("first-person mounts clear each weapon's support hand, without moving bot charms",()=>{
     for(const [id,profile] of Object.entries(WEAPON_VISUALS)){
       const half=profile.receiver[0]/2;

@@ -88,7 +88,7 @@ import {
   roomCapacity, mapAllowedForMode, teamSizeAllowed, teamSizesForMap, KC_PICKUP_RADIUS, killConfirmedPickupPoints, GUN_GAME_PROGRESSION, GUN_GAME_TYPE_PROGRESSION, GUN_GAME_TYPE_PROGRESSION_FALLBACK,
 } from "./game-protocol";
 import {
-  weaponById, computeEffectiveStats, effectiveHeatConfig, damageAtRange, maxWeaponHitRange, projectileSplashRadius, WEAPONS, isPrimaryWeaponCategory, type AttachmentSlot, type WeaponStats,
+  weaponById, computeEffectiveStats, effectiveHeatConfig, damageAtRange, maxWeaponHitRange, projectileSplashRadius, WEAPONS, isPrimaryWeaponCategory, weaponSupportsCharm, type AttachmentSlot, type WeaponStats,
 } from "./game-data";
 import {
   makeEnvironmentMap, moveEnvironmentCover, breakEnvironmentWall,
@@ -966,7 +966,8 @@ function toSnap(p: PlayerNet,loadout?:LoadoutWire): SnapshotPlayer {
     akimboBarrelId:isAkimboWeapon(p.weaponId,p.weaponId===loadout?.weaponId
       ?loadout.attachments?.grip:loadout?.secondaryAttachments?.grip)
       ?(p.weaponId===loadout?.weaponId?loadout.attachments?.barrel:loadout?.secondaryAttachments?.barrel)??undefined:undefined,
-    charmId:currentCharm??"none",nameplateId:p.nameplateId,
+    // Defensively exclude Wonder charms even if a stale snapshot or loadout supplied one.
+    charmId:weaponSupportsCharm(weaponById(p.weaponId))?(currentCharm??"none"):"none",nameplateId:p.nameplateId,
     perkId:loadout?.perkId,
     bossMaxHealth:p.bossMaxHealth,
     eliteMaxHealth:p.eliteMaxHealth,
@@ -4341,8 +4342,8 @@ async function validatedMatchLoadout(playerKey: string, requested: LoadoutWire):
     ...resolved,
     primaryReticleId:owned.includes(resolved.primaryReticleId??"classic")?resolved.primaryReticleId:"classic",
     secondaryReticleId:owned.includes(resolved.secondaryReticleId??"classic")?resolved.secondaryReticleId:"classic",
-    primaryCharmId:owned.includes(resolved.primaryCharmId??"none")&&!weaponById(resolved.weaponId).wonder?resolved.primaryCharmId:"none",
-    secondaryCharmId:owned.includes(resolved.secondaryCharmId??"none")&&!weaponById(resolved.secondaryWeaponId??"pistol_side").wonder?resolved.secondaryCharmId:"none",
+    primaryCharmId:owned.includes(resolved.primaryCharmId??"none")&&weaponSupportsCharm(weaponById(resolved.weaponId))?resolved.primaryCharmId:"none",
+    secondaryCharmId:owned.includes(resolved.secondaryCharmId??"none")&&weaponSupportsCharm(weaponById(resolved.secondaryWeaponId??"pistol_side"))?resolved.secondaryCharmId:"none",
     meleeCharmId:"none",
   };
 }

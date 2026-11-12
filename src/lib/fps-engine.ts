@@ -117,7 +117,7 @@ import {
 } from "@/lib/game-protocol";
 import {
   weaponById, weaponSkinById, playerSkinById, computeEffectiveStats, effectiveHeatConfig, damageAtRange, maxWeaponHitRange, projectileSplashRadius,
-  SIGHT_DEFS, sightDefForType, hasMountedSight, weaponSlot, WEAPONS, weaponAttachmentSlots,
+  SIGHT_DEFS, sightDefForType, hasMountedSight, weaponSlot, WEAPONS, weaponAttachmentSlots, weaponSupportsCharm,
   type AttachmentSlot, type EffectiveStats, type SightType, type SightDef,
   type WeaponSlot, type WeaponDef, type WeaponCategory, type WeaponConditionMetric,
 } from "@/lib/game-data";
@@ -3455,7 +3455,7 @@ export class FPSEngine {
     // inherits all aim, reload, sway and recoil transforms automatically.
     const equippedCharm=this.currentSlot==="secondary"?this.opts.loadout.secondaryCharmId:
       this.currentSlot==="melee"?this.opts.loadout.meleeCharmId:this.opts.loadout.primaryCharmId;
-    if(equippedCharm&&equippedCharm!=="none"&&category!=="melee"&&!weaponById(this.weaponId).wonder){
+    if(equippedCharm&&equippedCharm!=="none"&&weaponSupportsCharm(weaponById(this.weaponId))){
       const charm=createWeaponCharm(equippedCharm,true);
       if(charm){
         const [x,y,z]=weaponCharmMountPoint(this.weaponId,"firstPerson");
@@ -6388,7 +6388,7 @@ export class FPSEngine {
         },fullWorldLegendary?weaponMat:undefined,
           weaponFinish.id!=="default"?(weaponFinish.id==="gold"?weaponFurniture:weaponMat):undefined);
       }
-      if(c.charmId && c.charmId!=="none" && !weaponById(c.weaponId).wonder){
+      if(c.charmId && c.charmId!=="none" && weaponSupportsCharm(weaponById(c.weaponId))){
         const charm=createWeaponCharm(c.charmId);
         if(charm){charm.position.set(...weaponCharmMountPoint(c.weaponId,"thirdPerson"));visual.add(charm);}
       }
