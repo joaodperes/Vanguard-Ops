@@ -179,7 +179,7 @@
     },
     "stats": {
       "damage": 35,
-      "fireRate": 3.2,
+      "fireRate": 4,
       "magSize": 10,
       "reloadTime": 1.9,
       "spread": 0.013,
@@ -291,7 +291,7 @@
     "stats": {
       "damage": 62,
       "fireRate": 3.1,
-      "magSize": 14,
+      "magSize": 12,
       "reloadTime": 2,
       "spread": 0.003,
       "adsSpread": 0.0006,
@@ -623,7 +623,7 @@
     "category": "pistol",
     "unlockLevel": 23,
     "unlockCost": 1500,
-    "description": "Heavy revolver with strong recoil, short pistol-effective range and deliberate follow-up shots. Precise hits reward aim without instant eliminations.",
+    "description": "Precision revolver with punishing recoil and deliberate follow-up shots. A clean headshot can eliminate a full-health target within its short full-damage range.",
     "stats": {
       "damage": 56,
       "fireRate": 2.3,
@@ -640,7 +640,7 @@
         "maxTargets": 2,
         "damageRetention": 0.3
       },
-      "headshotMult": 1.75,
+      "headshotMult": 1.8,
       "falloffEndMultiplier": 2,
       "minDamageMultiplier": 0.62,
       "coverPenetration": 1.5
@@ -903,7 +903,7 @@
     "category": "assault",
     "unlockLevel": 11,
     "unlockCost": 800,
-    "description": "Burst-fire assault rifle. Three rounds per trigger pull — deadly at mid range.",
+    "description": "Precision-focused three-round burst assault rifle. One headshot plus two body hits can eliminate a full-health target inside its effective range.",
     "stats": {
       "damage": 28,
       "fireRate": 9,
@@ -917,7 +917,7 @@
       "moveSpeed": 0.92,
       "auto": false,
       "burst": 3,
-      "headshotMult": 1.5,
+      "headshotMult": 1.7,
       "falloffEndMultiplier": 1.55,
       "minDamageMultiplier": 0.3,
       "coverPenetration": 1.1
@@ -1284,7 +1284,7 @@
     "category": "pistol",
     "unlockLevel": 18,
     "unlockCost": 1100,
-    "description": "Heavy-frame six-shot .45 revolver firing full-power cartridges. Punishing damage, deep cover penetration and a slow hammer-cocking cadence; fan the hammer for inaccurate rapid shots.",
+    "description": "Heavy-frame six-shot .45 revolver specializing in penetrating light cover and aligned enemies. Punishing recoil and slow hammer-cocking cadence; fan the hammer for inaccurate rapid shots.",
     "stats": {
       "damage": 70,
       "fireRate": 1.55,
@@ -1299,12 +1299,12 @@
       "auto": false,
       "bodyPenetration": {
         "maxTargets": 2,
-        "damageRetention": 0.24
+        "damageRetention": 0.4
       },
       "headshotMult": 1.4,
       "falloffEndMultiplier": 1.9,
       "minDamageMultiplier": 0.55,
-      "coverPenetration": 1.8
+      "coverPenetration": 2.2
     },
     "attachments": [
       "sight",

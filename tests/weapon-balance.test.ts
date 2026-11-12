@@ -78,7 +78,7 @@ describe("distinct DMR roles at 100 HP", () => {
     const scout = weaponById("dmr_scout");
     const whisper = weaponById("dmr_whisper");
     expect(scout.stats.magSize).toBe(14);
-    expect(whisper.stats.magSize).toBe(14);
+    expect(whisper.stats.magSize).toBe(12);
     expect(scout.stats.auto).toBe(false);
     expect(hitsToEliminate(scout.stats)).toBe(3);
     expect(hitsToEliminate(scout.stats, 0, 1)).toBe(2);
@@ -96,6 +96,8 @@ describe("distinct DMR roles at 100 HP", () => {
     const otherRifles = ["dmr_scout", "rifle_dm", "dmr_cyclone", "dmr_heavy"]
       .map(weaponById);
     expect(whisper.stats.damage * whisper.stats.headshotMult).toBeLessThan(100);
+    expect(whisper.stats.magSize).toBe(12);
+    expect(Math.floor(whisper.stats.magSize / hitsToEliminate(whisper.stats)!)).toBe(6);
     expect(hitsToEliminate(whisper.stats, 0, 1)).toBe(2);
     for (const other of otherRifles) {
       expect(whisper.stats.range).toBeGreaterThan(other.stats.range);
