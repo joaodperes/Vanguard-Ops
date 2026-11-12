@@ -8,6 +8,8 @@ import { enqueueAttachmentSave } from "@/lib/attachment-save-queue";
 import { emptyAttachmentMap } from "@/lib/loadout-attachments";
 import { attachmentViewPermissions, showPendingAttachmentChallenge, attachmentEffectLabel } from "@/lib/armory-attachment-browse";
 import { COSMETICS } from "@/lib/cosmetics";
+import { equipmentById } from "@/lib/equipment";
+import { wonderModuleById, wonderFinishById, wonderKillEffectById } from "@/lib/wonder-expansion";
 import {
   WEAPONS, ATTACHMENTS, WEAPON_SKINS, PLAYER_SKINS, RARITY_COLORS,
   SIGHT_DEFS,
@@ -375,7 +377,7 @@ export function Armory() {
                 <ChevronDown className="w-4 h-4 ml-auto group-open:rotate-180 transition-transform" />
               </summary>
               <div className="px-4 pb-4">
-                <p className="text-xs text-white/50 mb-3">Saved loadouts preserve weapons, skins, attachments, perks, reticles and charms. Confirm weapon or perk changes above before saving or replacing a slot.</p>
+                <p className="text-xs text-white/50 mb-3">Saved loadouts preserve weapons, tacticals, perks, skins, attachments, reticles, charms and Wonder customization. Confirm weapon, perk or tactical changes above before saving or replacing a slot.</p>
             <div className="flex flex-wrap gap-2 mb-4">
             <input
               value={presetName}
@@ -424,6 +426,15 @@ export function Armory() {
                     </div>
                   )}
                   <div className="text-xs text-white/50">{weaponById(preset.primaryWeapon).name} · {weaponById(preset.secondaryWeapon).name} · {weaponById(preset.meleeWeapon).name} · {perkById(preset.perkId).name}</div>
+                  <div className="text-xs text-white/40">Tactical: {equipmentById(preset.equipmentId).name}</div>
+                  {preset.perkId === "wonder_weapon" && preset.wonderWeaponId && (
+                    <div className="text-xs text-white/40">
+                      Wonder: {weaponById(preset.wonderWeaponId).name}
+                      {preset.wonderCustomization ? (
+                        <> · Module: {wonderModuleById(preset.wonderCustomization.moduleId)?.name ?? "Default"} · Finish: {wonderFinishById(preset.wonderCustomization.skinId)?.name ?? "Default"} · Kill effect: {wonderKillEffectById(preset.wonderCustomization.killEffectId)?.name ?? "Default"}</>
+                      ) : " · Uses current Wonder customization (save again to snapshot)"}
+                    </div>
+                  )}
                   <div className="text-xs text-white/40">Reticles: {COSMETICS.find(c=>c.id===preset.primaryReticle)?.name ?? "Classic Cross"} / {COSMETICS.find(c=>c.id===preset.secondaryReticle)?.name ?? "Classic Cross"} · Charms: {COSMETICS.find(c=>c.id===preset.primaryCharm)?.name ?? "No Charm"} / {COSMETICS.find(c=>c.id===preset.secondaryCharm)?.name ?? "No Charm"}</div>
                   {replaceTargetId === preset.id ? (
                     <div className="flex gap-2">
