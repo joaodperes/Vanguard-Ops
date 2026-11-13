@@ -12603,7 +12603,7 @@ export class FPSEngine {
       guarding:!!ai.ctfGuarding,lowHealth:bot.health<=45});
     state.nextAt=now+650;
     if(!allowed)return;
-    const plan=planBotTacticalThrow(bot.pos,target.pos,state.id,this.map.cover,this.map.id);
+    const plan=planBotTacticalThrow(bot.pos,target.pos,state.id,this.map.cover,this.map.id,ai.difficulty);
     if(!plan)return;
     const unsafe=(state.id==="frag"||state.id==="flashbang")&&
       ([...this.combatants.values()].some(c=>c.alive&&c.id!==bot.id&&this.opts.mode!=="ffa"&&
