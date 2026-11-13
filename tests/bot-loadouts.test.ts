@@ -1,10 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { WEAPONS, compatibleAttachments, computeEffectiveStats } from "../src/lib/game-data";
+import { WEAPONS, compatibleAttachments, computeEffectiveStats, weaponById } from "../src/lib/game-data";
+import { MAX_HEALTH } from "../src/lib/game-protocol";
 import {
   BOT_WONDERS, SURVIVAL_BOT_WONDERS, SURVIVAL_BOT_WEAPONS, SURVIVAL_BOT_PERKS,
   STANDARD_BOT_PERKS, BOT_ARCHETYPE_PERKS, botPerkForMode, botWonderForMode, botPrimaryForMode,
   botSecondaryPrimary, botMovementPerkMultiplier, botAttachmentsForMode, botActiveAttachments,
-  botMagazineCapacity, emptyBotAttachments,
+  botMagazineCapacity, emptyBotAttachments, isSurvivalOneShotWeapon,
 } from "../src/lib/bot-loadouts";
 import { BOT_ELIGIBLE_WEAPONS, botArchetypeWeapons, type BotArchetype } from "../src/lib/bot-archetypes";
 
@@ -29,6 +30,31 @@ describe("bot perk and weapon policy", () => {
     expect(botPerkForMode("survival",1,()=>0)).not.toBe("wonder_weapon");
     expect(botPerkForMode("survival",12,()=>0)).toBe("wonder_weapon");
   });
+  test("Survival bots cannot spawn with a one-trigger full-health kill weapon", () => {
+    // A close-range body hit, an ideal shotgun pellet grouping, and a possible
+    // headshot must all remain nonlethal against a fresh 100-HP operative.
+    expect(SURVIVAL_BOT_WEAPONS.every(w => !isSurvivalOneShotWeapon(w))).toBe(true);
+    for (const w of SURVIVAL_BOT_WEAPONS) {
+      expect(w.stats.damage * (w.stats.pellets ?? 1) * Math.max(1, w.stats.headshotMult ?? 1))
+        .toBeLessThan(MAX_HEALTH);
+    }
+    for (const id of ["launcher_rocket", "shotgun_br", "shotgun_combat", "pistol_magnum", "sniper_heavy"]) {
+      expect(isSurvivalOneShotWeapon(weaponById(id))).toBe(true);
+      expect(SURVIVAL_BOT_WEAPONS.some(w => w.id === id)).toBe(false);
+    }
+    // Still keep weapon variety where one trigger cannot kill at full HP.
+    for (const id of ["launcher_breach", "shotgun_auto", "dmr_whisper", "rifle_ar"]) {
+      expect(SURVIVAL_BOT_WEAPONS.some(w => w.id === id)).toBe(true);
+    }
+    // Cover the entire random selection domain, not just a handful of examples.
+    for (let i = 0; i < SURVIVAL_BOT_WEAPONS.length; i++) {
+      const id = botPrimaryForMode("survival", () => (i + .5) / SURVIVAL_BOT_WEAPONS.length);
+      expect(isSurvivalOneShotWeapon(weaponById(id))).toBe(false);
+    }
+    // RL-7 remains legal in PvP; only the Survival enemy pool changes.
+    expect(BOT_ELIGIBLE_WEAPONS.some(w => w.id === "launcher_rocket")).toBe(true);
+  });
+
   test("all selected IDs exist in their intended pool", () => {
     for(const roll of [0,.2,.5,.9,.999]) {
       const r=()=>roll;

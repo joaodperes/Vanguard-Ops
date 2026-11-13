@@ -5,21 +5,32 @@
 import { WEAPONS, compatibleAttachments, computeEffectiveStats, weaponById, type WeaponDef, type AttachmentSlot } from "./game-data";
 import { PERKS, type PerkId } from "./perks";
 import { BOT_ELIGIBLE_WEAPONS, botArchetypeWeapons, type BotArchetype } from "./bot-archetypes";
-import type { GameMode } from "./game-protocol";
+import { MAX_HEALTH, type GameMode } from "./game-protocol";
 
 const allowed = (ids: readonly string[]): WeaponDef[] => ids
   .map(id => WEAPONS.find(w => w.id === id))
   .filter((w): w is WeaponDef => !!w && !w.disabled && !w.wonder && !w.special);
 
-// Explicit, deliberately close/mid-range Survival roster. Launchers are included,
-// but the large-radius Swarm and long-range snipers are not.
+/** A single trigger pull must never be capable of killing a full-health
+ * operative with base weapon damage. Count every pellet and a possible
+ * headshot (the worst case at point blank), but not separate burst shots.
+ * Shared by online and offline Survival bots; PvP loadouts are unaffected.
+ */
+export function isSurvivalOneShotWeapon(weapon: WeaponDef): boolean {
+  const pellets = Math.max(1, weapon.stats.pellets ?? 1);
+  return weapon.stats.damage * pellets * Math.max(1, weapon.stats.headshotMult ?? 1) >= MAX_HEALTH;
+}
+
+// Explicit, deliberately close/mid-range Survival roster. The safety filter
+// excludes RL-7, lethal shotguns, the Magnum and any future one-hit-kill
+// weapon, while retaining lower-damage launchers and automatic shotguns.
 export const SURVIVAL_BOT_WEAPONS = allowed([
   "rifle_ar", "rifle_falcon", "rifle_hydra", "rifle_burst", "rifle_heavy",
   "smg_kp", "smg_vector", "smg_compact", "shotgun_br", "shotgun_combat",
   "shotgun_auto", "dmr_scout", "dmr_whisper", "lmg_hv", "lmg_light",
   "pistol_side", "pistol_burst", "pistol_magnum", "pdw_mamba",
   "pdw_sentinel", "launcher_breach", "launcher_rocket",
-]);
+]).filter(w => !isSurvivalOneShotWeapon(w));
 
 const survivalWonderIds = [
   "wonder_deadlock", "wonder_hellfire", "wonder_bogfather",
