@@ -4,6 +4,7 @@
  */
 import { equipmentById, type EquipmentId } from "./equipment";
 import type { BotArchetype } from "./bot-archetypes";
+import type { BotTier } from "./bot-difficulty";
 import { rayBox, EYE_HEIGHT, type CoverBox, type Vec3, type MapId } from "./game-protocol";
 import { closestCoverHit } from "./dynamic-environment";
 import { calculateThrowPath } from "./throw-trajectory";
@@ -44,6 +45,27 @@ export function botTacticalCanUse(args:{
   }
 }
 export interface BotTacticalThrow { yaw:number; pitch:number; path:TimedProjectilePath }
+
+/** Angular throw error (radians), separate from firearm spread.
+ * Direct-hit equipment is deliberately less forgiving than area-effect grenades.
+ * Offsets are applied AFTER selecting the best physical trajectory: a bot must
+ * live with the miss instead of silently correcting it via another search.
+ */
+const BOT_THROW_ERROR: Record<BotTier,{direct:number; grenadeYaw:number; grenadePitch:number}> = {
+  easy:    {direct:.18,  grenadeYaw:.120, grenadePitch:.085},
+  normal:  {direct:.115, grenadeYaw:.075, grenadePitch:.055},
+  hard:    {direct:.060, grenadeYaw:.045, grenadePitch:.030},
+  veteran: {direct:.028, grenadeYaw:.022, grenadePitch:.015},
+};
+
+function botThrowPath(origin:Vec3,ownerY:number,yaw:number,pitch:number,
+  id:EquipmentId,cover:CoverBox[],mapId:MapId,grenade:boolean):TimedProjectilePath {
+  const cp=Math.cos(pitch);
+  const dir:Vec3=[Math.sin(yaw)*cp,Math.sin(pitch),Math.cos(yaw)*cp];
+  return grenade ? tacticalGrenadePath(origin,dir,cover,mapId)
+    : calculateThrowPath(origin,dir,id,
+      (at,v,d)=>closestCoverHit(cover,at,v,d,rayBox)?.distance??null,ownerY+.12);
+}
 function segmentDistanceToPoint(points:Vec3[],point:Vec3):number {
   let best=Infinity;
   for(let i=1;i<points.length;i++){
@@ -57,7 +79,8 @@ function segmentDistanceToPoint(points:Vec3[],point:Vec3):number {
 /** Pick a physical trajectory that lands near a visible opponent. No omniscient
  * shots through cover, no teleporting grenades, and no automatic guaranteed hits.
  */
-export function planBotTacticalThrow(owner:Vec3,target:Vec3,id:EquipmentId,cover:CoverBox[],mapId:MapId):BotTacticalThrow|null {
+export function planBotTacticalThrow(owner:Vec3,target:Vec3,id:EquipmentId,cover:CoverBox[],mapId:MapId,
+  difficulty:BotTier="normal",random:()=>number=Math.random):BotTacticalThrow|null {
   if(id==="cover")return null; // not a thrown projectile
   const dx=target[0]-owner[0],dz=target[2]-owner[2],distance=Math.hypot(dx,dz);
   if(distance<.1)return null;
@@ -71,10 +94,7 @@ export function planBotTacticalThrow(owner:Vec3,target:Vec3,id:EquipmentId,cover
     id==="mine" ? [-.25] : [idealPitch-.08,idealPitch,idealPitch+.06,idealPitch+.13,idealPitch+.20];
   let best:BotTacticalThrow|null=null,bestError=Infinity;
   for(const pitch of angles) {
-    const cp=Math.cos(pitch),dir:Vec3=[Math.sin(yaw)*cp,Math.sin(pitch),Math.cos(yaw)*cp];
-    const path:TimedProjectilePath = grenade
-      ? tacticalGrenadePath(origin,dir,cover,mapId)
-      : calculateThrowPath(origin,dir,id,(at,v,d)=>closestCoverHit(cover,at,v,d,rayBox)?.distance??null,owner[1]+.12);
+    const path=botThrowPath(origin,owner[1],yaw,pitch,id,cover,mapId,grenade);
     const impact=path.impact;
     // A grenade exploding high above a target must not be scored as a perfect
     // throw merely because its horizontal projection matches the target.
@@ -93,5 +113,19 @@ export function planBotTacticalThrow(owner:Vec3,target:Vec3,id:EquipmentId,cover
   }else if(id==="mine"){
     if(bestError>2.5)return null;
   }else if(bestError>.78)return null;
-  return best;
+
+  // Mine placement is a short, defensive drop rather than a precision shot.
+  if(id==="mine")return best;
+
+  const profile=BOT_THROW_ERROR[difficulty];
+  const yawError=(random()*2-1)*(grenade?profile.grenadeYaw:profile.direct);
+  const pitchError=(random()*2-1)*(grenade?profile.grenadePitch:profile.direct);
+  const throwYaw=best.yaw+yawError,throwPitch=best.pitch+pitchError;
+  const path=botThrowPath(origin,owner[1],throwYaw,throwPitch,id,cover,mapId,grenade);
+
+  // Keep the self-safety check for the ACTUAL scattered landing point. Never
+  // rescore against the target here: that would erase difficulty-based misses.
+  if(grenade && Math.hypot(path.impact[0]-owner[0],path.impact[2]-owner[2])<def.radius+1)
+    return null;
+  return {yaw:throwYaw,pitch:throwPitch,path};
 }
