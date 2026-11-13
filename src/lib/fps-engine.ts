@@ -1134,7 +1134,7 @@ export class FPSEngine {
 
   // Sprint stamina: drains while sprinting, regens after a short delay when not.
   // At 0 stamina, sprint is blocked until stamina regens above the resume threshold.
-  private stamina = SPRINT_STAMINA.maximum;
+  private stamina: number = SPRINT_STAMINA.maximum;
   private lastSprintAt = 0;         // performance.now() of last sprint frame
 
   // ---- Weapon slot system (primary / secondary / melee) ----
