@@ -63,3 +63,28 @@ export function batchStaticPropMeshes(group: THREE.Group): number {
   }
   return drawsSaved;
 }
+
+/** Spatial static batches preserve authored UVs, exact geometry and shadow
+ * flags. Mutable panels stay addressable outside these groups. */
+export function batchStaticMapMeshes(parent: THREE.Object3D, meshes: readonly THREE.Mesh[], cellSize = 64): number {
+  const cells = new Map<string, THREE.Group>();
+  for (const mesh of meshes) {
+    if (mesh.parent !== parent || mesh.name || Object.keys(mesh.userData).length ||
+        mesh.children.length || Array.isArray(mesh.material) || mesh.material.transparent) continue;
+    const key = Math.floor(mesh.position.x / cellSize) + ":" + Math.floor(mesh.position.z / cellSize) +
+      ":" + Number(mesh.castShadow) + ":" + Number(mesh.receiveShadow) + ":" + mesh.renderOrder;
+    let group = cells.get(key);
+    if (!group) { group = new THREE.Group(); group.name = "static_map_cell"; parent.add(group); cells.set(key, group); }
+    group.add(mesh);
+  }
+  let saved = 0;
+  for (const group of cells.values()) {
+    saved += batchStaticPropMeshes(group);
+    // These transforms never change; child-level frustum tests retain the
+    // actual merged bounds, including solids crossing a cell boundary.
+    group.updateMatrixWorld(true);
+    group.matrixAutoUpdate = false;
+    for (const child of group.children) { child.updateMatrix(); child.matrixAutoUpdate = false; }
+  }
+  return saved;
+}

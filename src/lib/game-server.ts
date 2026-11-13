@@ -63,7 +63,9 @@ import { canStartWeaponReload, crossbowReloadCycleMs, crossbowReloadControlsCade
 import { chooseBotPatrolPoint, botPatrolDistance } from "./bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint, botEntersHazard, botMapRouteGoal } from "./bot-routing";
 import { BotRouteBudget, botRouteJitter } from "./bot-performance-budget";
-import {CoverSpatialIndex} from "./cover-spatial-index";
+import {mapCoverIndex,invalidateMapCoverIndex} from "./map-cover-index";
+import {ActorSpatialIndex} from "./actor-spatial-index";
+import {PerformanceSamples} from "./performance-samples";
 import {cityHighGroundGoals,chooseCityHighGroundGoal,cityHighGroundStep,type HighGroundGoal} from "./city-high-ground";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
 import { MOVEMENT, sprintRecoverySpreadMultiplier } from "./movement-rules";
@@ -200,6 +202,7 @@ interface Room {
   tick: NodeJS.Timeout | null;
   // Not serialized: spreads CPU-heavy A* replans across server ticks.
   routeBudget?: BotRouteBudget;
+  actorIndex?: ActorSpatialIndex<PlayerNet>;
   respawnTimers: Map<string, number>;
   chat: { name: string; text: string; team: string; at: number }[];
   // survival mode state
@@ -986,7 +989,7 @@ function allCombatants(room: Room): PlayerNet[] {
 
 // ---- LOS & hit detection ----------------------------------------------------
 function losBlocked(room: Room, origin: Vec3, dir: Vec3, maxT: number): boolean {
-  for (const c of room.map.cover) {
+  for (const c of coverForRay(room,origin,dir,maxT)) {
     const t = rayBox(origin, dir, c.pos, c.size);
     if (t !== null && t < maxT) return true;
   }
@@ -1029,7 +1032,7 @@ function fireRay(room: Room, attackerId: string, origin: Vec3, dir: Vec3, weapon
   // in sight. A character or opaque cover in front of it blocks the shot.
   if (hitMines) {
     const maxDistance = range * falloffEndMultiplier;
-    const coverStop = traceCoverPenetration(room.map.cover, origin, dir, maxDistance, 0).blockedAt;
+    const coverStop = traceCoverPenetration(coverForRay(room,origin,dir,maxDistance), origin, dir, maxDistance, 0).blockedAt;
     if (shootEquipmentMine(room, origin, dir,
       Math.min(maxDistance, coverStop ?? Infinity, nearest?.t ?? Infinity)) !== null) return null;
   }
@@ -1043,7 +1046,7 @@ function fireRay(room: Room, attackerId: string, origin: Vec3, dir: Vec3, weapon
  * sees the newly opened passage. Never use client-reported cover damage. */
 function hitMaterialCover(room: Room, origin: Vec3, dir: Vec3, eff: WeaponStats,
   stopAt: number): void {
-  const first=closestCoverHit(room.map.cover,origin,dir,maxWeaponHitRange(eff.range,eff),rayBox);
+  const first=closestCoverHit(coverForRay(room,origin,dir,maxWeaponHitRange(eff.range,eff)),origin,dir,maxWeaponHitRange(eff.range,eff),rayBox);
   if(first && first.distance<=stopAt+.05){
     const id=coverIdForBox(first.box);
     if(id)damageServerCover(room,id,eff.damage);
@@ -1052,7 +1055,7 @@ function hitMaterialCover(room: Room, origin: Vec3, dir: Vec3, eff: WeaponStats,
     origin,dir,maxWeaponHitRange(eff.range,eff),eff.coverPenetration ?? 0,eff.damage,stopAt);
   // A previously shattered window must not remain in the city LOS broadphase:
   // the next blast and the next shot can use the newly opened line of sight.
-  if(impacts.some(impact=>impact.destroyed))cityCoverIndexes.delete(room.map);
+  if(impacts.some(impact=>impact.destroyed))invalidateMapCoverIndex(room.map);
   for (const impact of impacts) {
     io.to(room.id).emit("message",{t:"materialCoverImpact",impact} as S2C);
   }
@@ -1064,7 +1067,7 @@ function blastMaterialCover(room:Room,pos:Vec3,radius:number,damage:number,sourc
   const impacts=damageBallisticCoverFromExplosion(room.map,room.materialCoverHp,
     room.materialCoverDestroyed,pos,radius,damage,sourceId);
   // Shattered map panels must immediately leave Afterlight's cached LOS index.
-  if(impacts.some(impact=>impact.destroyed))cityCoverIndexes.delete(room.map);
+  if(impacts.some(impact=>impact.destroyed))invalidateMapCoverIndex(room.map);
   for(const impact of impacts)
     io.to(room.id).emit("message",{t:"materialCoverImpact",impact} as S2C);
 }
@@ -1125,7 +1128,7 @@ function firePenetratingRay(room: Room, attackerId: string, origin: Vec3, dir: V
   if (!eff.bodyPenetration && !(eff.coverPenetration ?? 0)) {
     const first = fireRay(room, attackerId, origin, dir, "", range, eff.falloffEndMultiplier, false);
     const maxDistance = maxWeaponHitRange(range, eff);
-    const coverStop = traceCoverPenetration(room.map.cover, origin, dir, maxDistance, 0).blockedAt;
+    const coverStop = traceCoverPenetration(coverForRay(room,origin,dir,maxDistance), origin, dir, maxDistance, 0).blockedAt;
     const mineAt = shootEquipmentMine(room, origin, dir,
       Math.min(maxDistance, coverStop ?? Infinity, first?.t ?? Infinity));
     if (mineAt !== null) return { hits: [], stoppedAt: mineAt };
@@ -1147,12 +1150,12 @@ function firePenetratingRay(room: Room, attackerId: string, origin: Vec3, dir: V
       shield: shieldFirst,
       protected: (target.spawnProtectedUntil ?? 0) > Date.now() });
   }
-  const resolved=resolveMaterialPenetrationShot(contacts,room.map.cover,origin,dir,maxDistance,
+  const resolved=resolveMaterialPenetrationShot(contacts,coverForRay(room,origin,dir,maxDistance),origin,dir,maxDistance,
       eff.bodyPenetration,eff.coverPenetration,phasebreaker);
   // Material-penetrating ammunition still requires an unobstructed ray to the
   // mine and cannot detonate one through a combatant in front of it.
   const firstVictimAt = resolved.hits.reduce((min, hit) => Math.min(min, hit.t), Infinity);
-  const coverStop = traceCoverPenetration(room.map.cover, origin, dir, maxDistance,
+  const coverStop = traceCoverPenetration(coverForRay(room,origin,dir,maxDistance), origin, dir, maxDistance,
     eff.coverPenetration ?? 0, phasebreaker).blockedAt;
   const mineAt = shootEquipmentMine(room, origin, dir,
     Math.min(maxDistance, coverStop ?? Infinity, resolved.stoppedAt, firstVictimAt));
@@ -1213,7 +1216,7 @@ function serverBoltLanding(room: Room, attackerId: string, origin: Vec3, dir: Ve
   const d = Math.hypot(...dir) || 1;
   const nd: Vec3 = [dir[0] / d, dir[1] / d, dir[2] / d];
   let distance = range;
-  const cover = closestCoverHit(room.map.cover, origin, nd, distance, rayBox);
+  const cover = closestCoverHit(coverForRay(room,origin,nd,distance), origin, nd, distance, rayBox);
   if (cover) distance = Math.max(0, cover.distance);
   for (const c of allCombatants(room)) {
     if (c.id === attackerId || !c.alive) continue;
@@ -1229,7 +1232,7 @@ function serverBoltLanding(room: Room, attackerId: string, origin: Vec3, dir: Ve
 function removeServerCover(room:Room,id:string):void{
   if(!room.deployedCovers.delete(id))return;
   room.map.cover=room.map.cover.filter(box=>box.environmentId!==DEPLOY_COVER_PREFIX+id);
-  cityCoverIndexes.delete(room.map); // invalidate precomputed collision broadphase after removal
+  invalidateMapCoverIndex(room.map); // invalidate precomputed collision broadphase after removal
   io.to(room.id).emit("message",{t:"deployedCoverRemoved",id} as S2C);
 }
 function damageServerCover(room:Room,id:string,damage:number):void{
@@ -1248,7 +1251,7 @@ function deployServerCover(room:Room,player:PlayerNet,now:number):boolean{
     ...place,hp:DEPLOY_COVER_HP,expiresAt:now+DEPLOY_COVER_LIFETIME_MS};
   room.deployedCovers.set(cover.id,cover);
   room.map.cover=[...room.map.cover,...coverPanels(cover)];
-  cityCoverIndexes.delete(room.map); // include new blockers in hitscan, LOS and bot pathing
+  invalidateMapCoverIndex(room.map); // include new blockers in hitscan, LOS and bot pathing
   io.to(room.id).emit("message",{t:"deployedCoverPlaced",cover} as S2C);
   return true;
 }
@@ -1257,7 +1260,7 @@ function blastServerCover(room:Room,pos:Vec3,radius:number,damage:number):void{
     const amount=coverExplosionDamage(c,pos,radius,damage);
     if(amount<=0)continue;
     const target=coverBlastContact(c,pos);
-    if(blastUnobstructed(pos,target,cityCoverAlong(room,pos,target,2),DEPLOY_COVER_PREFIX+c.id))
+    if(blastUnobstructed(pos,target,roomCoverAlong(room,pos,target,2),DEPLOY_COVER_PREFIX+c.id))
       damageServerCover(room,c.id,amount);
   }
 }
@@ -1309,7 +1312,7 @@ function serverUseEquipment(room: Room, playerId: string): number | null {
   const path: TimedProjectilePath=def.id==="frag" || def.id==="flashbang"
     ? tacticalGrenadePath(from,dir,room.map.cover,room.map.id)
     : calculateThrowPath(from,dir,def.id, (at,vector,distance)=> {
-      const collision=closestCoverHit(room.map.cover,at,vector,distance,rayBox);
+      const collision=closestCoverHit(coverForRay(room,at,vector,distance),at,vector,distance,rayBox);
       return collision?.distance ?? null;
     },player.pos[1]+.12);
   const impact=path.impact;
@@ -1494,7 +1497,7 @@ function applyMeleeStrike(room:Room,attacker:PlayerNet,weaponId:string,now:numbe
       const pushed:Vec3=[victim.pos[0]+dx/dist*RIOT_BASH_KNOCKBACK,
         victim.pos[1],victim.pos[2]+dz/dist*RIOT_BASH_KNOCKBACK];
       if(!blocksBotMotion(room.map.cover,victim.pos,pushed,victim.pos[1])){
-        victim.pos=clampToArena(room,pushed);
+        victim.pos=clampToArena(room,pushed);room.actorIndex?.update(victim);
         if(!victim.isBot)io.to(victim.id).emit("message",
           {t:"shieldBashPush",victimId:victim.id,pos:victim.pos} as S2C);
       }
@@ -2551,10 +2554,35 @@ function tickEnvironment(room: Room, dt: number): void {
   }
 }
 
-function tickRoom(room: Room) {
+const roomTickSamples=new WeakMap<Room,PerformanceSamples>();
+
+/** Internal diagnostics for local profiling/load harnesses; no public endpoint. */
+export function getGameServerPerformanceStats(){
+  return [...rooms.values()].map(room=>({roomId:room.id,mapId:room.map.id,
+    players:room.players.size,bots:room.bots.size,state:room.state,
+    tickMs:roomTickSamples.get(room)?.summary()}));
+}
+function updateRoomBots(room:Room,now:number):void{
+  room.actorIndex??=new ActorSpatialIndex<PlayerNet>();
+  // Preserve the solver's bots-first ordering.
+  room.actorIndex.rebuild([...room.bots.values(),...room.players.values()]);
+  for(const bot of room.bots.values())if(bot.alive){
+    updateBotAI(room,bot,now);room.actorIndex.update(bot);
+  }
+}
+function tickRoom(room:Room){
+  const start=performance.now();
+  try{tickRoomSimulation(room);}
+  finally{
+    let samples=roomTickSamples.get(room);
+    if(!samples){samples=new PerformanceSamples();roomTickSamples.set(room,samples);}
+    samples.add(performance.now()-start);
+  }
+}
+function tickRoomSimulation(room: Room) {
   if (room.ended) return;
   room.routeBudget??=new BotRouteBudget();
-  room.routeBudget.beginTick(cityIndex(room)?1:2);
+  room.routeBudget.beginTick(denseBotMap(room)?1:2);
   if(room.mode==="survival"){
     const now=Date.now();
     if(survivalPauseActive(room.players.size,room.survivalOffers.size,room.survivalMenuPaused)){
@@ -2690,10 +2718,7 @@ function tickRoom(room: Room) {
     // Only run bot AI once the pre-match countdown is over (bots freeze during
     // "GET READY" so the player has a moment to orient).
     if (room.preMatchCountdown <= 0) {
-      for (const bot of room.bots.values()) {
-        if (!bot.alive) continue;
-        updateBotAI(room, bot, now);
-      }
+      updateRoomBots(room,now);
     }
     tickWonderExpansion(room,now);
     tickScavengerDrops(room, now);
@@ -2721,10 +2746,7 @@ function tickRoom(room: Room) {
   tickWonderExpansion(room,now);
   // Only run bot AI when the pre-match countdown is over.
   if (room.preMatchCountdown <= 0) {
-    for (const bot of room.bots.values()) {
-      if (!bot.alive) continue;
-      updateBotAI(room, bot, now);
-    }
+    updateRoomBots(room,now);
   }
   tickScavengerDrops(room, now);
   if (room.mode === "killconfirmed" && room.preMatchCountdown <= 0) {
@@ -2817,7 +2839,11 @@ function nearestEnemy(room: Room, p: PlayerNet): PlayerNet | null {
   // Bots require LINE OF SIGHT to acquire a target (they're no longer omniscient).
   // If no visible enemy exists, the bot falls back to wandering. This makes bots
   // feel less psychic — you can break LoS to escape them.
-  for (const e of allCombatants(room)) {
+  const radius=Math.min(botDetectionRange(room.bots.get(p.id)?.ai.difficulty??"normal",weaponById(p.weaponId).category)*botAwarenessPerkMultiplier(room.loadouts.get(p.id)?.perkId),
+    room.map.id==="whiteout_depot"?whiteoutVisibility(room.environmentTime,p.pos):Infinity);
+  const candidates=room.actorIndex?.near(p.pos[0],p.pos[2],radius)
+    .sort((a,b)=>Number(a.isBot)-Number(b.isBot))??allCombatants(room);
+  for (const e of candidates) {
     if (e.id === p.id || !e.alive || (room.mode === "survival" && (e.isBot || room.downed.has(e.id)))) continue;
     if (e.team === p.team && room.mode !== "ffa" && room.mode !== "gungame") continue;
     const d = Math.hypot(e.pos[0] - p.pos[0], e.pos[2] - p.pos[2]);
@@ -2835,22 +2861,18 @@ function nearestEnemy(room: Room, p: PlayerNet): PlayerNet | null {
   return best;
 }
 
-/** Short-range static collision and elevated city goals are cached per MapDef.
- * Dynamic hazards use the original movement checks; Afterlight itself has no
- * moving cover and is safe to index once per room map. */
-const cityCoverIndexes=new WeakMap<MapDef,CoverSpatialIndex>();
+/** Cover locality is shared across all maps; environment geometry is read live.
+ * Preserve the existing tighter route budget for dense city/forest maps. */
 const cityHighGoals=new WeakMap<MapDef,HighGroundGoal[]>();
-function cityIndex(room:Room):CoverSpatialIndex|undefined{
-  if(room.map.biome!=="city"&&room.map.biome!=="city_day"&&room.map.biome!=="forest_warfare")return undefined;
-  let index=cityCoverIndexes.get(room.map);
-  if(!index){index=new CoverSpatialIndex(room.map.cover);cityCoverIndexes.set(room.map,index);}
-  return index;
+function denseBotMap(room:Room):boolean {
+  return room.map.biome==="city"||room.map.biome==="city_day"||room.map.biome==="forest_warfare";
 }
-function cityCoverNear(room:Room,x:number,z:number,pad=3){
-  return cityIndex(room)?.near(x,z,pad)??room.map.cover;
-}
-function cityCoverAlong(room:Room,a:Vec3,b:Vec3,pad=2){
-  return cityIndex(room)?.along(a[0],a[2],b[0],b[2],pad)??room.map.cover;
+function roomCoverIndex(room:Room){return mapCoverIndex(room.map);}
+function roomCoverNear(room:Room,x:number,z:number,pad=3){return roomCoverIndex(room).near(x,z,pad);}
+function roomCoverAlong(room:Room,a:Vec3,b:Vec3,pad=2){return roomCoverIndex(room).along(a[0],a[2],b[0],b[2],pad);}
+function coverForRay(room:Room,origin:Vec3,dir:Vec3,range:number){
+  if(!Number.isFinite(range)||range<0||!origin.every(Number.isFinite)||!dir.every(Number.isFinite))return room.map.cover;
+  return roomCoverAlong(room,origin,[origin[0]+dir[0]*range,origin[1]+dir[1]*range,origin[2]+dir[2]*range],.001);
 }
 function roomHighGroundGoals(room:Room):HighGroundGoal[]{
   if(room.map.biome!=="city"&&room.map.biome!=="city_day")return [];
@@ -2959,7 +2981,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
               hasLineOfSight(room,origin,[e.pos[0],e.pos[1]+1,e.pos[2]])).map(e=>e.id);
             io.to(p.id).emit("message",{t:"harbingerScan",ids,durationMs:2200} as S2C);
           }
-          p.pos=clampToArena(room,anchor.pos);
+          p.pos=clampToArena(room,anchor.pos);room.actorIndex?.update(p);
           room.chronoAnchors.delete(p.id);
           io.to(room.id).emit("message",{t:"chronoRecall",playerId:p.id,pos:p.pos} as S2C);
           return;
@@ -3092,7 +3114,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
       }
       // Preserve the struck cover for remote tracers even if it breaks before
       // shotFx is broadcast; attached ammo may also alter cover penetration.
-      const shotCoverStop=traceCoverPenetration(room.map.cover,msg.origin,shotDir,
+      const shotCoverStop=traceCoverPenetration(coverForRay(room,msg.origin,shotDir,maxWeaponHitRange(eff.range,eff)),msg.origin,shotDir,
         maxWeaponHitRange(eff.range,eff),eff.coverPenetration??0,weapon.wonder?.kind==="rail").blockedAt;
       // Bullets can destroy enemy recon drones, but never through solid cover.
       if(weapon.category!=="melee"&&!weapon.wonder){
@@ -3129,7 +3151,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
           room.harbingerDrones.delete(id);
           io.to(room.id).emit("message",{t:"harbingerRemoved",id} as S2C);
         }
-        const hit=closestCoverHit(room.map.cover,msg.origin,shotDir,14,rayBox);
+        const hit=closestCoverHit(coverForRay(room,msg.origin,shotDir,14),msg.origin,shotDir,14,rayBox);
         const pos=harbingerPlacement(msg.origin,shotDir,hit?.distance??14,room.map.size);
         const id=genId("harbinger"),tune=harbingerTuning(loadout?.wonderModuleId);
         const data={id,ownerId:p.id,ownerTeam:p.team,pos,
@@ -3179,7 +3201,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
           if(!target.alive)continue;
           const candidate=seismicPushPosition(feet,target.pos,4.5*module.knockbackMul);
           if(!botMoveBlocked(room,target.pos,candidate,target.pos[1])){
-            target.pos=clampToArena(room,candidate);
+            target.pos=clampToArena(room,candidate);room.actorIndex?.update(target);
             io.to(room.id).emit("message",{t:"shieldBashPush",victimId:target.id,pos:target.pos} as S2C);
           }
         }
@@ -3292,7 +3314,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         const hits=new Map<string,number>(),chains=new Map<string,number>();
         for(const pelletDir of stormPelletDirections(shotDir)){
           const contacts=stormCandidates(room,p.id,p.team,now);
-          const impact=traceStormPellet(msg.origin,pelletDir,eff.range,room.map.cover,contacts);
+          const impact=traceStormPellet(msg.origin,pelletDir,eff.range,coverForRay(room,msg.origin,pelletDir,eff.range),contacts);
           // Lightning is only emitted by serverStormChain from the impact victim
           // to the next target, never as a bogus arc from the firing muzzle.
           if(impact.victim){
@@ -3328,7 +3350,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         const dir: Vec3 = [shotDir[0] / dlen, shotDir[1] / dlen, shotDir[2] / dlen];
         // Compute the impact point: nearest cover box OR combatant along the ray.
         let impactT = eff.range;
-        const coverImpact = closestCoverHit(room.map.cover, msg.origin, dir, impactT, rayBox);
+        const coverImpact = closestCoverHit(coverForRay(room,msg.origin,dir,impactT), msg.origin, dir, impactT, rayBox);
         if (coverImpact) impactT = coverImpact.distance;
         for (const e of allCombatants(room)) {
           if (e.id === p.id || !e.alive) continue;
@@ -3416,7 +3438,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
             : pellets > 1 ? normalize(add(shotDir, randSpread(eff.spread))) : shotDir;
           // A bullet first intersects cover. Damage destructible walls instead of
           // allowing it to continue through the wall in the same pellet.
-          const coverHit = closestCoverHit(room.map.cover, msg.origin, dir, maxWeaponHitRange(eff.range, eff), rayBox);
+          const coverHit = closestCoverHit(coverForRay(room,msg.origin,dir,maxWeaponHitRange(eff.range, eff)), msg.origin, dir, maxWeaponHitRange(eff.range, eff), rayBox);
           const resolved=firePenetratingRay(room, p.id, msg.origin, dir, eff.range, eff, weapon.wonder?.kind==="rail");
           const hits=resolved.hits;
           let refundedRailShot=false;
@@ -3761,7 +3783,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     ai.sprinting=stance.sprinting;
     ai.aiming=stance.aiming && !isTaserAdsBlocked(room.equipmentAdsBlockedUntil.get(bot.id)??0,now);
     if(now>=(ai.nextCombatJumpAt??0)&&botWantsCombatJump(ai.difficulty,weapon.category,dist,clearShot,
-      ai.envJumpVelocityY===undefined&&botHasJumpClearance(cityCoverNear(room,bot.pos[0],bot.pos[2],2.5),bot.pos),now,ai.nextCombatJumpAt??0,Math.random())){
+      ai.envJumpVelocityY===undefined&&botHasJumpClearance(roomCoverNear(room,bot.pos[0],bot.pos[2],2.5),bot.pos),now,ai.nextCombatJumpAt??0,Math.random())){
       ai.envJumpVelocityY=MOVEMENT.jumpVelocity;ai.envLaunchX=0;ai.envLaunchZ=0;ai.nextCombatJumpAt=now+botTactics(ai.difficulty).jumpCooldown;
     }
     const botCarryingFlag=room.mode==="ctf"&&(room.flags.red.carrierId===bot.id||room.flags.blue.carrierId===bot.id);
@@ -3788,9 +3810,9 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       botMoveBlocked(room,bot.pos,[bot.pos[0]+mvx*6,bot.pos[1],bot.pos[2]+mvz*6],bot.pos[1]) ||
       floodgateRouteNeedsDetour(bot.pos,target.pos,floodAge,room.map.cover))) {
       if(now>=(ai.nextRouteAt??0)&&room.routeBudget?.take()){
-        const index=cityIndex(room);
+        const index=roomCoverIndex(room);
         ai.routeWaypoint=botNextWaypoint(bot.pos,botMapRouteGoal(room.map.id,bot.pos,target.pos),room.map.cover,room.map.size,3,
-          floodgatePathHazards(room.map,room.floodgateBreachAt!==null),room.map.regions,index,index?280:1000,floodAge) ??
+          floodgatePathHazards(room.map,room.floodgateBreachAt!==null),room.map.regions,index,denseBotMap(room)?280:1000,floodAge) ??
           botHighGroundWaypoint(bot.pos,target.pos,room.map.cover);
         ai.nextRouteAt=now+850+botRouteJitter(bot.id);
       }
@@ -3915,7 +3937,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       const origin: Vec3 = [bot.pos[0], bot.pos[1] + 1.5, bot.pos[2]];
       const pellets = eff.pellets ?? 1;
       // Remember the cover visible to this shot, before its pellets can break it.
-      const shotCoverStop=traceCoverPenetration(room.map.cover,origin,dir,
+      const shotCoverStop=traceCoverPenetration(coverForRay(room,origin,dir,maxWeaponHitRange(eff.range,eff)),origin,dir,
         maxWeaponHitRange(eff.range,eff),eff.coverPenetration??0).blockedAt;
       let didHit = false;
       if(isThrowingKnife(weapon.id)){
@@ -3995,7 +4017,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     // wander toward wanderTarget (with wall collision so bots don't clip through cover)
     const patrolGoal=ai.highGroundPatrol;
     const patrolPoint=patrolGoal?cityHighGroundStep(bot.pos,patrolGoal,
-      cityCoverNear(room,bot.pos[0],bot.pos[2],35)):ai.wanderTarget;
+      roomCoverNear(room,bot.pos[0],bot.pos[2],35)):ai.wanderTarget;
     const navPoint=botMapRouteGoal(room.map.id,bot.pos,patrolPoint);
     const dx=navPoint[0]-bot.pos[0],dz=navPoint[2]-bot.pos[2];
     const d=Math.hypot(dx,dz);
@@ -4031,10 +4053,10 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
           floodgateRouteNeedsDetour(bot.pos,patrolPoint,floodAge,room.map.cover)) &&
           (!patrolGoal||d>4.5)){
         if(now>=(ai.nextRouteAt??0)&&room.routeBudget?.take()){
-          const index=cityIndex(room);
+          const index=roomCoverIndex(room);
           ai.routeWaypoint=botNextWaypoint(bot.pos,navPoint,room.map.cover,room.map.size,3,
-            floodgatePathHazards(room.map,room.floodgateBreachAt!==null),room.map.regions,index,index?280:1000,floodAge);
-          ai.nextRouteAt=now+(index?1500:850)+botRouteJitter(bot.id);
+            floodgatePathHazards(room.map,room.floodgateBreachAt!==null),room.map.regions,index,denseBotMap(room)?280:1000,floodAge);
+          ai.nextRouteAt=now+(denseBotMap(room)?1500:850)+botRouteJitter(bot.id);
         }
         const waypoint=ai.routeWaypoint;
         if(waypoint){const wx=waypoint[0]-bot.pos[0],wz=waypoint[2]-bot.pos[2],wd=Math.hypot(wx,wz);
@@ -4105,18 +4127,18 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
   if (bot.ai.envJumpVelocityY !== undefined) {
     const dy = bot.ai.envJumpVelocityY;
     const launchDx=(bot.ai.envLaunchX ?? 0)/20,launchDz=(bot.ai.envLaunchZ ?? 0)/20;
-    const airCover=cityCoverAlong(room,bot.pos,
+    const airCover=roomCoverAlong(room,bot.pos,
       [bot.pos[0]+launchDx,bot.pos[1],bot.pos[2]+launchDz],2.5);
     const airborne=botAirStep(airCover,bot.pos,launchDx,dy/20,launchDz);
     bot.pos=airborne.pos;
     bot.ai.envJumpVelocityY=airborne.hitCeiling?0:dy-22*orbitalGravity(room.map,bot.weaponId)/20;
-    const ground = botGroundHeight(cityCoverNear(room,bot.pos[0],bot.pos[2],2.5), bot.pos[0], bot.pos[2], bot.pos[1]);
+    const ground = botGroundHeight(roomCoverNear(room,bot.pos[0],bot.pos[2],2.5), bot.pos[0], bot.pos[2], bot.pos[1]);
     if (bot.ai.envJumpVelocityY <= 0 && bot.pos[1] <= ground) {
       bot.pos[1] = ground;
       bot.ai.envJumpVelocityY = undefined;
     }
   } else {
-    bot.pos[1] = botNextFeetY(cityCoverNear(room,bot.pos[0],bot.pos[2],2.5), bot.pos, 1 / 20);
+    bot.pos[1] = botNextFeetY(roomCoverNear(room,bot.pos[0],bot.pos[2],2.5), bot.pos, 1 / 20);
   }
   bot.pos = clampToArena(room, collideBots(room, bot.pos, bot.pos[1]));
   // ---- Task 16-a: stuck detection & recovery (mirrors the offline engine) ----
@@ -4194,13 +4216,13 @@ function randSpread(s: number): Vec3 {
 // would put the bot inside any blocking cover box. Uses 3 samples (from, to,
 // midpoint) so thin walls can't be tunneled.
 function botMoveBlocked(room: Room, from: Vec3, to: Vec3, currentY: number): boolean {
-  const cover = cityCoverAlong(room, from, to, 2);
+  const cover = roomCoverAlong(room, from, to, 2);
   return blocksBotMotion(cover, from, to, currentY) ||
     botEntersHazard(cover, room.map.environment, from, to, room.environmentTime);
 }
 
 function collideBots(room: Room, pos: Vec3, currentY: number): Vec3 {
-  return resolveBotOverlap(cityCoverNear(room,pos[0],pos[2],3), pos, currentY);
+  return resolveBotOverlap(roomCoverNear(room,pos[0],pos[2],3), pos, currentY);
 }
 
 // Soft bot-vs-bot (and bot-vs-player) separation. After the cover push-out,
@@ -4219,16 +4241,10 @@ function separateBots(room: Room, bot: PlayerNet & { ai: BotAI }, currentY: numb
   const minDist = room.mode === "ctf" ? 3.1 : 2 * PLAYER_RADIUS + 0.2;
   const minDistSq = minDist * minDist;
   const yTol = PLAYER_HEIGHT * 0.8;
-  const others: { pos: Vec3; alive: boolean }[] = [];
-  for (const b of room.bots.values()) {
-    if (b.id === bot.id) continue;
-    others.push({ pos: b.pos, alive: b.alive });
-  }
-  for (const p of room.players.values()) {
-    others.push({ pos: p.pos, alive: p.alive });
-  }
+  const radius=minDist*(1+(room.bots.size+room.players.size)/4);
+  const others=room.actorIndex?.near(bot.pos[0],bot.pos[2],radius)??[...room.bots.values(),...room.players.values()];
   for (const o of others) {
-    if (!o.alive) continue;
+    if (o.id===bot.id || !o.alive) continue;
     if (Math.abs(o.pos[1] - currentY) > yTol) continue;
     const ddx = bot.pos[0] - o.pos[0];
     const ddz = bot.pos[2] - o.pos[2];
@@ -4242,7 +4258,7 @@ function separateBots(room: Room, bot: PlayerNet & { ai: BotAI }, currentY: numb
     const push = overlap * 0.5 * 0.5;
     const before: Vec3 = [...bot.pos];
     const after: Vec3 = [before[0] + (ddx / dist) * push, before[1], before[2] + (ddz / dist) * push];
-    if (!blocksBotMotion(cityCoverAlong(room,before,after,2), before, after, currentY)) bot.pos = after;
+    if (!blocksBotMotion(roomCoverAlong(room,before,after,2), before, after, currentY)) bot.pos = after;
   }
 }
 
@@ -4254,7 +4270,7 @@ function hasLineOfSight(room: Room, from: Vec3, to: Vec3): boolean {
   const len = Math.hypot(dx, dy, dz);
   if (len < 0.01) return true;
   const dir: Vec3 = [dx / len, dy / len, dz / len];
-  for (const cov of cityCoverAlong(room,from,to,2)) {
+  for (const cov of roomCoverAlong(room,from,to,2)) {
     if (cov.kind === "accent" || cov.kind === "stair") continue;
     const t = rayBox(from, dir, cov.pos, cov.size);
     if (t !== null && t < len) return false;

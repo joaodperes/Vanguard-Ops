@@ -84,8 +84,13 @@ import { chooseBotPatrolPoint, botPatrolDistance } from "@/lib/bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint, botEntersHazard, botMapRouteGoal } from "@/lib/bot-routing";
 import { BotRouteBudget, botRouteJitter } from "./bot-performance-budget";
 import { botAnimationIntervalMs, cityDetailDistance, partitionCoverIntoRenderCells, pixelRatioCap, type RenderQuality } from "./render-performance";
-import { batchStaticPropMeshes } from "./static-prop-batching";
+import { batchStaticPropMeshes, batchStaticMapMeshes } from "./static-prop-batching";
 import { CoverSpatialIndex } from "@/lib/cover-spatial-index";
+import { mapCoverIndex, invalidateMapCoverIndex } from "./map-cover-index";
+import { ActorSpatialIndex } from "./actor-spatial-index";
+import { MovementSendBudget } from "./movement-send-budget";
+import { PerformanceSamples } from "./performance-samples";
+import { WorldLightBudget } from "./world-light-budget";
 import {cityHighGroundGoals,chooseCityHighGroundGoal,cityHighGroundStep,type HighGroundGoal} from "@/lib/city-high-ground";
 import { cityCoverKey, hiddenCityColliderKeys } from "./city-render-colliders";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
@@ -529,6 +534,7 @@ interface Combatant {
   downed?:boolean;
   skinMaterial?: THREE.MeshStandardMaterial;
   thermalOverlays?: THREE.Mesh[];
+  remoteWeaponDetails?: THREE.Object3D[];
   // humanoid animation parts
   parts?: HumanoidParts;
   walkPhase?: number;
@@ -664,7 +670,13 @@ export class FPSEngine {
 
   // current map
   private map: MapDef;
-  private staticCoverIndex: {source:CoverBox[];index:CoverSpatialIndex}|null=null;
+  private actorIndex = new ActorSpatialIndex<Combatant>();
+  private movementSendBudget = new MovementSendBudget();
+  private movementPackets = 0;
+  private frameSamples = new PerformanceSamples();
+  private updateSamples = new PerformanceSamples();
+  private renderSamples = new PerformanceSamples();
+  private worldLightBudget: WorldLightBudget | null = null;
   private highGroundCache:{source:MapDef["props"];goals:HighGroundGoal[]}|null=null;
   // Only expensive A* searches are budgeted. Every bot still moves and collides each frame.
   private botRouteBudget = new BotRouteBudget();
@@ -686,7 +698,7 @@ export class FPSEngine {
   private updateRenderBudget(now:number,elapsedMs:number){
     // The last requestAnimationFrame interval includes both CPU and GPU stalls.
     // Ignore background-tab catchup and adapt on all maps, not only the city.
-    if(elapsedMs<=0||elapsedMs>=120)return;
+    if(document.hidden||elapsedMs<=0||elapsedMs>=1000)return;
     this.renderFrameMs=this.renderFrameMs*.94+elapsedMs*.06;
     if(now<this.nextRenderQualityCheck)return;
     this.nextRenderQualityCheck=now+1800;
@@ -714,19 +726,28 @@ export class FPSEngine {
       this.highGroundCache={source:this.map.props,goals:cityHighGroundGoals(this.map.props??[])};
     return this.highGroundCache!.goals;
   }
-  /** Static cover broadphase for all maps; dynamic floodgate cover stays on its
-   * original full-list path. Structural cover replacement invalidates the cache. */
-  private coverIndex():CoverSpatialIndex|null{
-    if(this.map.id==="floodgate")return null;
-    if(this.staticCoverIndex?.source!==this.map.cover)
-      this.staticCoverIndex={source:this.map.cover,index:new CoverSpatialIndex(this.map.cover)};
-    return this.staticCoverIndex!.index;
-  }
+  /** Shared static broadphase with a live dynamic-overlay query on every map. */
+  private coverIndex():CoverSpatialIndex { return mapCoverIndex(this.map); }
   private coverNear(x:number,z:number,pad=3):CoverBox[]{
     return this.coverIndex()?.near(x,z,pad)??this.map.cover;
   }
   private coverAlong(a:Vec3,b:Vec3,pad=2):CoverBox[]{
     return this.coverIndex()?.along(a[0],a[2],b[0],b[2],pad)??this.map.cover;
+  }
+  private coverForRay(origin:Vec3,dir:Vec3,range:number):CoverBox[]{
+    if(!Number.isFinite(range)||range<0||!origin.every(Number.isFinite)||!dir.every(Number.isFinite))return this.map.cover;
+    return this.coverAlong(origin,[origin[0]+dir[0]*range,origin[1]+dir[1]*range,origin[2]+dir[2]*range],.001);
+  }
+
+  /** Read-only developer diagnostics; render time is CPU submission time,
+   * while frame intervals include observed GPU/browser stalls. */
+  getPerformanceStats() {
+    const info=this.renderer.info;
+    return { mapId:this.map.id, actors:this.combatants.size, pixelRatio:this.renderer.getPixelRatio(),
+      frameMs:this.frameSamples.summary(), updateMs:this.updateSamples.summary(),
+      renderMs:this.renderSamples.summary(), drawCalls:info.render.calls, triangles:info.render.triangles,
+      geometries:info.memory.geometries, textures:info.memory.textures,
+      shaderPrograms:info.programs?.length??0, movementPackets:this.movementPackets };
   }
   private surfaceMaterials: MapSurfaceMaterials | null = null;
   private gardenMaterial: THREE.MeshStandardMaterial | null = null;
@@ -1474,6 +1495,8 @@ export class FPSEngine {
     this.buildMapProps();
     if (this.opts.mode === "ctf") this.buildCtfFlagModels();
     this.buildEnvironment();
+    this.worldLightBudget=new WorldLightBudget(this.scene,
+      this.renderMode()==="performance"?6:this.renderMode()==="quality"?20:10);
     this.buildViewmodel();
     this.createQuickMeleeModel();
     this.setupInput();
@@ -1521,6 +1544,8 @@ export class FPSEngine {
   // ---- Three.js setup ----
   private initThree() {
     this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "default" });
+    // Count all scene/shadow/NVG passes once per logical frame.
+    this.renderer.info.autoReset=false;
     // Cap pixel fill rate on large maps and adjust it down on slow frames.
     this.renderResolutionScale=this.renderCap();
     this.renderer.setPixelRatio(this.renderResolutionScale);
@@ -1716,7 +1741,9 @@ export class FPSEngine {
           this.scene.add(instanced);
         }
       }
-    }else for(const c of this.map.cover) {
+    }else {
+    const staticMeshes:THREE.Mesh[]=[];
+    for(const c of this.map.cover) {
       if (c.environmentId || detailedCastleFixtures.has(JSON.stringify(c))) continue;
       const kind = c.kind ?? "cover";
       if (this.map.id === "forest_warfare" && kind !== "stair") continue;
@@ -1732,12 +1759,16 @@ export class FPSEngine {
       m.castShadow = true; m.receiveShadow = true;
       this.scene.add(m);
       if(c.ballisticId)this.ballisticMeshes.set(c.ballisticId,m);
+      else staticMeshes.push(m);
       if (kind === "platform" && c.size[1] >= 1.5) {
         const stripeGeo = new THREE.BoxGeometry(c.size[0] * 2 + 0.05, 0.08, c.size[2] * 2 + 0.05);
         const stripe = new THREE.Mesh(stripeGeo, accentMat);
         stripe.position.set(c.pos[0], c.pos[1] + c.size[1], c.pos[2]);
         this.scene.add(stripe);
+        if(!c.ballisticId)staticMeshes.push(stripe);
       }
+    }
+    batchStaticMapMeshes(this.scene,staticMeshes);
     }
 
     // ---- Spawn points: NO visible markers (players complained about colored
@@ -4882,7 +4913,7 @@ export class FPSEngine {
           const distance=Math.hypot(dx,dz)||1;
           const pushed:Vec3=[target.pos[0]+dx/distance*RIOT_BASH_KNOCKBACK,
             target.pos[1],target.pos[2]+dz/distance*RIOT_BASH_KNOCKBACK];
-          if(!blocksBotMotion(this.map.cover,target.pos,pushed,target.pos[1]))target.pos=pushed;
+          if(!blocksBotMotion(this.map.cover,target.pos,pushed,target.pos[1])){target.pos=pushed;this.actorIndex?.update(target);}
         }
         if(this.meleeWeaponId==="baton"&&target.ai&&target.ai.reloadingUntil>now){
           target.ai.reloadingUntil=now+1100;
@@ -4922,7 +4953,7 @@ export class FPSEngine {
     this.scene.add(group);
     this.deployedCovers.set(cover.id,{cover:{...cover},mesh:group});
     this.map.cover=[...this.map.cover,...coverPanels(cover)];
-    this.staticCoverIndex=null;
+    invalidateMapCoverIndex(this.map);
   }
   private paintDeployCover(item:{cover:DeployedCover;mesh:THREE.Group}):void{
     const frac=Math.max(0,item.cover.hp/DEPLOY_COVER_HP);
@@ -4937,7 +4968,7 @@ export class FPSEngine {
     if(!item)return;
     this.deployedCovers.delete(id);
     this.map.cover=this.map.cover.filter(box=>box.environmentId!==DEPLOY_COVER_PREFIX+id);
-    this.staticCoverIndex=null;
+    invalidateMapCoverIndex(this.map);
     this.scene.remove(item.mesh);
     item.mesh.traverse(object=>{
       if(object instanceof THREE.Mesh){
@@ -4959,7 +4990,7 @@ export class FPSEngine {
   }
   private damageDeployCoverRay(origin:Vec3,dir:Vec3,range:number,damage:number,stopAt:number):void{
     if(this.opts.online)return;
-    const hit=closestCoverHit(this.map.cover,origin,dir,range,rayBox);
+    const hit=closestCoverHit(this.coverForRay(origin,dir,range),origin,dir,range,rayBox);
     if(!hit || hit.distance>stopAt+.05)return;
     const id=coverIdForBox(hit.box);
     if(!id)return;
@@ -5023,7 +5054,7 @@ export class FPSEngine {
     if (id === "frag" || id === "flashbang")
       return tacticalGrenadePath(origin,dir,this.map.cover,this.map.id);
     return calculateThrowPath(origin,dir,id as "knives"|"poison_dart"|"taser"|"mine",(at,v,d)=>
-      closestCoverHit(this.map.cover,at,v,d,rayBox)?.distance ?? null, this.pos.y+.12);
+      closestCoverHit(this.coverForRay(at,v,d),at,v,d,rayBox)?.distance ?? null, this.pos.y+.12);
   }
 
   /** Grenades are aimed with the normal crosshair. No occluding dotted arc. */
@@ -6161,24 +6192,14 @@ export class FPSEngine {
     }
   }
 
-  // ---- Humanoid model builder ----
-  // Articulated body: torso, head, arms (upper+lower), legs (upper+lower), weapon in hands.
-  private addCombatantMesh(c: Combatant) {
-    const skin = playerSkinById(c.playerSkinId);
-    const isBoss = isSurvivalBoss(c.id, c.name, c.isBot);
-    const bodyMat = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(skin.color),
-      roughness: 0.6, metalness: 0.3,
-      emissive: skin.emissive ? new THREE.Color(skin.emissive) : new THREE.Color(0x000000),
-      emissiveIntensity: skin.emissive ? 0.4 : 0,
-    });
-    const accentMat = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(skin.accent),
-      roughness: 0.5, metalness: 0.4,
-      emissive: skin.emissive ? new THREE.Color(skin.emissive) : new THREE.Color(skin.accent),
-      emissiveIntensity: 0.3,
-    });
-    const darkMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.7, metalness: 0.2 });
+  private combatantAppearance(c:Combatant):string {
+    return JSON.stringify([c.playerSkinId,c.team,c.name,c.nameplateId]);
+  }
+
+  /** Reused by initial construction and weapon-only swaps. Body joints,
+   * skin materials, labels and armor survive ordinary weapon changes. */
+  private buildCombatantWeapon(c:Combatant) {
+    const optionalDetails:THREE.Object3D[]=[];
     const weaponFinish = weaponSkinById(c.weaponId==="wonder_turret"?"default":c.weaponSkinId);
     const fullWorldLegendary = coatsAllWeaponParts(weaponFinish) || weaponFinish.id === "carbon";
     const worldDefaultTint = weaponFinish.id === "default"
@@ -6201,6 +6222,137 @@ export class FPSEngine {
       weaponMat.color.set(0xffffff);
     }
 
+    // ---- Third-person weapon (model faces character-forward +Z) ----
+    // The procedural weapon builder is camera-local (-Z forward). Its geometry,
+    // hand contacts and muzzle direction are all rotated by 180° about Y for
+    // soldiers, so rifles actually point ahead of the character.
+    const weaponStub = new THREE.Group();
+    const wcat = weaponById(c.weaponId).category;
+    const wid = c.weaponId;
+    if (wcat === "melee") {
+      // World-space opponents carry the same identifiable blade/haft
+      // profiles as first-person and F quick melee, rotated toward +Z.
+      weaponStub.rotation.x=-Math.PI/2.7;
+      const visual=new THREE.Group();
+      visual.rotation.y=Math.PI;
+      visual.scale.setScalar(BOT_WEAPON_VISUAL_SCALE);
+      const grip=new THREE.MeshStandardMaterial({color:0x323f47,metalness:.3,roughness:.78});
+      buildMeleeWeaponParts(wid,weaponMat,grip,(part,x,y,z)=>{
+        part.position.set(x,y,z);visual.add(part);
+      });
+      batchStaticPropMeshes(visual);
+      weaponStub.add(visual);
+    } else {
+      // Other players/bots carry the SAME distinctive weapon silhouettes as the
+      // local player. The first-person builder points toward camera -Z; rotate
+      // its output 180° so it points forward (+Z) in the humanoid's hands.
+      const visual = new THREE.Group();
+      visual.rotation.y = Math.PI;
+      visual.scale.setScalar(BOT_WEAPON_VISUAL_SCALE);
+      const weaponFurniture = fullWorldLegendary
+        ? weaponMat
+        : new THREE.MeshStandardMaterial({ color: 0x28323b, roughness: 0.82, metalness: 0.18 });
+      if(c.akimbo&&isAkimboWeapon(wid,"grip_akimbo")){
+        // Two receivers with symmetric true grip contacts: remote players also dual wield.
+        for(const hand of ["left","right"] as const){
+          const sign=hand==="left"?1:-1; // builder is rotated 180deg on Y
+          const shiftX=sign*(wcat==="shotgun"?.42:.28)/BOT_WEAPON_VISUAL_SCALE;
+          const shiftY=-.035/BOT_WEAPON_VISUAL_SCALE;
+          const muzzleZ=buildFirstPersonWeapon(wid,weaponMat,weaponFurniture,(mesh,x,y,z)=>{
+            mesh.position.set(x+shiftX,y+shiftY,z);
+            visual.add(mesh);
+          },fullWorldLegendary?weaponMat:undefined,
+            weaponFinish.id!=="default"?(weaponFinish.id==="gold"?weaponFurniture:weaponMat):undefined);
+          // Each receiver's hardware duplicates the owner's actual sight and
+          // barrel attachment instead of showing bare guns to other players.
+          if(c.akimboBarrelId){
+            const barrel=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,.2,10),weaponFurniture);
+            barrel.rotation.x=Math.PI/2;
+            barrel.position.set(shiftX,shiftY,muzzleZ-.1);
+            visual.add(barrel);
+          }
+          if(c.akimboSightId){
+            const laser=c.akimboSightId==="sight_laser";
+            const sight=new THREE.Group();
+            if(laser){
+              const housing=new THREE.Mesh(new THREE.BoxGeometry(.055,.045,.075),weaponFurniture);
+              sight.add(housing);
+              const emitter=new THREE.Mesh(new THREE.SphereGeometry(.012,8,6),
+                new THREE.MeshBasicMaterial({color:0xff3333}));
+              emitter.position.z=-.042;
+              sight.add(emitter);
+            }else{
+              // Lightweight open-frame reflex/holo hardware; no blocked optic window.
+              for(const side of [-1,1]){
+                const upright=new THREE.Mesh(new THREE.BoxGeometry(.009,.07,.012),weaponFurniture);
+                upright.position.x=side*.041;sight.add(upright);
+              }
+              const bridge=new THREE.Mesh(new THREE.BoxGeometry(.092,.009,.012),weaponFurniture);
+              bridge.position.y=.034;sight.add(bridge);
+            }
+            sight.position.set(shiftX,shiftY+.105,-.16);
+            visual.add(sight);
+          }
+        }
+      }else{
+        buildFirstPersonWeapon(wid,weaponMat,weaponFurniture,(mesh,x,y,z)=>{
+          mesh.position.set(x,y,z);visual.add(mesh);
+        },fullWorldLegendary?weaponMat:undefined,
+          weaponFinish.id!=="default"?(weaponFinish.id==="gold"?weaponFurniture:weaponMat):undefined);
+      }
+      if(c.charmId && c.charmId!=="none" && weaponSupportsCharm(weaponById(c.weaponId))){
+        const charm=createWeaponCharm(c.charmId);
+        if(charm){charm.position.set(...weaponCharmMountPoint(c.weaponId,"thirdPerson"));visual.add(charm);optionalDetails.push(charm);}
+      }
+      batchStaticPropMeshes(visual);
+      weaponStub.add(visual);
+    }
+    // Place the gun ahead of the chest rather than through it. The right-hand
+    // grip is near the trigger; the left hand reaches under the rear handguard.
+    // For pistols both hands form a compact two-handed grip, while melee uses
+    // a single weapon hand and a relaxed off-hand.
+    const weaponBase = new THREE.Vector3(-0.08, wcat === "melee" ? 1.29 : 1.30, 0.36);
+    weaponStub.position.copy(weaponBase);
+    let weaponHoldRight: THREE.Vector3;
+    let weaponHoldLeft: THREE.Vector3;
+    if (wcat === "melee") {
+      weaponHoldRight = new THREE.Vector3(-0.07, -0.01, 0.015);
+      weaponHoldLeft = new THREE.Vector3(0.38, -0.19, -0.28);
+    } else {
+      const contacts = weaponHoldPoints(wid);
+      const toBotHandSpace = ([x, y, z]: [number, number, number]) =>
+        new THREE.Vector3(-x, y, -z).multiplyScalar(BOT_WEAPON_VISUAL_SCALE);
+      if(c.akimbo&&isAkimboWeapon(wid,"grip_akimbo")){
+        // Opposite hands now grip separate trigger guards rather than a support stock.
+        weaponHoldRight=toBotHandSpace(contacts.trigger).add(new THREE.Vector3(wcat==="shotgun"?.42:.28,-.035,0));
+        weaponHoldLeft=toBotHandSpace(contacts.trigger).add(new THREE.Vector3(wcat==="shotgun"?-.42:-.28,-.035,0));
+      }else{
+        weaponHoldRight=toBotHandSpace(contacts.trigger);
+        weaponHoldLeft=toBotHandSpace(contacts.support);
+      }
+    }
+    return {weaponStub,weaponHoldRight,weaponHoldLeft,weaponBase,weaponMat,optionalDetails};
+
+  }
+
+  // ---- Humanoid model builder ----
+  // Articulated body: torso, head, arms (upper+lower), legs (upper+lower), weapon in hands.
+  private addCombatantMesh(c: Combatant) {
+    const skin = playerSkinById(c.playerSkinId);
+    const isBoss = isSurvivalBoss(c.id, c.name, c.isBot);
+    const bodyMat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(skin.color),
+      roughness: 0.6, metalness: 0.3,
+      emissive: skin.emissive ? new THREE.Color(skin.emissive) : new THREE.Color(0x000000),
+      emissiveIntensity: skin.emissive ? 0.4 : 0,
+    });
+    const accentMat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(skin.accent),
+      roughness: 0.5, metalness: 0.4,
+      emissive: skin.emissive ? new THREE.Color(skin.emissive) : new THREE.Color(skin.accent),
+      emissiveIntensity: 0.3,
+    });
+    const darkMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.7, metalness: 0.2 });
     // Bosses wear a sealed Juggernaut exosuit rather than a legendary
     // operative skin. A neutral undersuit prevents exposed red cosmetic
     // panels from bleeding through the armor and its visor.
@@ -6214,6 +6366,7 @@ export class FPSEngine {
     }
     c.skinMaterial = bodyMat;
     const root = new THREE.Group();
+    root.userData.appearance=this.combatantAppearance(c);
 
     // ---- Torso (chest + hips) ----
     const torsoGroup = new THREE.Group();
@@ -6328,113 +6481,8 @@ export class FPSEngine {
       addSurvivalEliteArmor({torso:torsoGroup,head:headGroup,
         upperArmL:armL.upper,upperArmR:armR.upper});
 
-    // ---- Third-person weapon (model faces character-forward +Z) ----
-    // The procedural weapon builder is camera-local (-Z forward). Its geometry,
-    // hand contacts and muzzle direction are all rotated by 180° about Y for
-    // soldiers, so rifles actually point ahead of the character.
-    const weaponStub = new THREE.Group();
-    const wcat = weaponById(c.weaponId).category;
-    const wid = c.weaponId;
-    if (wcat === "melee") {
-      // World-space opponents carry the same identifiable blade/haft
-      // profiles as first-person and F quick melee, rotated toward +Z.
-      weaponStub.rotation.x=-Math.PI/2.7;
-      const visual=new THREE.Group();
-      visual.rotation.y=Math.PI;
-      visual.scale.setScalar(BOT_WEAPON_VISUAL_SCALE);
-      const grip=new THREE.MeshStandardMaterial({color:0x323f47,metalness:.3,roughness:.78});
-      buildMeleeWeaponParts(wid,weaponMat,grip,(part,x,y,z)=>{
-        part.position.set(x,y,z);visual.add(part);
-      });
-      weaponStub.add(visual);
-    } else {
-      // Other players/bots carry the SAME distinctive weapon silhouettes as the
-      // local player. The first-person builder points toward camera -Z; rotate
-      // its output 180° so it points forward (+Z) in the humanoid's hands.
-      const visual = new THREE.Group();
-      visual.rotation.y = Math.PI;
-      visual.scale.setScalar(BOT_WEAPON_VISUAL_SCALE);
-      const weaponFurniture = fullWorldLegendary
-        ? weaponMat
-        : new THREE.MeshStandardMaterial({ color: 0x28323b, roughness: 0.82, metalness: 0.18 });
-      if(c.akimbo&&isAkimboWeapon(wid,"grip_akimbo")){
-        // Two receivers with symmetric true grip contacts: remote players also dual wield.
-        for(const hand of ["left","right"] as const){
-          const sign=hand==="left"?1:-1; // builder is rotated 180deg on Y
-          const shiftX=sign*(wcat==="shotgun"?.42:.28)/BOT_WEAPON_VISUAL_SCALE;
-          const shiftY=-.035/BOT_WEAPON_VISUAL_SCALE;
-          const muzzleZ=buildFirstPersonWeapon(wid,weaponMat,weaponFurniture,(mesh,x,y,z)=>{
-            mesh.position.set(x+shiftX,y+shiftY,z);
-            visual.add(mesh);
-          },fullWorldLegendary?weaponMat:undefined,
-            weaponFinish.id!=="default"?(weaponFinish.id==="gold"?weaponFurniture:weaponMat):undefined);
-          // Each receiver's hardware duplicates the owner's actual sight and
-          // barrel attachment instead of showing bare guns to other players.
-          if(c.akimboBarrelId){
-            const barrel=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,.2,10),weaponFurniture);
-            barrel.rotation.x=Math.PI/2;
-            barrel.position.set(shiftX,shiftY,muzzleZ-.1);
-            visual.add(barrel);
-          }
-          if(c.akimboSightId){
-            const laser=c.akimboSightId==="sight_laser";
-            const sight=new THREE.Group();
-            if(laser){
-              const housing=new THREE.Mesh(new THREE.BoxGeometry(.055,.045,.075),weaponFurniture);
-              sight.add(housing);
-              const emitter=new THREE.Mesh(new THREE.SphereGeometry(.012,8,6),
-                new THREE.MeshBasicMaterial({color:0xff3333}));
-              emitter.position.z=-.042;
-              sight.add(emitter);
-            }else{
-              // Lightweight open-frame reflex/holo hardware; no blocked optic window.
-              for(const side of [-1,1]){
-                const upright=new THREE.Mesh(new THREE.BoxGeometry(.009,.07,.012),weaponFurniture);
-                upright.position.x=side*.041;sight.add(upright);
-              }
-              const bridge=new THREE.Mesh(new THREE.BoxGeometry(.092,.009,.012),weaponFurniture);
-              bridge.position.y=.034;sight.add(bridge);
-            }
-            sight.position.set(shiftX,shiftY+.105,-.16);
-            visual.add(sight);
-          }
-        }
-      }else{
-        buildFirstPersonWeapon(wid,weaponMat,weaponFurniture,(mesh,x,y,z)=>{
-          mesh.position.set(x,y,z);visual.add(mesh);
-        },fullWorldLegendary?weaponMat:undefined,
-          weaponFinish.id!=="default"?(weaponFinish.id==="gold"?weaponFurniture:weaponMat):undefined);
-      }
-      if(c.charmId && c.charmId!=="none" && weaponSupportsCharm(weaponById(c.weaponId))){
-        const charm=createWeaponCharm(c.charmId);
-        if(charm){charm.position.set(...weaponCharmMountPoint(c.weaponId,"thirdPerson"));visual.add(charm);}
-      }
-      weaponStub.add(visual);
-    }
-    // Place the gun ahead of the chest rather than through it. The right-hand
-    // grip is near the trigger; the left hand reaches under the rear handguard.
-    // For pistols both hands form a compact two-handed grip, while melee uses
-    // a single weapon hand and a relaxed off-hand.
-    const weaponBase = new THREE.Vector3(-0.08, wcat === "melee" ? 1.29 : 1.30, 0.36);
-    weaponStub.position.copy(weaponBase);
-    let weaponHoldRight: THREE.Vector3;
-    let weaponHoldLeft: THREE.Vector3;
-    if (wcat === "melee") {
-      weaponHoldRight = new THREE.Vector3(-0.07, -0.01, 0.015);
-      weaponHoldLeft = new THREE.Vector3(0.38, -0.19, -0.28);
-    } else {
-      const contacts = weaponHoldPoints(wid);
-      const toBotHandSpace = ([x, y, z]: [number, number, number]) =>
-        new THREE.Vector3(-x, y, -z).multiplyScalar(BOT_WEAPON_VISUAL_SCALE);
-      if(c.akimbo&&isAkimboWeapon(wid,"grip_akimbo")){
-        // Opposite hands now grip separate trigger guards rather than a support stock.
-        weaponHoldRight=toBotHandSpace(contacts.trigger).add(new THREE.Vector3(wcat==="shotgun"?.42:.28,-.035,0));
-        weaponHoldLeft=toBotHandSpace(contacts.trigger).add(new THREE.Vector3(wcat==="shotgun"?-.42:-.28,-.035,0));
-      }else{
-        weaponHoldRight=toBotHandSpace(contacts.trigger);
-        weaponHoldLeft=toBotHandSpace(contacts.support);
-      }
-    }
+    const {weaponStub,weaponHoldRight,weaponHoldLeft,weaponBase,weaponMat,optionalDetails}=this.buildCombatantWeapon(c);
+    c.remoteWeaponDetails=optionalDetails;
     root.add(weaponStub);
 
     // ---- Name sprite ----
@@ -6589,6 +6637,7 @@ export class FPSEngine {
     });
     if (typeof window !== "undefined") (window as any).__socket = this.socket;
     this.socket.on("connect", () => {
+      this.movementSendBudget.reset();
       const rc = this.opts.roomConnect;
       if (rc?.kind === "create" && rc.config) {
         console.log("[FPS] socket connected, sending createRoom");
@@ -7668,22 +7717,39 @@ export class FPSEngine {
     this.emitLobbyState();
   }
 
+  /** Materials and thermal-overlay geometry can occur on many body parts. */
+  private disposeCombatantObject(root:THREE.Object3D):void{
+    const geometries=new Set<THREE.BufferGeometry>(),materials=new Set<THREE.Material>();
+    root.traverse(node=>{
+      if(node instanceof THREE.Mesh)geometries.add(node.geometry);
+      if(node instanceof THREE.Mesh||node instanceof THREE.Sprite)
+        for(const material of Array.isArray(node.material)?node.material:[node.material])materials.add(material);
+    });
+    for(const geometry of geometries)geometry.dispose();
+    const textures=new Set<THREE.Texture>();
+    for(const material of materials){
+      const map=(material as THREE.MeshStandardMaterial).map;if(map)textures.add(map);
+      material.dispose();
+    }
+    for(const texture of textures)texture.dispose();
+  }
+
   /** Rebuild third-person weapon/armor geometry on a loadout change. */
   private rebuildCombatantMesh(c: Combatant): void {
     if (!c.group) return;
+    if(c.alive && c.parts && c.group.userData.appearance===this.combatantAppearance(c)){
+      const next=this.buildCombatantWeapon(c),old=c.parts.weaponStub;
+      old.removeFromParent();
+      this.disposeCombatantObject(old);
+      c.group.add(next.weaponStub);Object.assign(c.parts,next);
+      c.remoteWeaponDetails=next.optionalDetails;
+      c.deathPoseStart=undefined;
+      return;
+    }
     this.scene.remove(c.group);
-    c.group.traverse((child) => {
-      if (child instanceof THREE.Mesh) {
-        child.geometry.dispose();
-        const mat = child.material;
-        if (Array.isArray(mat)) mat.forEach(m => m.dispose());
-        else mat.dispose();
-      } else if (child instanceof THREE.Sprite) {
-        const sm = child.material as THREE.SpriteMaterial;
-        sm.map?.dispose();
-        sm.dispose();
-      }
-    });
+    this.disposeCombatantObject(c.group);
+    this.frozenFx?.delete(c.id);
+    c.riotShieldModel=undefined;
     c.group = undefined;
     c.parts = undefined;
     c.bossVisual = undefined;
@@ -7713,8 +7779,10 @@ export class FPSEngine {
       if(!c.isSelf&&c.group&&(p.weaponId!==c.weaponId||
         (p.akimbo===true)!==(c.akimbo===true)||p.akimboSightId!==c.akimboSightId||
         p.akimboBarrelId!==c.akimboBarrelId||
-        p.charmId!==c.charmId||p.nameplateId!==c.nameplateId)){
-        c.weaponId=p.weaponId;
+        p.charmId!==c.charmId||p.nameplateId!==c.nameplateId||
+        p.weaponSkinId!==c.weaponSkinId||p.playerSkinId!==c.playerSkinId||p.team!==c.team||p.name!==c.name)){
+        c.weaponId=p.weaponId;c.weaponSkinId=p.weaponSkinId;
+        c.playerSkinId=p.playerSkinId;c.team=p.team;c.name=p.name;
         c.akimbo=p.akimbo===true;
         c.akimboSightId=p.akimboSightId;
         c.akimboBarrelId=p.akimboBarrelId;
@@ -8334,7 +8402,7 @@ export class FPSEngine {
         this.applyDamageLocal(target,this.eff.damage,false,w.id);
         if(!target.alive)continue;
         const next=seismicPushPosition(feet,target.pos,4.5*wonderModuleEffects(w.id,this.wonderModuleId).knockbackMul);
-        if(!this.botMoveBlocked(target.pos,next,next[1]))target.pos=next;
+        if(!this.botMoveBlocked(target.pos,next,next[1])){target.pos=next;this.actorIndex?.update(target);}
       }
       this.damageDeployCoverBlast([feet[0],feet[1]+.5,feet[2]],radius,this.eff.damage);
       return;
@@ -8419,7 +8487,7 @@ export class FPSEngine {
     if(kind==="storm"){
       const hits=new Map<string,number>(),chains=new Map<string,number>();
       for(const pelletDir of stormPelletDirections(dir)){
-        const impact=traceStormPellet(origin,pelletDir,this.eff.range,this.map.cover,
+        const impact=traceStormPellet(origin,pelletDir,this.eff.range,this.coverForRay(origin,pelletDir,this.eff.range),
           this.stormVictims(this.selfId,this.opts.team));
         // Pellet travel is not chain lightning: arcs begin only on impact,
         // between struck targets (or between a triggered mine and its victim).
@@ -8752,7 +8820,7 @@ export class FPSEngine {
       const pellets=mode==="minigun"?1:tune.shotgunPellets;
       for(let i=0;i<pellets;i++){
         const d=this.normalize(this.add(dir,this.randSpread(mode==="minigun"?.024:.14)));
-        const cover=closestCoverHit(this.map.cover,origin,d,mode==="minigun"?70:17,rayBox);
+        const cover=closestCoverHit(this.coverForRay(origin,d,mode==="minigun"?70:17),origin,d,mode==="minigun"?70:17,rayBox);
         const target=[...this.combatants.values()].filter(c=>c.alive&&
           (this.opts.mode==="ffa"||this.opts.mode==="gungame"||c.team!==this.opts.team))
           .map(c=>({c,hit:rayCombatantHit(origin,d,c.pos)}))
@@ -8996,7 +9064,7 @@ export class FPSEngine {
       if(this.opts.online)this.socket?.emit("message",{t:"shot",origin,dir,weaponId:w.id,skinId:"default"} as C2S);
       else{
         for(const [id,d] of this.harbingerDrones)if(d.ownerId===this.selfId)this.removeHarbinger(id);
-        const hit=closestCoverHit(this.map.cover,origin,dir,14,rayBox);
+        const hit=closestCoverHit(this.coverForRay(origin,dir,14),origin,dir,14,rayBox);
         const pos=harbingerPlacement(origin,dir,hit?.distance??14,this.map.size),tune=harbingerTuning(this.wonderModuleId);
         this.addHarbinger("offline_harbinger_"+(++this.localWonderSequence),this.selfId,this.opts.team as string,
           pos,Date.now()+tune.durationMs,tune.health,this.wonderModuleId,true);
@@ -9131,7 +9199,7 @@ export class FPSEngine {
       if (!this.opts.online)
         this.spawnRocketProjectile(origin, dir, this.getCurrentSkinId(), w.stats.damage, true);
       if (!this.opts.online) {
-        const first = closestCoverHit(this.map.cover, origin, dir, this.eff.range, rayBox);
+        const first = closestCoverHit(this.coverForRay(origin,dir,this.eff.range), origin, dir, this.eff.range, rayBox);
         if (first?.box.environmentId && this.environmentWalls.has(first.box.environmentId)) {
           // Do not hit a wall that is behind the first combatant impact.
           const nearerEnemy = [...this.combatants.values()].some(c => {
@@ -9207,7 +9275,7 @@ export class FPSEngine {
       if(t===undefined||t<0||t>THROWING_KNIFE_RANGE||(nearest&&nearest.t<=t))continue;
       nearest={victim:c,t,head:!shieldFirst&&!!body?.head,shield:shieldFirst};
     }
-    const cover=closestCoverHit(this.map.cover,origin,dir,THROWING_KNIFE_RANGE,rayBox);
+    const cover=closestCoverHit(this.coverForRay(origin,dir,THROWING_KNIFE_RANGE),origin,dir,THROWING_KNIFE_RANGE,rayBox);
     if(nearest&&(!cover||cover.distance>=nearest.t)){
       if(nearest.victim.spawnProtectedUntil&&nearest.victim.spawnProtectedUntil>Date.now()){
         this.hitMarkerAt=now;return;
@@ -9300,7 +9368,7 @@ export class FPSEngine {
     // combatant, so bullets cannot detonate a mine through someone or a wall.
     if (!isMelee && this.offlineMines.length) {
       const range = maxWeaponHitRange(this.eff.range, this.eff);
-      const coverStop = traceCoverPenetration(this.map.cover, origin, dir, range,
+      const coverStop = traceCoverPenetration(this.coverForRay(origin,dir,range), origin, dir, range,
         this.eff.coverPenetration ?? 0, this.weaponId === "wonder_phasebreaker").blockedAt;
       let firstBody = Infinity;
       for (const c of this.combatants.values()) {
@@ -9325,14 +9393,14 @@ export class FPSEngine {
         if (t !== undefined) contacts.push({ target: c, t, head: shieldFirst ? false : !!body?.head,
           shield: shieldFirst, protected: (c.spawnProtectedUntil ?? 0) > Date.now() });
       }
-      const cover = closestCoverHit(this.map.cover, origin, dir, maxDistance, rayBox);
+      const cover = closestCoverHit(this.coverForRay(origin,dir,maxDistance), origin, dir, maxDistance, rayBox);
       const firstBody = selectBodyPenetrationHits(contacts, maxDistance, Infinity)[0];
       if (cover?.box.environmentId && this.environmentWalls.has(cover.box.environmentId) &&
           (!firstBody || firstBody.t >= cover.distance)) {
         this.damageEnvironmentWall(cover.box.environmentId, this.eff.damage);
         return null;
       }
-      const resolved=resolveMaterialPenetrationShot(contacts,this.map.cover,origin,dir,maxDistance,
+      const resolved=resolveMaterialPenetrationShot(contacts,this.coverForRay(origin,dir,maxDistance),origin,dir,maxDistance,
         this.eff.bodyPenetration,this.eff.coverPenetration,this.weaponId==="wonder_phasebreaker");
       const hits=resolved.hits;
       this.damageLocalBallisticCover(origin,dir,maxDistance,this.eff.coverPenetration??0,this.eff.damage,
@@ -9386,7 +9454,7 @@ export class FPSEngine {
       }
     }
     // First hit on destructible cover absorbs the bullet (even the fatal bullet).
-    const firstCover = closestCoverHit(this.map.cover, origin, dir, this.eff.range * 1.6, rayBox);
+    const firstCover = closestCoverHit(this.coverForRay(origin,dir,this.eff.range * 1.6), origin, dir, this.eff.range * 1.6, rayBox);
     if (firstCover?.box.environmentId && this.environmentWalls.has(firstCover.box.environmentId) &&
         (!nearest || nearest.t >= firstCover.distance)) {
       this.damageEnvironmentWall(firstCover.box.environmentId, this.eff.damage);
@@ -10090,7 +10158,7 @@ export class FPSEngine {
     this.ballisticDestroyed.clear();
     for(const box of authoredBallisticCover(this.map.cover))
       this.ballisticOriginals.set(box.ballisticId!,box);
-    this.staticCoverIndex=null;
+    invalidateMapCoverIndex(this.map);
   }
 
   private hideBrokenBallisticCover(id:string){
@@ -10109,7 +10177,7 @@ export class FPSEngine {
     }
     this.ballisticDecals.delete(id);
     // Mutating cover invalidates the optional city broadphase immediately.
-    this.staticCoverIndex=null;
+    invalidateMapCoverIndex(this.map);
   }
 
   private damageLocalBallisticCover(origin:Vec3,dir:Vec3,range:number,power:number,damage:number,stopAt=Infinity){
@@ -10209,7 +10277,7 @@ export class FPSEngine {
     // Visual path must match the damage ray: punching through thin cover cannot
     // draw a tracer that stops at the entry face. Structural cover still stops it.
     const maxT = Math.max(0,Math.min(range,serverStop!==undefined&&Number.isFinite(serverStop)
-      ?serverStop:traceCoverPenetration(this.map.cover, origin, dir, range, penetrationPower, this.weaponId==="wonder_phasebreaker").blockedAt));
+      ?serverStop:traceCoverPenetration(this.coverForRay(origin,dir,range), origin, dir, range, penetrationPower, this.weaponId==="wonder_phasebreaker").blockedAt));
     const endX = origin[0] + dir[0] * maxT, endY = origin[1] + dir[1] * maxT, endZ = origin[2] + dir[2] * maxT;
     const geo = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(origin[0] - this.pos.x, origin[1] - (this.pos.y + EYE_HEIGHT), origin[2] - this.pos.z),
@@ -10392,14 +10460,16 @@ export class FPSEngine {
     const light = new THREE.PointLight(0x8844ff, 8, radius * 1.6);
     light.position.set(...pos);
     light.visible = false;
-    this.scene.add(mesh, light);
+    this.scene.add(mesh);
+    this.worldLightBudget?.register(light,()=>mesh.visible);
     this.gravityWells.set(id, { pos, ownerId, ownerTeam, weaponId, radius, activatesAt, expiresAt, offline, mesh, light });
   }
 
   private removeGravityWell(id: string) {
     const well = this.gravityWells.get(id);
     if (!well) return;
-    this.scene.remove(well.mesh, well.light);
+    this.scene.remove(well.mesh);
+    this.worldLightBudget?.remove(well.light);
     well.mesh.traverse(child => { if (child instanceof THREE.Mesh) {
       child.geometry.dispose();
       for (const mat of Array.isArray(child.material) ? child.material : [child.material]) mat.dispose();
@@ -10521,11 +10591,17 @@ export class FPSEngine {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.loop);
     this.timer.update();
-    const dt = Math.min(0.05, this.timer.getDelta());
+    const elapsed=this.timer.getDelta();
+    const dt = Math.min(0.05, elapsed);
     const frameStart=performance.now();
-    this.botRouteBudget.beginTick(this.map.biome==="city"||this.map.biome==="city_day"?1:2);
+    if(elapsed>0&&elapsed<.5)this.frameSamples.add(elapsed*1000);
+    this.renderer.info.reset();
+    this.botRouteBudget.beginWindow(frameStart,this.isCityMap()?1:2);
     this.update(dt);
     if(this.cityInteriorDetailGroups.length)this.updateCityDetailVisibility(performance.now());
+    this.worldLightBudget?.update(frameStart,this.camera.position);
+    const renderStart=performance.now();
+    this.updateSamples.add(renderStart-frameStart);
     // Desaturate only the NVG lens. Other optics and hipfire keep the original render.
     const nvgBlend = nvgScopeBlend(this.sightDef.overlay, this.adsProgress, this.alive);
     if (nvgBlend > 0) {
@@ -10534,7 +10610,8 @@ export class FPSEngine {
     } else {
       this.renderer.render(this.scene, this.camera);
     }
-    this.updateRenderBudget(frameStart,dt*1000);
+    this.renderSamples.add(performance.now()-renderStart);
+    this.updateRenderBudget(frameStart,elapsed*1000);
   };
 
   private update(dt: number) {
@@ -11120,8 +11197,12 @@ export class FPSEngine {
     this.updateTacticalVisuals(now);
 
     if (!this.opts.online && !this.matchEnded) {
+      // Rebuild once, then keep positions current as each bot moves.
+      this.actorIndex.rebuild(this.combatants.values());
       for (const c of this.combatants.values()) {
-        if (!this.opts.firingRange && c.isBot && c.alive && c.ai) this.updateBotAI(c, dt, now);
+        if (!this.opts.firingRange && c.isBot && c.alive && c.ai) {
+          this.updateBotAI(c, dt, now);this.actorIndex.update(c);
+        }
       }
     }
     this.updateRemoteFootsteps(now);
@@ -11132,10 +11213,13 @@ export class FPSEngine {
     if (!this.opts.online && !this.matchEnded)this.tickOrbitalPickup();
     if (!this.opts.online && this.opts.mode === "ctf" && !this.matchEnded) this.tickOfflineCtf();
     if (this.opts.online && this.socket?.connected && this.alive) {
-      this.socket.emit("message", {
+      const state:Extract<C2S,{t:"state"}>={
         t: "state", pos: [this.pos.x, this.pos.y, this.pos.z] as Vec3, yaw: this.yaw, pitch: this.pitch,
         aiming: this.aiming, firing: this.mouseDown, reloading: this.reloading, alive: this.alive, sprinting: this.sprinting,
-      });
+      };
+      if(this.movementSendBudget.shouldSend(now,state)){
+        this.socket.emit("message",state);this.movementPackets++;
+      }
     }
 
     if (!this.alive && this.respawnAt === 0 && !this.opts.online) {
@@ -11337,6 +11421,11 @@ export class FPSEngine {
          (this.localBurning.get(c.id) ?? 0) > now);
       this.updatePoisonVisual(c.id, c.pos, burning ? "burn" : poisoned ? "poison" : null, now);
       if (!c.group) continue;
+      const dx=c.pos[0]-this.pos.x,dz=c.pos[2]-this.pos.z;
+      // Only tiny cosmetic attachments and unreadable labels use distance LOD.
+      // Scoped aiming restores them; body/weapon silhouettes remain intact.
+      const detailsVisible=this.adsProgress>.3 || dx*dx+dz*dz<90*90;
+      for(const detail of c.remoteWeaponDetails??[])detail.visible=detailsVisible;
       // The Juggernaut's oversized mech replaces its pilot silhouette.
       const inMech=[...this.mechDrops.values()].some(d=>d.enteredBy===c.id&&d.expiresAt>Date.now());
       if(inMech){c.group.visible=false;continue;}
@@ -11439,10 +11528,10 @@ export class FPSEngine {
         c.group.position.y = c.pos[1] + (c.downed ? 0.22 : 0);
         c.group.rotation.z = 0;
         c.group.visible = true;
-        if (c.nameSprite) c.nameSprite.visible = true;
-        if (c.healthBarBg) c.healthBarBg.visible = this.showHealthBars;
+        if (c.nameSprite) c.nameSprite.visible = detailsVisible;
+        if (c.healthBarBg) c.healthBarBg.visible = this.showHealthBars&&detailsVisible;
         if (c.healthBar) {
-          c.healthBar.visible = this.showHealthBars;
+          c.healthBar.visible = this.showHealthBars&&detailsVisible;
           const pct = Math.max(0, Math.min(1,c.health / (c.bossMaxHealth ?? c.eliteMaxHealth ?? MAX_HEALTH)));
           (c.healthBar as THREE.Mesh).scale.x = pct;
           (c.healthBar as THREE.Mesh).position.x = -0.45 * (1 - pct);
@@ -11802,7 +11891,7 @@ export class FPSEngine {
     const kind=rules.kind;
     if(kind==="drone"){
       for(const [id,d] of this.harbingerDrones)if(d.ownerId===owner.id)this.removeHarbinger(id);
-      const hit=closestCoverHit(this.map.cover,origin,dir,14,rayBox);
+      const hit=closestCoverHit(this.coverForRay(origin,dir,14),origin,dir,14,rayBox);
       const pos=harbingerPlacement(origin,dir,hit?.distance??14,this.map.size),tune=harbingerTuning();
       this.addHarbinger("bot_harbinger_"+(++this.localWonderSequence),owner.id,owner.team,pos,
         Date.now()+tune.durationMs,tune.health,"",true);
@@ -11849,7 +11938,7 @@ export class FPSEngine {
     }else if(kind==="storm"){
       const counts=new Map<string,number>();
       for(const pelletDir of stormPelletDirections(dir)){
-        const impact=traceStormPellet(origin,pelletDir,w.stats.range,this.map.cover,
+        const impact=traceStormPellet(origin,pelletDir,w.stats.range,this.coverForRay(origin,pelletDir,w.stats.range),
           this.stormVictims(owner.id,owner.team));
         if(impact.victim){
           const victim=targets.find(c=>c.id===impact.victim!.id);
@@ -12752,7 +12841,10 @@ export class FPSEngine {
       const target=cached.targetId===this.selfId?selfC:this.combatants.get(cached.targetId);
       if(target?.alive)return target;
     }
-    const candidates = [...this.combatants.values(), selfC];
+    const radius=Math.min(botDetectionRange(c.ai?.difficulty??"normal",weaponById(c.weaponId).category)*botAwarenessPerkMultiplier(c.perkId),
+      this.map.id==="whiteout_depot"?whiteoutVisibility(this.environmentTime,c.pos):Infinity);
+    const candidates = [...(this.actorIndex.size
+      ?this.actorIndex.near(c.pos[0],c.pos[2],radius):this.combatants.values()), selfC];
     // Bots require LINE OF SIGHT to acquire a target (no longer omniscient).
     // If no visible enemy exists, the bot wanders. This makes bots feel less
     // psychic — you can break LoS to escape them.
@@ -12812,11 +12904,11 @@ export class FPSEngine {
           ? this.selfSpawnProtectedUntil > Date.now() : (e.spawnProtectedUntil ?? 0) > Date.now() });
     }
     const maxDistance = maxWeaponHitRange(eff.range, eff);
-    const resolved=resolveMaterialPenetrationShot(contacts,this.map.cover,origin,dir,maxDistance,
+    const resolved=resolveMaterialPenetrationShot(contacts,this.coverForRay(origin,dir,maxDistance),origin,dir,maxDistance,
       eff.bodyPenetration,eff.coverPenetration);
     const hits=resolved.hits;
     if (!isThrowingKnife(attacker.weaponId) && this.offlineMines.length) {
-      const coverStop = traceCoverPenetration(this.map.cover, origin, dir, maxDistance,
+      const coverStop = traceCoverPenetration(this.coverForRay(origin,dir,maxDistance), origin, dir, maxDistance,
         eff.coverPenetration ?? 0).blockedAt;
       const firstBody = hits.reduce((min, hit) => Math.min(min, hit.t), Infinity);
       if (this.shootOfflineMine(origin, dir,
@@ -13301,7 +13393,11 @@ export class FPSEngine {
     const minDistSq = minDist * minDist;
     const yTol = PLAYER_HEIGHT * 0.8;
     const others: { pos: Vec3; alive: boolean }[] = [];
-    for (const c of this.combatants.values()) {
+    // Include the maximum possible accumulated push of this ordered pass.
+    // Dense crowds retain the original solver's behavior as well as its order.
+    const radius=minDist*(1+(this.combatants.size+1)/4);
+    const neighbors=this.actorIndex.size?this.actorIndex.near(bot.pos[0],bot.pos[2],radius):this.combatants.values();
+    for (const c of neighbors) {
       if (c.id === bot.id) continue;
       others.push({ pos: c.pos, alive: c.alive });
     }
@@ -13462,6 +13558,7 @@ export class FPSEngine {
     if(this.riotShieldModel)this.disposeRiotModel(this.riotShieldModel);
     this.weaponAudio.dispose();
     this.explosionEffects?.dispose();
+    this.worldLightBudget?.dispose();
     if(this.gardenMaterial){
       this.gardenMaterial.map?.dispose();
       this.gardenMaterial.dispose();

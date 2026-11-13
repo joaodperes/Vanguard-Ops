@@ -5,6 +5,8 @@
  */
 import {FPSEngine} from "../../src/lib/fps-engine";
 import * as THREE from "three";
+import {ActorSpatialIndex} from "../../src/lib/actor-spatial-index";
+import {MovementSendBudget} from "../../src/lib/movement-send-budget";
 export function makeEngineStub(): any {
   return Object.assign(Object.create(FPSEngine.prototype), {
     // Tests that bypass the browser-only WebGL constructor should share these
@@ -31,5 +33,8 @@ export function makeEngineStub(): any {
     akimboPending:{left:-Infinity,right:-Infinity},
     akimboLastHandShot:{left:-Infinity,right:-Infinity},
     harbingerDrones:new Map(),
+    actorIndex:new ActorSpatialIndex(),
+    movementSendBudget:new MovementSendBudget(),
+    botEnemySearchCache:new Map(),
   });
 }

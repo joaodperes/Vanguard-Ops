@@ -1,6 +1,7 @@
 /** Shared, deterministic environmental objects for offline and authoritative rooms. */
 import type { CoverBox, EnvironmentObject, MapDef, Vec3 } from "./game-protocol";
 import {initializeFloodgateFreight} from "./floodgate-topple";
+import {invalidateMapCoverIndex} from "./map-cover-index";
 
 export function environmentPosition(o: EnvironmentObject, seconds: number): Vec3 {
   if (o.type !== "moving_platform") return [...o.pos];
@@ -73,7 +74,7 @@ export function moveEnvironmentCover(map: MapDef, o: EnvironmentObject, seconds:
 
 export function breakEnvironmentWall(map: MapDef, id: string): void {
   const index = map.cover.findIndex(c => c.environmentId === id);
-  if (index >= 0) map.cover.splice(index, 1);
+  if (index >= 0) { map.cover.splice(index, 1); invalidateMapCoverIndex(map); }
 }
 
 export function closestCoverHit(cover: CoverBox[], origin: Vec3, dir: Vec3, range: number,

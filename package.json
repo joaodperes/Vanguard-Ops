@@ -17,6 +17,7 @@
     "test:maps": "bun test tests/map-layout.test.ts",
     "test:bots": "bun test tests/bot-routing.test.ts",
     "test:smoke": "bun test tests",
+    "perf:benchmark": "bun scripts/benchmark-performance.ts",
     "typecheck": "tsc --noEmit",
     "db:setup": "prisma generate && prisma db push",
     "content:validate": "bun scripts/validate-content.ts",

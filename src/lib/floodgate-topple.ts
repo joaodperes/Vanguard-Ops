@@ -2,6 +2,7 @@
  * traversable stairs and upper landing bridges after the dam breaches.
  * Shared by server collisions, offline physics, bot pathfinding and rendering. */
 import * as THREE from "three";
+import {invalidateMapCoverIndex} from "./map-cover-index";
 import type {CoverBox,EnvironmentObject,MapDef} from "./game-protocol";
 import {FLOODGATE_FLOOD_START_Z,FLOODGATE_FLOOD_END_Z,FLOODGATE_SURGE_SECONDS} from "./map-battle-events";
 
@@ -95,6 +96,7 @@ export function setFloodgateFreightStage(map:MapDef,age:number|null):boolean{
     changed=true;
   }
   stages.set(map,previous);
+  if(changed)invalidateMapCoverIndex(map);
   return changed;
 }
 export function initializeFloodgateFreight(map:MapDef):void{

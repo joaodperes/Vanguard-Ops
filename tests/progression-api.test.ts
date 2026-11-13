@@ -32,6 +32,9 @@ test("existing SQLite Loadout upgrades its Wonder column automatically without l
   const dir=mkdtempSync(join(tmpdir(),"vanguard-wonder-upgrade-"));
   try {
     const dbPath=join(dir,"legacy.db");
+    // Match the other isolated migration fixture: some Prisma/SQLite runtimes
+    // require the empty database to exist before applying an external schema.
+    writeFileSync(dbPath,"");
     const env={...process.env,DATABASE_URL:`file:${dbPath}`};
     const original=readFileSync("prisma/schema.prisma","utf8");
     const old=original.replace(/^  wonderWeaponId\s+String[^\n]*\n/m,"");

@@ -5,9 +5,18 @@
  */
 export class BotRouteBudget {
   private remaining = 0;
+  private nextWindowAt = -Infinity;
 
   beginTick(maxSearches: number): void {
     this.remaining = Math.max(0, Math.floor(maxSearches));
+  }
+
+  /** Offline replanning has a time budget, independent of monitor refresh.
+   * Movement, firing and collision continue on every ordinary engine update. */
+  beginWindow(now: number, maxSearches: number): void {
+    if (now < this.nextWindowAt) return;
+    this.nextWindowAt = now + 50;
+    this.beginTick(maxSearches);
   }
 
   take(): boolean {
