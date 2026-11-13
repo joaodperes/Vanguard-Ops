@@ -82,6 +82,15 @@ describe("actor locality preserves live positions and solver order",()=>{
 });
 
 describe("cover broadphase keeps gameplay exact on every map",()=>{
+  test("local candidates preserve authored order across cells and dynamic cover",()=>{
+    const right:CoverBox={pos:[20,1,0],size:[2,1,2]};
+    const moving:CoverBox={pos:[0,1,0],size:[2,1,2],environmentId:"platform"};
+    const left:CoverBox={pos:[-20,1,0],size:[2,1,2]};
+    const map={cover:[right,moving,left]};
+    expect(mapCoverIndex(map).along(-30,0,30,0)).toEqual(map.cover);
+    moving.pos=[20,1,0];
+    expect(mapCoverIndex(map).near(20,0)).toEqual([right,moving]);
+  });
   test("full-list and indexed shot impacts/penetration agree across all shipped maps",()=>{
     for(const base of MAP_LIST){
       const map=makeEnvironmentMap(base);

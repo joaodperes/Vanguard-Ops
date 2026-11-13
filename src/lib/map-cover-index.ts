@@ -6,8 +6,10 @@ type CoverMap = { cover: CoverBox[] };
 /** Static cells plus live environment boxes. Moving platforms, deployed cover
  * and falling freight never enter an immutable cell at an obsolete position. */
 class MapCoverIndex extends CoverSpatialIndex {
+  private readonly order = new Map<CoverBox, number>();
   constructor(cover: readonly CoverBox[], private readonly dynamic: readonly CoverBox[]) {
     super(cover.filter(box => !box.environmentId));
+    cover.forEach((box, index) => this.order.set(box, index));
   }
   override queryBox(minX: number, maxX: number, minZ: number, maxZ: number): CoverBox[] {
     if(![minX,maxX,minZ,maxZ].every(Number.isFinite)||minX>maxX||minZ>maxZ)return [];
@@ -15,7 +17,9 @@ class MapCoverIndex extends CoverSpatialIndex {
     for (const box of this.dynamic)
       if (box.pos[0] + box.size[0] >= minX && box.pos[0] - box.size[0] <= maxX &&
           box.pos[2] + box.size[2] >= minZ && box.pos[2] - box.size[2] <= maxZ) found.push(box);
-    return found;
+    // Overlapping collision push-outs and coincident ballistic hits must keep
+    // the same tie order as a full scan of the authored cover array.
+    return found.sort((a, b) => this.order.get(a)! - this.order.get(b)!);
   }
 }
 
