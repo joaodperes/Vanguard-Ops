@@ -110,7 +110,7 @@ import { chooseSurvivalUpgrade, generateSurvivalUpgradeChoices, survivalUpgradeD
 import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-posture";
 import { botRememberSighting, botInvestigation, botCanHearNoise, botRememberNoise, botRememberHit, botAlertInvestigation, type BotNoise, type BotAlert, type BotSighting } from "./bot-awareness";
 import { botArchetypeForSlot, botArchetypeForCategory, botArchetypeWeapon, botArchetypeWeapons, BOT_ELIGIBLE_WEAPONS, botPersonality, botArchetypeHighGroundChance, type BotArchetype } from "./bot-archetypes";
-import { MOVEMENT, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity, sprintRecoverySpreadMultiplier, sprintRecoveryAdsRate } from "@/lib/movement-rules";
+import { MOVEMENT, SPRINT_STAMINA, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity, sprintRecoverySpreadMultiplier, sprintRecoveryAdsRate } from "@/lib/movement-rules";
 import { FOREST_OBJECTS, FOREST_PERIMETER, FOREST_BASE_COVER, FOREST_TREE_PARAPETS, forestLogCoverId } from "./forest-warfare";
 import { advanceMatchElapsed } from "./match-clock";
 import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,orbitalServerWarning,orbitalPulseTargets,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,ORBITAL_REAPER_SPEED_MULTIPLIER,ORBITAL_REAPER_STAMINA_DRAIN_MULTIPLIER,ORBITAL_REAPER_JUMP_MOMENTUM_MULTIPLIER,orbitalReaperEquipped} from "./orbital-reactor";
@@ -1134,12 +1134,8 @@ export class FPSEngine {
 
   // Sprint stamina: drains while sprinting, regens after a short delay when not.
   // At 0 stamina, sprint is blocked until stamina regens above the resume threshold.
-  private stamina = 100;            // 0..100
+  private stamina = SPRINT_STAMINA.maximum;
   private lastSprintAt = 0;         // performance.now() of last sprint frame
-  private static readonly STAMINA_DRAIN = 22;    // per second while sprinting (full bar drains in ~4.5s)
-  private static readonly STAMINA_REGEN = 35;    // per second when not sprinting (full regen in ~3s)
-  private static readonly STAMINA_DELAY = 1200;  // ms after stopping sprint before regen begins
-  private static readonly STAMINA_RESUME = 25;   // must regen above this to resume sprint after exhaustion
 
   // ---- Weapon slot system (primary / secondary / melee) ----
   // The local player's currently equipped slot. weaponId always reflects the
@@ -11671,7 +11667,7 @@ export class FPSEngine {
     // ALSO gated on stamina: can't start a sprint with 0 stamina; must regen above
     // STAMINA_RESUME first (prevents stutter-sprint at the empty threshold).
     const reaperMovement=this.orbitalWeaponActive&&orbitalReaperEquipped(this.map,this.weaponId);
-    const staminaAllowsSprint = this.stamina > FPSEngine.STAMINA_RESUME || (this.sprinting && this.stamina > 0);
+    const staminaAllowsSprint = this.stamina > SPRINT_STAMINA.resumeThreshold || (this.sprinting && this.stamina > 0);
     const wasSprinting = this.sprinting;
     // Sprint ADS has been removed: all weapons must lower their sights during
     // sprint and stop sprinting before firing, on mouse and touch alike.
@@ -11688,7 +11684,7 @@ export class FPSEngine {
     }
     // ---- Stamina drain / regen ----
     if (this.sprinting) {
-      this.stamina = Math.max(0, this.stamina - FPSEngine.STAMINA_DRAIN * sprintDrainMultiplier(this.activePerkId) *
+      this.stamina = Math.max(0, this.stamina - SPRINT_STAMINA.drainPerSecond * sprintDrainMultiplier(this.activePerkId) *
         (reaperMovement?ORBITAL_REAPER_STAMINA_DRAIN_MULTIPLIER:1) * dt);
       this.lastSprintAt = performance.now();
       if (this.stamina <= 0) {
@@ -11697,8 +11693,8 @@ export class FPSEngine {
       }
     } else {
       const sinceSprint = performance.now() - this.lastSprintAt;
-      if (sinceSprint > FPSEngine.STAMINA_DELAY) {
-        this.stamina = Math.min(100, this.stamina + FPSEngine.STAMINA_REGEN * dt);
+      if (sinceSprint > SPRINT_STAMINA.regenerationDelayMs) {
+        this.stamina = Math.min(SPRINT_STAMINA.maximum, this.stamina + SPRINT_STAMINA.regenerationPerSecond * dt);
       }
     }
     // Speed multipliers.
@@ -13275,7 +13271,7 @@ export class FPSEngine {
       // Sprint stamina (0..100) + regen cooldown (0 = regen active; >0 = ms until regen starts).
       stamina: Math.round(this.stamina),
       staminaCooldownMs: !this.sprinting && this.stamina < 100
-        ? Math.max(0, FPSEngine.STAMINA_DELAY - (now - this.lastSprintAt))
+        ? Math.max(0, SPRINT_STAMINA.regenerationDelayMs - (now - this.lastSprintAt))
         : 0,
       // Equipped weapon slot + per-slot weapon names (for the HUD slot strip).
       weaponSlot: this.currentSlot,

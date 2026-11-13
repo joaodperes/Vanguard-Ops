@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import {
-  MOVEMENT, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity,
+  MOVEMENT, SPRINT_STAMINA, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity,
   isQuickReadyGrip, sprintRecoverySpreadMultiplier, sprintRecoveryAdsRate,
   SPRINT_RECOVERY_QUICK_MS, SPRINT_RECOVERY_STANDARD_MS,
 } from "../src/lib/movement-rules";
+import { sprintDrainMultiplier } from "../src/lib/perks";
 
 describe("Movement V2 — horizontal response", () => {
   test("accelerates quickly without overshooting the target", () => {
@@ -114,5 +115,29 @@ describe("Quick-Ready grip replacing Sprint ADS",()=>{
     expect(sprintRecoveryAdsRate(1200,1000,"grip_vertical")).toBe(12);
     expect(sprintRecoveryAdsRate(1400,1000,"grip_runner_ads")).toBe(12);
     expect(sprintRecoveryAdsRate(100,0,"grip_runner_ads")).toBe(12);
+  });
+});
+
+
+describe("sprint stamina balance", () => {
+  test("base sprint lasts 6.5 seconds; Athlete doubles that to 13 seconds", () => {
+    const base = SPRINT_STAMINA.maximum / (SPRINT_STAMINA.drainPerSecond * sprintDrainMultiplier(null));
+    const athlete = SPRINT_STAMINA.maximum / (SPRINT_STAMINA.drainPerSecond * sprintDrainMultiplier("athlete"));
+    expect(base).toBeCloseTo(6.5, 6);
+    expect(athlete).toBeCloseTo(13, 6);
+  });
+
+  test("stamina starts recovering after 750ms and fills in 2.5 seconds", () => {
+    expect(SPRINT_STAMINA.regenerationDelayMs).toBe(750);
+    expect(SPRINT_STAMINA.maximum / SPRINT_STAMINA.regenerationPerSecond).toBeCloseTo(2.5, 6);
+    expect(SPRINT_STAMINA.regenerationDelayMs / 1000 +
+      SPRINT_STAMINA.maximum / SPRINT_STAMINA.regenerationPerSecond).toBeCloseTo(3.25, 6);
+  });
+
+  test("exhaustion requires a 25% refill (about 1.38s including the delay)", () => {
+    expect(SPRINT_STAMINA.resumeThreshold).toBe(25);
+    const resumeAfterSeconds = SPRINT_STAMINA.regenerationDelayMs / 1000 +
+      SPRINT_STAMINA.resumeThreshold / SPRINT_STAMINA.regenerationPerSecond;
+    expect(resumeAfterSeconds).toBeCloseTo(1.375, 6);
   });
 });

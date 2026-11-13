@@ -25,6 +25,17 @@ export const MOVEMENT = {
 
 /** Keep the old catalog ID so existing unlocks and equipped loadouts retain
  * their grip even though Sprint ADS has been replaced by Quick-Ready. */
+/** Sprint stamina budget shared by movement, HUD timing, and regression tests.
+ * Base sprint lasts 6.5s. Athlete halves drain for 13s without changing recovery.
+ */
+export const SPRINT_STAMINA = {
+  maximum: 100,
+  drainPerSecond: 100 / 6.5,
+  regenerationPerSecond: 40,  // full bar regenerates in 2.5s after the delay
+  regenerationDelayMs: 750,
+  resumeThreshold: 25,        // avoid stutter-sprinting immediately after exhaustion
+} as const;
+
 export const QUICK_READY_GRIP_ID = "grip_runner_ads";
 export const SPRINT_RECOVERY_STANDARD_MS = 300;
 export const SPRINT_RECOVERY_QUICK_MS = 95;
