@@ -3704,7 +3704,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       lowHealth:bot.health<=45});
     room.equipmentBotNextAt.set(bot.id,now+650);
     if(allowed){
-      const plan=planBotTacticalThrow(bot.pos,target.pos,def.id,room.map.cover,room.map.id);
+      const plan=planBotTacticalThrow(bot.pos,target.pos,def.id,room.map.cover,room.map.id,ai.difficulty);
       const allyAtLanding=plan && room.mode!=="ffa" && (def.id==="frag"||def.id==="flashbang") &&
         allCombatants(room).some(p=>p.alive && p.id!==bot.id && p.team===bot.team &&
           Math.hypot(p.pos[0]-plan.path.impact[0],p.pos[2]-plan.path.impact[2])<def.radius+1);
