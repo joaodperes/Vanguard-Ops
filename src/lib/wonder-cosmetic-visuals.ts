@@ -316,7 +316,8 @@ export function createWonderKillVisual(id: string, pos: readonly [number,number,
         const scale=a.size*(shape==="ring"
           ? (pattern==="event_collapse" ? Math.max(.04,1.9*(1-u)) : .4+u*2.1)
           : Math.max(.02,1-u*.82));
-        dummy.scale.setScalar(u===0&&a.delay>p ? .0001 : scale);
+        const frostHolding=pattern==="deep_freeze"&&shape==="pixel";
+        dummy.scale.setScalar(u===0&&a.delay>p&&!frostHolding ? .0001 : scale);
         if(shape==="ring"){dummy.rotation.set(Math.PI/2,0,a.spin+u*3);}
         else {dummy.rotation.set(a.spin+u*3,a.spin*.4+u*6,a.spin*.2+u*4);}
         dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);
