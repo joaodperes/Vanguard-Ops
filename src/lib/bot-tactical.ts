@@ -59,7 +59,7 @@ const BOT_THROW_ERROR: Record<BotTier,{direct:number; grenadeYaw:number; grenade
 };
 
 function botThrowPath(origin:Vec3,ownerY:number,yaw:number,pitch:number,
-  id:EquipmentId,cover:CoverBox[],mapId:MapId,grenade:boolean):TimedProjectilePath {
+  id:Exclude<EquipmentId,"cover">,cover:CoverBox[],mapId:MapId,grenade:boolean):TimedProjectilePath {
   const cp=Math.cos(pitch);
   const dir:Vec3=[Math.sin(yaw)*cp,Math.sin(pitch),Math.cos(yaw)*cp];
   return grenade ? tacticalGrenadePath(origin,dir,cover,mapId)
