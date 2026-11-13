@@ -259,9 +259,26 @@ export function createWonderKillVisual(id: string, pos: readonly [number,number,
   } else if(pattern==="last_stand"||pattern==="earthshatter"){
     for(let i=0;i<24;i++){const [x,z]=polar(i,24,.1+seed()*.48);add("plate",x,.18+seed()*1.1,z,x*2,.65+seed()*1.3,z*2,.18+seed()*.25);}
   } else if(pattern==="temporal_echo"){
-    for(let i=0;i<3;i++){add("ring",0,1,0,0,0,0,1.3+i*.5,i*.12);}
+    for(let i=0;i<3;i++)add("ring",0,1,0,0,0,0,1.3+i*.5,i*.12);
+    // Three offset humanoid outlines become staggered translucent echoes.
+    const silhouette:[number,number][]=[
+      [-.09,1.55],[.09,1.55],[-.2,1.22],[.2,1.22],
+      [-.18,.92],[.18,.92],[-.13,.51],[.13,.51],
+    ];
+    for(let echo=0;echo<3;echo++){
+      const offset=(echo-1)*.36;
+      for(const [x,y] of silhouette)
+        add("pixel",x+offset,y,0,offset*.7,.08,0,.15,echo*.1);
+    }
     for(let i=0;i<20;i++){const [x,z]=polar(i,20,.4+seed()*.28);add("shard",x,.25+seed()*1.6,z,x*.4,.1,z*.4,.09,i%4*.05);}
   } else if(pattern==="deep_freeze"){
+    // A frost outline holds briefly, then explodes into crystalline shards.
+    const icyOutline:[number,number][]=[
+      [-.08,1.64],[.08,1.64],[-.2,1.42],[.2,1.42],
+      [-.22,1.19],[.22,1.19],[-.22,.95],[.22,.95],
+      [-.16,.75],[.16,.75],[-.15,.5],[.15,.5],[-.13,.24],[.13,.24],
+    ];
+    for(const [x,y] of icyOutline)add("pixel",x,y,0,x*1.5,.6,(seed()-.5)*.7,.16,.24);
     for(let i=0;i<28;i++){const [x,z]=polar(i,28,.1+seed()*.32);add("shard",x,.2+seed()*1.65,z,x*1.9,.65+seed(),z*1.9,.15+seed()*.18,i%5*.03);}
     add("ring",0,.95,0,0,0,0,1.2);
   } else if(pattern==="razor_divide"){
@@ -296,7 +313,9 @@ export function createWonderKillVisual(id: string, pos: readonly [number,number,
         const a=particles[i],u=Math.max(0,Math.min(1,(p-a.delay)/(1-a.delay)));
         const travel=u*(2-u);
         dummy.position.set(a.x+a.vx*travel,a.y+a.vy*travel,a.z+a.vz*travel);
-        const scale=a.size*(shape==="ring"?(0.4+u*2.1):Math.max(.02,1-u*.82));
+        const scale=a.size*(shape==="ring"
+          ? (pattern==="event_collapse" ? Math.max(.04,1.9*(1-u)) : .4+u*2.1)
+          : Math.max(.02,1-u*.82));
         dummy.scale.setScalar(u===0&&a.delay>p ? .0001 : scale);
         if(shape==="ring"){dummy.rotation.set(Math.PI/2,0,a.spin+u*3);}
         else {dummy.rotation.set(a.spin+u*3,a.spin*.4+u*6,a.spin*.2+u*4);}
