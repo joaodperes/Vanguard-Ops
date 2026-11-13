@@ -1,5 +1,6 @@
 import { blastCanDamage, blastDistance, blastExposureDistance, blastUnobstructed } from "./explosion-damage-rules";
-import {wonderModuleEffects,wonderFinishById,wonderKillEffectById} from "./wonder-expansion";
+import {wonderModuleEffects,wonderFinishById} from "./wonder-expansion";
+import {createWonderFinishTexture,updateWonderFinishTexture,createWonderKillVisual,type WonderKillVisual} from "./wonder-cosmetic-visuals";
 import {wonderMechModel,wonderAircraftModel,wonderHologramModel,wonderDroneModel,type WonderWorldVisual,JUGGERNAUT_VISUAL_PALETTE} from "./wonder-models";
 import {harbingerTuning,harbingerTargets,harbingerPlacement,HARBINGER_INTERVAL_MS,HARBINGER_SCAN_INTERVAL_MS} from "./harbinger-drone";
 import {wonderConeHit,seismicPulseHit,seismicPushPosition,ripperSegments,juggernautDropPoint,crushesAtLanding,mechTuning,phantomSpawnPosition,phantomTravelPosition,CHRONO_ANCHOR_MS,PHANTOM_DURATION_MS,CRYO_SLOW_MS,CRYO_SLOW_FACTOR,JUGGERNAUT_DROP_MS,JUGGERNAUT_ACTIVE_MS,JUGGERNAUT_MINIGUN_RATE,JUGGERNAUT_SHOTGUN_RATE,JUGGERNAUT_SWARM_RATE} from "./wonder-abilities";
@@ -979,7 +980,7 @@ export class FPSEngine {
   private mechMuzzles:{minigun:THREE.Mesh;secondary:THREE.Mesh}|null=null;
   private mechMuzzleUntil:{minigun:number;secondary:number}={minigun:0,secondary:0};
   private mechRotary:THREE.Group|null=null;
-  private wonderVisualFx:{group:THREE.Group;born:number;duration:number}[]=[];
+  private wonderVisualFx:(WonderKillVisual&{born:number})[]=[];
   private mousePressedThisFrame = false;  // for semi-auto / burst: fires only on the press edge
   private pointerLocked = false;
   private inputSuspended = false;
@@ -3382,6 +3383,20 @@ export class FPSEngine {
       // For glowing skins, tint the basic material toward the emissive colour.
       (this.weaponMat as unknown as THREE.MeshBasicMaterial).color.lerp(emissiveCol, 0.4);
     }
+    // Wonder-only cosmetics override ordinary camos on the receiver and barrel.
+    // Generate a themed surface pattern ONCE per equip; per-frame animation
+    // only updates its UV transform, avoiding new canvases/texture uploads.
+    if(selectedWonderFinish){
+      const pattern=createWonderFinishTexture(selectedWonderFinish.id);
+      if(pattern){
+        this.prestigeTexture?.dispose();
+        this.prestigeTexture=pattern;
+        const surface=this.weaponMat as unknown as THREE.MeshBasicMaterial;
+        surface.map=pattern;
+        surface.color.set(0xffffff);
+        surface.needsUpdate=true;
+      }
+    }
     // Gold retains dark hardware and distinctive inserts; Inferno and animated
     // Prestige finishes deliberately coat the entire model.
     const accentMat = fullLegendaryFinish
@@ -4044,15 +4059,17 @@ export class FPSEngine {
     }
     if(this.currentSlot==="wonder"&&wonderFinishById(this.wonderSkinId)&&this.weaponMat){
       const t=performance.now()*.001,finish=wonderFinishById(this.wonderSkinId)!;
-      const color=new THREE.Color(finish.color);
-      // Scoped Wonders retain their distinctive hue, but their casing pulses
-      // with alternating slow/fast signal bands instead of a static recolor.
-      const personal="wonderWeaponId" in finish,phase=personal?Math.sin(t*1.7)*.14:0;
-      if(finish.id==="wonder_prismatic")color.setHSL((t*.13)%1,.76,.59);
-      const pulse=.68+Math.sin(t*3.2+phase)*.17+Math.sin(t*.9+phase)*.1;
-      (this.weaponMat as unknown as THREE.MeshBasicMaterial).color.copy(color.multiplyScalar(pulse));
+      const material=this.weaponMat as unknown as THREE.MeshBasicMaterial;
+      const pulse=.83+Math.sin(t*3.2)*.09+Math.sin(t*.8)*.05;
+      if(this.prestigeTexture){
+        updateWonderFinishTexture(this.prestigeTexture,finish.id,t);
+        material.color.setRGB(pulse,pulse,pulse);
+      }else{
+        // Graceful fallback for browsers without Canvas2D.
+        material.color.set(finish.color).multiplyScalar(pulse);
+      }
     }
-    if (this.prestigeTexture) {
+    if (this.prestigeTexture && !(this.currentSlot==="wonder"&&wonderFinishById(this.wonderSkinId))) {
       const t = performance.now() * .001;
       this.prestigeTexture.offset.set(t * .045 % 1, t * .015 % 1);
     }
@@ -8514,34 +8531,16 @@ export class FPSEngine {
     }
   }
   private showWonderBurst(pos:Vec3,id:string){
-    const effect=wonderKillEffectById(id),finish=wonderFinishById(id);
-    const color=parseInt((effect?.color??finish?.color??"#ad84ff").slice(1),16);
-    const group=new THREE.Group();const mat=new THREE.MeshBasicMaterial({color,transparent:true,opacity:.83,depthWrite:false});
-    const geo=new THREE.OctahedronGeometry(.075);
-    const pattern=effect&&"pattern" in effect?effect.pattern:"generic";
-    const n=id==="wonder_kill_disintegrate"?32:pattern==="generic"?20:26;
-    for(let i=0;i<n;i++){
-      const angle=i*2.399963,ring=i/n,vertical=Math.sin(i*7.93);
-      const particle=new THREE.Mesh(geo,mat);
-      switch(pattern){
-        case "event_collapse": particle.position.set(Math.sin(angle)*(1-ring),.7+vertical*.7,Math.cos(angle)*(1-ring));break;
-        case "toxic_bloom": particle.position.set(Math.sin(angle)*ring*1.6,Math.cos(angle)*.32+1,Math.cos(angle)*ring*1.6);break;
-        case "brass_storm": case "heavy_metal": particle.position.set(Math.sin(angle)*1.2,.3+(i%7)*.26,Math.cos(angle)*1.2);break;
-        case "thunderstruck":case "rail_fracture": particle.position.set(vertical*.25,i*.076,Math.cos(i*3)*.25);break;
-        case "chain_reaction": particle.position.set(Math.sin(angle)*(.2+(i%4)*.28),.3+(i%5)*.28,Math.cos(angle)*(.2+(i%4)*.28));break;
-        case "system_failure":case "false_reality":case "digital_erasure":particle.position.set((i%5-2)*.27,(Math.floor(i/5)+1)*.26,Math.sin(i)*.13);break;
-        case "ashes_to_ashes":particle.position.set(Math.sin(angle)*.42,.2+ring*2.2,Math.cos(angle)*.42);break;
-        case "last_stand":case "earthshatter":case "razor_divide":particle.position.set(Math.sin(angle)*ring*1.2,.4+ring*1.5,Math.cos(angle)*ring*1.2);particle.rotation.set(angle,angle*.5,angle);break;
-        case "temporal_echo":particle.position.set(Math.sin(angle)*(.55+ring*.4),.5+ring*1.3,Math.cos(angle)*(.55+ring*.4));break;
-        case "deep_freeze":particle.position.set(Math.sin(angle)*.72,.3+ring*1.65,Math.cos(angle)*.72);break;
-        default:particle.position.set(Math.sin(angle)*(.25+i*.025),.7+vertical*.6,Math.cos(angle)*(.25+i*.025));
-      }
-      if(pattern==="digital_erasure"||pattern==="system_failure")particle.scale.setScalar(.6);
-      else if(pattern==="last_stand"||pattern==="earthshatter"||pattern==="deep_freeze")particle.scale.setScalar(1.8);
-      group.add(particle);
+    const visual=createWonderKillVisual(id,pos);
+    if(!visual)return;
+    // High player counts can create many eliminations in one frame. Bound
+    // active cosmetic effects and release GPU allocations for the oldest.
+    if(this.wonderVisualFx.length>=12){
+      const oldest=this.wonderVisualFx.shift();
+      oldest?.dispose();
     }
-    group.position.set(...pos);this.scene.add(group);
-    this.wonderVisualFx.push({group,born:performance.now(),duration:650});
+    this.scene.add(visual.group);
+    this.wonderVisualFx.push({...visual,born:performance.now()});
   }
   private placeChronoMarker(pos:Vec3){
     if(this.chronoMarker){this.chronoMarker.removeFromParent();this.chronoMarker.geometry.dispose();(this.chronoMarker.material as THREE.Material).dispose();}
@@ -8713,16 +8712,12 @@ export class FPSEngine {
     if(!this.chronoAnchor&&this.chronoMarker){this.chronoMarker.removeFromParent();this.chronoMarker.geometry.dispose();(this.chronoMarker.material as THREE.Material).dispose();this.chronoMarker=null;}
     if(this.chronoMarker){this.chronoMarker.rotation.z=now*.001;this.chronoMarker.scale.setScalar(1+Math.sin(now*.006)*.08);}
     for(let i=this.wonderVisualFx.length-1;i>=0;i--){
-      const v=this.wonderVisualFx[i],fraction=(now-v.born)/v.duration;
-      if(fraction>=1){const first=v.group.children[0] as THREE.Mesh|undefined;
-        const material=first?.material as THREE.Material|undefined;
-        v.group.removeFromParent();v.group.traverse(o=>{if(o instanceof THREE.Mesh)o.geometry.dispose();});
-        material?.dispose();
-        this.wonderVisualFx.splice(i,1);continue;}
-      v.group.scale.setScalar(.65+fraction*1.65);
-      v.group.rotation.y=now*.0018;
-      const first=v.group.children[0] as THREE.Mesh|undefined;
-      if(first)(first.material as THREE.MeshBasicMaterial).opacity=.85*(1-fraction);
+      const visual=this.wonderVisualFx[i];
+      const fraction=(now-visual.born)/visual.duration;
+      if(fraction>=1){
+        visual.dispose();
+        this.wonderVisualFx.splice(i,1);
+      }else visual.update(fraction);
     }
     if(this.mechActive&&time>=this.mechActive.expiresAt){
       this.showMechExitFx(new THREE.Vector3(this.pos.x,this.pos.y+1,this.pos.z));
@@ -13377,7 +13372,7 @@ export class FPSEngine {
     for(const id of [...this.phantomDecoys.keys()])this.clearPhantom(id);
     for(const id of [...this.harbingerDrones.keys()])this.removeHarbinger(id);
     if(this.chronoMarker){this.chronoMarker.removeFromParent();this.chronoMarker.geometry.dispose();(this.chronoMarker.material as THREE.Material).dispose();this.chronoMarker=null;}
-    for(const fx of this.wonderVisualFx){fx.group.removeFromParent();const meshes=fx.group.children.filter((o):o is THREE.Mesh=>o instanceof THREE.Mesh);for(const m of meshes)m.geometry.dispose();if(meshes[0])(meshes[0].material as THREE.Material).dispose();}
+    for(const fx of this.wonderVisualFx)fx.dispose();
     this.wonderVisualFx=[];
     if (this.finaleTimer) { clearTimeout(this.finaleTimer); this.finaleTimer = null; }
     for (const id of [...this.poisonBubbles.keys()]) this.updatePoisonVisual(id, [0, 0, 0], null, 0);
