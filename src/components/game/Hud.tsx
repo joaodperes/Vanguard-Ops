@@ -513,6 +513,7 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
           <path d="M148 42 Q110 111 40 147" fill="none" stroke="#e6a74c" strokeWidth="3" strokeLinecap="round"/>
         </svg>
       </div>}
+      {(mode==="tdm"||mode==="ctf"||mode==="killconfirmed")&&<div className="absolute bottom-28 left-1/2 -translate-x-1/2 text-xs text-cyan-100 bg-black/65 p-2">{hud.squadOrder?`Squad: ${hud.squadOrder}`:"Z Attack · C Defend · V Regroup"}</div>}
       {/* top right: exit + ping */}
       <div className={`absolute right-4 z-[45] flex items-center gap-2 pointer-events-auto ${isTouch ? "top-[190px]" : "top-4"}`}>
         {showPing && (

@@ -1439,6 +1439,7 @@ export interface PlayerNet {
 export type C2S =
   | { t: "joinMatch"; playerKey: string; name: string; mode: GameMode; botCount: number; loadout: LoadoutWire; team?: "red" | "blue"; mapId?: MapId }
   | { t: "leaveMatch" }
+  | { t:"squadOrder";kind:import("./squad-coordination").SquadCommand;pos:Vec3 }
   | { t: "state"; pos: Vec3; yaw: number; pitch: number; aiming: boolean; firing: boolean; reloading: boolean; alive: boolean; sprinting?: boolean }
   | { t: "shot"; origin: Vec3; dir: Vec3; weaponId: string; skinId: string; aiming?: boolean; akimboHand?: "left" | "right" }   // server-side raycast; shotgun ADS is sampled at fire-time
   | { t: "reload" }
@@ -1532,6 +1533,7 @@ export interface MaterialCoverImpact {
 }
 
 export type S2C =
+  | {t:"squadCommand";order:import("./squad-coordination").SquadOrder}
   | {t:"survivalAbility"; ownerId:string; kind:"heal"|"sentry"|"pulse"; targetId?:string}
   | { t: "materialCoverImpact"; impact: MaterialCoverImpact }
   | { t: "clusterVolley"; volley: ClusterVolley; serverNow: number }

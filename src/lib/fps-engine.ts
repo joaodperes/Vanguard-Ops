@@ -1,3 +1,4 @@
+import {squadIntent,validSquadOrder,squadOrderPoint,type SquadOrder,type SquadCommand} from "./squad-coordination";
 import { survivalRoleForSlot, survivalRoleHealthMultiplier, survivalFrontalArmor, tickSurvivalSpecialists, createSurvivalObjective, tickSurvivalObjective, survivalObjectiveSite, survivalObjectiveText, SURVIVAL_ROLE_INFO, type SurvivalRole, type SurvivalActor, type SurvivalObjective } from "./survival-encounters";
 import { combatIdentity, tracerIdentity } from "./combat-identity";
 import { combatThreats, type CombatHazard, type CombatThreat } from "./combat-threats";
@@ -215,6 +216,7 @@ export interface EngineOptions {
 }
 
 export interface HudState {
+  squadOrder?:string;
   health: number;
   maxHealth: number;
   ammo: number;
@@ -693,6 +695,10 @@ export class FPSEngine {
   private worldLightBudget: WorldLightBudget | null = null;
   private highGroundCache:{source:MapDef["props"];goals:HighGroundGoal[]}|null=null;
   // Only expensive A* searches are budgeted. Every bot still moves and collides each frame.
+  private squadMarker?:THREE.Group;
+  private squadMarkerKey="";
+  private squadOrder?:SquadOrder;
+  private squadOrderAt=-Infinity;
   private botRouteBudget = new BotRouteBudget();
   private botEnemySearchCache = new Map<string,{nextAt:number;targetId:string|null}>();
   private botAnimationAt = new Map<string,number>();
@@ -4609,6 +4615,7 @@ export class FPSEngine {
         e.preventDefault();
         this.exitMech();
       }
+      if(!e.repeat&&(this.pointerLocked||this.touchMode)){if(e.code==="KeyZ")this.sendSquadOrder("attack");if(e.code==="KeyC")this.sendSquadOrder("defend");if(e.code==="KeyV")this.sendSquadOrder("regroup");}
       if (e.code === "KeyG" && !e.repeat && (this.pointerLocked || this.touchMode)) {
         e.preventDefault();
         this.useEquipment();
@@ -4852,6 +4859,16 @@ export class FPSEngine {
   setTouchEquipmentAim(held: boolean) {
     if (this.touchEquipmentAiming && !held) this.useEquipment();
     this.touchEquipmentAiming=held;
+  }
+  sendSquadOrder(kind:SquadCommand){
+    if(!this.alive||this.inputSuspended||this.lobbyActive||this.matchEnded||this.opts.mode==="ffa"||this.opts.mode==="gungame"||this.opts.mode==="survival"||this.preMatchCountdown>0)return;
+    const now=performance.now();if(now-this.squadOrderAt<2000)return;
+    const origin:Vec3=[this.pos.x,this.pos.y,this.pos.z];
+    const pos=squadOrderPoint(origin,this.yaw,kind,this.map.spawns.ffa);
+    const order=validSquadOrder(kind,pos,origin,this.opts.team,this.selfId,now);if(!order)return;
+    this.squadOrderAt=now;
+    if(this.opts.online)this.socket?.emit("message",{t:"squadOrder",kind,pos} as C2S);else this.squadOrder=order;
+    this.sound.play("countdown_tick",{volume:.25,throttleMs:250});
   }
   touchJump() { this.touchJumpQueued = true; }
   // Touch weapon swap (called by on-screen slot buttons 1/2/3).
@@ -7602,6 +7619,7 @@ export class FPSEngine {
       case "matchEnd":
         this.finalizeMatch(msg.standings, msg.winnerTeam, msg.teamScores);
         break;
+      case "squadCommand": this.squadOrder=msg.order; break;
       case "chat":
         break;
       case "error":
@@ -12414,13 +12432,15 @@ export class FPSEngine {
       if (dist > chaseThreshold) { mvx = Math.sin(c.yaw) * speed * dt; mvz = Math.cos(c.yaw) * speed * dt; }
       else if (dist < ideal - 3) { mvx = -Math.sin(c.yaw) * speed * dt; mvz = -Math.cos(c.yaw) * speed * dt; }
       else { mvx = Math.cos(c.yaw) * ai.strafeDir * speed * dt * stance.strafe; mvz = -Math.sin(c.yaw) * ai.strafeDir * speed * dt * stance.strafe; }
+      const coordinated=squadIntent({self:c,allies:[...this.combatants.values()],mode:this.opts.mode,now,target:tgt.pos,order:this.squadOrder,critical:this.opts.mode==="ctf"&&(!!this.ctfFlags.red.carrierId||!!this.ctfFlags.blue.carrierId||ai.ctfGuarding)});
+      if(coordinated){const dx=coordinated.goal[0]-c.pos[0],dz=coordinated.goal[2]-c.pos[2],length=Math.hypot(dx,dz);if(length>2){mvx=dx/length*speed*dt;mvz=dz/length*speed*dt;}}
       // Obstacle-aware chase navigation around the dense Bunker centre.
       if((dist > chaseThreshold || Math.abs(tgt.pos[1] - c.pos[1]) > 1.3) &&
           (Math.abs(tgt.pos[1] - c.pos[1]) > 1.3 || this.opts.mapId==="bunker" ||
           this.botMoveBlocked(c.pos,[c.pos[0]+mvx*6,c.pos[1],c.pos[2]+mvz*6],c.pos[1]) ||
           floodgateRouteNeedsDetour(c.pos,tgt.pos,floodAge,this.map.cover))) {
         if(now>=(ai.nextRouteAt??0)&&this.botRouteBudget.take()){
-          ai.routeWaypoint=botNextWaypoint(c.pos,botMapRouteGoal(this.map.id,c.pos,tgt.pos),this.map.cover,this.map.size,3,floodgatePathHazards(this.map,this.floodgateBreachAt!==null),
+          ai.routeWaypoint=botNextWaypoint(c.pos,botMapRouteGoal(this.map.id,c.pos,coordinated?.goal??tgt.pos),this.map.cover,this.map.size,3,floodgatePathHazards(this.map,this.floodgateBreachAt!==null),
             this.map.regions,this.coverIndex()??undefined,this.isCityMap()?280:1000,floodAge) ??
             botHighGroundWaypoint(c.pos,tgt.pos,this.map.cover);
           ai.nextRouteAt=now+850+botRouteJitter(c.id);
@@ -12594,6 +12614,8 @@ export class FPSEngine {
         ai.burstEndsAt = now + durationMs;
       }
     } else {
+      const orderGoal=squadIntent({self:c,allies:[...this.combatants.values(),{id:this.selfId,team:this.opts.team,pos:[this.pos.x,this.pos.y,this.pos.z] as Vec3,alive:this.alive,health:this.health}],mode:this.opts.mode,now,order:this.squadOrder,critical:this.opts.mode==="ctf"&&(!!this.ctfFlags.red.carrierId||!!this.ctfFlags.blue.carrierId||ai.ctfGuarding)});
+      if(orderGoal){ai.wanderTarget=[...orderGoal.goal];ai.highGroundPatrol=null;}
       const patrolGoal=ai.highGroundPatrol;
       const patrolPoint=patrolGoal?cityHighGroundStep(c.pos,patrolGoal,
         this.coverNear(c.pos[0],c.pos[2],35)):ai.wanderTarget;
@@ -13238,7 +13260,20 @@ export class FPSEngine {
       [this.pos.x, this.pos.y + EYE_HEIGHT, this.pos.z], point));
   }
 
+  private updateSquadMarker(){
+    const order=this.squadOrder;
+    const key=order&&order.expiresAt>(this.opts.online?Date.now():performance.now())?`${order.issuer}:${order.kind}:${order.expiresAt}`:"";
+    if(key===this.squadMarkerKey)return;this.squadMarkerKey=key;
+    if(this.squadMarker){this.squadMarker.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();(o.material as THREE.Material).dispose();}});this.squadMarker.removeFromParent();this.squadMarker=undefined;}
+    if(!key||!order)return;
+    const group=new THREE.Group(),color=order.kind==="attack"?0xfbbf24:order.kind==="defend"?0x60a5fa:0x4ade80;
+    const diamond=new THREE.Mesh(new THREE.OctahedronGeometry(.45),new THREE.MeshBasicMaterial({color}));diamond.position.y=2.5;
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(1,.06,5,24),new THREE.MeshBasicMaterial({color}));ring.rotation.x=Math.PI/2;
+    group.add(diamond,ring);group.position.set(order.pos[0],order.pos[1]+.1,order.pos[2]);this.scene.add(group);this.squadMarker=group;
+  }
+
   private emitHud(now: number) {
+    this.updateSquadMarker();
     const orbitalWarning=this.orbitalSnapshotSeen
       ?orbitalServerWarning(this.map,this.opts.online,this.orbitalServerVersion)
       :undefined;
@@ -13262,6 +13297,7 @@ export class FPSEngine {
         Math.hypot(this.pos.x-d.pos[0],this.pos.z-d.pos[2])<=3.2);
     this.opts.onHud({
       combatThreats: this.visibleCombatThreats(),
+      squadOrder:this.squadOrder&&this.squadOrder.expiresAt>(this.opts.online?Date.now():now)?this.squadOrder.kind:undefined,
       mechArmor:this.mechActive?.armor,
       mechArmorMax:this.mechActive?mechTuning(this.mechActive.moduleId).armor:undefined,
       mechMinigunAmmo:this.mechActive?.minigunAmmo,
