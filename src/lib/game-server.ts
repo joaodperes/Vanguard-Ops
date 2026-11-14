@@ -1,4 +1,5 @@
 import {squadIntent,validSquadOrder,squadOrderPoint,type SquadOrder} from "./squad-coordination";
+import { operationById, nextOperation, createOperationState, tickOperation, operationEncounter, operationConfigValid, type OperationState } from "./operations";
 import { survivalRoleForSlot, survivalRoleHealthMultiplier, survivalFrontalArmor, tickSurvivalSpecialists, createSurvivalObjective, tickSurvivalObjective, SURVIVAL_ROLE_INFO, type SurvivalActor, type SurvivalObjective } from "./survival-encounters";
 import { survivalPauseActive, survivalFirstChoiceDeadline, remainingSurvivalUpgradeSeconds } from "./survival-pause";
 import { blastCanDamage, blastDistance, blastExposureDistance, blastUnobstructed } from "./explosion-damage-rules";
@@ -219,6 +220,7 @@ interface Room {
   survivalObjective?: SurvivalObjective;
   // survival mode state
   wave: number;
+  operation?: OperationState;
   waveActive: boolean;
   prepLeft: number;
   reinforcements: number;
@@ -533,6 +535,7 @@ function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
   const capacity = roomCapacity(mode, teamSize);
   const room: Room = {
     id, mode, config, map,
+    operation:config.operationId ? createOperationState(config.operationId):undefined,
     players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(), pendingLoadouts: new Map(), playerKeys: new Map(),
     assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(map), overtime: false, orbitalCharge:0, orbitalHolders:new Set<string>(), tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
     startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
@@ -574,7 +577,7 @@ function findOpenRoom(mode: GameMode, mapId: MapId): Room | null {
   for (const r of rooms.values()) {
     // Quick-match only joins rooms already in the "playing" state (lobby rooms
     // are joined explicitly via joinRoom).
-    if (r.mode === mode && r.map.id === mapId && !r.password && !r.ended && r.state === "playing") {
+    if (!r.config.operationId && r.mode === mode && r.map.id === mapId && !r.password && !r.ended && r.state === "playing") {
       // survival caps at 2 humans; others at 7
       const cap = mode === "survival" ? 2 : r.capacity;
       if (r.players.size < cap) return r;
@@ -600,6 +603,7 @@ function roomSummary(r: Room): RoomSummary {
     capacity: r.capacity,
     state: r.state === "ended" ? "lobby" : r.state,
     hasStarted: r.state === "playing",
+    operationId:r.config.operationId,
     survivalTier: r.config.survivalTier,
     createdAt: r.startTime,
   };
@@ -665,10 +669,11 @@ function lobbyPlayers(room: Room): SnapshotPlayer[] {
 // Broadcast a lobby snapshot to every socket in the room. Sent whenever the
 // player list changes during the lobby state (join/leave/transfer).
 function broadcastRoomStatus(room: Room) {
-  room.mapCandidates ??= roomMapCandidates(room.mode, room.map.id, room.teamSize, room.roundNumber);
+  room.mapCandidates ??= roomMapCandidates(room.mode,room.map.id,room.teamSize,room.roundNumber,room.config.operationId);
   const status: RoomStatus = {
     room: roomSummary(room), phase: room.state, hostSocketId: room.hostSocketId,
     players: lobbyPlayers(room).filter(p => !p.isBot), candidates: room.mapCandidates,
+    operationComplete:room.operation?.status==="won",
     votes: room.mapVotes ?? {}, ready: [...(room.resultsReady ?? [])],
   };
   io.to(room.id).emit("message", { t: "roomStatus", status } satisfies S2C);
@@ -693,12 +698,13 @@ function createLobbyRoom(
 ): Room {
   const id = genId("match");
   const mode = cfg.mode;
-  const map = makeEnvironmentMap(getMap(mapAllowedForMode(mode,cfg.mapId)?cfg.mapId:mode==="ctf"?"forest_warfare":"compound",mode));
+  const map = makeEnvironmentMap(getMap((operationConfigValid(cfg)||mapAllowedForMode(mode,cfg.mapId))?cfg.mapId:mode==="ctf"?"forest_warfare":"compound",mode));
   const teamSize = cfg.teamSize;
   const capacity = roomCapacity(mode, teamSize, cfg.survivalPlayers === 2 ? 2 : 1);
   const config = DEFAULT_CONFIG(mode, mode === "survival" ? 0 : Math.max(0, capacity - 1));
   const isSurvival = mode === "survival";
   const isGungame = mode === "gungame";
+  config.operationId=isSurvival ? operationById(cfg.operationId)?.id : undefined;
   config.survivalTier = isSurvival ? normalizeSurvivalTier(cfg.survivalTier) : undefined;
   // Round 19i: Apply custom match limits from the host's room config (FFA/TDM only).
   // Survival and Gun Game ignore custom limits (survival is endless; gungame uses
@@ -714,6 +720,7 @@ function createLobbyRoom(
   // Use a placeholder for now; startMatchInRoom overwrites it.
   const room: Room = {
     id, mode, config, map,
+    operation:config.operationId ? createOperationState(config.operationId):undefined,
     players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(), pendingLoadouts: new Map(), playerKeys: new Map(),
     assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(map), overtime: false, orbitalCharge:0, orbitalHolders:new Set<string>(), tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
     startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
@@ -768,15 +775,17 @@ function createLobbyRoom(
   return room;
 }
 
-function launchRoomRound(old: Room, socketId: string): boolean {
+function launchRoomRound(old: Room, socketId: string, advanceOperation=false): boolean {
   if (old.hostSocketId !== socketId || old.state === "playing" || old.players.size === 0) return false;
   if (old.state === "ended" && [...old.players.keys()].some(id => !old.resultsReady?.has(id))) return false;
-  const candidates = old.mapCandidates ?? roomMapCandidates(old.mode, old.map.id, old.teamSize);
-  const mapId = winningRoomMap(candidates, old.mapVotes ?? {}, [...old.players.keys()]);
+  const candidates = old.mapCandidates ?? roomMapCandidates(old.mode,old.map.id,old.teamSize,old.roundNumber,old.config.operationId);
+  const advance=advanceOperation&&old.state==="ended"&&old.operation?.status==="won" ? nextOperation(old.operation.missionId):undefined;
+  if(advanceOperation&&!advance)return false;
+  const mapId=advance?.mapId ?? winningRoomMap(candidates,old.mapVotes??{},[...old.players.keys()]);
   const host = old.players.get(socketId)!;
   const cfg: CreateRoomConfig = {
-    ...old.config, mode: old.mode, mapId, teamSize: old.teamSize, fillWithBots: old.fillWithBots,
-    password: old.password, roomName: old.name, botDifficulty: old.botDifficulty,
+    ...old.config,operationId:advance?.id ?? old.config.operationId, mode: old.mode, mapId, teamSize:advance ? recommendedTeamSize(mapId,"survival"):old.teamSize, fillWithBots: old.fillWithBots,
+    password: old.password, roomName:advance ? `Operations · ${advance.title}`:old.name, botDifficulty: old.botDifficulty,
     gungamePreset: old.gungamePreset, gungameMultiplier: old.gungameMultiplier,
     survivalPlayers: old.capacity === 2 ? 2 : 1,
   };
@@ -977,6 +986,7 @@ function snapshot(room: Room): S2C {
   if (room.mode === "survival") {
     const enemiesLeft = [...room.bots.values()].filter((b) => b.alive).length;
     base.survivalObjective=room.survivalObjective;
+    base.operation=room.operation;
     (base as any).wave = room.wave;
     (base as any).survivalTier = room.config.survivalTier;
     (base as any).waveActive = room.waveActive;
@@ -2377,6 +2387,7 @@ function endMatch(room: Room, reason: "other" | "gungame_victory" = "other") {
   })).sort((a, b) => b.score - a.score || b.kills - a.kills);
   let winnerTeam: string | null = null;
   if (room.mode === "tdm" || room.mode === "killconfirmed" || room.mode === "ctf") winnerTeam = room.teamScores.red > room.teamScores.blue ? "red" : room.teamScores.blue > room.teamScores.red ? "blue" : null;
+  else if(room.operation)winnerTeam=room.operation.status==="won" ? "blue" : null;
   else if (room.mode === "survival") winnerTeam =
     room.config.survivalTier === "default" && survivalWavesCleared(room.wave,room.waveActive) >= 30 ? "blue" : null;
   else winnerTeam = standings[0] ? standings[0].team : null;
@@ -2387,7 +2398,7 @@ function endMatch(room: Room, reason: "other" | "gungame_victory" = "other") {
     teamScores: { ...room.teamScores } } as S2C);
   room.resultsReady = new Set();
   room.mapVotes = {};
-  room.mapCandidates = roomMapCandidates(room.mode, room.map.id, room.teamSize, room.roundNumber);
+  room.mapCandidates = roomMapCandidates(room.mode,room.map.id,room.teamSize,room.roundNumber,room.config.operationId);
   broadcastRoomStatus(room);
   scheduleEmptyRoomCleanup(room);
 }
@@ -2430,7 +2441,8 @@ function offerSurvivalUpgrades(room:Room) {
 // ---- Survival wave spawning ----
 // Survival mode tier fully determines bot aim and wave modifiers.
 
-function startSurvivalWave(room: Room) {
+function startSurvivalWave(room: Room,reinforcement=false) {
+  if(!reinforcement){
   // If a player was AFK during the break, award one of their offered picks.
   for(const [playerId,offer] of room.survivalOffers)
     awardSurvivalUpgrade(room,playerId,offer.choices[0]);
@@ -2439,8 +2451,9 @@ function startSurvivalWave(room: Room) {
       player.health+survivalWaveHealing(room.survivalRanks.get(player.id)??{}));
   }
   room.wave += 1;
+  }
   room.waveActive = true;
-  room.survivalObjective=createSurvivalObjective(room.wave,survivalWaveMutators(room.config.survivalTier??"default",room.wave).boss,room.map.spawns.ffa);
+  if(!reinforcement)room.survivalObjective=room.operation ? undefined : createSurvivalObjective(room.wave,survivalWaveMutators(room.config.survivalTier??"default",room.wave).boss,room.map.spawns.ffa);
   // cleanup any leftover dead bots from the previous wave
   for (const [id, b] of room.bots) {
     if (!b.alive){
@@ -2451,11 +2464,12 @@ function startSurvivalWave(room: Room) {
   }
   const mutators=survivalWaveMutators(room.config.survivalTier ?? "default",room.wave);
   const baseCount=survivalEnemyCount(room.wave, room.players.size, survivalWaveBotCount);
-  const count = Math.min(40,Math.ceil(baseCount*mutators.spawnMul))+(mutators.boss ? 1 : 0);
+  const encounter=room.operation ? operationEncounter(operationById(room.operation.missionId)!,room.operation.stage,room.players.size):undefined;
+  const count=(reinforcement ? encounter?.reinforcementCount : encounter?.count) ?? Math.min(40,Math.ceil(baseCount*mutators.spawnMul))+(mutators.boss ? 1 : 0);
   const hpMul = survivalWaveHealthMul(room.wave)*mutators.healthMul;
   // Match archetypes to any eligible standard weapon, not a legacy fixed list.
   const skinRotation = Math.floor(Math.random()*BOT_OPERATIVE_SKINS.length);
-  const waveDiff = survivalBotDifficulty(room.config.survivalTier ?? "default",room.wave);
+  const waveDiff=encounter?.difficulty ?? survivalBotDifficulty(room.config.survivalTier ?? "default",room.wave);
   for (let n = 0; n < count; n++) {
     const id = genId("svbot");
     // ---- Round 18-b: spread out spawns ----
@@ -2466,7 +2480,7 @@ function startSurvivalWave(room: Room) {
     const loadout = botLoadout(undefined,n,"survival",room.wave);
     const boss = mutators.boss && n === count-1;
     const elite = !boss && room.wave>=5 && room.wave%5===0 && n===count-(mutators.boss?2:1);
-    const role=survivalRoleForSlot(room.wave,n,boss,elite);
+    const role=survivalRoleForSlot(encounter?.roleWave ?? room.wave,n,boss,elite);
     if(role){loadout.perkId="steady";loadout.wonderWeaponId=undefined;}
     loadout.playerSkinId = boss ? SURVIVAL_BOSS_SKIN_ID : botOperativeSkinId(n,skinRotation);
     if (boss) {
@@ -2795,7 +2809,15 @@ function tickRoomSimulation(room: Room) {
       } else if (room.waveActive) {
         const aliveBots = [...room.bots.values()].filter((b) => b.alive).length;
         tickRoomSurvivalEncounters(room,1/20);
-        if (aliveBots === 0 && (!room.survivalObjective||room.survivalObjective.complete)) {
+        const previousStage=room.operation?.stage,previousPulse=room.operation?.pulse;
+        if(room.operation){
+          room.operation=tickOperation(room.operation,room.map,
+            [...room.players.values()].map(p=>({id:p.id,pos:p.pos,alive:p.alive&&!room.downed.has(p.id)})),
+            [...room.bots.values()].map(p=>({id:p.id,pos:p.pos,alive:p.alive})),1/20);
+          if(room.operation.status!=="active"){room.waveActive=false;endMatch(room);return;}
+          if(room.operation.stage===previousStage&&room.operation.pulse!==previousPulse)startSurvivalWave(room,true);
+        }
+        if (room.operation ? room.operation.stage!==previousStage : aliveBots===0&&(!room.survivalObjective||room.survivalObjective.complete)) {
           room.waveActive = false;
           if (room.config.survivalTier === "default" && room.wave >= 30) {
             endMatch(room);
@@ -2807,7 +2829,7 @@ function tickRoomSimulation(room: Room) {
           // Award rerolls at boss clear, not only when a pick is available.
           if(survivalWaveMutators(room.config.survivalTier??"default",room.wave).boss)
             for(const p of room.players.values())room.survivalRerolls.set(p.id,(room.survivalRerolls.get(p.id)??1)+1);
-          if(survivalUpgradeDue(room.wave)||
+          if(room.operation||survivalUpgradeDue(room.wave)||
              survivalWaveMutators(room.config.survivalTier??"default",room.wave).boss)
             offerSurvivalUpgrades(room);
         }
@@ -4498,7 +4520,7 @@ async function handle(socket: any, msg: C2S) {
     }
     case "voteMap": {
       if (!pauseRoom || pauseRoom.state === "playing" || !pauseRoom.players.has(socket.id)) return;
-      const candidates = pauseRoom.mapCandidates ?? roomMapCandidates(pauseRoom.mode,pauseRoom.map.id,pauseRoom.teamSize);
+      const candidates = pauseRoom.mapCandidates ?? roomMapCandidates(pauseRoom.mode,pauseRoom.map.id,pauseRoom.teamSize,pauseRoom.roundNumber,pauseRoom.config.operationId);
       if (!candidates.includes(msg.mapId)) return;
       (pauseRoom.mapVotes ??= {})[socket.id] = msg.mapId;
       broadcastRoomStatus(pauseRoom);
@@ -5035,7 +5057,10 @@ async function handle(socket: any, msg: C2S) {
       const loadout = await validatedMatchLoadout(msg.playerKey, msg.loadout);
       if (socket.connected === false) return;
       const cfg = msg.config;
-      if (!mapAllowedForMode(cfg.mode, cfg.mapId)) {
+      if(cfg.operationId!==undefined&&!operationConfigValid(cfg)){
+        socket.emit("message",{t:"roomError",message:"Invalid Operations mission configuration."} as S2C);break;
+      }
+      if (!operationConfigValid(cfg)&&!mapAllowedForMode(cfg.mode,cfg.mapId)) {
         socket.emit("message", { t: "roomError", message: "This map is not available in the selected mode." } as S2C);
         break;
       }
@@ -5134,14 +5159,14 @@ async function handle(socket: any, msg: C2S) {
     case "startMatch": {
       const room = rooms.get(socketToRoom.get(socket.id) ?? "");
       if (!room) return;
-      const ok = launchRoomRound(room, socket.id);
+      const ok = launchRoomRound(room,socket.id,msg.advanceOperation===true);
       if (!ok) {
         // Only the host can start, and only from the lobby state. Surface a
         // roomError so the client can react (e.g. disable the button).
-        const reason = room.state !== "lobby"
-          ? room.state === "ended" ? "Wait for everyone to finish saving their results." : "Match has already started."
-          : room.hostSocketId !== socket.id
-          ? "Only the host can start the match."
+        const reason=room.hostSocketId!==socket.id ? "Only the host can start the match."
+          : room.state==="playing" ? "Match has already started."
+          : room.state==="ended"&&[...room.players.keys()].some(id=>!room.resultsReady?.has(id)) ? "Wait for everyone to finish saving their results."
+          : msg.advanceOperation ? "Complete the current mission before advancing; the final mission has no successor."
           : "Could not start the match.";
         socket.emit("message", { t: "roomError", message: reason } as S2C);
       }

@@ -3,6 +3,7 @@ import {useSettings} from "@/lib/settings-store";
 import { useEffect, useState } from "react";
 import type { HudState, ScoreRow } from "@/lib/fps-engine";
 import { formatMatchClock } from "@/lib/match-clock";
+import { operationById } from "@/lib/operations";
 import { SURVIVAL_UPGRADES, survivalUpgradeValueText, type SurvivalUpgradeId } from "@/lib/survival-upgrades";
 import { scoreboardRules } from "@/lib/scoreboard-rules";
 import type { GameMode } from "@/lib/game-protocol";
@@ -331,6 +332,18 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
       )}
 
 
+      {hud.operation&&(()=>{
+        const mission=operationById(hud.operation.missionId),goal=mission?.objectives[hud.operation.stage],w=hud.operationWaypoint;
+        if(!mission||!goal)return null;
+        return <div className={`absolute ${isTouch ? "left-3 top-14 w-[calc(100vw-10rem)] max-w-sm p-2":"left-1/2 -translate-x-1/2 top-20 w-full max-w-md p-3"} rounded-lg border border-amber-400/40 bg-black/80 text-center pointer-events-none`}>
+          <div className="text-[10px] text-amber-300 uppercase tracking-widest truncate">{mission.title} · {hud.operation.stage+1}/{mission.objectives.length}</div>
+          <div className="text-white font-bold text-sm">{goal.label}</div>
+          <div className="text-xs text-white/75 mt-1">{goal.kind==='clear' ? "Eliminate all hostiles":`${Math.floor(hud.operation.progress)}/${goal.seconds}s · Hold the marked area`} · {hud.survivalEnemiesLeft??0} hostiles</div>
+          {w&&<div className="flex justify-center items-center gap-2 text-amber-200 text-xs mt-1"><span className="inline-block text-lg" style={{transform:`rotate(${-w.angle}rad)`}}>↑</span> ◆ {Math.round(w.distance)}m {Math.abs(w.vertical)>2.5 ? w.vertical>0 ? "· Above":"· Below":""}</div>}
+          <div className="text-[10px] text-white/50">{hud.operation.intel ? "◇ Intel recovered":"◇ Intel optional"} · {Math.max(0,Math.ceil(mission.parSeconds*2-hud.operation.elapsed))}s until abort</div>
+          {!isTouch&&hud.operation.carrierId&&<div className="text-[10px] text-amber-200">Package carried by squad · Bring carrier to ◆</div>}
+        </div>;
+      })()}
       {/* Lean, objective-only scoreboard. Mode identity remains in countdown / TAB scoreboard. */}
       <div className={`absolute left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-1 max-w-[96vw] ${isTouch ? "top-1.5" : "top-3"}`}>
         <div className={`flex items-center justify-center whitespace-nowrap ${isTouch ? "gap-1" : "gap-2"}`}>
@@ -338,7 +351,7 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
             <>
               <div className={`bg-black/65 backdrop-blur rounded-lg border border-amber-500/30 flex items-center ${isTouch ? "gap-1 px-2 py-1" : "gap-1.5 px-3 py-1.5"}`}>
                 <Skull className={isTouch ? "w-3 h-3 text-amber-400" : "w-4 h-4 text-amber-400"} />
-                <span className={`text-white/60 uppercase ${isTouch ? "text-[9px]" : "text-xs"}`}>Wave</span>
+                <span className={`text-white/60 uppercase ${isTouch ? "text-[9px]" : "text-xs"}`}>{hud.operation ? "Stage":"Wave"}</span>
                 <span className={`text-amber-300 font-black tabular-nums ${isTouch ? "text-sm" : "text-lg"}`}>{hud.survivalWave ?? 0}</span>
               </div>
               <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1 px-2 py-1" : "gap-1.5 px-3 py-1.5"}`}>
@@ -528,7 +541,7 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
         </button>
       </div>
 
-      {hud.radar && <Minimap radar={hud.radar} compact={isTouch} />}
+      {hud.radar && <Minimap radar={hud.radar} compact={isTouch} objective={hud.operationWaypoint} intel={hud.operation?.intel ? undefined:hud.operationIntel} />}
 
       {/* bottom left: health + regen cooldown + sprint indicator (desktop only —
           mobile uses the centered bottom cluster below). */}
@@ -778,7 +791,7 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
           Triggered by `survivalWaveBannerAt` (a timestamp set by the engine
           when startSurvivalWave fires, or when the online snapshot's wave
           number increases). The banner fades in/out via CSS animation. */}
-      {mode === "survival" && hud.survivalWaveBannerAt && (performance.now() - hud.survivalWaveBannerAt < 3500) && (
+      {mode === "survival" && !hud.operation && hud.survivalWaveBannerAt && (performance.now() - hud.survivalWaveBannerAt < 3500) && (
         <div
           key={hud.survivalWaveBannerAt}
           className="absolute left-1/2 -translate-x-1/2 top-1/4 pointer-events-none z-30"

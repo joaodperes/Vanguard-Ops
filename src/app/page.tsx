@@ -7,6 +7,8 @@ import { useGame } from "@/lib/game-store";
 import { Auth } from "@/components/screens/Auth";
 import { MainMenu } from "@/components/screens/MainMenu";
 import { SiteNav } from "@/components/game/SiteNav";
+import { Operations } from "@/components/screens/Operations";
+import { saveOperationProgress } from "@/lib/operations";
 import { Play } from "@/components/screens/Play";
 import { Armory } from "@/components/screens/Armory";
 import { FiringRange } from "@/components/screens/FiringRange";
@@ -89,6 +91,10 @@ export default function Page() {
   }, [booted, screen, profile, playerKey, setScreen]);
 
   const handleMatchEnd = async (r: MatchEndResult) => {
+    if(r.operation){
+      if(r.won&&r.completed&&!saveOperationProgress(playerKey,r.operation,r.deaths))toast.error("Campaign progress could not be saved in this browser.");
+      setMatchResult(r);setScreen("results");roomSend({t:"readyNextRound"});return;
+    }
     try {
       const res = await fetch("/api/match/complete", {
         method: "POST",
@@ -228,6 +234,7 @@ export default function Page() {
       {screen !== "playing" && <SiteNav />}
       {screen === "menu" && <MainMenu />}
       {screen === "play" && <Play />}
+      {screen === "operations" && <Operations />}
       {screen === "armory" && <Armory />}
       {screen === "range" && <FiringRange />}
       {screen === "profile" && <Profile />}
@@ -242,6 +249,7 @@ export default function Page() {
           mode={playConfig.mode}
           botCount={playConfig.botCount}
           botDifficulty={playConfig.botDifficulty}
+          operationId={playConfig.operationId}
           survivalTier={playConfig.survivalTier ?? "default"}
           online={playConfig.online}
           playerName={titledDisplayName(profile.name,profile.selectedTitle)}
@@ -252,7 +260,7 @@ export default function Page() {
           roomConnect={roomConnect}
           onMatchEnd={handleMatchEnd}
           onExitWithStats={handleMatchEnd}
-          onExit={() => { setRoomConnect(null); setScreen("play"); }}
+          onExit={() => { setRoomConnect(null); setScreen(playConfig.operationId ? "operations" : "play"); }}
         />
       )}
       {screen === "playing" && !loadoutWire && (

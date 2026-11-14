@@ -1,3 +1,4 @@
+import type { OperationState } from "./operations";
 import type { SurvivalRole, SurvivalObjective } from "./survival-encounters";
 // ============================================================================
 // VANGUARD OPS — Shared game protocol & map catalog
@@ -59,6 +60,7 @@ export function roomCapacity(mode: GameMode, teamSize: TeamSize, survivalPlayers
 
 // Public-facing summary of a room — broadcast in the room browser list.
 export interface RoomStatus {
+  operationComplete?: boolean;
   room: RoomSummary;
   phase: "lobby" | "playing" | "ended";
   hostSocketId: string;
@@ -81,6 +83,7 @@ export interface RoomSummary {
   humans: number;       // current human player count
   capacity: number;     // total slots
   hasStarted: boolean;  // match in progress (always true once created)
+  operationId?: string;
   survivalTier?: SurvivalTier;
   state?: "lobby" | "playing";  // current room phase (lobby = waiting for host to start)
   createdAt: number;    // epoch ms
@@ -114,6 +117,7 @@ export interface CreateRoomConfig {
   gungamePreset?: "all" | "cqc" | "long_range";
   gungameMultiplier?: number; // whole list 1–5 times; default 1
   survivalPlayers?: 1 | 2; // max human co-op partners, defaults to solo
+  operationId?: string;
   survivalTier?: SurvivalTier; // default / hard / elite / nightmare
 }
 
@@ -1465,7 +1469,7 @@ export type C2S =
   | { t: "listRooms" }
   | { t: "createRoom"; playerKey: string; name: string; loadout: LoadoutWire; config: CreateRoomConfig }
   | { t: "joinRoom"; playerKey: string; name: string; loadout: LoadoutWire; roomId: string; password: string | null; team?: "red" | "blue" | "auto" }
-  | { t: "startMatch" }   // host-only: transitions a lobby room to playing
+  | { t: "startMatch"; advanceOperation?: boolean }   // host-only: transitions a lobby room to playing
   | { t: "leaveRoom" };
 
 // ---- Server -> Client events ----
@@ -1576,7 +1580,7 @@ export type S2C =
   | { t: "deployedCoverRemoved"; id: string }
   | { t: "equipmentMineRemoved"; mineId: string }
   | { t: "joined"; matchId: string; selfId: string; mode: GameMode; team: string; config: MatchConfig; mapId: MapId; players: SnapshotPlayer[] }
-  | { t: "snapshot"; survivalObjective?: SurvivalObjective; harbingerDrones?: {id:string;ownerId:string;ownerTeam:string;pos:Vec3;expiresAt:number;hp:number;moduleId:string}[]; mechDrops?: {id:string;ownerId:string;pos:Vec3;landAt:number;expiresAt:number;moduleId:string;landed:boolean;enteredBy?:string}[]; phantomDecoys?: {id:string;ownerId:string;pos:Vec3;yaw:number;createdAt:number;expiresAt:number;count:number}[]; survivalPaused?: boolean; survivalUpgradePendingCount?: number; survivalUpgradeSecondsLeft?: number; deployedCovers?: import("./deployable-cover").DeployedCover[]; clusterVolleys?: ClusterVolley[]; poisoned?: { id: string; expiresAt: number }[]; burning?: { id: string; expiresAt: number }[]; wonderFields?: { id: string; ownerId: string; ownerTeam: string; weaponId: string; kind: "flame" | "sludge"; pos: Vec3; radius: number; expiresAt: number }[]; stormMines?: { id: string; pos: Vec3; expiresAt: number; ownerId?: string; ownerTeam?: string }[]; serverNow?: number; environmentTime?: number; environmentWalls?: Record<string, number>; materialCoverDestroyed?: string[]; materialCoverHp?: Record<string, number>; floodgateRulesVersion?: number; floodgateBreachAt?: number|null; turrets?: { id: string; ownerId: string; pos: Vec3; yaw: number; expiresAt: number }[]; gravityWells?: { id: string; ownerId: string; ownerTeam: string; pos: Vec3; radius: number; activatesAt: number; expiresAt: number }[]; scavengerDrops?: { id: string; pos: Vec3; expiresAt: number }[]; players: SnapshotPlayer[]; scores: Record<string, number>; teamScores: { red: number; blue: number }; timeLeft: number; elapsedSeconds?: number; wave?: number; enemiesLeft?: number; reinforcements?: number; prepLeft?: number; survivalPlayerRanks?: Record<string, SurvivalUpgradeRanks>; preMatchCountdown?: number; gungameWeapons?: string[]; tags?: KillConfirmedTag[]; tagStats?: Record<string, { confirmations: number; denials: number }>; ctfFlags?: CtfFlags; ctfOvertime?: boolean; ctfBases?: {red:Vec3;blue:Vec3}; ctfRulesVersion?: number; orbitalCharge?: number; orbitalHolders?: string[]; orbitalRulesVersion?: number }
+  | { t: "snapshot"; operation?: OperationState; survivalObjective?: SurvivalObjective; harbingerDrones?: {id:string;ownerId:string;ownerTeam:string;pos:Vec3;expiresAt:number;hp:number;moduleId:string}[]; mechDrops?: {id:string;ownerId:string;pos:Vec3;landAt:number;expiresAt:number;moduleId:string;landed:boolean;enteredBy?:string}[]; phantomDecoys?: {id:string;ownerId:string;pos:Vec3;yaw:number;createdAt:number;expiresAt:number;count:number}[]; survivalPaused?: boolean; survivalUpgradePendingCount?: number; survivalUpgradeSecondsLeft?: number; deployedCovers?: import("./deployable-cover").DeployedCover[]; clusterVolleys?: ClusterVolley[]; poisoned?: { id: string; expiresAt: number }[]; burning?: { id: string; expiresAt: number }[]; wonderFields?: { id: string; ownerId: string; ownerTeam: string; weaponId: string; kind: "flame" | "sludge"; pos: Vec3; radius: number; expiresAt: number }[]; stormMines?: { id: string; pos: Vec3; expiresAt: number; ownerId?: string; ownerTeam?: string }[]; serverNow?: number; environmentTime?: number; environmentWalls?: Record<string, number>; materialCoverDestroyed?: string[]; materialCoverHp?: Record<string, number>; floodgateRulesVersion?: number; floodgateBreachAt?: number|null; turrets?: { id: string; ownerId: string; pos: Vec3; yaw: number; expiresAt: number }[]; gravityWells?: { id: string; ownerId: string; ownerTeam: string; pos: Vec3; radius: number; activatesAt: number; expiresAt: number }[]; scavengerDrops?: { id: string; pos: Vec3; expiresAt: number }[]; players: SnapshotPlayer[]; scores: Record<string, number>; teamScores: { red: number; blue: number }; timeLeft: number; elapsedSeconds?: number; wave?: number; enemiesLeft?: number; reinforcements?: number; prepLeft?: number; survivalPlayerRanks?: Record<string, SurvivalUpgradeRanks>; preMatchCountdown?: number; gungameWeapons?: string[]; tags?: KillConfirmedTag[]; tagStats?: Record<string, { confirmations: number; denials: number }>; ctfFlags?: CtfFlags; ctfOvertime?: boolean; ctfBases?: {red:Vec3;blue:Vec3}; ctfRulesVersion?: number; orbitalCharge?: number; orbitalHolders?: string[]; orbitalRulesVersion?: number }
   | { t: "hit"; attackerId: string; victimId: string; damage: number; headshot: boolean; killed: boolean; weaponId: string; wonderKillEffectId?:string; botDifficulty?: KillDifficulty; defendedFlag?: boolean }
   | { t: "shieldBashPush"; victimId: string; pos: Vec3 }
   | { t: "kill"; entry: KillFeedEntry; botDifficulty?: KillDifficulty }
@@ -1628,6 +1632,7 @@ export interface MatchConfig {
   tagLifetimeMs: number;   // Kill Confirmed tag lifetime
   ctfFlagResetMs: number; // CTF dropped flag return timer
   denialScoreEnabled: boolean; // friendly tag recoveries earn a point when true
+  operationId?: string;
   survivalTier?: SurvivalTier;
 }
 

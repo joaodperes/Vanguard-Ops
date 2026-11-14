@@ -6,7 +6,7 @@ import { recommendedTeamSize, resolveRoomSelection, mapAllowedForMode, teamSizeA
 import type { ResolvedLoadout } from "@/lib/game-data";
 import type { SurvivalTier } from "@/lib/survival";
 
-export type Screen = "auth" | "menu" | "play" | "armory" | "loadout" | "profile" | "settings" | "tutorial" | "playing" | "results" | "range" | "shop";
+export type Screen = "operations" | "auth" | "menu" | "play" | "armory" | "loadout" | "profile" | "settings" | "tutorial" | "playing" | "results" | "range" | "shop";
 
 export interface PlayConfig {
   mode: GameMode;
@@ -16,6 +16,7 @@ export interface PlayConfig {
   timeLimit: number; // minutes
   mapId: MapId;
   botDifficulty: BotDifficulty;
+  operationId?: string;
   survivalTier?: SurvivalTier;
 }
 
@@ -58,6 +59,7 @@ export interface SessionInfo {
 }
 
 export interface MatchResultView {
+  operation?: import("./operations").OperationState;
   kills: number; deaths: number; headshots: number; assists?: number; won: boolean; score: number; mode: GameMode;
   standings: { id: string; name: string; team: string; kills: number; deaths: number; score: number; assists?: number; isBot: boolean }[];
   rewards?: {
@@ -73,6 +75,7 @@ export interface MatchResultView {
   placement?: number;
   multikills?: number;
   survivalWaves?: number;
+  operationId?: string;
   survivalTier?: SurvivalTier;
   weaponId?: string;
 }
@@ -138,7 +141,7 @@ export const useGame = create<GameStore>((set, get) => ({
   setPlayerKey: (k) => set({ playerKey: k }),
   setProfile: (p) => set({ profile: p }),
   setScreen: (s) => set({ screen: s }),
-  setPlayConfig: (c) => set({ playConfig: { ...get().playConfig, ...c } }),
+  setPlayConfig: (c) => set({ playConfig: { ...get().playConfig, ...(c.mode ? {operationId:undefined}:{}), ...c } }),
   setRoomConfig: (c) => set(() => {
     const previous = get().roomConfig;
     const next = { ...previous, ...c };

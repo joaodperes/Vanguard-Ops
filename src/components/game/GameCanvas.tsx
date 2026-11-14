@@ -22,6 +22,7 @@ interface Props {
   mode: GameMode;
   botCount: number;
   botDifficulty: BotDifficulty;  // resolved per-room difficulty (from roomConnect.config or playConfig)
+  operationId?: string;
   survivalTier?: SurvivalTier;
   online: boolean;
   firingRange?: boolean;
@@ -39,7 +40,7 @@ interface Props {
   onPracticeSample?: (sample: PracticeSample) => void;
 }
 
-export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTier = "default", online, firingRange = false, tutorial = false, previewMap, playerName, playerKey, scoreLimit, timeLimitMin, mapId, roomConnect, onMatchEnd, onExit, onExitWithStats, onPracticeSample }: Props) {
+export function GameCanvas({ loadout, mode, botCount, botDifficulty, operationId, survivalTier = "default", online, firingRange = false, tutorial = false, previewMap, playerName, playerKey, scoreLimit, timeLimitMin, mapId, roomConnect, onMatchEnd, onExit, onExitWithStats, onPracticeSample }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<FPSEngine | null>(null);
   const [engineInstance, setEngineInstance] = useState<FPSEngine | null>(null);
@@ -84,6 +85,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
       invertY: initialSettings.invertY,
       botDifficulty,
       survivalTier,
+      operationId,
       masterVolume: initialSettings.masterVolume,
       footstepVolume: initialSettings.footstepVolume,
       weaponVolume: initialSettings.weaponVolume,
@@ -432,7 +434,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
           is in the "lobby" state. The host sees a "Start Match" button; everyone
           sees the player list + a "Leave" button. */}
       {lobbyActive && lobby && (
-        <RoomLobby
+        <RoomLobby operationId={operationId ?? hud?.operation?.missionId}
           state={lobby}
           mode={mode}
           onStart={() => engineInstance?.sendStartMatch()}

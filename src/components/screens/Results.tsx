@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { weaponById, WEAPONS, WEAPON_SKINS, ATTACHMENTS, PLAYER_SKINS } from "@/lib/game-data";
 import { displayLabel } from "@/lib/display-labels";
 import { perkById } from "@/lib/perks";
+import { operationById, operationStars } from "@/lib/operations";
 import { SURVIVAL_TIER_INFO } from "@/lib/survival";
 
 function unlockedGearLabel(id: string): string {
@@ -47,7 +48,8 @@ export function Results() {
   const w = weaponById(r.weaponId ?? "rifle_ar");
   const kd = r.deaths === 0 ? r.kills.toFixed(2) : (r.kills / r.deaths).toFixed(2);
   const hsPct = r.kills > 0 ? Math.round((r.headshots / r.kills) * 100) : 0;
-  const isSurvival = playConfig.mode === "survival";
+  const mission=operationById(r.operation?.missionId);
+  const isSurvival = playConfig.mode === "survival"&&!mission;
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-zinc-950 to-black">
@@ -55,7 +57,7 @@ export function Results() {
         {/* banner */}
         <div className="text-center mb-8">
           {/* placement medal */}
-          <div className="inline-flex flex-col items-center mb-3">
+          <div className={mission ? "hidden":"inline-flex flex-col items-center mb-3"}>
             <div className={`relative w-20 h-20 rounded-full flex items-center justify-center text-4xl font-black border-2 ${
               placement === 1 ? "border-amber-400 bg-amber-500/15 text-amber-300" :
               placement === 2 ? "border-zinc-300 bg-zinc-400/10 text-zinc-200" :
@@ -73,11 +75,11 @@ export function Results() {
             </span>
           </div>
           <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tight">
-            {isSurvival
+            {mission ? `Operations · ${mission.title}` : isSurvival
               ? `${SURVIVAL_TIER_INFO[r.survivalTier ?? playConfig.survivalTier ?? "default"].label} Survival`
               : `${playConfig.mode === "ctf" ? "Capture the Flag" : playConfig.mode === "gungame" ? "Gun Game" : playConfig.mode === "tdm" ? "Team Deathmatch" : playConfig.mode === "killconfirmed" ? "Kill Confirmed" : "Free-For-All"} · ${leftEarly ? "Match Left" : "Match Over"}`}
           </h1>
-          {!isSurvival && (
+          {!isSurvival&&!mission && (
             <p className="text-white/50 mt-2">
               {playConfig.online ? "Online Match" : "vs Bots"} · <span className="text-amber-400 font-bold">#{placement}</span> placement
               {r.durationSec ? <> · <Clock className="inline w-3 h-3" /> {durationMin}:{durationSec.toString().padStart(2, "0")}</> : null}
@@ -85,6 +87,12 @@ export function Results() {
           )}
         </div>
 
+        {mission&&r.operation&&<div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-5 mb-4 text-center">
+          <h2 className="text-xl font-bold text-amber-200">{r.won ? "OPERATION COMPLETE":leftEarly ? "OPERATION ABORTED":"OPERATION FAILED"}</h2>
+          <p className="text-amber-300 text-2xl my-2" aria-label={`${operationStars(mission,r.operation,r.deaths)} of 3 stars`}>{"★".repeat(operationStars(mission,r.operation,r.deaths))}{"☆".repeat(3-operationStars(mission,r.operation,r.deaths))}</p>
+          <p className="text-white/70">{r.won ? mission.debrief:"Regroup, adjust your loadout and try again. Completed missions remain available."}</p>
+          <p className="text-white/50 text-sm mt-2">Intel {r.operation.intel ? "recovered":"not recovered"} · Objectives {r.operation.stage}/{mission.objectives.length} · Campaign progress saves in this browser.</p>
+        </div>}
         {isSurvival && (
           <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4 mb-4 text-center">
             <div className="text-amber-300 font-bold text-lg">
@@ -323,10 +331,10 @@ export function Results() {
         <RoomRoundPanel results />
         <div className="flex flex-col sm:flex-row gap-3">
           <Button
-            onClick={() => setScreen("play")}
+            onClick={() => setScreen(mission ? "operations":"play")}
             className="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-bold h-12"
           >
-            <RotateCcw className="w-4 h-4 mr-2" /> {roomConnect ? "Leave room · Match setup" : "Play Again"}
+            <RotateCcw className="w-4 h-4 mr-2" /> {mission ? "Campaign menu":roomConnect ? "Leave room · Match setup":"Play Again"}
           </Button>
           <Button onClick={() => setScreen("menu")} variant="outline" className="flex-1 border-white/15 bg-black/30 text-white hover:bg-white/10 h-12">
             <Home className="w-4 h-4 mr-2" /> Main Menu

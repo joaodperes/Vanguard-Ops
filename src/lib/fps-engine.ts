@@ -1,5 +1,6 @@
 import {DEFAULT_CONTROLS,canonicalKey,stick,type ControlSettings} from "./control-settings";
 import {squadIntent,validSquadOrder,squadOrderPoint,type SquadOrder,type SquadCommand} from "./squad-coordination";
+import { operationById, createOperationState, tickOperation, operationEncounter, operationConfigValid, operationTarget, operationSite, type OperationState } from "./operations";
 import { survivalRoleForSlot, survivalRoleHealthMultiplier, survivalFrontalArmor, tickSurvivalSpecialists, createSurvivalObjective, tickSurvivalObjective, survivalObjectiveSite, survivalObjectiveText, SURVIVAL_ROLE_INFO, type SurvivalRole, type SurvivalActor, type SurvivalObjective } from "./survival-encounters";
 import { combatIdentity, tracerIdentity } from "./combat-identity";
 import { combatThreats, type CombatHazard, type CombatThreat } from "./combat-threats";
@@ -197,6 +198,7 @@ export interface EngineOptions {
   startedAt?: number;          // performance.now() at match start
   autoAdsOnFire?: boolean;     // automatically ADS when firing (default false)
   invertY?: boolean;           // invert vertical look (default false)
+  operationId?: string;
   survivalTier?: SurvivalTier;
   botDifficulty?: BotDifficulty;  // scales bot skill ("mixed" rolls per bot), default "normal"
   renderQuality?: RenderQuality; // presentation only; never alters simulation or collision
@@ -357,6 +359,9 @@ export interface HudState {
   survivalObjectiveHint?: string;
   survivalSpecialistHints?: string[];
   survivalWave?: number;
+  operation?: OperationState;
+  operationWaypoint?: {x:number;z:number;distance:number;angle:number;vertical:number};
+  operationIntel?: {x:number;z:number};
   survivalTier?: SurvivalTier;
   survivalUpgradeOffer?: SurvivalUpgradeOffer;
   survivalPaused?: boolean;
@@ -415,6 +420,7 @@ export interface MatchEndResult {
   participants?: number;
   weaponId?: string;
   survivalWaves?: number;
+  operation?: OperationState;
   survivalTier?: SurvivalTier;
   // Per-kill difficulty breakdown (one entry per kill). Used by the rewards API
   // to scale XP/credits by victim difficulty. Values: easy|normal|hard|veteran|enemy_player.
@@ -1265,6 +1271,8 @@ export class FPSEngine {
   private survivalObjective?: SurvivalObjective;
   private survivalObjectiveMarkers:THREE.Group[]=[];
   private survivalObjectiveMarkerKey="";
+  private operation: OperationState | undefined;
+  private operationBeacons: THREE.Group[] = [];
   private survivalWave = 0;
   private survivalTier: SurvivalTier = "default";
   private survivalUpgradeRanks:SurvivalUpgradeRanks={};
@@ -1499,6 +1507,10 @@ export class FPSEngine {
     this.invertY = opts.invertY ?? false;
     this.botDifficulty = opts.botDifficulty ?? "normal";
     this.survivalTier = normalizeSurvivalTier(opts.survivalTier);
+    if(opts.operationId!==undefined){
+      if(!operationConfigValid(opts))throw new Error("Invalid Operations configuration");
+      this.operation=createOperationState(opts.operationId);this.survivalTier="default";
+    }
     // If we're creating a room, we know upfront that we're the host entering a
     // lobby. The server will confirm via roomJoined, but setting this early
     // lets the GameCanvas render the lobby overlay before the socket connects.
@@ -5850,6 +5862,7 @@ export class FPSEngine {
       perWeaponActions: Object.fromEntries(this.perWeaponActions),
       perAttachmentKills: Object.fromEntries(this.perAttachmentKills),
       confirmations: this.confirmations, denials: this.denials,
+      ...(this.operation ? {operation:{...this.operation}} : {}),
       ...(isSurvival ? { survivalWaves: this.getSurvivalClearedWaves(), survivalTier: this.survivalTier } as any : {}),
     };
   }
@@ -6143,7 +6156,8 @@ export class FPSEngine {
     this.timeLeft = 99999;           // survival has no time limit
   }
 
-  private startSurvivalWave() {
+  private startSurvivalWave(reinforcement = false) {
+    if(!reinforcement){
     if(this.survivalUpgradeOffer){
       this.survivalUpgradeRanks=chooseSurvivalUpgrade(this.survivalUpgradeRanks,this.survivalUpgradeOffer.choices[0]);
       this.survivalUpgradeOffer=undefined;
@@ -6160,9 +6174,11 @@ export class FPSEngine {
     // Set the banner timestamp so the HUD shows "WAVE N — X enemies incoming"
     // for ~3.5 seconds after the wave starts.
     this.survivalWaveBannerAt = performance.now();
+    }
     const mutators=survivalWaveMutators(this.survivalTier,this.survivalWave);
-    this.survivalObjective=createSurvivalObjective(this.survivalWave,mutators.boss,this.map.spawns.ffa);
-    const count=Math.min(40,Math.ceil(survivalWaveBotCount(this.survivalWave)*mutators.spawnMul))+(mutators.boss ? 1 : 0);
+    if(!reinforcement)this.survivalObjective=this.operation ? undefined : createSurvivalObjective(this.survivalWave,mutators.boss,this.map.spawns.ffa);
+    const encounter=this.operation ? operationEncounter(operationById(this.operation.missionId)!,this.operation.stage,1):undefined;
+    const count=(reinforcement ? encounter?.reinforcementCount : encounter?.count) ?? Math.min(40,Math.ceil(survivalWaveBotCount(this.survivalWave)*mutators.spawnMul))+(mutators.boss ? 1 : 0);
     const hpMul=survivalWaveHealthMul(this.survivalWave)*mutators.healthMul;
     // Curated Survival arsenal; launchers are allowed, long-range snipers excluded.
     const botWeapons = SURVIVAL_BOT_WEAPONS.map(w=>w.id);
@@ -6177,13 +6193,13 @@ export class FPSEngine {
       const boss=mutators.boss && n === count-1;
       const elite=!boss && this.survivalWave>=5 && this.survivalWave%5===0 &&
         n===count-(mutators.boss?2:1);
-      const id=(boss ? "svboss_" : elite ? "svelite_" : "svbot_")+this.survivalWave+"_"+n;
+      const id=(boss ? "svboss_" : elite ? "svelite_" : "svbot_")+this.survivalWave+"_"+n+(this.operation ? "_"+this.operation.pulse : "");
       const sp = this.pickSpawn("ffa");
       const wid = boss ? "lmg_hv" : botWeapons[Math.floor(Math.random()*botWeapons.length)];
-      const role=survivalRoleForSlot(this.survivalWave,n,boss,elite);
+      const role=survivalRoleForSlot(encounter?.roleWave ?? this.survivalWave,n,boss,elite);
       const perk=boss||role?"steady":botPerkForMode("survival",this.survivalWave);
       const wonderId=perk==="wonder_weapon"?botWonderForMode("survival"):undefined;
-      const ai=this.makeBotAI(sp,survivalBotDifficulty(this.survivalTier,this.survivalWave),botArchetypeForCategory(weaponById(wid).category));
+      const ai=this.makeBotAI(sp,encounter?.difficulty ?? survivalBotDifficulty(this.survivalTier,this.survivalWave),botArchetypeForCategory(weaponById(wid).category));
       ai.moveSpeed*=mutators.speedMul*(boss ? 1.3:1)*botMovementPerkMultiplier(perk);
       ai.skill=Math.min(0.98,ai.skill+mutators.skillBoost);
       if(mutators.skillBoost>0) ai.difficulty="veteran";
@@ -6214,7 +6230,7 @@ export class FPSEngine {
       }
       this.addCombatantMesh(c);
     }
-    this.survivalEnemiesLeft = count;
+    this.survivalEnemiesLeft = [...this.combatants.values()].filter(c=>c.isBot&&c.alive).length;
   }
 
   private updateSurvival(dt: number) {
@@ -6236,7 +6252,15 @@ export class FPSEngine {
       const aliveBots = [...this.combatants.values()].filter((c) => c.isBot && c.alive).length;
       this.survivalEnemiesLeft = aliveBots;
       this.tickSurvivalEncounters(dt);
-      if (aliveBots === 0 && (!this.survivalObjective||this.survivalObjective.complete)) {
+      const previousStage=this.operation?.stage,previousPulse=this.operation?.pulse;
+      if(this.operation){
+        this.operation=tickOperation(this.operation,this.map,
+          [{id:this.selfId,pos:[this.pos.x,this.pos.y,this.pos.z],alive:this.alive&&!this.survivalDowned}],
+          [...this.combatants.values()].filter(c=>c.isBot).map(c=>({id:c.id,pos:c.pos,alive:c.alive})),dt);
+        if(this.operation.status!=="active"){this.survivalWaveActive=false;this.finalizeMatchLocal();return;}
+        if(this.operation.stage===previousStage&&this.operation.pulse!==previousPulse)this.startSurvivalWave(true);
+      }
+      if (this.operation ? this.operation.stage!==previousStage : aliveBots===0&&(!this.survivalObjective||this.survivalObjective.complete)) {
         // wave cleared — cleanup dead bots and start prep for next wave
         this.survivalWaveActive = false;
         for (const [id, c] of this.combatants) {
@@ -6251,7 +6275,7 @@ export class FPSEngine {
         }
         const bossCleared=survivalWaveMutators(this.survivalTier,this.survivalWave).boss;
         if(bossCleared)this.survivalRerolls++;
-        if(survivalUpgradeDue(this.survivalWave)||bossCleared){
+        if(this.operation||survivalUpgradeDue(this.survivalWave)||bossCleared){
           this.survivalPrepLeft=survivalPrepSeconds(this.survivalWave);
           this.survivalUpgradeOffer={wave:this.survivalWave,
             choices:generateSurvivalUpgradeChoices(this.survivalUpgradeRanks,Math.random,[],bossCleared),
@@ -7071,6 +7095,7 @@ export class FPSEngine {
         // or older server must not repeatedly reset the running elapsed clock.
         if (typeof msg.elapsedSeconds === "number" && Number.isFinite(msg.elapsedSeconds))
           this.elapsedSeconds = Math.max(this.elapsedSeconds, msg.elapsedSeconds);
+        if(msg.operation)this.operation=msg.operation;
         // Survival: sync wave/reinforcement state from the server.
         if (this.opts.mode === "survival") {
           const serverWave = (msg as any).wave ?? this.survivalWave;
@@ -7669,6 +7694,7 @@ export class FPSEngine {
         console.warn("[server error]", msg.message);
         break;
       case "roomJoined":
+        this.operation=operationById(msg.config.operationId) ? createOperationState(msg.config.operationId!) : undefined;
         this.ctfResetDurationMs = ctfResetMs(msg.config.ctfFlagResetMs);
         // Same semantics as "joined" but for the room-lobby flow.
         this.selfId = msg.selfId;
@@ -10144,6 +10170,7 @@ export class FPSEngine {
 
   private finalizeMatchLocal() {
     if (this.matchEnded) return;
+    if(this.operation&&this.operation.status==="active")this.operation={...this.operation,status:"failed"};
     this.beginMatchFinale();
     const isSurvival = this.opts.mode === "survival";
     const objectiveScore = this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills;
@@ -10170,7 +10197,7 @@ export class FPSEngine {
     const isFfaStyle = this.opts.mode === "ffa" || this.opts.mode === "gungame";
     const ownTeam = this.opts.team as "red" | "blue";
     const otherTeam = ownTeam === "red" ? "blue" : "red";
-    const won = isSurvival ? (this.survivalTier==="default" && this.getSurvivalClearedWaves()>=30)
+    const won = this.operation ? this.operation.status==="won" : isSurvival ? (this.survivalTier==="default" && this.getSurvivalClearedWaves()>=30)
       : this.opts.mode === "killconfirmed" ? this.teamScores[ownTeam] > this.teamScores[otherTeam]
       : isFfaStyle ? (standings[0]?.id === this.selfId)
       : (this.teamScores[this.opts.team as "red" | "blue"] >
@@ -10186,6 +10213,7 @@ export class FPSEngine {
       perWeaponActions: Object.fromEntries(this.perWeaponActions),
       perAttachmentKills: Object.fromEntries(this.perAttachmentKills),
       confirmations: this.confirmations, denials: this.denials,
+      ...(this.operation ? {operation:{...this.operation}} : {}),
       ...(isSurvival ? { survivalWaves: this.getSurvivalClearedWaves(), survivalTier: this.survivalTier } as any : {}),
     });
   }
@@ -10229,7 +10257,8 @@ export class FPSEngine {
     // winner id differently. Treat gungame like ffa: the local player wins if
     // they're at the top of the standings.
     const isFfaStyle = this.opts.mode === "ffa" || this.opts.mode === "gungame";
-    const won = isSurvival ? (this.survivalTier==="default" && winnerTeam === "blue")
+    if(this.operation)this.operation={...this.operation,status:winnerTeam==="blue" ? "won" : "failed"};
+    const won = this.operation ? winnerTeam==="blue" : isSurvival ? (this.survivalTier==="default" && winnerTeam === "blue")
       : (this.opts.mode === "tdm" || this.opts.mode === "killconfirmed" || this.opts.mode === "ctf") ? winnerTeam === this.opts.team
       : isFfaStyle ? (winnerTeam === "ffa" ? (standings[0]?.id === this.selfId) : (standings[0]?.id === this.selfId))
       : true;
@@ -10245,6 +10274,7 @@ export class FPSEngine {
       perWeaponActions: Object.fromEntries(this.perWeaponActions),
       perAttachmentKills: Object.fromEntries(this.perAttachmentKills),
       confirmations: this.confirmations, denials: this.denials,
+      ...(this.operation ? {operation:{...this.operation}} : {}),
       ...(isSurvival ? { survivalWaves: this.getSurvivalClearedWaves(), survivalTier: this.survivalTier } as any : {}),
     });
   }
@@ -10762,6 +10792,22 @@ export class FPSEngine {
     this.socket?.emit("message", { t: "reload" });
   }
 
+  private updateOperationBeacons() {
+    if(!this.operation)return;
+    const sites=[operationTarget(this.operation,this.map),this.operation.intel ? undefined : operationSite(this.map,15)];
+    for(let i=0;i<2;i++){
+      if(!this.operationBeacons[i]){
+        const group=new THREE.Group(),material=new THREE.MeshBasicMaterial({color:i===0?0xfbbf24:0xffffff,transparent:true,opacity:.75,depthWrite:false});
+        const ring=new THREE.Mesh(new THREE.TorusGeometry(i===0?3.5:2,.08,6,32),material);
+        ring.rotation.x=Math.PI/2;ring.position.y=.12;group.add(ring);
+        const diamond=new THREE.Mesh(new THREE.OctahedronGeometry(.65),material);diamond.position.y=3;group.add(diamond);
+        this.scene.add(group);this.operationBeacons[i]=group;
+      }
+      const group=this.operationBeacons[i],site=sites[i];group.visible=!!site&&this.operation.status==='active'&&!this.lobbyActive;
+      if(site)group.position.set(site[0],site[1],site[2]);group.children[1].rotation.y=performance.now()/1500;
+    }
+  }
+
   // ---- Loop ----
   private loop = () => {
     if (this.disposed) return;
@@ -10774,6 +10820,7 @@ export class FPSEngine {
     this.renderer.info.reset();
     this.botRouteBudget.beginWindow(frameStart,this.isCityMap()?1:2);
     this.update(dt);
+    this.updateOperationBeacons();
     if(this.cityInteriorDetailGroups.length)this.updateCityDetailVisibility(performance.now());
     this.worldLightBudget?.update(frameStart,this.camera.position);
     const renderStart=performance.now();
@@ -13532,6 +13579,13 @@ export class FPSEngine {
             survivalObjectiveSite(this.survivalObjective)[0]-this.pos.x,
             survivalObjectiveSite(this.survivalObjective)[1]-this.pos.y,
             survivalObjectiveSite(this.survivalObjective)[2]-this.pos.z))+"m to marker":undefined,
+        operation:this.operation,
+        ...(this.operation ? (()=>{
+          const target=operationTarget(this.operation!,this.map),intel=operationSite(this.map,15);
+          return {operationIntel:{x:radarToPercent(intel[0],this.map.size),z:radarToPercent(intel[2],this.map.size)},
+            operationWaypoint:target ? {x:radarToPercent(target[0],this.map.size),z:radarToPercent(target[2],this.map.size),distance:Math.hypot(target[0]-this.pos.x,target[2]-this.pos.z),
+              angle:Math.atan2(-(target[0]-this.pos.x),-(target[2]-this.pos.z))-this.yaw,vertical:target[1]-this.pos.y}:undefined};
+        })():{}),
         survivalWave: this.survivalWave,
         survivalTier: this.survivalTier,
         survivalUpgradeOffer:this.survivalUpgradeOffer,
@@ -13696,6 +13750,11 @@ export class FPSEngine {
     for(const id of [...this.mechDrops.keys()])this.removeMechDrop(id);
     for(const id of [...this.phantomDecoys.keys()])this.clearPhantom(id);
     for(const id of [...this.harbingerDrones.keys()])this.removeHarbinger(id);
+    for(const group of this.operationBeacons){
+      group.removeFromParent();group.traverse(o=>{if(o instanceof THREE.Mesh)o.geometry.dispose();});
+      ((group.children[0] as THREE.Mesh).material as THREE.Material).dispose();
+    }
+    this.operationBeacons=[];
     if(this.chronoMarker){this.chronoMarker.removeFromParent();this.chronoMarker.geometry.dispose();(this.chronoMarker.material as THREE.Material).dispose();this.chronoMarker=null;}
     for(const fx of this.wonderVisualFx)fx.dispose();
     this.wonderVisualFx=[];

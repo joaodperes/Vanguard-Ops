@@ -10,6 +10,7 @@ import { Crown, DoorOpen, Play, Users, Shield, Skull, Flag, Radio, Bot as BotIco
 interface Props {
   state: LobbyState;
   mode: GameMode;
+  operationId?: string;
   onStart: () => void;
   onLeave: () => void;
   socketConnected?: boolean;  // Round 20a: shows connection status in the lobby
@@ -19,8 +20,8 @@ interface Props {
 // "lobby" state (pre-match). The host can start the match; everyone sees the
 // roster and can leave. Renders as a full-screen modal so the underlying 3D
 // scene is dimmed but visible.
-export function RoomLobby({ state, mode, onStart, onLeave, socketConnected }: Props) {
-  const modeLabel = mode === "ctf" ? "Capture the Flag" : mode === "tdm" ? "Team Deathmatch" : mode === "killconfirmed" ? "Kill Confirmed" : mode === "survival" ? "Survival" : mode === "gungame" ? "Gun Game" : "Free-For-All";
+export function RoomLobby({ state, mode, operationId, onStart, onLeave, socketConnected }: Props) {
+  const modeLabel = operationId ? "Operations · Co-op Campaign" : mode === "ctf" ? "Capture the Flag" : mode === "tdm" ? "Team Deathmatch" : mode === "killconfirmed" ? "Kill Confirmed" : mode === "survival" ? "Survival" : mode === "gungame" ? "Gun Game" : "Free-For-All";
   const ModeIcon = mode === "ctf" ? Flag : (mode === "tdm" || mode === "killconfirmed") ? Shield : mode === "survival" ? Skull : mode === "gungame" ? Swords : Users;
   const humans = state.players.filter((p) => !p.isBot);
   // Round 20a: Derive connection status from the prop (no effect needed).
@@ -61,7 +62,7 @@ export function RoomLobby({ state, mode, onStart, onLeave, socketConnected }: Pr
             </div>
             <div className="text-white/40 text-xs mt-1">
               {state.isHost
-                ? "Bots will fill empty slots when the match begins. Friends can still join from the Room Browser."
+                ? operationId ? "Invite your partner through Play → Browse, then start when ready." : "Bots will fill empty slots when the match begins. Friends can still join from the Room Browser."
                 : "Hang tight — the match starts as soon as the host deploys."}
             </div>
           </div>

@@ -31,8 +31,8 @@ export function acquireRoomSocket(): Socket {
       state.setRoomConnect({ kind: "join", roomId: message.matchId, roomName: message.roomName,
         password: previous?.password ?? previous?.config?.password ?? null });
       // Quick Play can pick another arena. Rebuild its geometry before playing.
-      if (message.mapId !== state.playConfig.mapId || message.mode !== state.playConfig.mode) {
-        useGame.setState({ playConfig: { ...state.playConfig, mode: message.mode, mapId: message.mapId },
+      if (message.mapId !== state.playConfig.mapId || message.mode !== state.playConfig.mode || message.config?.operationId !== state.playConfig.operationId) {
+        useGame.setState({ playConfig: { ...state.playConfig, mode: message.mode, mapId: message.mapId,operationId:message.config?.operationId },
           roundSerial: state.roundSerial + 1 });
       }
     }
@@ -43,7 +43,7 @@ export function acquireRoomSocket(): Socket {
       useGame.setState({ screen: "playing", matchResult: null, roundSerial: state.roundSerial + 1,
         playConfig: { ...state.playConfig, online: true, mode: message.mode, mapId: message.mapId,
           scoreLimit: message.config.scoreLimit, timeLimit: message.config.timeLimit / 60,
-          survivalTier: message.config.survivalTier } });
+          operationId:message.config.operationId,survivalTier: message.config.survivalTier } });
     }
   });
   socket.on("disconnect", () => {

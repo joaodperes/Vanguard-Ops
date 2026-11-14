@@ -27,5 +27,11 @@ expect(useGame.getState().screen).toBe("playing");expect(useGame.getState().matc
 expect(useGame.getState().playConfig.mapId).toBe("skybridge");expect(useGame.getState().playConfig.timeLimit).toBe(2);
 expect(useGame.getState().roundSerial).toBe(before+1);expect(useGame.getState().roomConnect?.password).toBe("secret");
 expect(session.acquireRoomSocket()).toBe(transport as any);expect(connections).toBe(1);
+transport.emit("message",{t:"roomJoined",matchId:"group",mapId:"skybridge",mode:"survival",roomName:"Campaign",config:{operationId:"freight_intercept"}});
+expect(useGame.getState().playConfig.operationId).toBe("freight_intercept");
+transport.emit("message",{t:"roundLaunched",roomId:"group",mapId:"compound",mode:"survival",config:{scoreLimit:0,timeLimit:0,operationId:"relay_siege"}});
+expect(useGame.getState().playConfig.operationId).toBe("relay_siege");
+expect(useGame.getState().playConfig.mapId).toBe("compound");
+expect(connections).toBe(1);
 session.releaseRoomSession();expect(transport.connected).toBe(false);expect(session.getRoomStatus()).toBeNull();
 expect(notifications).toBeGreaterThan(0);unsubscribe();console.log("Room session lifecycle passed");

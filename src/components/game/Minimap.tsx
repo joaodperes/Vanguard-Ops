@@ -13,7 +13,7 @@ function outlineForRegions(regions: NonNullable<NonNullable<HudState["radar"]>["
   return outline;
 }
 /** North-up tactical radar: allies persist, enemy positions track movement only while nearby gunfire reveals them. */
-export function Minimap({ radar, compact }: { radar: NonNullable<HudState["radar"]>; compact?: boolean }) {
+export function Minimap({ radar, compact, objective, intel }: { radar: NonNullable<HudState["radar"]>; compact?: boolean; objective?: {x:number;z:number}; intel?: {x:number;z:number} }) {
   const clamp = (n: number) => Math.max(2, Math.min(98, n));
   const selfX = clamp(50 + 50 * radar.playerX / Math.max(1, radar.size));
   const selfZ = clamp(50 + 50 * radar.playerZ / Math.max(1, radar.size));
@@ -42,6 +42,8 @@ export function Minimap({ radar, compact }: { radar: NonNullable<HudState["radar
             <path transform={`translate(${clamp(marker.x)} ${clamp(marker.z)})`} d="M0,-3 L3,0 L0,3 L-3,0 Z" fill="#fb7185" stroke="white" strokeWidth=".4"/>
           </g>
         ))}
+        {objective&&<text x={clamp(objective.x)} y={clamp(objective.z)+2} textAnchor="middle" fill="#fbbf24" stroke="#111" strokeWidth=".3" fontSize="8">◆</text>}
+        {intel&&<text x={clamp(intel.x)} y={clamp(intel.z)+2} textAnchor="middle" fill="#fff" stroke="#111" strokeWidth=".3" fontSize="8">◇</text>}
         <g transform={`translate(${selfX} ${selfZ}) rotate(${heading})`}>
           <path d="M0,-5 L3.6,4 L0,1.7 L-3.6,4 Z" fill="#fde68a" stroke="#111827" strokeWidth="0.8" />
         </g>

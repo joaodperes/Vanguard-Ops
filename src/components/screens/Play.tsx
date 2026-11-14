@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { getMapIcon } from "./map-icons";
+import { operationById } from "@/lib/operations";
 import { SURVIVAL_TIERS, SURVIVAL_TIER_INFO, ZERO_SURVIVAL_PROGRESS, survivalUnlocked, type SurvivalProgress } from "@/lib/survival";
 
 // Bot difficulty options shown in the Create Room tab. "mixed" rolls a random
@@ -216,6 +217,7 @@ export function Play() {
     if (!(await prepareMatchLoadout())) return;
     setRoomConnect({ kind: "create", config, roomName: config.roomName || `${profile?.name ?? "Host"}'s Room` });
     setPlayConfig({
+      operationId:undefined,
       mode,
       mapId: selectedMap,
       online: true,
@@ -237,6 +239,7 @@ export function Play() {
     if (!(await prepareMatchLoadout())) return;
     setRoomConnect({ kind: "join", roomId: room.id, password, roomName: room.name, team });
     setPlayConfig({
+      operationId:room.operationId,
       mode: room.mode,
       mapId: room.mapId,
       online: true,
@@ -255,7 +258,8 @@ export function Play() {
     const mode = roomConfig.mode;
     const mapId = mapAllowedForMode(mode,roomConfig.mapId) ? roomConfig.mapId : mode === "ctf" ? "forest_warfare" : "compound";
     setRoomConnect({ kind: "quick" });
-    setPlayConfig({ mode, mapId, online: true, botCount: 0, botDifficulty: "normal", survivalTier: "default" });
+    setPlayConfig({
+      operationId:undefined, mode, mapId, online: true, botCount: 0, botDifficulty: "normal", survivalTier: "default" });
     setScreen("playing");
   };
 
@@ -263,6 +267,7 @@ export function Play() {
 
   return (
     <div className="min-h-screen flex flex-col">
+      <button onClick={()=>setScreen("operations")} className="mx-auto mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-5 py-3 text-amber-200">Operations campaign · Solo / 2-player co-op →</button>
       {/* header */}
       <header className="border-b border-white/10 bg-black/40 backdrop-blur sticky top-14 z-30">
         <div className="max-w-[1680px] mx-auto px-4 sm:px-6 py-3 flex items-center gap-3">
@@ -938,7 +943,7 @@ function RoomCard({ room, onJoin }: { room: RoomSummary; onJoin: () => void }) {
           </span>
           {room.mode === "survival" && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-200">
-              {SURVIVAL_TIER_INFO[room.survivalTier ?? "default"].label} · {room.survivalTier === "default" || !room.survivalTier ? "30 rounds" : "Endless"}
+              {room.operationId ? `Operations · ${operationById(room.operationId)?.title ?? "Campaign"}` : <>{SURVIVAL_TIER_INFO[room.survivalTier ?? "default"].label} · {room.survivalTier === "default" || !room.survivalTier ? "30 rounds" : "Endless"}</>}
             </span>
           )}
           {room.mode !== "survival" && (

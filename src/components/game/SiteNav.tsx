@@ -9,6 +9,7 @@ export function SiteNav(){
   const {screen,setScreen}=useGame();
   const items=[
     {id:"play" as const,label:"Play",icon:PlayIcon},
+    {id:"operations" as const,label:"Operations",icon:Crosshair},
     {id:"armory" as const,label:"Armory",icon:Crosshair},
     {id:"shop" as const,label:"Shop",icon:ShoppingBag},
     {id:"profile" as const,label:"Profile",icon:Trophy},
