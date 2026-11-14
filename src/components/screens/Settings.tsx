@@ -1,4 +1,5 @@
 "use client";
+import {ControlSettings} from "@/components/game/ControlSettings";
 import { useEffect } from "react";
 import { useGame } from "@/lib/game-store";
 import { useSettings, CROSSHAIR_PRESETS } from "@/lib/settings-store";
@@ -129,6 +130,7 @@ export function Settings({ embedded = false }: { embedded?: boolean }) {
           </div>
         </Section>
 
+        <ControlSettings />
         {/* Display toggles */}
         <Section icon={<Eye className="w-4 h-4" />} title="HUD Display" desc="Toggle optional HUD elements">
           <div className="grid sm:grid-cols-2 gap-3">

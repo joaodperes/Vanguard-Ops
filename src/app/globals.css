@@ -127,3 +127,7 @@
   50% { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
 }
+
+.vanguard-reduced-motion *, .vanguard-reduced-motion *::before, .vanguard-reduced-motion *::after { animation:none!important;transition-duration:0s!important; }
+.vanguard-left-touch button > * {transform:scaleX(-1);}
+button:focus-visible,input:focus-visible,select:focus-visible {outline:2px solid #fcd34d;outline-offset:3px;}

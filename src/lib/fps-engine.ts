@@ -1,3 +1,4 @@
+import {DEFAULT_CONTROLS,canonicalKey,stick,type ControlSettings} from "./control-settings";
 import {squadIntent,validSquadOrder,squadOrderPoint,type SquadOrder,type SquadCommand} from "./squad-coordination";
 import { survivalRoleForSlot, survivalRoleHealthMultiplier, survivalFrontalArmor, tickSurvivalSpecialists, createSurvivalObjective, tickSurvivalObjective, survivalObjectiveSite, survivalObjectiveText, SURVIVAL_ROLE_INFO, type SurvivalRole, type SurvivalActor, type SurvivalObjective } from "./survival-encounters";
 import { combatIdentity, tracerIdentity } from "./combat-identity";
@@ -280,6 +281,7 @@ export interface HudState {
   damageFlash: number;   // timestamp of last damage taken
   riotShieldHitFlash?: number; // softer impact cue when Bulwark absorbs a bullet
   pointerLocked: boolean;
+  controllerScoreboard?:boolean;
   ping: number;
   // killstreak callout (timestamp + label) — set when player achieves multi-kill
   killstreak?: { at: number; label: string; color: string; icon: string };
@@ -1025,6 +1027,11 @@ export class FPSEngine {
   private mousePressedThisFrame = false;  // for semi-auto / burst: fires only on the press edge
   private pointerLocked = false;
   private inputSuspended = false;
+  private controls:ControlSettings={...DEFAULT_CONTROLS};
+  private controllerActive=false;
+  private controllerButtons:boolean[]=[];
+  private controllerNeutral=true;
+  private inputAbort=new AbortController();
   private showHealthBars = true;
   private pendingLoadout: LoadoutWire | null = null;
 
@@ -4149,15 +4156,15 @@ export class FPSEngine {
     this.updateRiotModels();
     // Subtle head-bob while moving on the ground (skipped while aiming for stability).
     let bobY = 0;
-    if (!this.aiming && this.onGround && this.vel.lengthSq() > 1) {
+    if (!this.controls.reducedMotion && !this.aiming && this.onGround && this.vel.lengthSq() > 1) {
       bobY = Math.sin(performance.now() * 0.012) * 0.012 * swayMultiplier(this.activePerkId);
     }
     // ---- Sprint sway: weapon sways left/right + bobs while sprinting ----
     let sprintSwayX = 0, sprintSwayY = 0, sprintPitch = 0, sprintRoll = 0;
     if (this.sprinting) {
       target = sprintTarget;
-      const sway = Math.sin(this.sprintPhase);
-      const sway2 = Math.sin(this.sprintPhase + Math.PI);
+      const sway = this.controls.reducedMotion?0:Math.sin(this.sprintPhase);
+      const sway2 = this.controls.reducedMotion?0:Math.sin(this.sprintPhase + Math.PI);
       sprintSwayX = sway * 0.05 * swayMultiplier(this.activePerkId);        // 5cm side-to-side
       sprintSwayY = Math.abs(sway2) * 0.04 * swayMultiplier(this.activePerkId);  // vertical bob (always positive — weapon pumps)
       sprintPitch = -0.25;              // muzzle tips down (running stance)
@@ -4562,31 +4569,34 @@ export class FPSEngine {
         (window.matchMedia && window.matchMedia("(pointer: coarse)").matches));
 
     const canvas = this.renderer.domElement;
+    const signal=this.inputAbort.signal;
+    const on=(target:EventTarget,type:string,handler:(e:any)=>void)=>target.addEventListener(type,handler,{signal});
     canvas.tabIndex = 0;
     canvas.style.outline = "none";
-    canvas.addEventListener("click", () => {
+    on(canvas, "click", () => {
       // Resume the audio context on first user gesture (browsers block audio
       // until a gesture). Safe to call repeatedly — no-op if already running.
       this.unlockAudio();
       if (this.touchMode || this.inputSuspended) return; // touch devices and menus do not use pointer lock
       if (!this.pointerLocked) canvas.requestPointerLock();
     });
-    document.addEventListener("pointerlockchange", () => {
+    on(document, "pointerlockchange", () => {
       this.pointerLocked = document.pointerLockElement === canvas;
+      if(!this.pointerLocked)this.clearInput();
     });
-    document.addEventListener("mousemove", (e) => {
-      if (!this.pointerLocked) return;
+    on(document, "mousemove", (e) => {
+      if (!this.pointerLocked || this.inputSuspended) return;
       const baseSens = this.aiming ? 0.0014 : 0.0022;
       // High-zoom sights get a sensitivity reduction so the scope feels steady.
       const sightMul = this.aiming ? this.sightDef.adsSensMul : 1.0;
       // Sprinting slightly reduces look sensitivity for steadier tracking.
       const sprintMul = this.sprinting ? 0.85 : 1.0;
-      const sens = baseSens * this.sensitivityMul * sightMul * sprintMul;
+      const sens = baseSens * this.sensitivityMul * sightMul * (this.aiming?this.controls.adsSensitivity:1) * sprintMul;
       this.yaw -= e.movementX * sens;
       this.pitch -= e.movementY * sens * (this.invertY ? -1 : 1);
       this.pitch = Math.max(-Math.PI / 2 + 0.05, Math.min(Math.PI / 2 - 0.05, this.pitch));
     });
-    document.addEventListener("mousedown", (e) => {
+    on(document, "mousedown", (e) => {
       if (this.touchMode || this.inputSuspended) return;
       this.unlockAudio();
       if (e.button === 0) { this.mouseDown = true; this.mousePressedThisFrame = true; }
@@ -4596,42 +4606,43 @@ export class FPSEngine {
         else this.manualAiming=true;
       }
     });
-    document.addEventListener("mouseup", (e) => {
+    on(document, "mouseup", (e) => {
       if (e.button === 0) this.mouseDown = false;
       if (e.button === 2) {this.manualAiming = false;this.mechRightDown=false;this.akimboRightDown=false;}
     });
-    document.addEventListener("contextmenu", (e) => e.preventDefault());
-    window.addEventListener("keydown", (e) => {
-      if (this.inputSuspended) return;
+    on(document, "contextmenu", (e) => e.preventDefault());
+    on(window, "keydown", (e) => {
+      if (this.inputSuspended || (!this.pointerLocked&&!(this.touchMode||this.controllerActive)&&!this.controllerActive)) return;
+      const code=canonicalKey(this.controls.keyBindings,e.code);if(!code)return;
       // Record the edge in the browser event itself. Even a fast tap that starts
       // and ends between render frames must be eligible for jump buffering.
-      if (e.code === "Space" && !e.repeat && !this.keys[e.code]) {
+      if (code === "Space" && !e.repeat && !this.keys[code]) {
         this.lastJumpPressedAt = performance.now();
       }
-      this.keys[e.code] = true;
-      if (e.code === "KeyR" && !this.mechActive) this.startReload();
-      if (e.code === "KeyE" && !e.repeat && (this.pointerLocked||this.touchMode))this.enterNearbyMech();
-      if (e.code === "KeyX" && !e.repeat && (this.pointerLocked||this.touchMode) && this.mechActive) {
+      this.keys[code] = true;
+      if (code === "KeyR" && !this.mechActive) this.startReload();
+      if (code === "KeyE" && !e.repeat && (this.pointerLocked||this.touchMode))this.enterNearbyMech();
+      if (code === "KeyX" && !e.repeat && (this.pointerLocked||this.touchMode) && this.mechActive) {
         e.preventDefault();
         this.exitMech();
       }
-      if(!e.repeat&&(this.pointerLocked||this.touchMode)){if(e.code==="KeyZ")this.sendSquadOrder("attack");if(e.code==="KeyC")this.sendSquadOrder("defend");if(e.code==="KeyV")this.sendSquadOrder("regroup");}
-      if (e.code === "KeyG" && !e.repeat && (this.pointerLocked || this.touchMode)) {
+      if(!e.repeat&&(this.pointerLocked||this.touchMode)){if(code==="KeyZ")this.sendSquadOrder("attack");if(code==="KeyC")this.sendSquadOrder("defend");if(code==="KeyV")this.sendSquadOrder("regroup");}
+      if (code === "KeyG" && !e.repeat && (this.pointerLocked || this.touchMode || this.controllerActive)) {
         e.preventDefault();
         this.useEquipment();
       }
-      if (e.code === "KeyF" && !e.repeat && (this.pointerLocked || this.touchMode)) {
+      if (code === "KeyF" && !e.repeat && (this.pointerLocked || this.touchMode || this.controllerActive)) {
         e.preventDefault();
         this.unlockAudio();
         this.quickMelee();
       }
-      if (e.code === "Space") e.preventDefault();
+      if (code === "Space") e.preventDefault();
       // Weapon swap keys: 1=primary, 2=secondary, 3=melee, Q=quick-swap to last.
-      if (e.code === "Digit1") this.swapWeapon("primary");
-      if (e.code === "Digit2") this.swapWeapon("secondary");
-      if (e.code === "Digit3") this.swapWeapon("melee");
-      if (e.code === "Digit4") this.swapWeapon("wonder");
-      if (e.code === "KeyQ" && !e.repeat) {
+      if (code === "Digit1") this.swapWeapon("primary");
+      if (code === "Digit2") this.swapWeapon("secondary");
+      if (code === "Digit3") this.swapWeapon("melee");
+      if (code === "Digit4") this.swapWeapon("wonder");
+      if (code === "KeyQ" && !e.repeat) {
         e.preventDefault();
         // Q swaps between the last two distinct equipped weapons. With no
         // history yet, use primary <-> secondary (not the current slot).
@@ -4639,10 +4650,12 @@ export class FPSEngine {
         this.swapWeapon(target);
       }
     });
-    window.addEventListener("keyup", (e) => {
-      this.keys[e.code] = false;
+    on(window, "keyup", (e) => {
+      const code=canonicalKey(this.controls.keyBindings,e.code);if(code)this.keys[code]=false;
     });
-    window.addEventListener("resize", this.onResize);
+    on(window, "blur", ()=>this.clearInput());
+    on(document,"visibilitychange",()=>{if(document.hidden)this.clearInput();});
+    on(window, "resize", this.onResize);
   }
 
   /** Update all channels without reconstructing either Web Audio context. */
@@ -4776,7 +4789,12 @@ export class FPSEngine {
     if(this.opts.online)this.socket?.emit("message",{t:"setSurvivalPause",paused} as C2S);
   }
   /** In-game menu: suppress controls, even on touch devices, without resetting a match. */
+  private clearInput(){
+    this.keys={};this.mouseDown=false;this.manualAiming=false;this.touchFiring=false;this.touchAkimboRight=false;this.touchAiming=false;this.touchMoveX=0;this.touchMoveY=0;this.touchSprint=false;this.touchJumpQueued=false;this.mousePressedThisFrame=false;this.touchPressedThisFrame=false;this.mechRightDown=false;this.akimboRightDown=false;this.burstShotsLeft=0;this.lastJumpPressedAt=-Infinity;this.controllerNeutral=true;
+  }
+
   setInputSuspended(suspended: boolean) {
+    this.clearInput();
     this.inputSuspended = suspended;
     this.keys = {};
     this.mouseDown = false;
@@ -4797,11 +4815,13 @@ export class FPSEngine {
   }
 
   resumePointerLock() {
-    if (!this.touchMode && !this.inputSuspended) void this.renderer.domElement.requestPointerLock();
+    if (!(this.touchMode||this.controllerActive) && !this.inputSuspended) void this.renderer.domElement.requestPointerLock();
   }
 
   /** Apply preferences live. Health-bar visibility is local-only, never sent to the server. */
-  applyDisplayAndControlSettings(settings: { showHealthBars: boolean; sensitivity: number; fov: number; autoAdsOnFire: boolean; invertY: boolean }) {
+  applyDisplayAndControlSettings(settings: { showHealthBars: boolean; sensitivity: number; fov: number; autoAdsOnFire: boolean; invertY: boolean } & Partial<ControlSettings>) {
+    if(JSON.stringify(this.controls.keyBindings)!==JSON.stringify(settings.keyBindings??this.controls.keyBindings))this.clearInput();
+    this.controls={...this.controls,...settings};
     this.showHealthBars = settings.showHealthBars;
     this.sensitivityMul = settings.sensitivity;
     this.baseFov = Number.isFinite(settings.fov)
@@ -4827,6 +4847,27 @@ export class FPSEngine {
     this.weaponAudio.unlock();
   }
 
+  private pollController(dt:number){
+    if(typeof navigator==="undefined"||!navigator.getGamepads)return;
+    const pad=this.controls.controllerEnabled?[...navigator.getGamepads()].find(p=>p?.connected&&p.mapping==="standard"):undefined;
+    if(!pad){if(this.controllerActive){this.clearInput();this.controllerActive=false;window.dispatchEvent(new CustomEvent("vanguard-controller-menu",{detail:"pause"}));}this.controllerButtons=[];return;}
+    const buttons=pad.buttons.map(b=>b.pressed||b.value>.5);const previous=this.controllerButtons;this.controllerButtons=buttons;
+    const edge=(i:number)=>buttons[i]&&!previous[i];
+    if(edge(9)&&!document.hidden&&document.hasFocus()){
+      this.unlockAudio();if(!this.controllerActive){this.controllerActive=true;this.controllerNeutral=true;}else window.dispatchEvent(new CustomEvent("vanguard-controller-menu",{detail:"toggle"}));return;
+    }
+    if(!this.controllerActive||this.inputSuspended||document.hidden||!document.hasFocus())return;
+    const move=stick(pad.axes[0],pad.axes[1],this.controls.controllerDeadzone),look=stick(pad.axes[2],pad.axes[3],this.controls.controllerDeadzone);
+    if(this.controllerNeutral){if(!buttons.some(Boolean)&&!move.some(Boolean)&&!look.some(Boolean))this.controllerNeutral=false;return;}
+    this.setTouchMove(...move);this.setTouchSprint(!!buttons[10]);this.setTouchFire(!!buttons[7]);
+    if(this.isAkimboActive())this.setTouchAkimboRight(!!buttons[6]);else this.setTouchADS(!!buttons[6]);
+    const sensitivity=2.4*dt*this.controls.controllerSensitivity*(this.aiming?.64*this.controls.adsSensitivity*this.sightDef.adsSensMul:1);
+    this.yaw-=look[0]*sensitivity;this.pitch-=look[1]*sensitivity*(this.invertY?-1:1);this.pitch=Math.max(-Math.PI/2+.05,Math.min(Math.PI/2-.05,this.pitch));
+    if(edge(0))this.touchJump();if(edge(2))this.touchReload();if(edge(3))this.swapWeapon(quickSwapTarget(this.currentSlot,this.lastSlot));
+    if(edge(1))this.touchInteract();if(edge(11))this.touchQuickMelee();if(edge(5))this.touchUseEquipment();
+    if(edge(4))this.touchSwap("wonder");if(edge(12))this.touchSwap("primary");if(edge(13))this.touchSwap("secondary");if(edge(14))this.touchSwap("melee");
+  }
+
   // ---- Public touch-input API (mobile) ----
   // Called by the TouchControls overlay. Lets mobile players move, look, fire,
   // aim, reload and jump without a pointer lock or keyboard.
@@ -4838,7 +4879,7 @@ export class FPSEngine {
   applyTouchLook(dx: number, dy: number) {
     const baseSens = this.aiming ? 0.004 : 0.006;
     const sightMul = this.aiming ? this.sightDef.adsSensMul : 1.0;
-    const sens = baseSens * this.sensitivityMul * sightMul;
+    const sens = baseSens * this.sensitivityMul * sightMul * (this.aiming?this.controls.adsSensitivity:1);
     this.yaw -= dx * sens;
     this.pitch -= dy * sens * (this.invertY ? -1 : 1);
     this.pitch = Math.max(-Math.PI / 2 + 0.05, Math.min(Math.PI / 2 - 0.05, this.pitch));
@@ -4847,7 +4888,8 @@ export class FPSEngine {
     if (b && !this.touchFiring) { this.unlockAudio(); this.touchPressedThisFrame = true; }
     this.touchFiring = b;
   }
-  setTouchADS(b:boolean){this.manualAiming=this.isAkimboActive()?false:b;}
+  setTouchADS(b:boolean){this.touchAiming=b;this.manualAiming=this.isAkimboActive()||!!this.mechActive?false:b;}
+  touchInteract(){if(this.mechActive)this.exitMech();else this.enterNearbyMech();}
   setTouchAkimboRight(b:boolean){
     if(b&&!this.touchAkimboRight){this.unlockAudio();this.touchAkimboRightPressedThisFrame=true;}
     this.touchAkimboRight=b;
@@ -5041,7 +5083,7 @@ export class FPSEngine {
         this.matchEnded || this.lobbyActive || this.preMatchCountdown > 0 ||
         this.opts.mode === "gungame" || this.equipmentAction ||
         this.reloading ||
-        (!this.pointerLocked && !this.touchMode) || this.equipmentCharges <= 0 ||
+        (!this.pointerLocked && !(this.touchMode||this.controllerActive) && !this.controllerActive) || this.equipmentCharges <= 0 ||
         (this.opts.online && !this.socket?.connected)) return;
     const def = equipmentById(this.opts.loadout.equipmentId);
     if (now - this.equipmentLastAt < def.cooldownMs) return;
@@ -8183,7 +8225,7 @@ export class FPSEngine {
     const boltPickupRadius = boltSpecial?.kind === "bolt" ? boltSpecial.pickupRadius : 2;
     for (const [id, bolt] of this.boltPickups) {
       if (Date.now() >= bolt.expiresAt) { this.removeBoltPickup(id); continue; }
-      if (bolt.ownerId !== this.selfId || !this.alive || !this.pointerLocked && !this.touchMode) continue;
+      if (bolt.ownerId !== this.selfId || !this.alive || !this.pointerLocked && !(this.touchMode||this.controllerActive) && !this.controllerActive) continue;
       if (Math.hypot(this.pos.x - bolt.pos[0], this.pos.z - bolt.pos[2]) > boltPickupRadius) continue;
       if (this.getCurrentAttachments().magazine==="mag_bolt_quiver" &&
           this.weaponId==="crossbow_reclaimer") continue;
@@ -10748,6 +10790,7 @@ export class FPSEngine {
   };
 
   private update(dt: number) {
+    this.pollController(dt);
     this.updateWonderWorld(performance.now());
     const survivalPaused=this.opts.mode==="survival"&&
       (this.opts.online?this.survivalServerPaused:(this.survivalMenuPaused||!!this.survivalUpgradeOffer));
@@ -11020,8 +11063,8 @@ export class FPSEngine {
     const akimbo=this.isAkimboActive();
     const wantFire = !this.inputSuspended && ((this.mouseDown&&this.pointerLocked) ||
       (akimbo&&!this.mechActive&&this.akimboRightDown&&this.pointerLocked) ||
-      (this.touchMode&&(this.touchFiring||(akimbo&&this.touchAkimboRight))));
-    const inputActive = !this.inputSuspended && (this.pointerLocked || this.touchMode);
+      ((this.touchMode||this.controllerActive)&&(this.touchFiring||(akimbo&&this.touchAkimboRight))));
+    const inputActive = !this.inputSuspended && (this.pointerLocked || this.touchMode || this.controllerActive);
     // Effective aim: manually held ADS (RMB / ADS button) OR auto-ADS-while-firing.
     const fanHammer=isFanHammer(this.weaponId,this.getCurrentAttachments().grip);
     const wantsAds = !this.mechActive && !fanHammer && !akimbo && (this.manualAiming || (this.weaponId!==RIOT_SHIELD_ID && this.autoAdsOnFire && wantFire && this.alive));
@@ -11032,7 +11075,7 @@ export class FPSEngine {
     if(this.mechActive){
       const now=performance.now();
       if(wantFire)this.fireMech("minigun",now);
-      if((this.mechRightDown&&this.pointerLocked)||(this.touchMode&&this.touchAiming))this.fireMech("secondary",now);
+      if((this.mechRightDown&&this.pointerLocked)||((this.touchMode||this.controllerActive)&&this.touchAiming))this.fireMech("secondary",now);
       this.mousePressedThisFrame=false;this.touchPressedThisFrame=false;this.mechRightPressed=false;
       this.akimboRightPressedThisFrame=false;this.touchAkimboRightPressedThisFrame=false;
     } else if(akimbo&&!this.equipmentAction&&!this.inputSuspended&&inputActive){
@@ -11776,7 +11819,7 @@ export class FPSEngine {
   private updateMovement(dt: number) {
     // Maintain mobile sprint hysteresis so small joystick fluctuations do not
     // repeatedly cancel sprint. The touch overlay uses the same shared rule.
-    const touchAutoSprint = this.touchMode && shouldTouchAutoSprint(
+    const touchAutoSprint = (this.touchMode||this.controllerActive) && shouldTouchAutoSprint(
       Math.hypot(this.touchMoveX, this.touchMoveY),
       -this.touchMoveY,
       this.touchAutoSprintActive,
@@ -11791,7 +11834,7 @@ export class FPSEngine {
     const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
     const move = new THREE.Vector3();
     let forwardAmt = 0;
-    if (this.touchMode) {
+    if (this.touchMode || this.controllerActive) {
       // On-screen joystick: touchMoveY = -1 means forward
       move.addScaledVector(fwd, -this.touchMoveY);
       move.addScaledVector(right, this.touchMoveX);
@@ -11869,7 +11912,7 @@ export class FPSEngine {
         }
       }
     }
-    if (move.lengthSq() > 0) move.normalize();
+    if (move.lengthSq()>1 || (!this.controllerActive&&move.lengthSq()>0))move.normalize();
     if (isTaserAdsBlocked(this.equipmentAdsBlockedUntil,performance.now()) && this.alive) {
       const twitch=taserMovementJitter(performance.now());
       move.x+=twitch.x;move.z+=twitch.z;
@@ -11885,7 +11928,7 @@ export class FPSEngine {
     // repeatedly bunny-hop; tap once shortly before landing or after a ledge.
     const now = performance.now();
     const jumpHeld = !!this.keys["Space"];
-    if ((jumpHeld && !this.wasJumpHeld) || (this.touchMode && this.touchJumpQueued)) {
+    if ((jumpHeld && !this.wasJumpHeld) || ((this.touchMode||this.controllerActive) && this.touchJumpQueued)) {
       this.lastJumpPressedAt = now;
     }
     this.wasJumpHeld = jumpHeld;
@@ -13381,7 +13424,8 @@ export class FPSEngine {
       headshotMarker: this.headshotMarkerAt,  // Round 20g: headshot marker
       damageFlash: this.damageFlashAt,
       riotShieldHitFlash:this.riotShieldHitFlashAt,
-      pointerLocked: this.pointerLocked,
+      pointerLocked: this.pointerLocked || (this.controllerActive&&!this.inputSuspended),
+      controllerScoreboard: this.controllerActive&&!this.inputSuspended&&!!this.controllerButtons[8],
       ping: this.ping,
       killstreak: this.lastKillstreak ?? undefined,
       damageDir: this.lastDamageDir ?? undefined,
@@ -13629,6 +13673,7 @@ export class FPSEngine {
   private randSpread(s: number): Vec3 { return [(Math.random() - 0.5) * s, (Math.random() - 0.5) * s, (Math.random() - 0.5) * s]; }
 
   dispose() {
+    this.inputAbort?.abort();
     this.clearMechCockpit();
     for(const f of this.ripperFlights){
       f.group.removeFromParent();

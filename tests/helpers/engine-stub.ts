@@ -1,3 +1,4 @@
+import {DEFAULT_CONTROLS} from "../../src/lib/control-settings";
 /** Test-only partial-engine construction.
  * FPSEngine's WebGL constructor is intentionally skipped by isolated unit
  * tests. Keep subsystem default collections here, not scattered through
@@ -16,6 +17,7 @@ export function makeEngineStub(): any {
     }},
     // Browser-only constructor is bypassed by isolated engine tests.
     // These defaults support cosmetic events without requiring a live camera.
+    controls:{...DEFAULT_CONTROLS},
     pos:new THREE.Vector3(),
     camera:{position:new THREE.Vector3()},
     offlineMines:[],

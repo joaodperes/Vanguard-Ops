@@ -1,4 +1,5 @@
 "use client";
+import {useSettings} from "@/lib/settings-store";
 import { useRef, useState, useEffect } from "react";
 import type { FPSEngine } from "@/lib/fps-engine";
 import { shouldTouchAutoSprint } from "@/lib/movement-rules";
@@ -22,6 +23,12 @@ interface Props {
 // The joystick knob glows cyan when auto-sprint is engaged so the player has
 // clear feedback that pushing harder = sprinting.
 export function TouchControls({ engine, akimbo = false }: Props) {
+  const prefs=useSettings(s=>s.settings);
+  const [viewport,setViewport]=useState({width:800,height:400});
+  useEffect(()=>{const resize=()=>setViewport({width:window.innerWidth,height:window.innerHeight});resize();window.addEventListener("resize",resize);return()=>window.removeEventListener("resize",resize);},[]);
+  const scale=Math.min(prefs.touchScale,(viewport.width-32)/270,(viewport.height-32)/300);
+  const inset=Math.min(prefs.touchInset,Math.max(8,(viewport.width-240*scale)/2));
+  useEffect(()=>()=>{engine?.setTouchMove(0,0);engine?.setTouchFire(false);engine?.setTouchADS(false);engine?.setTouchAkimboRight(false);engine?.setTouchSprint(false);},[engine,prefs.touchLeftHanded,scale,inset]);
   // ---- Movement joystick (left half, floating) ----
   const joyBaseRef = useRef<{ x: number; y: number } | null>(null);
   const joyTouchId = useRef<number | null>(null);
@@ -43,7 +50,7 @@ export function TouchControls({ engine, akimbo = false }: Props) {
     sprintLatch.current = false;
     setSprintVisual(false);
     joyBaseRef.current = { x: t.clientX, y: t.clientY };
-    setJoyBase({ x: t.clientX, y: t.clientY });
+    setJoyBase({ x: prefs.touchLeftHanded ? window.innerWidth-t.clientX : t.clientX, y: t.clientY });
     setKnob({ x: 0, y: 0 });
     engine?.setTouchMove(0, 0);
   };
@@ -58,7 +65,7 @@ export function TouchControls({ engine, akimbo = false }: Props) {
       let dy = t.clientY - base.y;
       const dist = Math.hypot(dx, dy);
       if (dist > JOY_RADIUS) { dx = (dx / dist) * JOY_RADIUS; dy = (dy / dist) * JOY_RADIUS; }
-      setKnob({ x: dx, y: dy });
+      setKnob({ x: prefs.touchLeftHanded?-dx:dx, y: dy });
       sprintLatch.current = shouldTouchAutoSprint(
         Math.hypot(dx, dy) / JOY_RADIUS, -dy / JOY_RADIUS, sprintLatch.current,
       );
@@ -120,7 +127,7 @@ export function TouchControls({ engine, akimbo = false }: Props) {
   const sprinting = sprintVisual;
 
   return (
-    <div className="absolute inset-0 z-40 touch-none select-none" style={{ touchAction: "none" }}>
+    <div className={`absolute inset-0 z-40 touch-none select-none ${prefs.touchLeftHanded?"vanguard-left-touch":""}`} style={{ touchAction: "none", opacity:prefs.touchOpacity,transform:prefs.touchLeftHanded?"scaleX(-1)":undefined }}>
       <div className="absolute top-32 left-1/2 -translate-x-1/2 z-10 flex gap-1">{(["attack","defend","regroup"] as const).map(kind=><button key={kind} aria-label={`Squad ${kind}`} className="rounded border border-cyan-300/40 bg-black/60 p-2 text-xs text-cyan-100" onTouchStart={e=>{e.preventDefault();e.stopPropagation();engine?.sendSquadOrder(kind);}}>{kind}</button>)}</div>
       {/* Left half: movement joystick (floating) */}
       <div
@@ -171,7 +178,7 @@ export function TouchControls({ engine, akimbo = false }: Props) {
       {/* ── LEFT cluster: Jump + weapon swap strip ──
           Jump sits at the bottom-left corner (with the direction controls).
           The weapon swap strip (1/2/3) stacks vertically above Jump. */}
-      <div className="absolute bottom-8 left-6 flex flex-col items-start gap-3" style={{ touchAction: "none" }}>
+      <div className="absolute bottom-8 left-6 flex flex-col items-start gap-3" style={{ touchAction: "none", transform:`translateX(${inset-24}px) scale(${scale})`,transformOrigin:"bottom left" }}>
         {/* Weapon swap strip — small square buttons (1=primary, 2=secondary, 3=melee) */}
         <div className="flex flex-col gap-1.5">
           <SwapBtn label="1" onDown={() => engine?.touchSwap("primary")} color="border-emerald-500/50 bg-emerald-500/15 text-emerald-300" />
@@ -193,9 +200,10 @@ export function TouchControls({ engine, akimbo = false }: Props) {
           Fire is the big button at the bottom-right corner; ADS sits above it;
           Reload is a small button to the LEFT of Fire so it's reachable with
           the same thumb without overlapping the look-drag area. */}
-      <div className="absolute bottom-8 right-6 flex items-end gap-3" style={{ touchAction: "none" }}>
+      <div className="absolute bottom-8 right-6 flex items-end gap-3" style={{ touchAction: "none", transform:`translateX(${24-inset}px) scale(${scale})`,transformOrigin:"bottom right" }}>
         {/* Tactical, quick melee and reload share a thumb column. */}
         <div className="flex flex-col gap-2 items-center mb-1">
+          <ActionBtn label="Interact" icon={<ArrowUp className="w-5 h-5"/>} onDown={()=>engine?.touchInteract()} color="border-white/30 text-white"/>
           <ActionBtn label="Tactical" icon={<Bomb className="w-5 h-5" />}
             onDown={() => engine?.touchUseEquipment()}
             color="border-cyan-500/50 bg-cyan-600/20 text-cyan-200" />
@@ -268,7 +276,8 @@ function ActionBtn({ label, icon, onDown, color, big }: { label: string; icon: R
 function HoldBtn({ label, icon, onDown, onUp, color, big }: { label: string; icon: React.ReactNode; onDown: () => void; onUp: () => void; color: string; big?: boolean }) {
   return (
     <button
-      onPointerDown={(e) => { e.preventDefault(); onDown(); }}
+      onPointerDown={(e) => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); onDown(); }}
+      onLostPointerCapture={()=>onUp()}
       onPointerUp={(e) => { e.preventDefault(); onUp(); }}
       onPointerCancel={() => onUp()}
       onPointerLeave={() => onUp()}
