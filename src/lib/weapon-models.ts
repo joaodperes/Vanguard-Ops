@@ -1,3 +1,4 @@
+import { combatIdentity } from "./combat-identity";
 /** Distinct, procedural FIRST-PERSON weapon receivers, furniture and silhouettes.
  * Uses visible profile geometry, not merely a tint or a small attachment.
  * All positions are camera-local (the muzzle points toward negative Z).
@@ -274,7 +275,7 @@ export function buildFirstPersonWeapon(
     const rubber=new THREE.Mesh(new THREE.BoxGeometry(tablet?.35:.18,tablet?.035:.025,.07),darkMat);
     rubber.rotation.x=-.22;add(rubber,0,-.16,-.115);
     const display=new THREE.Mesh(new THREE.BoxGeometry(tablet?.255:.105,tablet?.155:.12,.008),
-      new THREE.MeshBasicMaterial({color:chrono?0x796be4:tablet?0x2d7f8c:0x5cb2b4}));
+      new THREE.MeshBasicMaterial({color:combatIdentity(id).color}));
     display.name="wonder_controller_display";display.rotation.x=-.22;
     add(display,0,-.017,-.17);
     if(tablet){
@@ -304,7 +305,7 @@ export function buildFirstPersonWeapon(
     const grip = new THREE.Mesh(new THREE.BoxGeometry(.10,.16,.11),darkMat);
     add(grip,0,-.19,-.03);
     // Unskinned utilitarian remote; only a plain status stripe is visible.
-    const indicator = new THREE.Mesh(new THREE.BoxGeometry(.12,.015,.17),new THREE.MeshBasicMaterial({color:id==="wonder_harbinger"?0x4de1c4:0x6b8190}));
+    const indicator = new THREE.Mesh(new THREE.BoxGeometry(.12,.015,.17),new THREE.MeshBasicMaterial({color:combatIdentity(id).color}));
     add(indicator,0,.0,-.13);
     const antenna = new THREE.Mesh(new THREE.CylinderGeometry(.008,.008,.21,8),darkMat);
     add(antenna,.08,.045,-.23);
@@ -585,13 +586,7 @@ export function buildFirstPersonWeapon(
   // Wonder-only reactor architecture. Each emitter silhouette is physically
   // distinct and uses its own emissive colour on top of the animated body skin.
   if(id.startsWith("wonder_")){
-    const colours:Record<string,number>={
-      wonder_singularity:0x546078,wonder_corrosion:0x46643f,
-      wonder_turret:0x687782,wonder_harbinger:0x4de1c4,wonder_deadlock:0x695b65,
-      wonder_hellfire:0xff6c1c,wonder_stormweaver:0x4defff,
-      wonder_bogfather:0x8dcc31,
-    };
-    const energy=fullSkinMaterial??new THREE.MeshBasicMaterial({color:colours[id]??0xb9f3ff});
+    const energy=fullSkinMaterial??new THREE.MeshBasicMaterial({color:combatIdentity(id).color});
     const orb=(x:number,y:number,z:number,r:number)=>{
       add(new THREE.Mesh(new THREE.IcosahedronGeometry(r,1),energy),x,y,z);
     };

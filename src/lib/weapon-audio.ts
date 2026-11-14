@@ -174,6 +174,34 @@ const SPECIAL_PROFILES: Record<string, SoundProfile> = {
   },
 };
 
+/** Non-ballistic Wonders need an identifiable envelope even without a model in
+ * view. These use the existing bounded voice pool and spatial attenuation. */
+const wonderProfile = (bodyHz: number, endHz: number, seconds: number,
+  noiseHz = 1200, bodyType: OscillatorType = "sine"): SoundProfile => ({
+  bodyHz, bodyEndHz: endHz, bodySeconds: seconds, noiseHz, noiseQ: 1.3,
+  noiseSeconds: seconds * .7, bodyLevel: .48, noiseLevel: .28,
+  bodyType, filter: "bandpass",
+});
+const WONDER_PROFILES: Record<string, SoundProfile> = {
+  wonder_singularity: wonderProfile(210, 28, .42),
+  wonder_corrosion: wonderProfile(430, 75, .24, 850, "triangle"),
+  wonder_deadlock: wonderProfile(920, 390, .095, 4200, "square"),
+  wonder_stormweaver: wonderProfile(1900, 180, .18, 6000, "sawtooth"),
+  wonder_bogfather: wonderProfile(180, 52, .30, 580, "triangle"),
+  wonder_cluster: wonderProfile(98, 32, .26, 1550, "triangle"),
+  wonder_phasebreaker: wonderProfile(2400, 130, .28, 4900, "sawtooth"),
+  wonder_chrono: wonderProfile(660, 1320, .25, 2400),
+  wonder_seismic: wonderProfile(85, 24, .38, 750, "triangle"),
+  wonder_phantom: wonderProfile(1240, 620, .12, 3200),
+  wonder_whiteout: wonderProfile(740, 280, .19, 7100, "triangle"),
+  wonder_ripper: wonderProfile(540, 160, .22, 2800, "sawtooth"),
+  wonder_juggernaut: wonderProfile(220, 440, .32, 1100, "square"),
+  wonder_harbinger: wonderProfile(1450, 1050, .085, 5100, "square"),
+};
+export function resolveWeaponSoundProfile(category: WeaponSoundCategory, weaponId?: string): Readonly<SoundProfile> {
+  return SPECIAL_PROFILES[weaponId ?? ""] ?? WONDER_PROFILES[weaponId ?? ""] ?? PROFILES[category];
+}
+
 
 /**
  * An unsuppressed gun needs a separate, very fast broadband muzzle crack and
@@ -239,7 +267,11 @@ export function resolveShotAcoustics(
   category: WeaponSoundCategory,
   options: { weaponId?: string; suppressed?: boolean; distance?: number; volume?: number; aiming?: boolean; environment?: WeaponAcousticSpace } = {},
 ) {
-  const impact = SPECIAL_IMPACTS[options.weaponId ?? ""] ?? IMPACTS[category];
+  const wonderProfile = WONDER_PROFILES[options.weaponId ?? ""];
+  const impact = SPECIAL_IMPACTS[options.weaponId ?? ""] ?? (wonderProfile ? {
+    crackHz: wonderProfile.noiseHz, crackSeconds: .012, crackLevel: .16,
+    punchHz: Math.min(130, wonderProfile.bodyEndHz), punchSeconds: .06, punchLevel: .18,
+  } : IMPACTS[category]);
   const blast = options.weaponId === "shotgun_combat" ? MAULER_BLAST
     : category === "shotgun" && !options.weaponId?.startsWith("wonder_") ? SHOTGUN_BLAST : null;
   const suppressed = !!options.suppressed && category !== "melee";
@@ -465,7 +497,7 @@ export class WeaponAudio {
       if (at - this.lastFlameHissAt < .43) return;
       this.lastFlameHissAt = at;
     }
-    const profile = SPECIAL_PROFILES[options.weaponId ?? ""] ?? PROFILES[category];
+    const profile = resolveWeaponSoundProfile(category, options.weaponId);
     if (!profile) return;
 
     if (ctx.state === "closed") return;

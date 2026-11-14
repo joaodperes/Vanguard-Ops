@@ -1,10 +1,12 @@
 import { survivalRoleForSlot, survivalRoleHealthMultiplier, survivalFrontalArmor, tickSurvivalSpecialists, createSurvivalObjective, tickSurvivalObjective, survivalObjectiveSite, survivalObjectiveText, SURVIVAL_ROLE_INFO, type SurvivalRole, type SurvivalActor, type SurvivalObjective } from "./survival-encounters";
+import { combatIdentity, tracerIdentity } from "./combat-identity";
+import { combatThreats, type CombatHazard, type CombatThreat } from "./combat-threats";
 import { blastCanDamage, blastDistance, blastExposureDistance, blastUnobstructed } from "./explosion-damage-rules";
 import {wonderModuleEffects,wonderFinishById} from "./wonder-expansion";
 import {createWonderFinishTexture,updateWonderFinishTexture,createWonderKillVisual,type WonderKillVisual} from "./wonder-cosmetic-visuals";
 import {wonderMechModel,wonderAircraftModel,wonderHologramModel,wonderDroneModel,type WonderWorldVisual,JUGGERNAUT_VISUAL_PALETTE} from "./wonder-models";
 import {harbingerTuning,harbingerTargets,harbingerPlacement,HARBINGER_INTERVAL_MS,HARBINGER_SCAN_INTERVAL_MS} from "./harbinger-drone";
-import {wonderConeHit,seismicPulseHit,seismicPushPosition,ripperSegments,juggernautDropPoint,crushesAtLanding,mechTuning,phantomSpawnPosition,phantomTravelPosition,CHRONO_ANCHOR_MS,PHANTOM_DURATION_MS,CRYO_SLOW_MS,CRYO_SLOW_FACTOR,JUGGERNAUT_DROP_MS,JUGGERNAUT_ACTIVE_MS,JUGGERNAUT_MINIGUN_RATE,JUGGERNAUT_SHOTGUN_RATE,JUGGERNAUT_SWARM_RATE} from "./wonder-abilities";
+import {wonderConeHit,seismicPulseHit,seismicPushPosition,ripperSegments,juggernautDropPoint,crushesAtLanding,mechTuning,phantomSpawnPosition,phantomTravelPosition,CHRONO_ANCHOR_MS,PHANTOM_DURATION_MS,CRYO_SLOW_MS,CRYO_SLOW_FACTOR,JUGGERNAUT_CRUSH_RADIUS,JUGGERNAUT_DROP_MS,JUGGERNAUT_ACTIVE_MS,JUGGERNAUT_MINIGUN_RATE,JUGGERNAUT_SHOTGUN_RATE,JUGGERNAUT_SWARM_RATE} from "./wonder-abilities";
 import { syncFirstPersonCameraFov } from "./camera-projection";
 import { NvgScopePass, nvgScopeBlend } from "./nvg-scope-pass";
 import { coverPanels, coverPlacement, coverIdForBox, coverNextHp, coverExplosionDamage, coverBlastContact, DEPLOY_COVER_HP, DEPLOY_COVER_LIFETIME_MS, DEPLOY_COVER_PREFIX, type DeployedCover } from "./deployable-cover";
@@ -100,7 +102,7 @@ import { createFiringRangeMap, RANGE_TARGETS, RANGE_MOVING_TARGETS, RANGE_MATERI
 import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityImpact, gravityTargetDistance, gravityClientTime, GRAVITY_WELL_DURATION_MS, GRAVITY_WELL_RADIUS } from "./gravity-well";
 import { dragonBreathIgnition,dragonBreathVisualUntil } from "./incendiary-status";
 import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
-import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineInReach, stormEnemy, stormTargetPoint, nextStormChainTarget, STORM_MINE_ARM_MS, STORM_MINE_LIFETIME_MS, STORM_MAX_MINES_PER_OWNER, STORM_MINE_TARGET_COOLDOWN_MS, STORM_MAX_DIRECT_HITS_PER_TARGET, STORM_DIRECT_DAMAGE, STORM_MINE_DAMAGE, STORM_CHAIN_JUMPS, STORM_MINE_JUMPS, STORM_CHAIN_DECAY, STORM_MINE_CHAIN_RADIUS, type StormVictim } from "./stormweaver";
+import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineInReach, stormEnemy, stormTargetPoint, nextStormChainTarget, STORM_MINE_TRIGGER_RADIUS, STORM_MINE_ARM_MS, STORM_MINE_LIFETIME_MS, STORM_MAX_MINES_PER_OWNER, STORM_MINE_TARGET_COOLDOWN_MS, STORM_MAX_DIRECT_HITS_PER_TARGET, STORM_DIRECT_DAMAGE, STORM_MINE_DAMAGE, STORM_CHAIN_JUMPS, STORM_MINE_JUMPS, STORM_CHAIN_DECAY, STORM_MINE_CHAIN_RADIUS, type StormVictim } from "./stormweaver";
 import { advanceKillChain, type KillChainState } from "./kill-chain";
 import { isFlagDefenseKill, largestScoreDeficit } from "./match-bonus-tracking";
 import { advanceIncrementalReload } from "./incremental-reload";
@@ -280,6 +282,7 @@ export interface HudState {
   // killstreak callout (timestamp + label) — set when player achieves multi-kill
   killstreak?: { at: number; label: string; color: string; icon: string };
   // damage direction indicator (radians, 0 = front)
+  combatThreats?: CombatThreat[];
   damageDir?: number;
   damageDirAt?: number;
   // map info for HUD
@@ -3532,18 +3535,7 @@ export class FPSEngine {
     // The Bastion already has a barrel and front blade. Its old bright
     // category band looked like a solid grey sight block during ADS.
     if (category !== "melee" && !weaponById(this.weaponId).wonder && this.weaponId !== "pistol_bastion") {
-      const categoryAccentColors: Record<string, number> = {
-        assault: 0xff3b3b,    // red
-        smg: 0xffd93b,        // yellow
-        shotgun: 0xff8c3b,    // orange
-        dmr: 0x3b7bff,        // blue
-        sniper: 0x9b3bff,     // purple
-        lmg: 0x3bff7b,        // green
-        pistol: 0xe0e0e0,     // white
-        pdw: 0xa6f060,        // lime
-        launcher: 0xfb923c,   // amber
-      };
-      const accentColor = categoryAccentColors[category] ?? 0xffffff;
+      const accentColor = combatIdentity(this.weaponId).color;
       const bandMat = fullLegendaryFinish
         ? this.weaponMat
         : new THREE.MeshBasicMaterial({ color: accentColor });
@@ -3732,8 +3724,8 @@ export class FPSEngine {
 
     // muzzle flash — sits at the bare muzzle tip (or the suppressor tip if equipped)
     const flashZ = hasMuzzleAttachment ? muzzleZ - 0.2 : muzzleZ;
-    const flashColor = this.weaponId === "rifle_electron" ? 0x63eaff
-      : this.weaponId === "pistol_arc" ? 0xc0a0ff : 0xffdd66;
+    const flashColor = weaponById(this.weaponId).wonder || weaponById(this.weaponId).special
+      ? combatIdentity(this.weaponId).color : "#ffdd66";
     this.muzzleFlash = new THREE.Mesh(
       new THREE.SphereGeometry(0.07, 8, 8),
       new THREE.MeshBasicMaterial({ color: flashColor, transparent: true, opacity: 0 })
@@ -5256,7 +5248,7 @@ export class FPSEngine {
       const targetYaw = Math.atan2(delta[0], delta[2]);
       t.yawPivot.rotation.y = Math.atan2(Math.sin(targetYaw - t.yaw), Math.cos(targetYaw - t.yaw));
       t.barrelPivot.rotation.x=-Math.atan2(delta[1],Math.hypot(delta[0],delta[2]));
-      this.spawnTracer(src,[delta[0]/len,delta[1]/len,delta[2]/len],"default");
+      this.spawnTracer(src,[delta[0]/len,delta[1]/len,delta[2]/len],"default",0,len,undefined,"wonder_turret");
       // Placed Wonder Weapon fires independently of the player's equipped gun.
       this.playEnemyFireSound(src, "wonder_turret", false);
       if(target.id!==this.selfId && rayRiotShield(src,[delta[0]/len,delta[1]/len,delta[2]/len],target)!==null){
@@ -6942,7 +6934,7 @@ export class FPSEngine {
           for(const mine of msg.stormMines)
             this.addStormMine(mine.id,mine.pos,msg.serverNow
               ? gravityClientTime(mine.expiresAt,msg.serverNow,Date.now())
-              : mine.expiresAt,false,"","");
+              : mine.expiresAt,false,mine.ownerId??"",mine.ownerTeam??"");
           for(const [id,mine] of this.stormMines)
             if(!mine.offline&&!active.has(id))this.removeStormMine(id);
         }
@@ -7281,7 +7273,7 @@ export class FPSEngine {
       case "mechShotFx":
         if(msg.attackerId!==this.selfId){
           if(msg.mode==="swarm")this.spawnRocketProjectile(msg.origin,msg.dir,"default",0,false,"launcher_swarm");
-          else this.spawnTracer(msg.origin,msg.dir,"default",0,msg.mode==="minigun"?70:17);
+          else this.spawnTracer(msg.origin,msg.dir,"default",0,msg.mode==="minigun"?70:17,undefined,msg.mode==="minigun"?"lmg_hv":"shotgun_combat");
           this.playEnemyFireSound(msg.origin,msg.mode==="swarm"?"launcher_swarm":msg.mode==="minigun"?"lmg_hv":"shotgun_combat",false);
         }
         break;
@@ -7295,7 +7287,7 @@ export class FPSEngine {
         const d=this.harbingerDrones.get(msg.id);
         if(d){
           const dir=this.normalize([msg.target[0]-d.pos[0],msg.target[1]-d.pos[1],msg.target[2]-d.pos[2]]);
-          this.spawnTracer(d.pos,dir,"default",0,Math.hypot(msg.target[0]-d.pos[0],msg.target[1]-d.pos[1],msg.target[2]-d.pos[2]));
+          this.spawnTracer(d.pos,dir,"default",0,Math.hypot(msg.target[0]-d.pos[0],msg.target[1]-d.pos[1],msg.target[2]-d.pos[2]),undefined,"wonder_harbinger");
           this.playEnemyFireSound(d.pos,"wonder_harbinger",false);
         }
         break;
@@ -7335,7 +7327,7 @@ export class FPSEngine {
           const targetYaw = Math.atan2(delta[0], delta[2]);
           turret.yawPivot.rotation.y = Math.atan2(Math.sin(targetYaw - turret.yaw), Math.cos(targetYaw - turret.yaw));
           turret.barrelPivot.rotation.x = -Math.atan2(delta[1],Math.hypot(delta[0],delta[2]));
-          this.spawnTracer(origin,[delta[0]/len,delta[1]/len,delta[2]/len], "default");
+          this.spawnTracer(origin,[delta[0]/len,delta[1]/len,delta[2]/len], "default",0,len,undefined,"wonder_turret");
           // Network turrets emit turretFired rather than ordinary shotFx.
           this.playEnemyFireSound(origin, "wonder_turret", false);
         }
@@ -7503,7 +7495,7 @@ export class FPSEngine {
         this.spawnWonderBeam(msg.from, msg.to, msg.kind);
         break;
       case "stormMinePlaced":
-        this.addStormMine(msg.id,msg.pos,msg.expiresAt,false,"","");
+        this.addStormMine(msg.id,msg.pos,msg.expiresAt,false,msg.ownerId??"",msg.ownerTeam??"");
         break;
       case "stormMineRemoved":
         this.removeStormMine(msg.id);
@@ -7554,13 +7546,15 @@ export class FPSEngine {
           } else if (!!weaponById(msg.weaponId).explosive || ["singularity","corrosion"].includes(weaponById(msg.weaponId).wonder?.kind ?? "")) {
             // Other players' rockets: visual only (server applies damage). damage=0, applyLocalSplash=false.
             this.spawnRocketProjectile(msg.origin, msg.dir, msg.skinId, 0, false, msg.weaponId);
+          } else if (["turret", "chrono", "decoy", "mech", "drone", "seismic", "cryo", "ricochet", "smart", "sludge"].includes(weaponById(msg.weaponId).wonder?.kind ?? "")) {
+            // Dedicated world/beam events own these effects; no phantom bullets.
           } else if (msg.weaponId==="wonder_stormweaver") {
             // Server broadcasts the seven pellet paths and their chain arcs.
           } else if (msg.weaponId==="wonder_hellfire") {
             this.spawnFlameSpray(msg.origin,msg.dir);
           } else {
             const shotStats=weaponById(msg.weaponId).stats;
-            this.spawnTracer(msg.origin,msg.dir,msg.skinId,msg.coverPower??shotStats.coverPenetration??0,shotStats.range,msg.traceStop);
+            this.spawnTracer(msg.origin,msg.dir,msg.skinId,msg.coverPower??shotStats.coverPenetration??0,shotStats.range,msg.traceStop,msg.weaponId);
           }
           // Trigger recoil animation on the firing combatant
           const shooter = this.combatants.get(msg.attackerId);
@@ -7577,7 +7571,7 @@ export class FPSEngine {
             !["cluster", "flame", "storm", "sludge", "seismic", "cryo", "ricochet",
               "smart", "decoy", "turret", "mech", "chrono", "drone"].includes(confirmed.wonder?.kind ?? "")) {
             this.spawnTracer(msg.origin,msg.dir,msg.skinId,
-              msg.coverPower??confirmed.stats.coverPenetration??0,confirmed.stats.range,msg.traceStop);
+              msg.coverPower??confirmed.stats.coverPenetration??0,confirmed.stats.range,msg.traceStop,msg.weaponId);
           }
         }
         break;
@@ -8347,7 +8341,7 @@ export class FPSEngine {
       }
       const mesh=new THREE.Mesh(new THREE.TubeGeometry(
         new THREE.CatmullRomCurve3(points),28,.042,5,false),
-        new THREE.MeshBasicMaterial({color:0x8deeff,transparent:true,
+        new THREE.MeshBasicMaterial({color:combatIdentity("wonder_stormweaver").color,transparent:true,
           opacity:.97,depthWrite:false}));
       this.scene.add(mesh);
       this.stormArcMeshes.push({mesh,born:performance.now(),life:440});
@@ -8356,7 +8350,7 @@ export class FPSEngine {
     mid.y+=Math.min(2.5,start.distanceTo(end)*.055);
     const points=new THREE.QuadraticBezierCurve3(start,mid,end).getPoints(24);
     const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),
-      new THREE.LineBasicMaterial({color:kind==="cryo"?0x80e8ff:0xff527f,transparent:true,opacity:.94}));
+      new THREE.LineBasicMaterial({color:combatIdentity(kind==="cryo"?"wonder_whiteout":"wonder_deadlock").color,transparent:true,opacity:.94}));
     this.scene.add(line);this.tracers.push({line,born:performance.now(),life:340});
   }
   /** Offline paths mirror server pellet hits, mine triggers and chain falloff. */
@@ -8402,7 +8396,11 @@ export class FPSEngine {
   }
   private addStormMine(id:string,pos:Vec3,expiresAt:number,offline:boolean,
     ownerId:string,ownerTeam:string){
-    if(this.stormMines.has(id))return;
+    const existing=this.stormMines.get(id);
+    if(existing){
+      if(ownerId){existing.ownerId=ownerId;existing.ownerTeam=ownerTeam;}
+      return;
+    }
     const group=new THREE.Group();
     const bright=new THREE.MeshBasicMaterial({color:0x81f7ff,depthWrite:false});
     const dim=new THREE.MeshBasicMaterial({color:0x2779ff,transparent:true,opacity:.75,depthWrite:false});
@@ -8464,7 +8462,7 @@ export class FPSEngine {
   }
   private addWonderField(id:string,ownerId:string,ownerTeam:string,weaponId:string,kind:"flame"|"sludge",pos:Vec3,radius:number,expiresAt:number,offline:boolean){
     if(this.wonderFields.has(id))return;
-    const mesh=new THREE.Mesh(new THREE.CircleGeometry(radius,40),new THREE.MeshBasicMaterial({color:kind==="flame"?0xff752c:0x78c932,transparent:true,opacity:kind==="flame"?.34:.28,depthWrite:false,side:THREE.DoubleSide}));
+    const mesh=new THREE.Mesh(new THREE.CircleGeometry(radius,40),new THREE.MeshBasicMaterial({color:combatIdentity(weaponId).color,transparent:true,opacity:kind==="flame"?.34:.28,depthWrite:false,side:THREE.DoubleSide}));
     mesh.rotation.x=-Math.PI/2;mesh.position.set(pos[0],pos[1]+.05,pos[2]);
     this.scene.add(mesh);
     this.wonderFields.set(id,{mesh,offline,ownerId,ownerTeam,weaponId,kind,pos,radius,expiresAt,tickAt:Date.now()+500});
@@ -8685,7 +8683,7 @@ export class FPSEngine {
       const target=targets[0],point:Vec3=[target.pos[0],target.pos[1]+1,target.pos[2]];
       const dir=this.normalize([point[0]-d.pos[0],point[1]-d.pos[1],point[2]-d.pos[2]]);
       d.nextShotAt=time+HARBINGER_INTERVAL_MS;
-      this.spawnTracer(d.pos,dir,"default",0,Math.hypot(point[0]-d.pos[0],point[1]-d.pos[1],point[2]-d.pos[2]));
+      this.spawnTracer(d.pos,dir,"default",0,Math.hypot(point[0]-d.pos[0],point[1]-d.pos[1],point[2]-d.pos[2]),undefined,"wonder_harbinger");
       this.playEnemyFireSound(d.pos,"wonder_harbinger",false);
       if(target.id===this.selfId)this.takeDamage(tune.damage,"Harbinger",d.ownerTeam,false,"wonder_harbinger");
       else{
@@ -8954,7 +8952,7 @@ export class FPSEngine {
     this.weaponAudio.play(mode==="secondary"?(isSwarm?"launcher":"shotgun"):"lmg",{
       weaponId:mode==="minigun"?"lmg_hv":isSwarm?"launcher_swarm":"shotgun_combat",
       volume:mode==="minigun"?.46:.75});
-    if(mode!=="secondary"||!isSwarm)this.spawnTracer(origin,dir,"default",0,mode==="minigun"?70:17);
+    if(mode!=="secondary"||!isSwarm)this.spawnTracer(origin,dir,"default",0,mode==="minigun"?70:17,undefined,mode==="minigun"?"lmg_hv":"shotgun_combat");
   }
 
   private shieldRaised():boolean{
@@ -9185,8 +9183,7 @@ export class FPSEngine {
         this.addHarbinger("offline_harbinger_"+(++this.localWonderSequence),this.selfId,this.opts.team as string,
           pos,Date.now()+tune.durationMs,tune.health,this.wonderModuleId,true);
       }
-      this.spawnTracer(origin,dir,"default",0,14);
-      this.sound.play("swap",{volume:.55});return;
+      this.weaponAudio.play(w.category,{weaponId:w.id,volume:.55});return;
     }
     if(w.wonder?.kind==="chrono"||w.wonder?.kind==="decoy"||w.wonder?.kind==="mech"){
       const origin:Vec3=[this.camera.position.x,this.camera.position.y,this.camera.position.z];
@@ -9210,7 +9207,7 @@ export class FPSEngine {
         if(pos)this.addMechDrop("offline_mech_"+(++this.localWonderSequence),this.selfId,pos,
           Date.now()+JUGGERNAUT_DROP_MS,Date.now()+JUGGERNAUT_DROP_MS+25000,this.wonderModuleId,false);
       }
-      this.sound.play("swap",{volume:.56});return;
+      this.weaponAudio.play(w.category,{weaponId:w.id,volume:.56});return;
     }
     if (w.wonder?.kind === "turret") {
       // Deploy equipment into the world; it is NOT a bullet, cannot hit a
@@ -10390,24 +10387,24 @@ export class FPSEngine {
     if(destroyed)this.hideBrokenBallisticCover(impact.coverId);
   }
 
-  private spawnTracer(origin: Vec3, dir: Vec3, skinId: string, penetrationPower = 0, range = this.eff.range, serverStop?:number) {
-    const skin = weaponSkinById(skinId);
+  private spawnTracer(origin: Vec3, dir: Vec3, _skinId: string, penetrationPower = 0, range = this.eff.range, serverStop?:number, sourceWeaponId = this.weaponId) {
+    const cue = tracerIdentity(sourceWeaponId);
     // Visual path must match the damage ray: punching through thin cover cannot
     // draw a tracer that stops at the entry face. Structural cover still stops it.
     const maxT = Math.max(0,Math.min(range,serverStop!==undefined&&Number.isFinite(serverStop)
-      ?serverStop:traceCoverPenetration(this.coverForRay(origin,dir,range), origin, dir, range, penetrationPower, this.weaponId==="wonder_phasebreaker").blockedAt));
+      ?serverStop:traceCoverPenetration(this.coverForRay(origin,dir,range), origin, dir, range, penetrationPower, sourceWeaponId==="wonder_phasebreaker").blockedAt));
     const endX = origin[0] + dir[0] * maxT, endY = origin[1] + dir[1] * maxT, endZ = origin[2] + dir[2] * maxT;
     const geo = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(origin[0] - this.pos.x, origin[1] - (this.pos.y + EYE_HEIGHT), origin[2] - this.pos.z),
       new THREE.Vector3(endX - this.pos.x, endY - (this.pos.y + EYE_HEIGHT), endZ - this.pos.z),
     ]);
-    const mat = new THREE.LineBasicMaterial({ color: new THREE.Color(skin.emissive ?? "#ffcc66"), transparent: true, opacity: 0.45 });
+    const mat = new THREE.LineBasicMaterial({ color: new THREE.Color(cue.color), transparent: true, opacity: 0.45 });
     const line = new THREE.Line(geo, mat);
     line.position.set(this.pos.x, this.pos.y + EYE_HEIGHT, this.pos.z);
     this.scene.add(line);
     // Short life + low opacity so tracers are a subtle visual cue, not a screen-obscuring
     // mess. Especially important on the death screen where many tracers can accumulate.
-    this.tracers.push({ line, born: performance.now(), life: 45 });
+    this.tracers.push({ line, born: performance.now(), life: cue.life });
   }
 
   // Spawn a visible rocket projectile that travels from `origin` along `dir`
@@ -12085,9 +12082,8 @@ export class FPSEngine {
       this.botFireRay(owner,origin,dir,computeEffectiveStats(w,
         owner.ai?.attachments??{sight:null,barrel:null,grip:null,magazine:null}),w.stats.headshotMult);
     }
-    if(kind!=="turret"&&kind!=="sludge"&&kind!=="cluster"&&
-       kind!=="singularity"&&kind!=="corrosion"&&kind!=="flame")
-      this.spawnTracer(origin,dir,owner.weaponSkinId,0,w.stats.range);
+    if(kind==="shield"||kind==="rail")
+      this.spawnTracer(origin,dir,owner.weaponSkinId,0,w.stats.range,undefined,w.id);
     this.playEnemyFireSound(owner.pos,w.id,false);
   }
   private tryOfflineBotWonder(owner:Combatant,target:Combatant,now:number):boolean{
@@ -12211,7 +12207,7 @@ export class FPSEngine {
       const len=Math.hypot(...diff)||1;
       t.hp-=Math.max(5,eff.damage*.55);ai.ammoInMag--;ai.lastFiredAt=now;
       ai.nextShotAt=now+1000/Math.max(.5,eff.fireRate);
-      this.spawnTracer(origin,[diff[0]/len,diff[1]/len,diff[2]/len],"default");
+      this.spawnTracer(origin,[diff[0]/len,diff[1]/len,diff[2]/len],"default",eff.coverPenetration??0,eff.range,undefined,c.weaponId);
       if(t.hp<=0)this.removeBulletSpitter(id);
     }
     const scout=[...this.harbingerDrones.values()].find(d=>d.offline&&d.ownerId!==c.id&&
@@ -12223,7 +12219,7 @@ export class FPSEngine {
       const origin:Vec3=[c.pos[0],c.pos[1]+1.45,c.pos[2]];
       const dir=this.normalize([scout.pos[0]-origin[0],scout.pos[1]-origin[1],scout.pos[2]-origin[2]]);
       scout.hp-=Math.max(5,eff.damage*.55);ai.ammoInMag--;ai.lastFiredAt=now;
-      ai.nextShotAt=now+1000/Math.max(.5,eff.fireRate);this.spawnTracer(origin,dir,"default");
+      ai.nextShotAt=now+1000/Math.max(.5,eff.fireRate);this.spawnTracer(origin,dir,"default",eff.coverPenetration??0,eff.range,undefined,c.weaponId);
       if(scout.hp<=0)for(const [id,d] of this.harbingerDrones)if(d===scout)this.removeHarbinger(id);
     }
     if (now > ai.nextDecisionAt) {
@@ -12540,7 +12536,7 @@ export class FPSEngine {
             this.botFireRay(c, origin, pdir, eff, w.stats.headshotMult);
           }
         }
-        if(w.category!=="melee"&&!w.explosive)this.spawnTracer(origin,dir,c.weaponSkinId,eff.coverPenetration??0,eff.range);
+        if(w.category!=="melee"&&!w.explosive)this.spawnTracer(origin,dir,c.weaponSkinId,eff.coverPenetration??0,eff.range,undefined,c.weaponId);
         c.lastFireRecoil = now;
         ai.lastFiredAt = now;
         if(w.category!=="melee")ai.ammoInMag--;
@@ -13221,6 +13217,27 @@ export class FPSEngine {
     this.radarPings.set(id, { expiresAt: radarExpiresAt(Date.now(), this.activePerkId) });
   }
 
+  private visibleCombatThreats(): CombatThreat[] {
+    if (!this.alive || this.matchEnded) return [];
+    const hazards: CombatHazard[] = [];
+    for (const [id, f] of this.wonderFields) hazards.push({ id, ...f });
+    for (const [id, w] of this.gravityWells) if(w.mesh.visible) hazards.push({ id, ...w, spherical: true });
+    // An old server may omit mine ownership: do not call friendly mines hostile.
+    for (const [id, m] of this.stormMines) if (m.ownerId) hazards.push({
+      id, ...m, weaponId: "wonder_stormweaver", radius: STORM_MINE_TRIGGER_RADIUS,
+    });
+    for (const [id, d] of this.mechDrops) if (!d.landed) hazards.push({
+      id, pos: d.pos, ownerId: d.ownerId, ownerTeam: "", weaponId: "wonder_juggernaut",
+      radius: JUGGERNAUT_CRUSH_RADIUS, expiresAt: d.landAt, hurtsEveryone: true,
+    });
+    return combatThreats(hazards, {
+      id: this.selfId, team: this.opts.team as string,
+      freeForAll: this.opts.mode === "ffa" || this.opts.mode === "gungame",
+      pos: [this.pos.x, this.pos.y, this.pos.z], yaw: this.yaw, now: Date.now(),
+    }, point => this.hasLineOfSight(
+      [this.pos.x, this.pos.y + EYE_HEIGHT, this.pos.z], point));
+  }
+
   private emitHud(now: number) {
     const orbitalWarning=this.orbitalSnapshotSeen
       ?orbitalServerWarning(this.map,this.opts.online,this.orbitalServerVersion)
@@ -13244,6 +13261,7 @@ export class FPSEngine {
       [...this.mechDrops.values()].some(d=>d.landed&&!d.enteredBy&&d.expiresAt>Date.now()&&
         Math.hypot(this.pos.x-d.pos[0],this.pos.z-d.pos[2])<=3.2);
     this.opts.onHud({
+      combatThreats: this.visibleCombatThreats(),
       mechArmor:this.mechActive?.armor,
       mechArmorMax:this.mechActive?mechTuning(this.mechActive.moduleId).armor:undefined,
       mechMinigunAmmo:this.mechActive?.minigunAmmo,

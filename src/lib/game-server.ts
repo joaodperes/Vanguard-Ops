@@ -955,7 +955,7 @@ function snapshot(room: Room): S2C {
     burning: [...room.burning.entries()].filter(([id, until]) => until > Date.now() &&
       (room.players.get(id)?.alive || room.bots.get(id)?.alive)).map(([id, expiresAt]) => ({id,expiresAt})),
     wonderFields: [...room.wonderFields.values()].map(({id,ownerId,ownerTeam,weaponId,kind,pos,radius,expiresAt})=>({id,ownerId,ownerTeam,weaponId,kind,pos,radius,expiresAt})),
-    stormMines: [...room.stormMines.values()].map(({id,pos,expiresAt})=>({id,pos,expiresAt})),
+    stormMines: [...room.stormMines.values()].map(({id,pos,expiresAt,ownerId,ownerTeam})=>({id,pos,expiresAt,ownerId,ownerTeam})),
     ...(room.mode === "ctf" ? { ctfFlags: room.flags, ctfOvertime: room.overtime,
       ctfBases: {red:ctfBase("red",room.map),blue:ctfBase("blue",room.map)}, ctfRulesVersion: 2 } : {}),
     ...(reactorObjective(room.map)?{
@@ -1770,7 +1770,7 @@ function serverPlaceStormMine(room:Room,ownerId:string,ownerTeam:string,pos:Vec3
   const mine={id:genId("stormmine"),ownerId,ownerTeam,pos,
     armedAt:now+STORM_MINE_ARM_MS*wonderModuleEffects("wonder_stormweaver",room.loadouts.get(ownerId)?.wonderModuleId).armMul,expiresAt:now+STORM_MINE_LIFETIME_MS};
   room.stormMines.set(mine.id,mine);
-  io.to(room.id).emit("message",{t:"stormMinePlaced",id:mine.id,pos,expiresAt:mine.expiresAt} as S2C);
+  io.to(room.id).emit("message",{t:"stormMinePlaced",id:mine.id,pos,expiresAt:mine.expiresAt,ownerId:mine.ownerId,ownerTeam:mine.ownerTeam} as S2C);
 }
 function tickStormMines(room:Room,now:number){
   const allowFriendly=room.config.friendlyFire===true||room.mode==="ffa"||room.mode==="gungame";

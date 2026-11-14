@@ -13,27 +13,8 @@ import { matchHudInfo } from "@/lib/match-hud";
 import { LAVA_DEATH_SOURCE } from "@/lib/dynamic-environment";
 import { orbitalChargeLabel } from "@/lib/orbital-reactor";
 import { ctfFlagLine, killRank, teamScorePerspective } from "@/lib/hud-top-stats";
-import type { WeaponCategory } from "@/lib/game-data";
+import { combatIdentity } from "@/lib/combat-identity";
 import { Heart, Zap, Trophy, Skull, Clock, LogOut, Users, AlertTriangle, Crosshair as CrosshairIcon, Shield, ChevronUp, Siren } from "lucide-react";
-
-// ---- Category accent colors (matches the 3D band on the weapon model) ----
-// Used for the small dot/badge next to the weapon name in the HUD so the player
-// can identify the weapon CATEGORY at a glance, matching the colored band on
-// the 3D weapon model. This solves the "weapons aren't visually distinct"
-// complaint — even without reading the weapon name, the colored dot tells the
-// player what type of weapon they're holding.
-const CATEGORY_ACCENT: Record<WeaponCategory, { color: string; label: string }> = {
-  assault: { color: "#ff3b3b", label: "AR" },     // red
-  smg: { color: "#ffd93b", label: "SMG" },        // yellow
-  shotgun: { color: "#ff8c3b", label: "SG" },     // orange
-  dmr: { color: "#3b7bff", label: "DMR" },        // blue
-  sniper: { color: "#9b3bff", label: "SNP" },     // purple
-  lmg: { color: "#3bff7b", label: "LMG" },        // green
-  pistol: { color: "#e0e0e0", label: "PST" },    // white
-  pdw: { color: "#a6f060", label: "PDW" },       // lime
-  launcher: { color: "#fb923c", label: "RKT" },  // amber
-  melee: { color: "#808080", label: "MLE" },      // grey
-};
 
 interface Props {
   hud: HudState;
@@ -209,6 +190,17 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
       {hud.chronoRecallMs!==undefined&&hud.chronoRecallMs>0&&<div className="absolute top-[23%] left-1/2 -translate-x-1/2 rounded-md border border-violet-400/50 bg-black/70 px-4 py-2 text-xs text-violet-200">
         CHRONO ANCHOR ACTIVE · FIRE TO RETURN · {(hud.chronoRecallMs/1000).toFixed(1)}s
       </div>}
+      {hud.alive && !hud.matchEnding && !!hud.combatThreats?.length && (
+        <div className="absolute left-1/2 -translate-x-1/2 top-[33%] flex flex-col gap-1 max-w-[85vw]" data-testid="combat-threats">
+          {hud.combatThreats.map(threat => (
+            <div key={threat.id} className="flex items-center gap-2 rounded-md border bg-black/85 px-3 py-1.5 text-[10px] sm:text-xs" style={{ borderColor: threat.color }}>
+              <span aria-label="Direction of hazard" className="inline-block text-lg" style={{ color: threat.color, transform: `rotate(${threat.angle}rad)` }}>↑</span>
+              <div><span className="font-bold" style={{ color: threat.color }}>{threat.label} · {threat.inside ? "DANGER" : `${threat.distance}m`}</span>
+                <div className="text-white/90">{threat.action}</div></div>
+            </div>
+          ))}
+        </div>
+      )}
       {/* damage vignette */}
       {showDmg && (
         <div className="absolute inset-0" style={{ boxShadow: "inset 0 0 200px 40px rgba(239,68,68,0.55)", opacity: 1 - dmgAge / 350 }} />
@@ -593,7 +585,7 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
       <div className="absolute bottom-6 right-6 text-right">
         <div className="text-white/60 text-xs uppercase tracking-widest mb-0.5 flex items-center justify-end gap-1.5">
           {/* Category color dot — matches the 3D accent band on the weapon model */}
-          {(() => { const w = weaponById(hud.weaponId); const ca = CATEGORY_ACCENT[w.category]; return (
+          {(() => { const ca = combatIdentity(hud.weaponId); return (
             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-white/15 bg-black/40" style={{ color: ca.color }}>
               <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: ca.color, boxShadow: `0 0 4px ${ca.color}` }} />
               <span className="text-[9px] font-bold tracking-wider">{ca.label}</span>
@@ -681,9 +673,10 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
           {/* Top row: weapon name + ammo (compact, single line) */}
           <div className="bg-black/55 backdrop-blur px-2.5 py-0.5 rounded-full border border-white/10 flex items-center gap-1.5">
             {/* Category color dot — matches the 3D accent band on the weapon model */}
-            {(() => { const w = weaponById(hud.weaponId); const ca = CATEGORY_ACCENT[w.category]; return (
-              <span className="inline-flex items-center gap-0.5" title={w.category}>
+            {(() => { const ca = combatIdentity(hud.weaponId); return (
+              <span className="inline-flex items-center gap-0.5" title={ca.label}>
                 <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: ca.color, boxShadow: `0 0 4px ${ca.color}` }} />
+                <span className="text-[9px]" style={{color:ca.color}}>{ca.label}</span>
               </span>
             ); })()}
             <CrosshairIcon className="w-2.5 h-2.5 text-amber-400" />
@@ -1024,8 +1017,7 @@ function SlotPip({ n, name, active, color, weaponId, status, chargeProgress }: {
   };
   // Category dot — shows the weapon's category color (matches the 3D band).
   const catDot = weaponId ? (() => {
-    const w = weaponById(weaponId);
-    const ca = CATEGORY_ACCENT[w.category];
+    const ca = combatIdentity(weaponId);
     return <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ background: ca.color, boxShadow: active ? `0 0 4px ${ca.color}` : "none", opacity: active ? 1 : 0.5 }} />;
   })() : null;
   return (
