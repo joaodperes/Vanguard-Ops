@@ -107,12 +107,15 @@ export function recordOperation(p:OperationProgress,s:OperationState,deaths:numb
  const m=operationById(s.missionId);if(!m||s.status!=='won')return p;
  const old=p[m.id];return {...p,[m.id]:{stars:Math.max(old?.stars??0,operationStars(m,s,deaths)),bestSeconds:Math.min(old?.bestSeconds??Infinity,Math.ceil(s.elapsed)),intel:s.intel||!!old?.intel,completions:(old?.completions??0)+1}};
 }
-export function loadOperationProgress(key:string):OperationProgress {
- try{
-  const raw=JSON.parse(localStorage.getItem('vanguard_operations_'+key)??'{}');
-  return Object.fromEntries(OPERATIONS.flatMap(m=>{const r=raw?.[m.id];return r&&Number.isInteger(r.stars)&&r.stars>=1&&r.stars<=3&&Number.isFinite(r.bestSeconds)&&r.bestSeconds>=0&&Number.isInteger(r.completions)&&r.completions>0?[[m.id,{stars:r.stars,bestSeconds:r.bestSeconds,intel:r.intel===true,completions:r.completions}]]:[];}));
- }catch{return {};}
+export function normalizeOperationProgress(raw:unknown):OperationProgress {
+ if(!raw||typeof raw!=='object'||Array.isArray(raw))return {};
+ return Object.fromEntries(OPERATIONS.flatMap(m=>{
+  const r=(raw as OperationProgress)[m.id];
+  return r&&Number.isInteger(r.stars)&&r.stars>=1&&r.stars<=3&&Number.isInteger(r.bestSeconds)&&r.bestSeconds>=0&&r.bestSeconds<=m.parSeconds*2&&Number.isInteger(r.completions)&&r.completions>0&&r.completions<=1000000
+   ?[[m.id,{stars:r.stars,bestSeconds:r.bestSeconds,intel:r.intel===true,completions:r.completions}]]:[];
+ }));
 }
-export function saveOperationProgress(key:string,s:OperationState,deaths:number):boolean {
- try{localStorage.setItem('vanguard_operations_'+key,JSON.stringify(recordOperation(loadOperationProgress(key),s,deaths)));return true;}catch{return false;}
+/** Legacy browser records are read only for migration into the player database. */
+export function loadOperationProgress(key:string):OperationProgress {
+ try{return normalizeOperationProgress(JSON.parse(localStorage.getItem('vanguard_operations_'+key)??'{}'));}catch{return {};}
 }

@@ -1,5 +1,5 @@
 import {describe,expect,test} from 'bun:test';
-import {OPERATIONS,createOperationState,operationById,nextOperation,operationConfigValid,operationSite,operationTarget,tickOperation,operationEncounter,operationStars,recordOperation,operationUnlocked,loadOperationProgress,saveOperationProgress,type OperationActor,type OperationState} from '../src/lib/operations';
+import {OPERATIONS,createOperationState,operationById,nextOperation,operationConfigValid,operationSite,operationTarget,tickOperation,operationEncounter,operationStars,recordOperation,operationUnlocked,loadOperationProgress,type OperationActor,type OperationState} from '../src/lib/operations';
 import {getMap,type Vec3} from '../src/lib/game-protocol';
 import {makeEnvironmentMap} from '../src/lib/dynamic-environment';
 import {botPositionEmbedded} from '../src/lib/bot-physics';
@@ -76,13 +76,13 @@ describe('Operations campaign',()=>{
   const guestProgress=recordOperation({}, {...won,missionId:'orbital_blackout'},0);expect(operationUnlocked('orbital_blackout',guestProgress)).toBe(true);expect(operationUnlocked('relay_siege',guestProgress)).toBe(true);
   expect(nextOperation(first.id)?.id).toBe(OPERATIONS[1].id);expect(nextOperation('missing')).toBeUndefined();expect(nextOperation(OPERATIONS.at(-1)!.id)).toBeUndefined();
  });
- test('storage validates records, isolates player keys, and exposes quota failure',()=>{
+ test('legacy storage validates records and isolates player keys',()=>{
   const original=Object.getOwnPropertyDescriptor(globalThis,'localStorage'),storage=new Map<string,string>();
   Object.defineProperty(globalThis,'localStorage',{configurable:true,value:{getItem:(k:string)=>storage.get(k)??null,setItem:(k:string,v:string)=>storage.set(k,v)}});
   try{
-   storage.set('vanguard_operations_p','null');expect(loadOperationProgress('p')).toEqual({});expect(saveOperationProgress('p',{...createOperationState(first.id),status:'won',elapsed:200,intel:true},0)).toBe(true);
+   storage.set('vanguard_operations_p','null');expect(loadOperationProgress('p')).toEqual({});localStorage.setItem('vanguard_operations_p',JSON.stringify(recordOperation({}, {...createOperationState(first.id),status:'won',elapsed:200,intel:true},0)));
    expect(loadOperationProgress('p')[first.id].stars).toBe(3);expect(loadOperationProgress('other')).toEqual({});storage.set('vanguard_operations_p',JSON.stringify({[first.id]:{stars:99,bestSeconds:-2,completions:1}}));expect(loadOperationProgress('p')).toEqual({});
-   Object.defineProperty(globalThis,'localStorage',{configurable:true,value:{getItem:()=>null,setItem:()=>{throw Error('quota');}}});expect(saveOperationProgress('p',createOperationState(first.id),0)).toBe(false);
+
   }finally{if(original)Object.defineProperty(globalThis,'localStorage',original);else Reflect.deleteProperty(globalThis,'localStorage');}
  });
  test('campaign maps stay fixed and Quick Play cannot select campaign rooms',()=>{

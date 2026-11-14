@@ -1,7 +1,8 @@
 "use client";
 import {useEffect,useRef,useState} from 'react';
 import {useGame} from '@/lib/game-store';
-import {OPERATIONS,loadOperationProgress,operationUnlocked,type OperationProgress,type OperationMission} from '@/lib/operations';
+import {OPERATIONS,operationUnlocked,type OperationProgress,type OperationMission} from '@/lib/operations';
+import {syncOperationProgress} from '@/lib/operations-client';
 import {getMap,recommendedTeamSize} from '@/lib/game-protocol';
 import {waitForAttachmentSaves} from '@/lib/attachment-save-queue';
 import {Button} from '@/components/ui/button';
@@ -11,11 +12,16 @@ export function Operations(){
  const {playerKey,profile,setScreen,setRoomConnect,setPlayConfig}=useGame();
  const [progress,setProgress]=useState<OperationProgress>({}),[selected,setSelected]=useState(OPERATIONS[0].id),[launching,setLaunching]=useState(false);
  const launchLock=useRef(false);
- useEffect(()=>{const saved=loadOperationProgress(playerKey);setProgress(saved);setSelected((OPERATIONS.find(m=>operationUnlocked(m.id,saved)&&!saved[m.id]?.completions)??OPERATIONS[0]).id);},[playerKey]);
+ const [loaded,setLoaded]=useState(false),[loadError,setLoadError]=useState(false);
+ const [reload,setReload]=useState(0);
+ useEffect(()=>{let cancelled=false;setLoaded(false);setLoadError(false);setProgress({});
+  syncOperationProgress(playerKey).then(saved=>{if(cancelled)return;setProgress(saved);setSelected((OPERATIONS.find(m=>operationUnlocked(m.id,saved)&&!saved[m.id]?.completions)??OPERATIONS[0]).id);setLoaded(true);}).catch(error=>{if(!cancelled){setLoadError(true);toast.error(error.message);}});
+  return ()=>{cancelled=true;};
+ },[playerKey,reload]);
  const mission=OPERATIONS.find(m=>m.id===selected)!,unlocked=operationUnlocked(mission.id,progress);
  const completed=OPERATIONS.filter(m=>progress[m.id]?.completions).length;
  async function deploy(m:OperationMission,online:boolean){
-  if(launchLock.current||!operationUnlocked(m.id,progress))return;
+  if(!loaded||launchLock.current||!operationUnlocked(m.id,progress))return;
   launchLock.current=true;setLaunching(true);
   try{
    await waitForAttachmentSaves();
@@ -34,6 +40,7 @@ export function Operations(){
    <div><p className="text-amber-400 text-xs tracking-[.3em] uppercase">Vanguard campaign</p><h1 className="text-4xl font-black mt-2">Operations</h1><p className="text-white/60 mt-2">Three acts. Twelve missions. One network to bring down.</p></div>
    <div className="text-sm text-amber-200">{completed}/{OPERATIONS.length} complete · {Object.values(progress).reduce((n,r)=>n+r.stars,0)}/{OPERATIONS.length*3} ★</div>
   </div>
+  {!loaded&&<p role="status" className="text-amber-200 mb-4">{loadError?<>Unable to load campaign progress. <button onClick={()=>setReload(n=>n+1)} className="underline">Retry</button></>:"Loading player campaign progress…"}</p>}
   <div className="grid gap-6 lg:grid-cols-[1fr_1.1fr]">
    <section aria-label="Campaign missions" className="space-y-5">
     {[1,2,3].map(act=><div key={act}><h2 className="text-sm font-bold text-white/70 mb-2">ACT {act} · {['Trace the Signal','Break the Network','Shut It Down'][act-1]}</h2>
@@ -55,8 +62,8 @@ export function Operations(){
      <p>★ Finish · ★ Recover intel · ★ No personal deaths and finish within {Math.floor(mission.parSeconds/60)} minutes. Abort deadline: {Math.floor(mission.parSeconds*2/60)} active minutes.</p>
     </div>
     {!unlocked&&<p className="text-amber-200 mb-3">Complete the preceding mission to unlock this deployment.</p>}
-    <div className="flex flex-wrap gap-2"><Button disabled={!unlocked||launching||!profile} onClick={()=>deploy(mission,false)} className="bg-amber-500 hover:bg-amber-400 text-black font-bold">{launching?'Deploying…':'Deploy solo'}</Button><Button disabled={!unlocked||launching||!profile} onClick={()=>deploy(mission,true)} variant="outline">Host 2-player co-op</Button><Button onClick={()=>setScreen('play')} variant="ghost">Browse co-op rooms</Button></div>
-    <p className="text-xs text-white/40 mt-4">Your partner joins through Play → Browse or a room invitation. Stay together on the results screen to replay or launch the next mission. Campaign ratings and unlocks save per player in this browser. Operations do not award career XP, credits or Survival milestones.</p>
+    <div className="flex flex-wrap gap-2"><Button disabled={!loaded||!unlocked||launching||!profile} onClick={()=>deploy(mission,false)} className="bg-amber-500 hover:bg-amber-400 text-black font-bold">{launching?'Deploying…':'Deploy solo'}</Button><Button disabled={!loaded||!unlocked||launching||!profile} onClick={()=>deploy(mission,true)} variant="outline">Host 2-player co-op</Button><Button onClick={()=>setScreen('play')} variant="ghost">Browse co-op rooms</Button></div>
+    <p className="text-xs text-white/40 mt-4">Your partner joins through Play → Browse or a room invitation. Stay together on the results screen to replay or launch the next mission. Campaign ratings and unlocks save to your player account and follow your login across browsers. Operations do not award career XP, credits or Survival milestones.</p>
    </section>
   </div>
  </main>;

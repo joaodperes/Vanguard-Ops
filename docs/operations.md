@@ -39,8 +39,7 @@ Complete a mission to unlock the next; previous missions remain replayable. Earn
 one star for completion, one for optional intel, and one for beating par time with
 no personal deaths. Active timers exclude briefings, prep and upgrade/menu pauses;
 each mission aborts after twice its par time. Records retain best time, best rating,
-intel and completion count per player key in this browser. They do not sync between
-devices. Storage failures are reported.
+intel and completion count in the existing player database. Logged-in accounts share progress across browsers and devices. Existing browser records are imported idempotently on opening Operations; pending completions retry after a failed connection. Account sessions determine ownership. Guest player IDs retain the existing guest API behaviour. Database changes are additive: run `bun run db:push` when deploying.
 
 The party and room ID persist through results. Once results have saved for everyone,
 the host can replay the mission or, after victory, launch the next campaign mission

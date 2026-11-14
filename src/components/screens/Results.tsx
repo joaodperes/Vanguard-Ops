@@ -91,7 +91,7 @@ export function Results() {
           <h2 className="text-xl font-bold text-amber-200">{r.won ? "OPERATION COMPLETE":leftEarly ? "OPERATION ABORTED":"OPERATION FAILED"}</h2>
           <p className="text-amber-300 text-2xl my-2" aria-label={`${operationStars(mission,r.operation,r.deaths)} of 3 stars`}>{"★".repeat(operationStars(mission,r.operation,r.deaths))}{"☆".repeat(3-operationStars(mission,r.operation,r.deaths))}</p>
           <p className="text-white/70">{r.won ? mission.debrief:"Regroup, adjust your loadout and try again. Completed missions remain available."}</p>
-          <p className="text-white/50 text-sm mt-2">Intel {r.operation.intel ? "recovered":"not recovered"} · Objectives {r.operation.stage}/{mission.objectives.length} · Campaign progress saves in this browser.</p>
+          <p className="text-white/50 text-sm mt-2">Intel {r.operation.intel ? "recovered":"not recovered"} · Objectives {r.operation.stage}/{mission.objectives.length} · Campaign progress syncs to your player account.</p>
         </div>}
         {isSurvival && (
           <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4 mb-4 text-center">
