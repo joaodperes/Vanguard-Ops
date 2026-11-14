@@ -1,4 +1,5 @@
 "use client";
+import { RoomRoundPanel } from "./RoomRoundPanel";
 import type { LobbyState } from "@/lib/fps-engine";
 import type { GameMode } from "@/lib/game-protocol";
 import { displayLabel } from "@/lib/display-labels";
@@ -28,7 +29,7 @@ export function RoomLobby({ state, mode, onStart, onLeave, socketConnected }: Pr
 
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className="relative w-full max-w-lg mx-4 rounded-2xl border border-amber-500/30 bg-gradient-to-br from-zinc-900 via-zinc-900/95 to-black p-6 shadow-2xl shadow-amber-900/30 overflow-hidden">
+      <div className="relative w-full max-w-lg mx-4 rounded-2xl border border-amber-500/30 bg-gradient-to-br from-zinc-900 via-zinc-900/95 to-black p-6 shadow-2xl shadow-amber-900/30 max-h-[90dvh] overflow-y-auto">
         {/* ambient glow */}
         <div className="absolute -top-20 -right-16 w-56 h-56 rounded-full blur-3xl opacity-25" style={{ background: "radial-gradient(circle, #f59e0b, transparent 70%)" }} />
         <div className="absolute -bottom-20 -left-16 w-48 h-48 rounded-full blur-3xl opacity-20" style={{ background: "radial-gradient(circle, #f43f5e, transparent 70%)" }} />
@@ -78,7 +79,7 @@ export function RoomLobby({ state, mode, onStart, onLeave, socketConnected }: Pr
                 <div className="p-4 text-center text-white/40 text-xs">No operatives yet…</div>
               ) : (
                 humans.map((p) => {
-                  const isHost = p.id === state.players[0]?.id; // first player listed is the host
+                  const isHost = p.id === state.hostSocketId;
                   const teamColor = p.team === "red" ? "#ef4444" : p.team === "blue" ? "#06b6d4" : "#9ca3af";
                   return (
                     <div key={p.id} className="flex items-center gap-3 px-3 py-2">
@@ -125,6 +126,7 @@ export function RoomLobby({ state, mode, onStart, onLeave, socketConnected }: Pr
             )}
           </div>
 
+          <RoomRoundPanel />
           {/* actions */}
           <div className="flex items-center gap-3">
             <Button

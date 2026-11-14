@@ -58,6 +58,16 @@ export function roomCapacity(mode: GameMode, teamSize: TeamSize, survivalPlayers
 }
 
 // Public-facing summary of a room — broadcast in the room browser list.
+export interface RoomStatus {
+  room: RoomSummary;
+  phase: "lobby" | "playing" | "ended";
+  hostSocketId: string;
+  players: SnapshotPlayer[];
+  candidates: MapId[];
+  votes: Record<string, MapId>;
+  ready: string[];
+}
+
 export interface RoomSummary {
   id: string;
   name: string;
@@ -1448,6 +1458,9 @@ export type C2S =
   | { t: "weaponSwap"; slot: "primary" | "secondary" | "melee" | "wonder" }   // player changed weapon slot
   | { t: "queueLoadout"; loadout: LoadoutWire }  // validated by server; equips on next respawn
   // ---- Room lobby system ----
+  | { t: "quickPlay"; playerKey: string; name: string; loadout: LoadoutWire; mode: GameMode }
+  | { t: "voteMap"; mapId: MapId }
+  | { t: "readyNextRound" }
   | { t: "listRooms" }
   | { t: "createRoom"; playerKey: string; name: string; loadout: LoadoutWire; config: CreateRoomConfig }
   | { t: "joinRoom"; playerKey: string; name: string; loadout: LoadoutWire; roomId: string; password: string | null; team?: "red" | "blue" | "auto" }
@@ -1592,6 +1605,8 @@ export type S2C =
   | { t: "stormMineRemoved"; id: string; pos: Vec3; triggered: boolean }
   | { t: "wonderField"; id: string; ownerId: string; ownerTeam: string; weaponId: string; kind: "flame" | "sludge"; pos: Vec3; radius: number; expiresAt: number }
   // ---- Room lobby system ----
+  | { t: "roomStatus"; status: RoomStatus }
+  | { t: "roundLaunched"; roomId: string; mapId: MapId; mode: GameMode; config: MatchConfig }
   | { t: "roomList"; rooms: RoomSummary[] }
   | { t: "roomJoined"; matchId: string; selfId: string; mode: GameMode; team: string; config: MatchConfig; mapId: MapId; players: SnapshotPlayer[]; roomName: string; state?: "lobby" | "playing"; isHost?: boolean }
   | { t: "roomError"; message: string }

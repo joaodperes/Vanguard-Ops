@@ -104,7 +104,7 @@ function useLobby(active: boolean) {
 // ============================================================================
 export function Play() {
   const { profile, playerKey, setScreen, roomConfig, setRoomConfig, setRoomConnect, setPlayConfig } = useGame();
-  const [tab, setTab] = useState<"create" | "browse">("create");
+  const [tab, setTab] = useState<"create" | "browse">(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).has("room") ? "browse" : "create");
   const [mapPaceFilter, setMapPaceFilter] = useState<"all" | MapPace>("all");
   const lobby = useLobby(tab === "browse");
   const [survivalProgress,setSurvivalProgress]=useState<SurvivalProgress>(ZERO_SURVIVAL_PROGRESS);
@@ -250,6 +250,15 @@ export function Play() {
     toast.success(`Joining "${room.name}"…`);
   };
 
+  const handleQuickPlay = async () => {
+    if (!(await prepareMatchLoadout())) return;
+    const mode = roomConfig.mode;
+    const mapId = mapAllowedForMode(mode,roomConfig.mapId) ? roomConfig.mapId : mode === "ctf" ? "forest_warfare" : "compound";
+    setRoomConnect({ kind: "quick" });
+    setPlayConfig({ mode, mapId, online: true, botCount: 0, botDifficulty: "normal", survivalTier: "default" });
+    setScreen("playing");
+  };
+
   const cap = roomCapacity(roomConfig.mode, roomConfig.teamSize, roomConfig.survivalPlayers);
 
   return (
@@ -313,6 +322,8 @@ export function Play() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
                 {/* Game mode */}
                 <Section className="h-full" icon={<Swords className="w-4 h-4 text-amber-400" />} title="Game Mode" hint="Choose the match type">
+                  <Button onClick={handleQuickPlay} disabled={serverOnline !== true} className="w-full mb-3 bg-amber-600 hover:bg-amber-500">Quick Play · {MATCH_MODES[roomConfig.mode].label}</Button>
+                  <p className="text-xs text-white/50 mb-3">Join a public match in the selected mode, or start one with bots. Custom settings apply to Create Room.</p>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {(["ffa", "tdm", "killconfirmed", "ctf", "survival", "gungame"] as GameMode[]).map((m) => (
                       <ModePickCard key={m} mode={m} selected={roomConfig.mode === m} onSelect={(mode) => setRoomConfig({ mode, mapId: mapAllowedForMode(mode,roomConfig.mapId)?roomConfig.mapId:mode==="ctf"?"forest_warfare":"compound", scoreLimit: MATCH_MODES[mode].defaultScoreLimit, timeLimit: MATCH_MODES[mode].defaultTimeLimit * 60 })} />
@@ -740,6 +751,12 @@ function RoomBrowser({
   const [teamChoice, setTeamChoice] = useState<"red" | "blue" | "auto">("auto");
 
   const { rooms, status, refresh } = lobby;
+  const [inviteId, setInviteId] = useState(() => typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("room") : null);
+  const invitedRoom = rooms.find(r => r.id === inviteId);
+  const dismissInvite = () => {
+    const url = new URL(window.location.href); url.searchParams.delete("room");
+    window.history.replaceState(null, "", url); setInviteId(null);
+  };
 
   const submitJoin = (room: RoomSummary) => {
     const needsTeam = room.mode === "tdm" || room.mode === "killconfirmed" || room.mode === "ctf";
@@ -763,6 +780,11 @@ function RoomBrowser({
 
   return (
     <div>
+      {inviteId && <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 mb-4 space-y-2" role="status">
+        <p className="text-sm text-amber-100">{invitedRoom ? `Room invitation: ${invitedRoom.name}` : status === "connecting" ? "Finding your invited room…" : "This invitation is unavailable: the room may be full, closed, or between rounds. Refresh to try again."}</p>
+        {invitedRoom && <Button onClick={() => { submitJoin(invitedRoom); dismissInvite(); }}>Join invited room</Button>}
+        <Button variant="ghost" onClick={dismissInvite}>Dismiss</Button>
+      </div>}
       {/* status bar */}
       <div className="flex items-center gap-3 mb-4">
         <div className="flex items-center gap-2 text-xs">

@@ -150,11 +150,15 @@ import {
   resolveBotOverlap, botNextFeetY,
 } from "@/lib/bot-physics";
 
+import { useGame } from "./game-store";
+import { acquireRoomSocket, releaseRoomSession, getRoomStatus } from "./room-session";
+
 export interface LobbyState {
   active: boolean;        // true while the room is in the "lobby" phase (pre-match)
   isHost: boolean;        // whether the local player is the room host (can start)
   players: SnapshotPlayer[];  // current lobby roster (humans only — no bots in lobby)
   roomName: string;
+  hostSocketId?: string;
 }
 
 export interface EngineOptions {
@@ -199,7 +203,7 @@ export interface EngineOptions {
   uiVolume?: number;           // 0..100, countdown and match/objective alerts
   // Room lobby: when set, the engine sends createRoom/joinRoom instead of joinMatch.
   roomConnect?: {
-    kind: "create" | "join";
+    kind: "create" | "join" | "quick";
     config?: import("./game-protocol").CreateRoomConfig;
     roomId?: string;
     password?: string | null;
@@ -1337,6 +1341,7 @@ export class FPSEngine {
 
   // socket
   private socket: any = null;
+  private socketCleanup: (() => void)[] = [];
   private ping = 0;
   private lastPingAt = 0;
 
@@ -6719,16 +6724,23 @@ export class FPSEngine {
       window.location,
       this.opts.socketPort,
     );
-    this.socket = ioClient(socketUrl, {
+    this.socket = this.opts.roomConnect ? acquireRoomSocket() : ioClient(socketUrl, {
       path: socketPath,
       transports: ["polling", "websocket"],
       reconnection: true, reconnectionAttempts: 8, reconnectionDelay: 1000, timeout: 10000,
     });
     if (typeof window !== "undefined") (window as any).__socket = this.socket;
-    this.socket.on("connect", () => {
+    const listen = (event: string, listener: (...args: any[]) => void) => {
+      this.socket.on(event, listener);
+      this.socketCleanup.push(() => this.socket?.off(event, listener));
+    };
+    const join = () => {
       this.movementSendBudget.reset();
-      const rc = this.opts.roomConnect;
-      if (rc?.kind === "create" && rc.config) {
+      const rc = this.opts.roomConnect ? useGame.getState().roomConnect ?? this.opts.roomConnect : undefined;
+      if (rc?.kind === "quick") {
+        this.socket.emit("message", { t: "quickPlay", playerKey: this.opts.playerKey,
+          name: this.opts.playerName, loadout: this.opts.loadout, mode: this.opts.mode } as C2S);
+      } else if (rc?.kind === "create" && rc.config) {
         console.log("[FPS] socket connected, sending createRoom");
         this.socket.emit("message", {
           t: "createRoom", playerKey: this.opts.playerKey, name: this.opts.playerName,
@@ -6750,7 +6762,8 @@ export class FPSEngine {
         } as any);
       }
       this.lastPingAt = performance.now();
-    });
+    };
+    listen("connect", join);
     // Round 20a: Suppress noisy connect_error logs. The socket.io client retries
     // up to N times (1s apart), and each retry fires connect_error. Logging
     // every retry as console.error is noisy and looks like a crash. Instead:
@@ -6759,34 +6772,36 @@ export class FPSEngine {
     // - If all retries fail, the caller (GameCanvas) will show a toast and
     //   offer offline play.
     let connectErrorLogged = false;
-    this.socket.on("connect_error", (e: any) => {
+    listen("connect_error", (e: any) => {
       if (!connectErrorLogged) {
         connectErrorLogged = true;
         console.warn("[FPS] socket connect_error:", e.message || e, "— multiplayer may be unavailable. Offline play still works.");
       }
     });
-    this.socket.on("reconnect_failed", () => {
+    listen("reconnect_failed", () => {
       console.warn("[FPS] socket reconnect failed — multiplayer unavailable. Use offline play instead.");
       this.opts.onSocketError?.();
     });
-    this.socket.on("disconnect", (r: string) => {
+    listen("disconnect", (r: string) => {
       console.log("[FPS] socket disconnected:", r);
       if (this.turretDeployPending) {
         this.turretDeployPending = false;
         this.turretDeployFailedAt = performance.now();
       }
     });
-    this.socket.on("message", (msg: S2C) => this.onServerMessage(msg));
-    setInterval(() => {
+    listen("message", (msg: S2C) => this.onServerMessage(msg));
+    const pingTimer = setInterval(() => {
       if (this.socket?.connected) {
         this.lastPingAt = performance.now();
         this.socket.emit("ping", Date.now());
       }
     }, 2000);
-    this.socket.on("pong", (t: number) => {
+    listen("pong", (t: number) => {
       this.ping = Math.round(performance.now() - this.lastPingAt);
       void t;
     });
+    this.socketCleanup.push(() => clearInterval(pingTimer));
+    if (this.socket.connected) join();
   }
 
   private onServerMessage(msg: S2C) {
@@ -7599,6 +7614,7 @@ export class FPSEngine {
         console.warn("[server error]", msg.message);
         break;
       case "roomJoined":
+        this.ctfResetDurationMs = ctfResetMs(msg.config.ctfFlagResetMs);
         // Same semantics as "joined" but for the room-lobby flow.
         this.selfId = msg.selfId;
         this.scoreLimit = msg.config.scoreLimit;
@@ -7787,6 +7803,7 @@ export class FPSEngine {
       isHost: this.lobbyIsHost,
       players: this.lobbyPlayers,
       roomName: this.lobbyRoomName,
+      hostSocketId: getRoomStatus()?.hostSocketId,
     });
   }
 
@@ -7808,6 +7825,7 @@ export class FPSEngine {
     if (this.socket?.connected) {
       this.socket.emit("message", { t: "leaveRoom" } as any);
     }
+    if (this.opts.roomConnect) releaseRoomSession();
     this.lobbyActive = false;
     this.lobbyPlayers = [];
     this.emitLobbyState();
@@ -13616,7 +13634,8 @@ export class FPSEngine {
     cancelAnimationFrame(this.raf);
     this.timer.dispose();
     window.removeEventListener("resize", this.onResize);
-    if (this.socket) this.socket.disconnect();
+    for (const cleanup of this.socketCleanup.splice(0)) cleanup();
+    if (this.socket && !this.opts.roomConnect) this.socket.disconnect();
     if(this.equipmentPreviewLine){
       this.scene.remove(this.equipmentPreviewLine);
       this.equipmentPreviewLine.geometry.dispose();

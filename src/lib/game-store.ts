@@ -43,7 +43,7 @@ export interface RoomConfig {
 // When joining/creating a room, the engine needs to know how to connect:
 // either create a fresh room or join an existing one by id.
 export interface RoomConnect {
-  kind: "create" | "join";
+  kind: "create" | "join" | "quick";
   config?: CreateRoomConfig;   // for kind === "create"
   roomId?: string;             // for kind === "join"
   password?: string | null;    // for kind === "join"
@@ -78,6 +78,7 @@ export interface MatchResultView {
 }
 
 interface GameStore {
+  roundSerial: number;
   playerKey: string;
   profile: PlayerProfileView | null;
   screen: Screen;
@@ -120,6 +121,7 @@ function loadPlayerKey(): string {
 }
 
 export const useGame = create<GameStore>((set, get) => ({
+  roundSerial: 0,
   playerKey: typeof window !== "undefined" ? loadPlayerKey() : "p_init",
   profile: null,
   screen: "auth",

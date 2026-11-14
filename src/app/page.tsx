@@ -23,10 +23,24 @@ import { isPrimaryWeaponCategory, weaponById } from "@/lib/game-data";
 import type { MatchEndResult } from "@/lib/fps-engine";
 import { toast } from "sonner";
 
+import { releaseRoomSession, roomSend } from "@/lib/room-session";
+
 export default function Page() {
   const { screen, profile, refreshProfile, playerKey, playConfig, setScreen, setMatchResult, matchResult, authState, setSession, setAuthState, setPlayerKey, roomConnect, setRoomConnect } = useGame();
+  const roundSerial = useGame(s => s.roundSerial);
+  useEffect(() => {
+    if (screen !== "playing" && screen !== "results") releaseRoomSession();
+  }, [screen]);
   const [booted, setBooted] = useState(false);
   const tutorialOffered = useRef(new Set<string>());
+  const inviteHandled = useRef(false);
+  useEffect(() => {
+    if (inviteHandled.current || !booted || !profile || profile.playerKey !== playerKey || screen === "auth") return;
+    if (new URLSearchParams(window.location.search).get("room")) {
+      inviteHandled.current = true;
+      setScreen("play");
+    }
+  }, [booted, profile, playerKey, screen, setScreen]);
 
   useEffect(() => {
     // Check for an existing account session first.
@@ -71,7 +85,7 @@ export default function Page() {
     if (screen === "tutorial") { tutorialOffered.current.add(playerKey); return; }
     if (!booted || screen !== "menu" || !profile || profile.playerKey !== playerKey || tutorialOffered.current.has(playerKey)) return;
     tutorialOffered.current.add(playerKey);
-    if (shouldOfferTutorial(profile, loadTutorialProgress(playerKey))) setScreen("tutorial");
+    if (!new URLSearchParams(window.location.search).has("room") && shouldOfferTutorial(profile, loadTutorialProgress(playerKey))) setScreen("tutorial");
   }, [booted, screen, profile, playerKey, setScreen]);
 
   const handleMatchEnd = async (r: MatchEndResult) => {
@@ -135,6 +149,8 @@ export default function Page() {
     } catch {
       setMatchResult({ ...r });
       setScreen("results");
+    } finally {
+      roomSend({ t: "readyNextRound" });
     }
   };
 
@@ -221,6 +237,7 @@ export default function Page() {
       {screen === "results" && <Results />}
       {screen === "playing" && loadoutWire && profile && (
         <GameCanvas
+          key={roundSerial}
           loadout={loadoutWire}
           mode={playConfig.mode}
           botCount={playConfig.botCount}

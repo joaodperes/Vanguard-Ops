@@ -2,6 +2,7 @@
 import {formatCredits} from "@/lib/format-credits";
 import { achievementTitle, achievementRequirement } from "@/lib/achievement-titles";
 import { useGame } from "@/lib/game-store";
+import { RoomRoundPanel } from "@/components/game/RoomRoundPanel";
 import { Button } from "@/components/ui/button";
 import { Trophy, RotateCcw, Home, Zap, Coins, TrendingUp, Star, Crown, Award, Target, Skull, Flame, Clock, Crosshair } from "lucide-react";
 import { toast } from "sonner";
@@ -19,7 +20,7 @@ function unlockedGearLabel(id: string): string {
 }
 
 export function Results() {
-  const { matchResult, profile, setScreen, playConfig } = useGame();
+  const { matchResult, profile, setScreen, playConfig, roomConnect } = useGame();
   if (!matchResult) {
     setScreen("menu");
     return null;
@@ -319,12 +320,13 @@ export function Results() {
           </div>
         </div>
 
+        <RoomRoundPanel results />
         <div className="flex flex-col sm:flex-row gap-3">
           <Button
             onClick={() => setScreen("play")}
             className="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-bold h-12"
           >
-            <RotateCcw className="w-4 h-4 mr-2" /> Play Again
+            <RotateCcw className="w-4 h-4 mr-2" /> {roomConnect ? "Leave room · Match setup" : "Play Again"}
           </Button>
           <Button onClick={() => setScreen("menu")} variant="outline" className="flex-1 border-white/15 bg-black/30 text-white hover:bg-white/10 h-12">
             <Home className="w-4 h-4 mr-2" /> Main Menu

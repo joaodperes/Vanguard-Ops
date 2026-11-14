@@ -19,6 +19,8 @@ import { wonderModuleEffects, validWonderModule, validWonderFinish, validWonderK
 import { harbingerTuning, harbingerTargets, harbingerRayHit, harbingerPlacement, HARBINGER_INTERVAL_MS, HARBINGER_SCAN_INTERVAL_MS } from "./harbinger-drone";
 import { wonderConeHit, seismicPulseHit, seismicPushPosition, ripperSegments, CHRONO_ANCHOR_MS, PHANTOM_DURATION_MS, CRYO_SLOW_MS, CRYO_SLOW_FACTOR, mechTuning, phantomSpawnPosition, phantomTravelPosition, juggernautDropPoint, crushesAtLanding, JUGGERNAUT_DROP_MS, JUGGERNAUT_ACTIVE_MS, JUGGERNAUT_MINIGUN_RATE, JUGGERNAUT_SHOTGUN_RATE, JUGGERNAUT_SWARM_RATE } from "./wonder-abilities";
 import { db } from "./db";
+import { roomMapCandidates, winningRoomMap, quickPlayRoom } from "./room-flow";
+import { recommendedTeamSize, MAP_LIST, type RoomStatus } from "./game-protocol";
 import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,ORBITAL_RULES_VERSION,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,orbitalPulseTargets,orbitalReaperEquipped,ORBITAL_REAPER_SPEED_MULTIPLIER} from "./orbital-reactor";
 import { advanceMatchElapsed } from "./match-clock";
 import { fullWonderCharges, drainedWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, refundWonderCharge, type WonderChargeState } from "./wonder-charge";
@@ -172,6 +174,11 @@ interface BotAI {
 }
 
 interface Room {
+  mapVotes?: Record<string, MapId>;
+  mapCandidates?: MapId[];
+  resultsReady?: Set<string>;
+  roundNumber?: number;
+  cleanupTimer?: ReturnType<typeof setTimeout>;
   id: string;
   mode: GameMode;
   config: MatchConfig;
@@ -564,7 +571,7 @@ function findOpenRoom(mode: GameMode, mapId: MapId): Room | null {
   for (const r of rooms.values()) {
     // Quick-match only joins rooms already in the "playing" state (lobby rooms
     // are joined explicitly via joinRoom).
-    if (r.mode === mode && r.map.id === mapId && !r.ended && r.state === "playing") {
+    if (r.mode === mode && r.map.id === mapId && !r.password && !r.ended && r.state === "playing") {
       // survival caps at 2 humans; others at 7
       const cap = mode === "survival" ? 2 : r.capacity;
       if (r.players.size < cap) return r;
@@ -654,7 +661,18 @@ function lobbyPlayers(room: Room): SnapshotPlayer[] {
 
 // Broadcast a lobby snapshot to every socket in the room. Sent whenever the
 // player list changes during the lobby state (join/leave/transfer).
+function broadcastRoomStatus(room: Room) {
+  room.mapCandidates ??= roomMapCandidates(room.mode, room.map.id, room.teamSize, room.roundNumber);
+  const status: RoomStatus = {
+    room: roomSummary(room), phase: room.state, hostSocketId: room.hostSocketId,
+    players: lobbyPlayers(room).filter(p => !p.isBot), candidates: room.mapCandidates,
+    votes: room.mapVotes ?? {}, ready: [...(room.resultsReady ?? [])],
+  };
+  io.to(room.id).emit("message", { t: "roomStatus", status } satisfies S2C);
+}
+
 function broadcastLobbySnapshot(room: Room) {
+  broadcastRoomStatus(room);
   const msg: S2C = {
     t: "lobbySnapshot",
     players: lobbyPlayers(room),
@@ -745,6 +763,41 @@ function createLobbyRoom(
   // NOTE: do NOT spawn bots or start the tick here — the room waits in lobby
   // state until the host sends `startMatch`. Bots (if fillWithBots) spawn then.
   return room;
+}
+
+function launchRoomRound(old: Room, socketId: string): boolean {
+  if (old.hostSocketId !== socketId || old.state === "playing" || old.players.size === 0) return false;
+  if (old.state === "ended" && [...old.players.keys()].some(id => !old.resultsReady?.has(id))) return false;
+  const candidates = old.mapCandidates ?? roomMapCandidates(old.mode, old.map.id, old.teamSize);
+  const mapId = winningRoomMap(candidates, old.mapVotes ?? {}, [...old.players.keys()]);
+  const host = old.players.get(socketId)!;
+  const cfg: CreateRoomConfig = {
+    ...old.config, mode: old.mode, mapId, teamSize: old.teamSize, fillWithBots: old.fillWithBots,
+    password: old.password, roomName: old.name, botDifficulty: old.botDifficulty,
+    gungamePreset: old.gungamePreset, gungameMultiplier: old.gungameMultiplier,
+    survivalPlayers: old.capacity === 2 ? 2 : 1,
+  };
+  const next = createLobbyRoom(socketId, host.name, old.loadouts.get(socketId)!, cfg);
+  rooms.delete(next.id);
+  next.id = old.id;
+  next.roundNumber = (old.roundNumber ?? 0) + 1;
+  next.players.clear(); next.loadouts.clear(); next.sockets.clear(); next.scores.clear();
+  for (const [id, p] of old.players) {
+    const loadout = old.pendingLoadouts.get(id) ?? old.loadouts.get(id)!;
+    const fresh: PlayerNet = { ...p, kills: 0, deaths: 0, health: MAX_HEALTH, alive: true,
+      weaponId: loadout.weaponId, weaponSkinId: loadout.weaponSkinId, lastShotAt: 0,
+      spawnProtectedUntil: Date.now() + 8000, pos: [0,0,0] };
+    next.players.set(id, fresh); next.loadouts.set(id, loadout); next.sockets.set(id,id); next.scores.set(id,0);
+    next.playerKeys.set(id, old.playerKeys.get(id)!);
+  }
+  for (const p of next.players.values()) p.pos = pickSpawn(p.team, next);
+  if (old.cleanupTimer) clearTimeout(old.cleanupTimer);
+  rooms.set(next.id, next);
+  // Rebuild client geometry and server combat state for every new round.
+  io.to(next.id).emit("message", { t: "roundLaunched", roomId: next.id, mode: next.mode, mapId, config: next.config } satisfies S2C);
+  const started = startMatchInRoom(next, socketId);
+  broadcastRoomStatus(next);
+  return started;
 }
 
 // Transition a lobby room into the "playing" state. Only the host may start.
@@ -847,15 +900,10 @@ function joinLobbyRoom(
   roomId: string, password: string | null, requested?: "red" | "blue" | "auto"
 ): { room: Room | null; error: string | null } {
   const room = rooms.get(roomId);
-  if (!room || room.ended) return { room: null, error: "Room no longer exists." };
-  if (room.players.size >= room.capacity) {
-    // If bot-filled, a human can replace a bot — but only if there's a bot to replace.
-    if (room.fillWithBots && room.bots.size > 0) {
-      // proceed — replacement happens in addHumanToRoom
-    } else {
-      return { room: null, error: "Room is full." };
-    }
-  }
+  if (!room) return { room: null, error: "Room no longer exists." };
+  if (room.players.has(socketId)) return { room, error: null };
+  if (room.ended) return { room: null, error: "This room is between rounds. Try again when the next match starts." };
+  if (room.players.size >= room.capacity) return { room: null, error: "Room is full." };
   if (room.password && room.password !== "" && room.password !== (password ?? "")) {
     return { room: null, error: "Incorrect password." };
   }
@@ -2294,6 +2342,17 @@ function checkWin(room: Room) {
   }
 }
 
+function scheduleEmptyRoomCleanup(room: Room) {
+  if (room.players.size || room.cleanupTimer) return;
+  room.cleanupTimer = setTimeout(() => {
+    room.cleanupTimer = undefined;
+    if (rooms.get(room.id) !== room || room.players.size) return;
+    if (room.tick) clearInterval(room.tick);
+    for (const timer of room.respawnTimers.values()) clearTimeout(timer);
+    rooms.delete(room.id);
+  }, 15000);
+}
+
 function endMatch(room: Room, reason: "other" | "gungame_victory" = "other") {
   // Prevent stale kill-count or timer handlers ending an active Gun Game.
   // A room with no humans may still be cleaned up normally.
@@ -2323,11 +2382,11 @@ function endMatch(room: Room, reason: "other" | "gungame_victory" = "other") {
   io.to(room.id).emit("message", snapshot(room));
   io.to(room.id).emit("message", { t: "matchEnd", standings, winnerTeam,
     teamScores: { ...room.teamScores } } as S2C);
-  // cleanup room after a delay
-  setTimeout(() => {
-    for (const t of room.respawnTimers.values()) clearTimeout(t as unknown as ReturnType<typeof setTimeout>);
-    rooms.delete(room.id);
-  }, 15000);
+  room.resultsReady = new Set();
+  room.mapVotes = {};
+  room.mapCandidates = roomMapCandidates(room.mode, room.map.id, room.teamSize, room.roundNumber);
+  broadcastRoomStatus(room);
+  scheduleEmptyRoomCleanup(room);
 }
 
 // ---- Run-only Survival upgrades. Offers are private and server-authoritative.
@@ -4343,12 +4402,15 @@ io.on("connection", (socket) => {
       room.loadouts.delete(socket.id);
         room.pendingLoadouts.delete(socket.id);
         room.playerKeys.delete(socket.id);
+      delete room.mapVotes?.[socket.id]; room.resultsReady?.delete(socket.id);
+      scheduleEmptyRoomCleanup(room);
       socket.leave(roomId);
       // If host leaves, transfer host to the next human (if any).
       if (room.hostSocketId === socket.id && room.players.size > 0) {
         const next = room.players.values().next().value;
         if (next) { room.hostSocketId = next.id; room.hostName = next.name; }
       }
+      broadcastRoomStatus(room);
       if (room.state === "lobby") {
         // In lobby: refresh the player list for the remaining players. If the
         // room is now empty, clean it up. No bot top-up in lobby (bots haven't
@@ -4407,9 +4469,43 @@ async function handle(socket: any, msg: C2S) {
       survivalPauseActive(pauseRoom.players.size,pauseRoom.survivalOffers.size,pauseRoom.survivalMenuPaused)&&
       !["chooseSurvivalUpgrade","rerollSurvivalUpgrade","setSurvivalPause","leaveRoom","leaveMatch","chat","queueLoadout"].includes(msg.t))
     return; // Ignore client state/shot/equipment intents during an authoritative pause.
+  if (pauseRoom && pauseRoom.state !== "playing" &&
+      !["listRooms","createRoom","joinRoom","quickPlay","startMatch","voteMap","readyNextRound","leaveRoom","leaveMatch","chat"].includes(msg.t)) return;
   switch (msg.t) {
+    case "quickPlay": {
+      if (!["ffa","tdm","killconfirmed","ctf","survival","gungame"].includes(msg.mode)) return;
+      const target = quickPlayRoom([...rooms.values()].filter(r => !r.ended).map(roomSummary), msg.mode);
+      if (target) {
+        await handle(socket, { ...msg, t: "joinRoom", roomId: target.id, password: null });
+      } else {
+        const mapId = MAP_LIST.find(m => mapAllowedForMode(msg.mode,m.id))!.id;
+        await handle(socket, { ...msg, t: "createRoom", config: {
+          mode: msg.mode, mapId, teamSize: recommendedTeamSize(mapId,msg.mode),
+          fillWithBots: true, password: null, botDifficulty: "normal", roomName: "Quick Play",
+          survivalPlayers: 2, survivalTier: "default",
+        }});
+        const room = rooms.get(socketToRoom.get(socket.id) ?? "");
+        if (room && room.hostSocketId === socket.id && room.state === "lobby") launchRoomRound(room,socket.id);
+      }
+      break;
+    }
+    case "voteMap": {
+      if (!pauseRoom || pauseRoom.state === "playing" || !pauseRoom.players.has(socket.id)) return;
+      const candidates = pauseRoom.mapCandidates ?? roomMapCandidates(pauseRoom.mode,pauseRoom.map.id,pauseRoom.teamSize);
+      if (!candidates.includes(msg.mapId)) return;
+      (pauseRoom.mapVotes ??= {})[socket.id] = msg.mapId;
+      broadcastRoomStatus(pauseRoom);
+      break;
+    }
+    case "readyNextRound": {
+      if (pauseRoom?.state !== "ended" || !pauseRoom.players.has(socket.id)) return;
+      (pauseRoom.resultsReady ??= new Set()).add(socket.id);
+      broadcastRoomStatus(pauseRoom);
+      break;
+    }
     case "joinMatch": {
       const loadout = await validatedMatchLoadout(msg.playerKey, msg.loadout);
+      if (socket.connected === false) return;
       const mapId: MapId = (msg.mapId ?? "compound") as MapId;
       let room = findOpenRoom(msg.mode, mapId);
       if (!room) room = createRoom(msg.mode, Math.min(7, Math.max(1, msg.botCount)), mapId);
@@ -4920,6 +5016,7 @@ async function handle(socket: any, msg: C2S) {
     }
     case "createRoom": {
       const loadout = await validatedMatchLoadout(msg.playerKey, msg.loadout);
+      if (socket.connected === false) return;
       const cfg = msg.config;
       if (!mapAllowedForMode(cfg.mode, cfg.mapId)) {
         socket.emit("message", { t: "roomError", message: "This map is not available in the selected mode." } as S2C);
@@ -4964,12 +5061,14 @@ async function handle(socket: any, msg: C2S) {
         state: "lobby", isHost: true,
       };
       socket.emit("message", joined);
+      broadcastRoomStatus(room);
       // Send a lobby snapshot so the host's client can render the lobby overlay.
       socket.emit("message", { t: "lobbySnapshot", players: lobbyPlayers(room), hostSocketId: room.hostSocketId, state: "lobby" } as S2C);
       break;
     }
     case "joinRoom": {
       const loadout = await validatedMatchLoadout(msg.playerKey, msg.loadout);
+      if (socket.connected === false) return;
       const targetRoom=rooms.get(msg.roomId);
       if (targetRoom?.mode==="survival") {
         const tier=normalizeSurvivalTier(targetRoom.config.survivalTier);
@@ -5002,6 +5101,7 @@ async function handle(socket: any, msg: C2S) {
         isHost: room.hostSocketId === socket.id,
       };
       socket.emit("message", joined);
+      broadcastRoomStatus(room);
       if (room.state === "lobby") {
         // Broadcast the updated player list to everyone in the lobby.
         broadcastLobbySnapshot(room);
@@ -5017,12 +5117,12 @@ async function handle(socket: any, msg: C2S) {
     case "startMatch": {
       const room = rooms.get(socketToRoom.get(socket.id) ?? "");
       if (!room) return;
-      const ok = startMatchInRoom(room, socket.id);
+      const ok = launchRoomRound(room, socket.id);
       if (!ok) {
         // Only the host can start, and only from the lobby state. Surface a
         // roomError so the client can react (e.g. disable the button).
         const reason = room.state !== "lobby"
-          ? "Match has already started."
+          ? room.state === "ended" ? "Wait for everyone to finish saving their results." : "Match has already started."
           : room.hostSocketId !== socket.id
           ? "Only the host can start the match."
           : "Could not start the match.";
@@ -5047,11 +5147,14 @@ async function handle(socket: any, msg: C2S) {
         room.pendingLoadouts.delete(socket.id);
         room.playerKeys.delete(socket.id);
         socket.leave(roomId);
+        delete room.mapVotes?.[socket.id]; room.resultsReady?.delete(socket.id);
+        scheduleEmptyRoomCleanup(room);
         // Transfer host if the leaving player was the host.
         if (room.hostSocketId === socket.id && room.players.size > 0) {
           const next = room.players.values().next().value;
           if (next) { room.hostSocketId = next.id; room.hostName = next.name; }
         }
+        broadcastRoomStatus(room);
         if (room.state === "lobby") {
           if (room.players.size === 0) endMatch(room);
           else broadcastLobbySnapshot(room);
