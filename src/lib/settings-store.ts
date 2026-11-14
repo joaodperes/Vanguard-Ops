@@ -1,9 +1,10 @@
 "use client";
+import {DEFAULT_CONTROLS,normalizeControls,type ControlSettings} from "./control-settings";
 import { create } from "zustand";
 import { DEFAULT_AUDIO_MIX, migrateLegacyAudioMix, type AudioMixSettings } from "./audio-mix";
 import type { RenderQuality } from "./render-performance";
 
-export interface GameSettings extends AudioMixSettings {
+export interface GameSettings extends AudioMixSettings, ControlSettings {
   sensitivity: number;     // 0.5 .. 3.0
   fov: number;             // 70 .. 110
   crosshairColor: string;  // hex
@@ -20,6 +21,7 @@ export interface GameSettings extends AudioMixSettings {
 }
 
 const DEFAULTS: GameSettings = {
+  ...DEFAULT_CONTROLS,
   sensitivity: 1.0,
   fov: 90,
   crosshairColor: "#22c55e",
@@ -49,7 +51,7 @@ function loadSettings(): GameSettings {
     delete saved.fxVolume; // Replaced by weapon/combat/UI controls.
     const renderQuality = saved.renderQuality === "performance" || saved.renderQuality === "quality"
       ? saved.renderQuality : "balanced";
-    return { ...DEFAULTS, ...saved, ...migratedAudio, renderQuality } as GameSettings;
+    return { ...DEFAULTS, ...saved, ...migratedAudio, ...normalizeControls(saved as Partial<ControlSettings>), renderQuality } as GameSettings;
   } catch {
     return DEFAULTS;
   }
@@ -76,7 +78,8 @@ export const useSettings = create<SettingsStore>((set, get) => ({
     set({ settings: s, loaded: true });
   },
   update: (partial) => {
-    const next = { ...get().settings, ...partial };
+    const merged = { ...get().settings, ...partial };
+    const next = {...merged,...normalizeControls(merged)};
     persistSettings(next);
     set({ settings: next });
   },

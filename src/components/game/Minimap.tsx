@@ -39,7 +39,7 @@ export function Minimap({ radar, compact }: { radar: NonNullable<HudState["radar
         ) : (
           <g key={marker.id}>
             <circle cx={clamp(marker.x)} cy={clamp(marker.z)} r="5" fill="#fb7185" fillOpacity="0.2" stroke="#fb7185" strokeWidth="0.8" />
-            <circle cx={clamp(marker.x)} cy={clamp(marker.z)} r="2.2" fill="#fb7185" />
+            <path transform={`translate(${clamp(marker.x)} ${clamp(marker.z)})`} d="M0,-3 L3,0 L0,3 L-3,0 Z" fill="#fb7185" stroke="white" strokeWidth=".4"/>
           </g>
         ))}
         <g transform={`translate(${selfX} ${selfZ}) rotate(${heading})`}>
@@ -47,7 +47,7 @@ export function Minimap({ radar, compact }: { radar: NonNullable<HudState["radar
         </g>
         <text x="50" y="8" textAnchor="middle" fontSize="5.5" fill="#cbd5e1" fontWeight="bold">N</text>
       </svg>
-      <div className="absolute bottom-1 left-1.5 text-[8px] font-semibold tracking-widest text-white/65">RADAR</div>
+      <div className="absolute bottom-1 left-1.5 text-[8px] font-semibold tracking-widest text-white/65">○ ALLY · ◇ ENEMY · ▲ YOU</div>
     </div>
   );
 }

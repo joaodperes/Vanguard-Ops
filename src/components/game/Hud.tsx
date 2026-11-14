@@ -1,4 +1,5 @@
 "use client";
+import {useSettings} from "@/lib/settings-store";
 import { useEffect, useState } from "react";
 import type { HudState, ScoreRow } from "@/lib/fps-engine";
 import { formatMatchClock } from "@/lib/match-clock";
@@ -30,6 +31,7 @@ interface Props {
 }
 
 export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e", crosshairSize = 8, reticleStyle = "classic", showPing = true, isTouch = false, scopeOverlay = true }: Props) {
+  const scoreboardKey=useSettings(s=>s.settings.keyBindings.Tab);
   const [showScoreboard, setShowScoreboard] = useState(false);
   const [hitFlash, setHitFlash] = useState(0);
   const [dmgFlash, setDmgFlash] = useState(0);
@@ -47,13 +49,13 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
       // Only open the scoreboard while the player is actively in the match
       // (pointer locked). This prevents Tab from opening the scoreboard over
       // the "CLICK TO PLAY" overlay when the pointer is unlocked.
-      if (e.code === "Tab" && (hud.pointerLocked || !!hud.matchEnding)) { e.preventDefault(); setShowScoreboard(true); }
+      if (e.code === scoreboardKey && (hud.pointerLocked || !!hud.matchEnding)) { e.preventDefault(); setShowScoreboard(true); }
     };
-    const up = (e: KeyboardEvent) => { if (e.code === "Tab") setShowScoreboard(false); };
+    const up = (e: KeyboardEvent) => { if (e.code === scoreboardKey) setShowScoreboard(false); };
     window.addEventListener("keydown", dn);
     window.addEventListener("keyup", up);
     return () => { window.removeEventListener("keydown", dn); window.removeEventListener("keyup", up); };
-  }, [hud.pointerLocked, hud.matchEnding]);
+  }, [hud.pointerLocked, hud.matchEnding, scoreboardKey]);
 
   // ---- Prevent scoreboard / click-to-play overlap ----
   // The "CLICK TO PLAY" overlay (rendered by GameCanvas) shows whenever the
@@ -67,7 +69,7 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
   // exclusive by construction.
   useEffect(() => {
     if (!hud.pointerLocked && !hud.matchEnding) setShowScoreboard(false);
-  }, [hud.pointerLocked, hud.matchEnding]);
+  }, [hud.pointerLocked, hud.matchEnding, scoreboardKey]);
 
   useEffect(() => { if (hud.hitMarker) setHitFlash(hud.hitMarker); }, [hud.hitMarker]);
   // Round 20g: Headshot marker — separate flash state for the distinct red marker.
@@ -838,7 +840,7 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
           In TDM mode, the scoreboard is split into two side-by-side team panels
           (Red / Blue) so friendlies and enemies are visually grouped. In all
           other modes (ffa / gungame / survival) it remains a single flat table. */}
-      {showScoreboard && hud.alive !== undefined && (hud.pointerLocked || !!hud.matchEnding) && (
+      {(showScoreboard||hud.controllerScoreboard) && hud.alive !== undefined && (hud.pointerLocked || !!hud.matchEnding) && (
         (mode === "tdm" || mode === "killconfirmed" || mode === "ctf") ? (
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[640px] max-w-[94vw]">
             <div className="bg-black/80 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden">

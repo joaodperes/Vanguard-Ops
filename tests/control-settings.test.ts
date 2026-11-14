@@ -1,0 +1,7 @@
+import {test,expect} from 'bun:test';
+import {DEFAULT_KEYS,bindKey,canonicalKey,normalizeControls,stick} from '../src/lib/control-settings';
+import {makeEngineStub} from './helpers/engine-stub';
+test('bindings swap conflicts, preserve assignments and reserve Escape',()=>{const keys=bindKey(DEFAULT_KEYS,'KeyW','KeyR');expect(keys.KeyR).toBe('KeyW');expect(canonicalKey(keys,'KeyR')).toBe('KeyW');expect(normalizeControls({keyBindings:keys}).keyBindings).toEqual(keys);expect(bindKey(keys,'KeyW','Escape')).toBe(keys);});
+test('old and invalid preferences migrate safely',()=>{const s=normalizeControls({adsSensitivity:NaN,touchScale:100,controllerDeadzone:-1});expect(s.adsSensitivity).toBe(1);expect(s.touchScale).toBe(1.3);expect(s.controllerDeadzone).toBe(.05);expect(s.keyBindings).toEqual(DEFAULT_KEYS);});
+test('radial sticks suppress drift and preserve analog magnitude',()=>{expect(stick(.1,.1,.18)).toEqual([0,0]);expect(stick(0,.59,.18)[1]).toBeCloseTo(.5);expect(Math.hypot(...stick(1,1,.18))).toBeCloseTo(1);expect(stick(NaN,1,.18)).toEqual([0,0]);});
+test('clearing engine input drops movement, firing, pending burst and buffered jump',()=>{const e=makeEngineStub();Object.assign(e,{keys:{KeyW:true},mouseDown:true,touchFiring:true,touchMoveX:1,burstShotsLeft:2});e.clearInput();expect(e.keys).toEqual({});expect(e.mouseDown).toBe(false);expect(e.touchMoveX).toBe(0);expect(e.burstShotsLeft).toBe(0);expect(e.controllerNeutral).toBe(true);expect(e.lastJumpPressedAt).toBe(-Infinity);});
