@@ -460,6 +460,7 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
           <div className="max-w-[90vw] text-center text-[10px] tracking-wide text-amber-200 font-semibold uppercase">
             {hud.survivalTier === "default" || !hud.survivalTier ? "Standard · 30 waves" : `${hud.survivalTier} · Endless`}
             {(hud.survivalModifierNames?.length ?? 0) > 0 && <span className="text-rose-300"> · {hud.survivalModifierNames!.join(" · ")}</span>}
+            {hud.survivalObjectiveHint && <div className="mt-1 rounded bg-black/75 px-3 py-2 text-cyan-200 normal-case text-xs">{hud.survivalObjectiveHint}</div>}
             {hud.survivalBossWave && <span className="text-rose-300 font-black"> · Boss wave</span>}
             {Object.values(hud.survivalUpgradeRanks??{}).some(n=>(n??0)>0) && (
               <span className="text-cyan-300" title={Object.entries(hud.survivalUpgradeRanks??{})
@@ -796,6 +797,7 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
                 </span>
                 <span className="text-rose-300 font-bold text-sm uppercase tracking-wider mt-0.5">
                   {hud.survivalEnemiesLeft ?? 0} enemies incoming
+                  {hud.survivalSpecialistHints?.map(hint=><div key={hint} className="text-xs mt-1 text-cyan-100">{hint}</div>)}
                 </span>
               </div>
             </div>

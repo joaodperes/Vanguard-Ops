@@ -1,3 +1,4 @@
+import { survivalRoleForSlot, survivalRoleHealthMultiplier, survivalFrontalArmor, tickSurvivalSpecialists, createSurvivalObjective, tickSurvivalObjective, SURVIVAL_ROLE_INFO, type SurvivalActor, type SurvivalObjective } from "./survival-encounters";
 import { survivalPauseActive, survivalFirstChoiceDeadline, remainingSurvivalUpgradeSeconds } from "./survival-pause";
 import { blastCanDamage, blastDistance, blastExposureDistance, blastUnobstructed } from "./explosion-damage-rules";
 import { coverPanels, coverPlacement, coverIdForBox, coverNextHp, coverExplosionDamage, coverBlastContact, DEPLOY_COVER_HP, DEPLOY_COVER_LIFETIME_MS, DEPLOY_COVER_PREFIX, type DeployedCover } from "./deployable-cover";
@@ -205,6 +206,7 @@ interface Room {
   actorIndex?: ActorSpatialIndex<PlayerNet>;
   respawnTimers: Map<string, number>;
   chat: { name: string; text: string; team: string; at: number }[];
+  survivalObjective?: SurvivalObjective;
   // survival mode state
   wave: number;
   waveActive: boolean;
@@ -773,6 +775,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   room.sprintState.clear(); room.sprintLastAt.clear();
   room.adsStartedAt.clear(); room.equipmentFlashUntil.clear(); room.equipmentAdsBlockedUntil.clear(); room.lastMotionAt.clear(); room.autoBloom.clear(); room.shotPosture.clear(); room.stormMines.clear(); room.stormMineCooldown.clear(); room.smartTags.clear(); room.hellfireUntil.clear(); room.wonderFields.clear();
   room.downed.clear();
+  room.survivalObjective=undefined;
   room.survivalRanks.clear();room.survivalOffers.clear();room.survivalUpgradeDeadline=null;room.survivalPauseStartedAt=null;room.survivalMenuPaused=false;room.survivalSelfReviveUntil.clear();room.survivalSelfReviveUsedWave.clear();room.survivalRerolls.clear();room.survivalLastKillAt.clear();room.survivalLastHeadshotKillAt.clear();
   room.deathBombs.clear();
   room.turrets.clear();
@@ -922,6 +925,7 @@ function snapshot(room: Room): S2C {
   };
   if (room.mode === "survival") {
     const enemiesLeft = [...room.bots.values()].filter((b) => b.alive).length;
+    base.survivalObjective=room.survivalObjective;
     (base as any).wave = room.wave;
     (base as any).survivalTier = room.config.survivalTier;
     (base as any).waveActive = room.waveActive;
@@ -972,6 +976,7 @@ function toSnap(p: PlayerNet,loadout?:LoadoutWire): SnapshotPlayer {
     // Defensively exclude Wonder charms even if a stale snapshot or loadout supplied one.
     charmId:weaponSupportsCharm(weaponById(p.weaponId))?(currentCharm??"none"):"none",nameplateId:p.nameplateId,
     perkId:loadout?.perkId,
+    survivalRole:p.survivalRole,survivalMaxHealth:p.survivalMaxHealth,survivalAbilityLeft:p.survivalAbilityLeft,
     bossMaxHealth:p.bossMaxHealth,
     eliteMaxHealth:p.eliteMaxHealth,
     bossCharge:boss?bossShockwaveCharge(boss.nextSkillAt,Date.now()):undefined,
@@ -1848,6 +1853,9 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
     return; // shield impact absorbs shot, no health hit event
   }
   let dmg = damage;
+  const source=room.players.get(attackerId)??room.bots.get(attackerId);
+  if(room.mode==="survival"&&victim.isBot&&!fellInLava&&source)
+    dmg*=survivalFrontalArmor(victim.survivalRole,victim.yaw,victim.pos,source.pos,head);
   const attacker = room.players.get(attackerId) ?? room.bots.get(attackerId);
   // Survival: bots hit harder as waves progress, BUT base damage is reduced
   // by 35% for player survivability (Round 18-b balance fix).
@@ -2370,6 +2378,7 @@ function startSurvivalWave(room: Room) {
   }
   room.wave += 1;
   room.waveActive = true;
+  room.survivalObjective=createSurvivalObjective(room.wave,survivalWaveMutators(room.config.survivalTier??"default",room.wave).boss,room.map.spawns.ffa);
   // cleanup any leftover dead bots from the previous wave
   for (const [id, b] of room.bots) {
     if (!b.alive){
@@ -2395,6 +2404,8 @@ function startSurvivalWave(room: Room) {
     const loadout = botLoadout(undefined,n,"survival",room.wave);
     const boss = mutators.boss && n === count-1;
     const elite = !boss && room.wave>=5 && room.wave%5===0 && n===count-(mutators.boss?2:1);
+    const role=survivalRoleForSlot(room.wave,n,boss,elite);
+    if(role){loadout.perkId="steady";loadout.wonderWeaponId=undefined;}
     loadout.playerSkinId = boss ? SURVIVAL_BOSS_SKIN_ID : botOperativeSkinId(n,skinRotation);
     if (boss) {
       loadout.weaponId = "lmg_hv";
@@ -2410,8 +2421,10 @@ function startSurvivalWave(room: Room) {
     if (boss) ai.boss={phase:0,nextPhaseAt:Date.now()+5000,nextSkillAt:Date.now()+8500};
     ai.ammoInMag = weaponById(loadout.weaponId).stats.magSize;
     const bot: PlayerNet & { ai: BotAI; loadout: LoadoutWire } = {
-      id, name: boss ? `BOSS · W${room.wave}` : elite ? `ELITE · W${room.wave}` : `W${room.wave}·${n + 1}`, team: "red", isBot: true,
-      pos: sp, yaw: 0, pitch: 0, health: Math.round(MAX_HEALTH * hpMul * (boss ? 6 : elite ? 2.2 : 1)), alive: true,
+      survivalRole:role,survivalAbilityLeft:role==="engineer"?6:4,
+      survivalMaxHealth:Math.round(MAX_HEALTH*hpMul*(boss?6:elite?2.2:survivalRoleHealthMultiplier(role))),
+      id, name: role ? `${SURVIVAL_ROLE_INFO[role].label} · W${room.wave}` : boss ? `BOSS · W${room.wave}` : elite ? `ELITE · W${room.wave}` : `W${room.wave}·${n + 1}`, team: "red", isBot: true,
+      pos: sp, yaw: 0, pitch: 0, health: Math.round(MAX_HEALTH * hpMul * (boss ? 6 : elite ? 2.2 : survivalRoleHealthMultiplier(role))), alive: true,
       bossMaxHealth:boss?Math.round(MAX_HEALTH*hpMul*6):undefined,
       eliteMaxHealth:elite?Math.round(MAX_HEALTH*hpMul*2.2):undefined,
       weaponId: loadout.weaponId, weaponSkinId: "default", playerSkinId: loadout.playerSkinId,
@@ -2425,6 +2438,29 @@ function startSurvivalWave(room: Room) {
     initializeBotWonder(room,bot,Date.now());
     room.equipmentBotNextAt.set(id,Date.now()+4000+Math.random()*2500);
   }
+}
+
+function tickRoomSurvivalEncounters(room:Room,dt:number){
+  const actors:SurvivalActor[]=[...room.bots.values()].map(b=>({id:b.id,pos:b.pos,alive:b.alive,health:b.health,
+    maxHealth:b.survivalMaxHealth??MAX_HEALTH,role:b.survivalRole,abilityLeft:b.survivalAbilityLeft}));
+  const visible=(a:Vec3,b:Vec3)=>hasLineOfSight(room,[a[0],a[1]+1,a[2]],[b[0],b[1]+1,b[2]]);
+  const events=tickSurvivalSpecialists(actors,dt,visible);
+  for(const a of actors){const b=room.bots.get(a.id);if(b)b.survivalAbilityLeft=a.abilityLeft;}
+  for(const e of events){
+    const owner=room.bots.get(e.ownerId);if(!owner)continue;
+    io.to(room.id).emit("message",{t:"survivalAbility",ownerId:e.ownerId,kind:e.kind,targetId:e.targetId} as S2C);
+    if(e.kind==="heal"){const target=room.bots.get(e.targetId!);if(target)target.health=Math.min(target.survivalMaxHealth??MAX_HEALTH,target.health+(e.amount??0));}
+    if(e.kind==="sentry")placePlayerTurret(room,owner,owner.id,Date.now());
+    if(e.kind==="pulse")for(const player of room.players.values())
+      if(player.alive&&Math.hypot(player.pos[0]-owner.pos[0],player.pos[1]-owner.pos[1],player.pos[2]-owner.pos[2])<=7&&visible(owner.pos,player.pos))
+        applyDamage(room,owner.id,player,22,false,owner.weaponId);
+  }
+  // A dead engineer cannot leave its sentry active into the next wave.
+  for(const [id,t] of room.turrets)if(room.bots.get(t.ownerId)?.survivalRole==="engineer"&&!room.bots.get(t.ownerId)?.alive){
+    room.turrets.delete(id);io.to(room.id).emit("message",{t:"turretRemoved",id} as S2C);
+  }
+  tickSurvivalObjective(room.survivalObjective,[...room.players.values()].map(p=>({
+    id:p.id,pos:p.pos,alive:p.alive&&!room.downed.has(p.id),health:p.health,maxHealth:MAX_HEALTH})),actors,dt,visible);
 }
 
 function recoverSurvivalPlayers(room: Room) {
@@ -2696,7 +2732,8 @@ function tickRoomSimulation(room: Room) {
         }
       } else if (room.waveActive) {
         const aliveBots = [...room.bots.values()].filter((b) => b.alive).length;
-        if (aliveBots === 0) {
+        tickRoomSurvivalEncounters(room,1/20);
+        if (aliveBots === 0 && (!room.survivalObjective||room.survivalObjective.complete)) {
           room.waveActive = false;
           if (room.config.survivalTier === "default" && room.wave >= 30) {
             endMatch(room);

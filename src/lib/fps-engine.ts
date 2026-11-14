@@ -1,3 +1,4 @@
+import { survivalRoleForSlot, survivalRoleHealthMultiplier, survivalFrontalArmor, tickSurvivalSpecialists, createSurvivalObjective, tickSurvivalObjective, survivalObjectiveSite, survivalObjectiveText, SURVIVAL_ROLE_INFO, type SurvivalRole, type SurvivalActor, type SurvivalObjective } from "./survival-encounters";
 import { blastCanDamage, blastDistance, blastExposureDistance, blastUnobstructed } from "./explosion-damage-rules";
 import {wonderModuleEffects,wonderFinishById} from "./wonder-expansion";
 import {createWonderFinishTexture,updateWonderFinishTexture,createWonderKillVisual,type WonderKillVisual} from "./wonder-cosmetic-visuals";
@@ -341,6 +342,9 @@ export interface HudState {
   turretDeployPending?: boolean;
   turretDeployFailed?: boolean;
   // survival mode info (undefined for FFA/TDM)
+  survivalObjective?: SurvivalObjective;
+  survivalObjectiveHint?: string;
+  survivalSpecialistHints?: string[];
   survivalWave?: number;
   survivalTier?: SurvivalTier;
   survivalUpgradeOffer?: SurvivalUpgradeOffer;
@@ -527,6 +531,9 @@ interface Combatant {
   nameSprite?: THREE.Sprite;
   healthBar?: THREE.Mesh;
   healthBarBg?: THREE.Mesh;
+  survivalRole?: SurvivalRole;
+  survivalMaxHealth?: number;
+  survivalAbilityLeft?: number;
   bossMaxHealth?: number;
   eliteMaxHealth?: number;
   bossCharge?: number;
@@ -1235,6 +1242,9 @@ export class FPSEngine {
   // variety). After it completes, the mesh is hidden as before.
 
   // survival mode (offline)
+  private survivalObjective?: SurvivalObjective;
+  private survivalObjectiveMarkers:THREE.Group[]=[];
+  private survivalObjectiveMarkerKey="";
   private survivalWave = 0;
   private survivalTier: SurvivalTier = "default";
   private survivalUpgradeRanks:SurvivalUpgradeRanks={};
@@ -6060,6 +6070,7 @@ export class FPSEngine {
     (this.opts as any).team = "blue";
     this.survivalMaxReinforcements = 0;
     this.survivalReinforcements = 0;
+    this.survivalObjective=undefined;
     this.survivalWave = 0;
     this.survivalUpgradeRanks={};
     this.survivalPlayerRanks={};
@@ -6093,6 +6104,7 @@ export class FPSEngine {
     // for ~3.5 seconds after the wave starts.
     this.survivalWaveBannerAt = performance.now();
     const mutators=survivalWaveMutators(this.survivalTier,this.survivalWave);
+    this.survivalObjective=createSurvivalObjective(this.survivalWave,mutators.boss,this.map.spawns.ffa);
     const count=Math.min(40,Math.ceil(survivalWaveBotCount(this.survivalWave)*mutators.spawnMul))+(mutators.boss ? 1 : 0);
     const hpMul=survivalWaveHealthMul(this.survivalWave)*mutators.healthMul;
     // Curated Survival arsenal; launchers are allowed, long-range snipers excluded.
@@ -6111,7 +6123,8 @@ export class FPSEngine {
       const id=(boss ? "svboss_" : elite ? "svelite_" : "svbot_")+this.survivalWave+"_"+n;
       const sp = this.pickSpawn("ffa");
       const wid = boss ? "lmg_hv" : botWeapons[Math.floor(Math.random()*botWeapons.length)];
-      const perk=boss?"steady":botPerkForMode("survival",this.survivalWave);
+      const role=survivalRoleForSlot(this.survivalWave,n,boss,elite);
+      const perk=boss||role?"steady":botPerkForMode("survival",this.survivalWave);
       const wonderId=perk==="wonder_weapon"?botWonderForMode("survival"):undefined;
       const ai=this.makeBotAI(sp,survivalBotDifficulty(this.survivalTier,this.survivalWave),botArchetypeForCategory(weaponById(wid).category));
       ai.moveSpeed*=mutators.speedMul*(boss ? 1.3:1)*botMovementPerkMultiplier(perk);
@@ -6120,9 +6133,11 @@ export class FPSEngine {
       ai.ammoInMag=weaponById(wid).stats.magSize;
       if(boss) this.survivalBossTimers.set(id,{phase:0,nextPhaseAt:performance.now()+5000,nextSkillAt:performance.now()+8500});
       const c: Combatant = {
-        id, name: boss ? `BOSS · W${this.survivalWave}` : elite ? `ELITE · W${this.survivalWave}` : `W${this.survivalWave}·${n + 1}`, team: "red", isBot: true, isSelf: false,
+        survivalRole:role,survivalAbilityLeft:role==="engineer"?6:4,
+        survivalMaxHealth:Math.round(MAX_HEALTH*hpMul*(boss?6:elite?2.2:survivalRoleHealthMultiplier(role))),
+        id, name: role ? `${SURVIVAL_ROLE_INFO[role].label} · W${this.survivalWave}` : boss ? `BOSS · W${this.survivalWave}` : elite ? `ELITE · W${this.survivalWave}` : `W${this.survivalWave}·${n + 1}`, team: "red", isBot: true, isSelf: false,
         perkId:perk,botWonderId:wonderId,
-        pos: sp, yaw: 0, pitch: 0, health: Math.round(MAX_HEALTH * hpMul * (boss ? 6 : elite ? 2.2 : 1)), alive: true,
+        pos: sp, yaw: 0, pitch: 0, health: Math.round(MAX_HEALTH * hpMul * (boss ? 6 : elite ? 2.2 : survivalRoleHealthMultiplier(role))), alive: true,
         bossMaxHealth:boss?Math.round(MAX_HEALTH*hpMul*6):undefined,
         eliteMaxHealth:elite?Math.round(MAX_HEALTH*hpMul*2.2):undefined,
         weaponId: wid, weaponSkinId: "default", playerSkinId: boss ? SURVIVAL_BOSS_SKIN_ID : botOperativeSkinId(n,skinRotation),
@@ -6163,7 +6178,8 @@ export class FPSEngine {
     } else if (this.survivalWaveActive) {
       const aliveBots = [...this.combatants.values()].filter((c) => c.isBot && c.alive).length;
       this.survivalEnemiesLeft = aliveBots;
-      if (aliveBots === 0) {
+      this.tickSurvivalEncounters(dt);
+      if (aliveBots === 0 && (!this.survivalObjective||this.survivalObjective.complete)) {
         // wave cleared — cleanup dead bots and start prep for next wave
         this.survivalWaveActive = false;
         for (const [id, c] of this.combatants) {
@@ -6186,6 +6202,63 @@ export class FPSEngine {
         }else this.survivalPrepLeft=survivalPrepSeconds(this.survivalWave);
       }
     }
+  }
+
+  private updateSurvivalObjectiveMarkers(){
+    const o=this.survivalWaveActive?this.survivalObjective:undefined;
+    const key=o&&!o.complete?JSON.stringify([o.kind,o.sites,o.kind==="supplies"?!!o.carrierId:o.progress>=3]):"";
+    if(key===this.survivalObjectiveMarkerKey)return;
+    this.survivalObjectiveMarkerKey=key;
+    for(const marker of this.survivalObjectiveMarkers){
+      this.scene.remove(marker);
+      marker.traverse(node=>{
+        if(node instanceof THREE.Mesh)node.geometry.dispose();
+        if(node instanceof THREE.Mesh||node instanceof THREE.Sprite){
+          for(const m of Array.isArray(node.material)?node.material:[node.material]){
+            if("map" in m)(m.map as THREE.Texture|null)?.dispose();m.dispose();
+          }
+        }
+      });
+    }
+    this.survivalObjectiveMarkers=[];
+    if(!o||o.complete)return;
+    const site=survivalObjectiveSite(o),index=o.sites.indexOf(site);
+    const marker=new THREE.Group();marker.position.set(...site);
+    const ring=new THREE.Mesh(new THREE.RingGeometry(2.7,3,48),
+      new THREE.MeshBasicMaterial({color:0x22d3ee,side:THREE.DoubleSide,transparent:true,opacity:.8,depthWrite:false}));
+    ring.rotation.x=-Math.PI/2;ring.position.y=.08;marker.add(ring);
+    const beacon=new THREE.Mesh(new THREE.OctahedronGeometry(.4),new THREE.MeshBasicMaterial({color:0x22d3ee,depthTest:false}));
+    beacon.position.y=3;beacon.renderOrder=1000;marker.add(beacon);
+    const label=this.makeTextSprite((index===0?"A":"B")+" · "+(o.kind==="supplies"?(o.carrierId?"DELIVER":"SUPPLIES"):o.kind==="defend"?"DEFEND":"TERMINAL"),"blue");
+    label.position.y=3.8;label.material.depthTest=false;label.renderOrder=1001;marker.add(label);
+    this.scene.add(marker);this.survivalObjectiveMarkers.push(marker);
+  }
+
+  private tickSurvivalEncounters(dt:number){
+    const actors:SurvivalActor[]=[...this.combatants.values()].filter(c=>c.isBot).map(c=>({
+      id:c.id,pos:c.pos,alive:c.alive,health:c.health,maxHealth:c.survivalMaxHealth??MAX_HEALTH,
+      role:c.survivalRole,abilityLeft:c.survivalAbilityLeft}));
+    const visible=(a:Vec3,b:Vec3)=>this.hasLineOfSight([a[0],a[1]+1,a[2]],[b[0],b[1]+1,b[2]]);
+    const events=tickSurvivalSpecialists(actors,dt,visible);
+    for(const a of actors){const c=this.combatants.get(a.id);if(c)c.survivalAbilityLeft=a.abilityLeft;}
+    for(const e of events){
+      const owner=this.combatants.get(e.ownerId);if(!owner)continue;
+      const effect=this.combatants.get(e.targetId??e.ownerId);
+      if(effect)this.spawnEquipmentVisual([effect.pos[0],effect.pos[1]+1,effect.pos[2]],e.kind==="heal"?0x4ade80:e.kind==="pulse"?0xc084fc:0x38bdf8);
+      if(e.kind==="pulse")this.sound.play("wave_start",{volume:.2});
+      if(e.kind==="heal"){const target=this.combatants.get(e.targetId!);if(target)target.health=Math.min(target.survivalMaxHealth??MAX_HEALTH,target.health+(e.amount??0));}
+      if(e.kind==="sentry"){
+        const candidate=turretDeployPosition(owner.pos,owner.yaw,this.map.cover,this.map.size);
+        const pos:Vec3=[candidate[0],botGroundHeight(this.map.cover,candidate[0],candidate[2],candidate[1]),candidate[2]];
+        for(const [id,t] of this.bulletSpitters)if(t.ownerId===owner.id)this.removeBulletSpitter(id);
+        this.placeBulletSpitter("engineer_"+owner.id,owner.id,pos,owner.yaw,Date.now()+TURRET_LIFETIME_MS,true);
+      }
+      if(e.kind==="pulse"&&this.alive&&Math.hypot(this.pos.x-owner.pos[0],this.pos.y-owner.pos[1],this.pos.z-owner.pos[2])<=7&&visible(owner.pos,[this.pos.x,this.pos.y,this.pos.z]))
+        this.takeDamage(22*.65*survivalWaveDamageMul(this.survivalWave)*survivalWaveMutators(this.survivalTier,this.survivalWave).damageMul,owner.name,owner.team,false,owner.weaponId);
+    }
+    for(const [id,t] of this.bulletSpitters)if(this.combatants.get(t.ownerId)?.survivalRole==="engineer"&&!this.combatants.get(t.ownerId)?.alive)this.removeBulletSpitter(id);
+    tickSurvivalObjective(this.survivalObjective,[{id:this.selfId,pos:[this.pos.x,this.pos.y,this.pos.z],
+      alive:this.alive&&!this.survivalDowned,health:this.health,maxHealth:MAX_HEALTH}],actors,dt,visible);
   }
 
   private combatantAppearance(c:Combatant):string {
@@ -6501,6 +6574,26 @@ export class FPSEngine {
     c.healthBar = bar;
     bar.visible = this.showHealthBars;
 
+    if(c.survivalRole){
+      const info=SURVIVAL_ROLE_INFO[c.survivalRole];
+      const badge=new THREE.Mesh(new THREE.OctahedronGeometry(.22),new THREE.MeshBasicMaterial({color:info.color}));
+      badge.position.set(0,2.8,0);root.add(badge);
+      if(c.survivalRole==="shield"){
+        const plate=new THREE.Mesh(new THREE.BoxGeometry(.82,.9,.16),new THREE.MeshStandardMaterial({color:info.color,metalness:.7,roughness:.4}));
+        plate.position.set(0,1.15,.32);root.add(plate);
+      }else if(c.survivalRole==="medic"){
+        for(const dims of [[.55,.14,.2],[.14,.55,.2]]){
+          const cross=new THREE.Mesh(new THREE.BoxGeometry(...dims as [number,number,number]),new THREE.MeshBasicMaterial({color:info.color}));
+          cross.position.set(0,1.5,.33);root.add(cross);
+        }
+      }else if(c.survivalRole==="engineer"){
+        const pack=new THREE.Mesh(new THREE.BoxGeometry(.7,.7,.4),new THREE.MeshStandardMaterial({color:info.color}));
+        pack.position.set(0,1.3,-.35);root.add(pack);
+      }else{
+        const warning=new THREE.Mesh(new THREE.RingGeometry(6.8,7,48),new THREE.MeshBasicMaterial({color:info.color,transparent:true,opacity:.8,side:THREE.DoubleSide,depthWrite:false}));
+        warning.visible=false;warning.name="survival_pulse_warning";warning.rotation.x=-Math.PI/2;warning.position.y=.1;root.add(warning);
+      }
+    }
     // ---- Team ring at feet (visible ground marker showing team color) ----
     const ringColor = c.team === "red" ? 0xef4444 : c.team === "blue" ? 0x3b82f6 : 0x9ca3af;
     const ring = new THREE.Mesh(
@@ -6918,6 +7011,7 @@ export class FPSEngine {
           if (serverWave > this.survivalWave) {
             this.survivalWaveBannerAt = performance.now();
           }
+          this.survivalObjective=msg.survivalObjective;
           this.survivalWave = serverWave;
           this.survivalEnemiesLeft = (msg as any).enemiesLeft ?? this.survivalEnemiesLeft;
           this.survivalReinforcements = (msg as any).reinforcements ?? this.survivalReinforcements;
@@ -7242,6 +7336,12 @@ export class FPSEngine {
           this.survivalRerolls=msg.offer.rerollsRemaining;
         }
         break;
+      case "survivalAbility": {
+        const c=this.combatants.get(msg.targetId??msg.ownerId);
+        if(c)this.spawnEquipmentVisual([c.pos[0],c.pos[1]+1,c.pos[2]],msg.kind==="heal"?0x4ade80:msg.kind==="pulse"?0xc084fc:0x38bdf8);
+        if(msg.kind==="pulse")this.sound.play("wave_start",{volume:.2});
+        break;
+      }
       case "survivalUpgradeChosen":
         if(this.opts.mode==="survival"){
           this.survivalUpgradeRanks=msg.ranks;
@@ -7763,6 +7863,7 @@ export class FPSEngine {
         akimboSightId:p.akimboSightId,akimboBarrelId:p.akimboBarrelId,
         charmId:p.charmId,nameplateId:p.nameplateId,
         kills: p.kills, deaths: p.deaths, score: 0,
+        survivalRole:p.survivalRole,survivalMaxHealth:p.survivalMaxHealth,survivalAbilityLeft:p.survivalAbilityLeft,
         bossMaxHealth:p.bossMaxHealth,eliteMaxHealth:p.eliteMaxHealth,bossCharge:p.bossCharge,downed:p.downed,
         spawnProtectedUntil: p.spawnProtectedUntil,
       };
@@ -7789,6 +7890,7 @@ export class FPSEngine {
       // Round 19e: Sync spawn protection from the snapshot.
       c.spawnProtectedUntil = p.spawnProtectedUntil;
     }
+    c.survivalRole=p.survivalRole;c.survivalMaxHealth=p.survivalMaxHealth;c.survivalAbilityLeft=p.survivalAbilityLeft;
     c.bossMaxHealth=p.bossMaxHealth;
     c.eliteMaxHealth=p.eliteMaxHealth;
     c.bossCharge=p.bossCharge;
@@ -9557,6 +9659,8 @@ export class FPSEngine {
       });
     }
     if(directLethal)damage=tacticalDirectDamage(damage,victim.health,!!victim.bossMaxHealth);
+    if(this.opts.mode==="survival"&&victim.isBot&&!this.opts.online&&sourceWeaponId!==LAVA_DEATH_SOURCE)
+      damage*=survivalFrontalArmor(victim.survivalRole,victim.yaw,victim.pos,[this.pos.x,this.pos.y,this.pos.z],head);
     victim.health -= damage;
     if (victim.health <= 0 && victim.alive) {
       if(sourceWeaponId==="wonder_deadlock"&&this.wonderModuleId==="tag_relay"){
@@ -10801,6 +10905,8 @@ export class FPSEngine {
       this.updateCombatantMeshes(dt, now);
       return;
     }
+    if(this.opts.mode==="survival")this.updateSurvivalObjectiveMarkers();
+
     // Survival wave management (offline)
     if (!this.opts.online && this.opts.mode === "survival" && !this.matchEnded) {
       this.updateSurvival(dt);
@@ -11460,6 +11566,8 @@ export class FPSEngine {
       }
       // Thermal ADS reveals exposed heat signatures through weather, not through
       // physical cover. The ordinary body shader is still obscured by snow fog.
+      const warning=c.group?.getObjectByName("survival_pulse_warning");
+      if(warning)warning.visible=c.alive&&(c.survivalAbilityLeft??9)<=2.2;
       if (c.bossVisual && c.alive) {
         const timer=this.survivalBossTimers.get(c.id);
         const charge=c.bossCharge ?? (timer?bossShockwaveCharge(timer.nextSkillAt,now):0);
@@ -11528,7 +11636,7 @@ export class FPSEngine {
         if (c.healthBarBg) c.healthBarBg.visible = this.showHealthBars&&detailsVisible;
         if (c.healthBar) {
           c.healthBar.visible = this.showHealthBars&&detailsVisible;
-          const pct = Math.max(0, Math.min(1,c.health / (c.bossMaxHealth ?? c.eliteMaxHealth ?? MAX_HEALTH)));
+          const pct = Math.max(0, Math.min(1,c.health / (c.survivalMaxHealth ?? c.bossMaxHealth ?? c.eliteMaxHealth ?? MAX_HEALTH)));
           (c.healthBar as THREE.Mesh).scale.x = pct;
           (c.healthBar as THREE.Mesh).position.x = -0.45 * (1 - pct);
           (c.healthBar.material as THREE.MeshBasicMaterial).color.setHex(pct > 0.5 ? 0x33dd66 : pct > 0.25 ? 0xffaa33 : 0xff3333);
@@ -13300,6 +13408,13 @@ export class FPSEngine {
       ...(this.weaponId===RIOT_SHIELD_ID?{riotShieldHp:this.riotShieldHp,riotShieldRaised:this.shieldRaised(),riotShieldRechargeMs:riotShieldCooldownMs(this.riotShieldHp,this.riotShieldReadyAt,now)}:{}),
       ...(usesWonderCharges(weaponById(this.weaponId)) ? { wonderRechargeMs: wonderCooldownMs(this.ensureWonderState(this.weaponId,weaponById(this.weaponId).wonder!,now), weaponById(this.weaponId).wonder!, now) } : {}),
       ...(this.opts.mode === "survival" ? {
+        survivalSpecialistHints:[...new Set([...this.combatants.values()].filter(c=>c.alive&&c.survivalRole).map(c=>c.survivalRole!))].map(role=>SURVIVAL_ROLE_INFO[role].label+": "+SURVIVAL_ROLE_INFO[role].hint),
+        survivalObjective:this.survivalObjective,
+        survivalObjectiveHint:this.survivalObjective&&!this.survivalObjective.complete
+          ?survivalObjectiveText(this.survivalObjective)+" · "+Math.round(Math.hypot(
+            survivalObjectiveSite(this.survivalObjective)[0]-this.pos.x,
+            survivalObjectiveSite(this.survivalObjective)[1]-this.pos.y,
+            survivalObjectiveSite(this.survivalObjective)[2]-this.pos.z))+"m to marker":undefined,
         survivalWave: this.survivalWave,
         survivalTier: this.survivalTier,
         survivalUpgradeOffer:this.survivalUpgradeOffer,
