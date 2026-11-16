@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { weaponById, WEAPONS, WEAPON_SKINS, ATTACHMENTS, PLAYER_SKINS } from "@/lib/game-data";
 import { displayLabel } from "@/lib/display-labels";
 import { perkById } from "@/lib/perks";
-import { operationById, operationStars, nextOperation } from "@/lib/operations";
+import { operationById, operationStars, operationStarCriteria, nextOperation } from "@/lib/operations";
 import { SURVIVAL_TIER_INFO } from "@/lib/survival";
 
 function unlockedGearLabel(id: string): string {
@@ -92,7 +92,14 @@ export function Results() {
           <h2 className="text-xl font-bold text-amber-200">{r.won ? "OPERATION COMPLETE":leftEarly ? "OPERATION ABORTED":"OPERATION FAILED"}</h2>
           <p className="text-amber-300 text-2xl my-2" aria-label={`${operationStars(mission,r.operation,r.deaths)} of 3 stars`}>{"★".repeat(operationStars(mission,r.operation,r.deaths))}{"☆".repeat(3-operationStars(mission,r.operation,r.deaths))}</p>
           <p className="text-white/70">{r.won ? mission.debrief:"Regroup, adjust your loadout and try again. Completed missions remain available."}</p>
-          <p className="text-white/50 text-sm mt-2">Intel {r.operation.intel ? "recovered":"not recovered"}{mission.optionalChallenge ? ` · ${r.operation.optionalChallengeStatus==='complete'?'Alarm prevented':r.operation.optionalChallengeStatus==='failed'?'Alarm triggered':'Alarm unresolved'}`:''} · Objectives {r.operation.stage}/{mission.objectives.length} · Campaign progress syncs to your player account.</p>
+          <div className="max-w-sm mx-auto mt-4 space-y-2 text-left">
+            {operationStarCriteria(r.operation,r.deaths).map((criterion,index)=><div key={criterion.label} className="flex items-center gap-2 text-sm">
+              <span className={criterion.earned?"text-amber-300":"text-white/25"}>{criterion.earned?"★":"☆"}</span>
+              <span className={criterion.earned?"text-white/85":"text-white/45"}>{criterion.label}</span>
+              {index===2&&<span className="ml-auto text-[10px] uppercase tracking-wider text-white/35">{r.operation.difficulty}</span>}
+            </div>)}
+          </div>
+          <p className="text-white/50 text-sm mt-3">Intel {r.operation.intel ? "recovered":"not recovered"}{mission.optionalChallenge ? ` · ${r.operation.optionalChallengeStatus==='complete'?'Alarm prevented':r.operation.optionalChallengeStatus==='failed'?'Alarm triggered':'Alarm unresolved'}`:''} · Objectives {r.operation.stage}/{mission.objectives.length} · Campaign progress syncs to your player account.</p>
         </div>}
         {isSurvival && (
           <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4 mb-4 text-center">
