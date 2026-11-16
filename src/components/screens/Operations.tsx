@@ -9,13 +9,13 @@ import {Button} from '@/components/ui/button';
 import {toast} from 'sonner';
 
 export function Operations(){
- const {playerKey,profile,setScreen,setRoomConnect,setPlayConfig}=useGame();
+ const {playerKey,profile,setScreen,setRoomConnect,setPlayConfig,refreshProfile}=useGame();
  const [progress,setProgress]=useState<OperationProgress>({}),[selected,setSelected]=useState(OPERATIONS[0].id),[launching,setLaunching]=useState(false);
  const launchLock=useRef(false);
  const [loaded,setLoaded]=useState(false),[loadError,setLoadError]=useState(false);
  const [reload,setReload]=useState(0);
  useEffect(()=>{let cancelled=false;setLoaded(false);setLoadError(false);setProgress({});
-  syncOperationProgress(playerKey).then(result=>{if(cancelled)return;const saved=result.progress;setProgress(saved);setSelected((OPERATIONS.find(m=>operationUnlocked(m.id,saved)&&!saved[m.id]?.completions)??OPERATIONS[0]).id);setLoaded(true);for(const reward of result.firstClearRewards){const awarded=OPERATIONS.find(m=>m.id===reward.missionId);toast.success(`First clear reward${awarded?`: ${awarded.title}`:''}`,{description:`+${reward.xp} XP · +${reward.credits} CR`});}}).catch(error=>{if(!cancelled){setLoadError(true);toast.error(error.message);}});
+  syncOperationProgress(playerKey).then(result=>{if(cancelled)return;const saved=result.progress;setProgress(saved);setSelected((OPERATIONS.find(m=>operationUnlocked(m.id,saved)&&!saved[m.id]?.completions)??OPERATIONS[0]).id);setLoaded(true);for(const reward of result.firstClearRewards){const awarded=OPERATIONS.find(m=>m.id===reward.missionId);toast.success(`First clear reward${awarded?`: ${awarded.title}`:''}`,{description:`+${reward.xp} XP · +${reward.credits} CR`});}if(result.firstClearRewards.length)void refreshProfile();}).catch(error=>{if(!cancelled){setLoadError(true);toast.error(error.message);}});
   return ()=>{cancelled=true;};
  },[playerKey,reload]);
  const mission=OPERATIONS.find(m=>m.id===selected)!,unlocked=operationUnlocked(mission.id,progress);

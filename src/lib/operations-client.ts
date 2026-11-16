@@ -14,17 +14,18 @@ async function send(key:string,payload:object):Promise<SyncResult>{
  return {progress:normalizeOperationProgress(data?.progress??data),firstClearRewards};
 }
 export async function syncOperationProgress(key:string):Promise<SyncResult>{
- const rewards:OperationFirstClearReward[]=[];
+ const rewards:OperationFirstClearReward[]=[];let lastProgress:OperationProgress|undefined;
  const legacy=loadOperationProgress(key);
- if(Object.keys(legacy).length){const result=await send(key,{kind:'import',progress:legacy});rewards.push(...result.firstClearRewards);localStorage.removeItem('vanguard_operations_'+key);}
+ if(Object.keys(legacy).length){const result=await send(key,{kind:'import',progress:legacy});lastProgress=result.progress;rewards.push(...result.firstClearRewards);localStorage.removeItem('vanguard_operations_'+key);}
  for(const item of pending(key)){
-  const result=await send(key,{kind:'complete',...item});rewards.push(...result.firstClearRewards);
+  const result=await send(key,{kind:'complete',...item});lastProgress=result.progress;rewards.push(...result.firstClearRewards);
   localStorage.setItem(queueKey(key),JSON.stringify(pending(key).filter(p=>p.runId!==item.runId)));
  }
- const response=await fetch('/api/operations/progress?playerKey='+encodeURIComponent(key),{cache:'no-store'});
- if(!response.ok)throw Error('Unable to load account campaign progress.');
  const unique=[...new Map(rewards.map(reward=>[reward.missionId,reward])).values()];
- return {progress:normalizeOperationProgress(await response.json()),firstClearRewards:unique};
+ const response=await fetch('/api/operations/progress?playerKey='+encodeURIComponent(key),{cache:'no-store'});
+ if(!response.ok){if(lastProgress)return {progress:lastProgress,firstClearRewards:unique};throw Error('Unable to load account campaign progress.');}
+ try{return {progress:normalizeOperationProgress(await response.json()),firstClearRewards:unique};}
+ catch{if(lastProgress)return {progress:lastProgress,firstClearRewards:unique};throw Error('Unable to load account campaign progress.');}
 }
 export async function saveAccountOperation(key:string,state:OperationState,deaths:number):Promise<OperationFirstClearReward[]>{
  const runId=typeof crypto.randomUUID==='function'?crypto.randomUUID():Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
