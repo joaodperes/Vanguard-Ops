@@ -10,8 +10,9 @@ castle, dam and orbital geometry.
 Gold diamonds mark the main objectives in the world and on the radar; white hollow
 diamonds mark optional intel. The HUD adds direction, distance and above/below cues.
 Standing at a site interacts automatically, with vertical checks preventing
-interactions through floors. Nearby enemies contest recovery, delivery and terminal
-progress.
+interactions through floors. Each mission has its own named optional intel objective
+and beacon, placed separately from its main objective sites. Nearby enemies contest
+recovery, delivery and terminal progress.
 
 - Clear: defeat the encounter. The beacon is a rally point, not an arena boundary.
 - Secure: occupy the terminal site for its accumulated hold duration.
