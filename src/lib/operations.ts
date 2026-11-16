@@ -2,7 +2,7 @@
 import type {MapDef,MapId,Vec3,BotDifficulty} from './game-protocol';
 export type OperationKind='clear'|'secure'|'defend'|'recover'|'deliver'|'extract';
 export interface OperationObjective {kind:OperationKind;label:string;site:number;seconds:number}
-export interface OperationMission {id:string;act:number;title:string;mapId:MapId;briefing:string;debrief:string;intensity:number;parSeconds:number;objectives:OperationObjective[]}
+export interface OperationMission {id:string;act:number;title:string;mapId:MapId;briefing:string;debrief:string;intensity:number;parSeconds:number;objectives:OperationObjective[];optionalChallenge?:{label:string;kills:number;seconds:number}}
 const goal=(kind:OperationKind,label:string,site:number,seconds=0):OperationObjective=>({kind,label,site,seconds});
 export const OPERATION_DEADLINE_SECONDS=30*60;
 export interface OperationFirstClearReward {missionId:string;xp:number;credits:number}
@@ -14,7 +14,7 @@ export const OPERATIONS:readonly OperationMission[]=[
  {id:'silent_entry',act:1,title:'Silent Entry',mapId:'compound',intensity:1,parSeconds:600,
   briefing:'A stolen Vanguard relay has gone dark. Breach the jungle outpost, copy its dispatch records and escape with the first lead.',debrief:'The relay points to an arms pipeline running through Ridgefall.',
   objectives:[goal('clear','Break the outpost perimeter',0),goal('secure','Copy the dispatch records',3,45),goal('recover','Recover the encrypted relay',7,5),goal('deliver','Deliver the relay to the uplink',1,8),goal('extract','Reach the extraction zone',0,12)]},
- {id:'freight_intercept',act:1,title:'Freight Intercept',mapId:'skybridge',intensity:1,parSeconds:660,
+ {id:'freight_intercept',act:1,title:'Freight Intercept',mapId:'skybridge',intensity:1,parSeconds:660,optionalChallenge:{label:'Prevent the convoy alarm',kills:4,seconds:45},
   briefing:'Intercept the convoy before its cargo leaves the factory. Hold the loading area while command traces the next shipment.',debrief:'The manifest identifies a sleeper cell in Afterlight.',
   objectives:[goal('secure','Disable the convoy beacon',2,35),goal('clear','Clear the freight escort',6),goal('defend','Hold the loading area for the scan',4,120),goal('recover','Recover the cargo manifest',8,5),goal('extract','Extract with the manifest',0,15)]},
  {id:'city_signal',act:1,title:'City Signal',mapId:'terminal',intensity:2,parSeconds:660,
@@ -54,9 +54,9 @@ export function nextOperation(id:string){const i=OPERATIONS.findIndex(m=>m.id===
 export function operationConfigValid(c:{operationId?:unknown;mode:string;mapId:string;survivalTier?:unknown}):boolean {
  const m=operationById(c.operationId);return !!m&&c.mode==='survival'&&c.mapId===m.mapId&&(c.survivalTier===undefined||c.survivalTier==='default');
 }
-export interface OperationState {missionId:string;difficulty:BotDifficulty;stage:number;progress:number;elapsed:number;stageElapsed:number;pulse:number;intel:boolean;carrierId?:string;packagePos?:Vec3;status:'active'|'won'|'failed'}
-export const createOperationState=(missionId:string,difficulty:BotDifficulty='normal'):OperationState=>({missionId,difficulty,stage:0,progress:0,elapsed:0,stageElapsed:0,pulse:0,intel:false,status:'active'});
-export interface OperationActor {id:string;pos:Vec3;alive:boolean}
+export interface OperationState {missionId:string;difficulty:BotDifficulty;stage:number;progress:number;elapsed:number;stageElapsed:number;pulse:number;intel:boolean;optionalChallengeStatus?:'active'|'complete'|'failed';optionalChallengeElapsed?:number;optionalChallengeBaseline?:number;optionalChallengeKills?:number;carrierId?:string;packagePos?:Vec3;status:'active'|'won'|'failed'}
+export const createOperationState=(missionId:string,difficulty:BotDifficulty='normal'):OperationState=>({missionId,difficulty,stage:0,progress:0,elapsed:0,stageElapsed:0,pulse:0,intel:false,...(operationById(missionId)?.optionalChallenge?{optionalChallengeStatus:'active' as const,optionalChallengeElapsed:0,optionalChallengeKills:0}:{}),status:'active'});
+export interface OperationActor {id:string;pos:Vec3;alive:boolean;kills?:number}
 /** Use collision-cleared authored pads, with the same positions on both simulations. */
 export function operationSite(map:Pick<MapDef,'spawns'>,index:number):Vec3 {
  const p=map.spawns.ffa;return [...(p[index%p.length]??map.spawns.blue[0]??[0,0,0])] as Vec3;
@@ -74,6 +74,14 @@ export function tickOperation(s:OperationState,map:Pick<MapDef,'spawns'>,actors:
  const n={...s,elapsed:s.elapsed+delta,stageElapsed:s.stageElapsed+delta};
  if(n.elapsed>OPERATION_DEADLINE_SECONDS)return {...n,status:'failed'};
  const living=actors.filter(a=>a.alive),foes=enemies.filter(a=>a.alive);
+ if(m.optionalChallenge&&n.optionalChallengeStatus==='active'){
+  const totalKills=actors.reduce((sum,a)=>sum+(Number.isFinite(a.kills)?Math.max(0,a.kills??0):0),0);
+  n.optionalChallengeBaseline??=totalKills;
+  n.optionalChallengeKills=Math.max(0,totalKills-n.optionalChallengeBaseline);
+  n.optionalChallengeElapsed=(n.optionalChallengeElapsed??0)+delta;
+  if(n.optionalChallengeKills>=m.optionalChallenge.kills)n.optionalChallengeStatus='complete';
+  else if(n.optionalChallengeElapsed>=m.optionalChallenge.seconds)n.optionalChallengeStatus='failed';
+ }
  if(!n.intel&&living.some(a=>near(a.pos,operationSite(map,15),2.5)))n.intel=true;
  const g=m.objectives[s.stage];if(!g)return {...n,status:'won'};
  if(g.kind==='defend')n.pulse=Math.min(4,Math.floor(n.stageElapsed/25));
@@ -101,9 +109,10 @@ export function tickOperation(s:OperationState,map:Pick<MapDef,'spawns'>,actors:
 export function operationAwarenessMultiplier(s:Pick<OperationState,'missionId'|'stage'>):number {
  return s.missionId==='silent_entry'&&s.stage===0?1:1.45;
 }
-export function operationEncounter(m:OperationMission,stage:number,selectedDifficulty?:BotDifficulty,players=1){
+export function operationEncounter(m:OperationMission,stage:number,selectedDifficulty?:BotDifficulty,players=1,escalated=false){
  const squadScale=players>1?1.6:1;
- const count=Math.min(24,Math.ceil((4+m.intensity+stage)*squadScale));
+ const alarmScale=escalated?1.25:1;
+ const count=Math.min(24,Math.ceil((4+m.intensity+stage)*squadScale*alarmScale));
  const difficulty=selectedDifficulty??(m.intensity<=1?'easy':m.intensity<=3?'normal':'hard');
  return {count,reinforcementCount:Math.max(2,Math.ceil(count*.35)),roleWave:stage+1+(m.intensity-1)*2,difficulty:difficulty==='mixed'?undefined:difficulty};
 }
