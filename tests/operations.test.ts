@@ -79,7 +79,7 @@ describe('Operations campaign',()=>{
  });
  test('best ratings persist and only completed missions unlock successors',()=>{
   expect(operationUnlocked(first.id,{})).toBe(true);expect(operationUnlocked(OPERATIONS[1].id,{})).toBe(false);
-  const won={...createOperationState(first.id),status:'won' as const,intel:true,elapsed:200};expect(operationStars(first,{...won,difficulty:'veteran'},0)).toBe(3);expect(operationStars(first,{...won,difficulty:'normal'},0)).toBe(2);let p=recordOperation({},won,0);expect(operationUnlocked(OPERATIONS[1].id,p)).toBe(true);
+  const won={...createOperationState(first.id,'veteran'),status:'won' as const,intel:true,elapsed:200};expect(operationStars(first,won,0)).toBe(3);expect(operationStars(first,{...won,difficulty:'normal'},0)).toBe(2);let p=recordOperation({},won,0);expect(operationUnlocked(OPERATIONS[1].id,p)).toBe(true);
   p=recordOperation(p,{...won,elapsed:300,intel:false},2);expect(p[first.id]).toEqual({stars:3,bestSeconds:200,intel:true,completions:2});
   const guestProgress=recordOperation({}, {...won,missionId:'orbital_blackout'},0);expect(operationUnlocked('orbital_blackout',guestProgress)).toBe(true);expect(operationUnlocked('relay_siege',guestProgress)).toBe(true);
   expect(nextOperation(first.id)?.id).toBe(OPERATIONS[1].id);expect(nextOperation('missing')).toBeUndefined();expect(nextOperation(OPERATIONS.at(-1)!.id)).toBeUndefined();
@@ -88,7 +88,7 @@ describe('Operations campaign',()=>{
   const original=Object.getOwnPropertyDescriptor(globalThis,'localStorage'),storage=new Map<string,string>();
   Object.defineProperty(globalThis,'localStorage',{configurable:true,value:{getItem:(k:string)=>storage.get(k)??null,setItem:(k:string,v:string)=>storage.set(k,v)}});
   try{
-   storage.set('vanguard_operations_p','null');expect(loadOperationProgress('p')).toEqual({});localStorage.setItem('vanguard_operations_p',JSON.stringify(recordOperation({}, {...createOperationState(first.id),status:'won',elapsed:200,intel:true},0)));
+   storage.set('vanguard_operations_p','null');expect(loadOperationProgress('p')).toEqual({});localStorage.setItem('vanguard_operations_p',JSON.stringify(recordOperation({}, {...createOperationState(first.id,'veteran'),status:'won',elapsed:200,intel:true},0)));
    expect(loadOperationProgress('p')[first.id].stars).toBe(3);expect(loadOperationProgress('other')).toEqual({});storage.set('vanguard_operations_p',JSON.stringify({[first.id]:{stars:99,bestSeconds:-2,completions:1}}));expect(loadOperationProgress('p')).toEqual({});storage.set('vanguard_operations_p',JSON.stringify({[first.id]:{stars:3,bestSeconds:1801,completions:1}}));expect(loadOperationProgress('p')).toEqual({});
 
   }finally{if(original)Object.defineProperty(globalThis,'localStorage',original);else Reflect.deleteProperty(globalThis,'localStorage');}
