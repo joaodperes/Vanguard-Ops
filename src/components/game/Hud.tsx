@@ -105,7 +105,7 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
   const lowAmmo = ammoPct < 0.25 && hud.ammo > 0;
   const clockText = formatMatchClock(hud);
   const scoreboardRuleLabels = scoreboardRules(mode, hud);
-  const matchInfo = matchHudInfo(mode, hud.survivalTier);
+  const matchInfo = matchHudInfo(mode, hud.survivalTier, !!hud.operation);
 
   // damage direction indicator
   const showDamageDir = hud.damageDir !== undefined && hud.damageDirAt && (now - hud.damageDirAt < 1500);
@@ -768,7 +768,7 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
             </div>
           )}
           {mode === "survival" ? (
-            <div className="text-white/70 text-lg">{hud.survivalWaitingForWave ? "Returning after your partner clears the wave" : "Survival run ended"}</div>
+            <div className="text-white/70 text-lg">{hud.survivalWaitingForWave ? "Returning after your partner clears the stage" : "Operations deployment ended"}</div>
           ) : (
             <div className="text-white/70 text-lg">Respawning in <span className="text-white font-bold text-2xl">{hud.respawnIn}</span>s</div>
           )}
@@ -782,7 +782,7 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
           <div className="text-white/50 text-xs mt-2">
             {hud.survivalDownedLeft!==undefined
               ? "Eliminate an enemy within 30 seconds to self-revive with 35 HP."
-              : "Your teammate can bring you back by clearing this wave."}
+              : "Your teammate can bring you back by clearing this stage."}
           </div>
         </div>
       )}
@@ -893,7 +893,7 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
                       <th className="text-center px-2 py-1.5 font-medium w-14">K</th>
                       <th className="text-center px-2 py-1.5 font-medium w-14">D</th>
                       <th className="text-center px-4 py-1.5 font-medium w-16">Score</th>
-                      {mode==="survival" && <th className="text-left px-3 py-1.5 font-medium">Active upgrades</th>}
+                      {mode==="survival" && !hud.operation && <th className="text-left px-3 py-1.5 font-medium">Active upgrades</th>}
                     </tr>
                   </thead>
                   <tbody>
