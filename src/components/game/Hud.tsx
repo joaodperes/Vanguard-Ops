@@ -782,7 +782,7 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
           <div className="text-white/50 text-xs mt-2">
             {hud.survivalDownedLeft!==undefined
               ? "Eliminate an enemy within 30 seconds to self-revive with 35 HP."
-              : {hud.operation ? "Your teammate can bring you back by clearing this stage." : "Your teammate can bring you back by clearing this wave."}}
+              : hud.operation ? "Your teammate can bring you back by clearing this stage." : "Your teammate can bring you back by clearing this wave."}
           </div>
         </div>
       )}
