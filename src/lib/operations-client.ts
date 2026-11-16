@@ -22,10 +22,11 @@ export async function syncOperationProgress(key:string):Promise<SyncResult>{
   localStorage.setItem(queueKey(key),JSON.stringify(pending(key).filter(p=>p.runId!==item.runId)));
  }
  const unique=[...new Map(rewards.map(reward=>[reward.missionId,reward])).values()];
- const response=await fetch('/api/operations/progress?playerKey='+encodeURIComponent(key),{cache:'no-store'});
- if(!response.ok){if(lastProgress)return {progress:lastProgress,firstClearRewards:unique};throw Error('Unable to load account campaign progress.');}
- try{return {progress:normalizeOperationProgress(await response.json()),firstClearRewards:unique};}
- catch{if(lastProgress)return {progress:lastProgress,firstClearRewards:unique};throw Error('Unable to load account campaign progress.');}
+ try{
+  const response=await fetch('/api/operations/progress?playerKey='+encodeURIComponent(key),{cache:'no-store'});
+  if(!response.ok)throw Error('Unable to load account campaign progress.');
+  return {progress:normalizeOperationProgress(await response.json()),firstClearRewards:unique};
+ }catch(error){if(lastProgress)return {progress:lastProgress,firstClearRewards:unique};throw error;}
 }
 export async function saveAccountOperation(key:string,state:OperationState,deaths:number):Promise<OperationFirstClearReward[]>{
  const runId=typeof crypto.randomUUID==='function'?crypto.randomUUID():Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
