@@ -68,12 +68,18 @@ describe('Operations campaign',()=>{
    expect(s.status).toBe('won');expect(s.stage).toBe(mission.objectives.length);
   }
  });
- test('defence pressure is bounded and a new pulse cannot be skipped by completion',()=>{
-  const m=operationById('freight_intercept')!,mp=getMap(m.mapId);let s={...createOperationState(m.id),stage:2,stageElapsed:24.99,progress:119.99};const p=operationTarget(s,mp)!;
-  s=tickOperation(s,mp,[actor(p)],[],.05);expect(s.pulse).toBe(1);expect(s.stage).toBe(2);
-  s=tickOperation(s,mp,[actor(p)],[actor([p[0]+30,p[1],p[2]],'reinforcement')],1);expect(s.stage).toBe(2);
+ test('defence holds run for two minutes under continuous reinforcement pressure',()=>{
+  const m=operationById('freight_intercept')!,mp=getMap(m.mapId);const base={...createOperationState(m.id),stage:2};const p=operationTarget(base,mp)!;
+  let s=base;
+  for(let pulse=1;pulse<=7;pulse++){
+   s=tickOperation({...s,stageElapsed:pulse*15-1,pulse:pulse-1},mp,[actor(p)],[actor([p[0]+2,p[1],p[2]],'guard')],1);
+   expect(s.pulse).toBe(pulse);expect(s.progress).toBe(pulse*15);expect(s.stage).toBe(2);
+  }
+  s=tickOperation(s,mp,[actor(p)],[actor([p[0]+2,p[1],p[2]],'guard')],15);
+  expect(s.stageElapsed).toBe(120);expect(s.progress).toBe(120);expect(s.pulse).toBe(7);expect(s.stage).toBe(2);
+  s=tickOperation(s,mp,[actor(p)],[actor([p[0]+2,p[1],p[2]],'guard')],1);expect(s.stage).toBe(2);
   s=tickOperation(s,mp,[actor(p)],[],1);expect(s.stage).toBe(3);expect(s.pulse).toBe(0);expect(s.stageElapsed).toBe(0);
-  expect(tickOperation({...createOperationState(m.id),stage:2,stageElapsed:200},mp,[],[],1).pulse).toBe(4);
+  expect(tickOperation({...base,stageElapsed:200},mp,[actor(p)],[],1).pulse).toBe(7);
  });
  test('abort deadlines cannot award unlocks or stars',()=>{
   const s=tickOperation({...createOperationState(first.id),elapsed:OPERATION_DEADLINE_SECONDS},map,[actor([0,0,0])],[actor([20,0,0],'guard')],1);
@@ -103,11 +109,11 @@ describe('Operations campaign',()=>{
   expect(operationFirstClearReward(OPERATIONS[4])).toEqual({xp:200,credits:100});
   expect(operationFirstClearReward(OPERATIONS[8])).toEqual({xp:250,credits:125});
  });
- test('every defence stage is a two-minute hold with four timed reinforcement calls',()=>{
+ test('every defence stage is a two-minute hold with seven timed reinforcement calls',()=>{
   const defends=OPERATIONS.flatMap(m=>m.objectives.filter(g=>g.kind==='defend'));
   expect(defends.length).toBeGreaterThan(0);expect(defends.every(g=>g.seconds===120)).toBe(true);
   let s={...createOperationState('freight_intercept'),stage:2,stageElapsed:0};
-  for(let pulse=1;pulse<=4;pulse++){s=tickOperation({...s,stageElapsed:pulse*25-1,pulse:pulse-1},getMap('skybridge','survival'),[actor([0,0,0])],[],1);expect(s.pulse).toBe(pulse);}
+  for(let pulse=1;pulse<=7;pulse++){s=tickOperation({...s,stageElapsed:pulse*15-1,pulse:pulse-1},getMap('skybridge','survival'),[actor([0,0,0])],[],1);expect(s.pulse).toBe(pulse);}
  });
  test('all missions share a fixed 30-minute active deadline',()=>{
   expect(OPERATION_DEADLINE_SECONDS).toBe(1800);
