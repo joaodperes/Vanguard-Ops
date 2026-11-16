@@ -5,6 +5,7 @@ import {getOrCreatePlayer} from '../../src/lib/player-service';
 import {createSessionToken,SESSION_COOKIE} from '../../src/lib/auth';
 import {GET,POST} from '../../src/app/api/operations/progress/route';
 import {createOperationState,OPERATIONS} from '../../src/lib/operations';
+import {MAX_PLAYER_LEVEL,totalXpForLevel} from '../../src/lib/progression';
 const a=await getOrCreatePlayer('account-a'),b=await getOrCreatePlayer('account-b');
 await db.user.create({data:{email:'operations-test@example.invalid',passwordHash:'test-only',playerId:a.id}});
 const cookie=`${SESSION_COOKIE}=${createSessionToken(a.id)}`;
@@ -31,5 +32,9 @@ try{
  assert.equal((await (await read(b.playerKey,false)).json()).silent_entry.stars,2);
  const career=await db.player.findUniqueOrThrow({where:{id:a.id}});assert.equal(career.xp,a.xp+150);assert.equal(career.credits,a.credits+75);assert.equal(career.careerXp,a.careerXp);assert.equal(career.survivalBestWave,a.survivalBestWave);
  const guest=await db.player.findUniqueOrThrow({where:{id:b.id}});assert.equal(guest.xp,b.xp+150);assert.equal(guest.credits,b.credits+75);
+ const capPlayer=await getOrCreatePlayer('operations-career-cap'),capXp=totalXpForLevel(MAX_PLAYER_LEVEL);
+ await db.player.update({where:{id:capPlayer.id},data:{xp:capXp,level:MAX_PLAYER_LEVEL}});
+ const capAward=await POST(request({...payload,playerKey:capPlayer.playerKey,runId:'career_cap_test_0001'},false));assert.equal(capAward.status,200);
+ const capped=await db.player.findUniqueOrThrow({where:{id:capPlayer.id}});assert.equal(capped.xp,capXp+150);assert.equal(capped.careerXp,150);assert.equal(capped.credits,capPlayer.credits+75);
  console.log('Operations account persistence passed');
 }finally{await db.$disconnect();}

@@ -44,7 +44,9 @@ First clears award a one-time payout per mission:
 - Act 3: 250 XP and 125 credits.
 
 Replay clears can improve best time, rating and intel records but never repeat the
-first-clear payout. Campaign progress and payout records are stored on the player
+first-clear payout. XP follows the normal post-level-cap Career XP conversion;
+credits are added to the player wallet, while Survival wave records are untouched.
+Campaign progress and payout records are stored on the player
 account; logged-in accounts follow the player across browsers and devices. Existing
 browser records are imported idempotently, and pending completions retry after a
 failed connection. Account sessions determine ownership. Guest player IDs retain

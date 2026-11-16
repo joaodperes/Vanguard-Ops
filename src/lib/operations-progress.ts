@@ -1,6 +1,7 @@
 import {db} from './db';
 import {getOrCreatePlayer} from './player-service';
 import {levelForXp} from './progression';
+import {careerXpAfterMatch} from './career';
 import {normalizeOperationProgress,recordOperation,operationById,operationFirstClearReward,type OperationProgress,type OperationState,type OperationFirstClearReward} from './operations';
 const parse=(s:string)=>{try{return JSON.parse(s);}catch{return {};}};
 export interface OperationProgressWriteResult {progress:OperationProgress;firstClearRewards:OperationFirstClearReward[]}
@@ -44,7 +45,7 @@ export async function writeOperationProgress(key:string,input:{progress:Operatio
   const data={
    operationsProgress:JSON.stringify(next),
    operationsRuns:JSON.stringify('runId' in input?[...runs,input.runId].slice(-512):runs),
-   ...(xp>0?{xp:{increment:xp},credits:{increment:credits},level:levelForXp(p.xp+xp)}:{}),
+   ...(xp>0?{xp:{increment:xp},credits:{increment:credits},level:levelForXp(p.xp+xp),careerXp:careerXpAfterMatch(p.careerXp,p.careerRank,p.xp,xp)}:{}),
   };
   const updated=await db.player.updateMany({where:{id:p.id,operationsProgress:p.operationsProgress,operationsRuns:p.operationsRuns},data});
   if(updated.count)return {progress:next,firstClearRewards};
