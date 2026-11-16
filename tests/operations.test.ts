@@ -64,6 +64,10 @@ describe('Operations campaign',()=>{
   const s=tickOperation({...createOperationState(first.id),elapsed:OPERATION_DEADLINE_SECONDS},map,[actor([0,0,0])],[actor([20,0,0],'guard')],1);
   expect(s.status).toBe('failed');expect(operationStars(first,s,0)).toBe(0);expect(recordOperation({},s,0)).toEqual({});
  });
+ test('selected Operations difficulty overrides the mission default and Veteran is required for the third star',()=>{
+  const m=OPERATIONS[0];expect(operationEncounter(m,0,'veteran').difficulty).toBe('veteran');expect(operationEncounter(m,0,'easy').difficulty).toBe('easy');expect(operationEncounter(m,0,'mixed').difficulty).toBeUndefined();
+  const won={...createOperationState(m.id,'veteran'),status:'won' as const,elapsed:600};expect(operationStars(m,won,0)).toBe(3);expect(operationStars(m,{...won,difficulty:'hard'},0)).toBe(2);expect(operationStars(m,won,1)).toBe(2);
+ });
  test('first-clear payouts scale by campaign act',()=>{
   expect(operationFirstClearReward(OPERATIONS[0])).toEqual({xp:150,credits:75});
   expect(operationFirstClearReward(OPERATIONS[4])).toEqual({xp:200,credits:100});
@@ -75,7 +79,7 @@ describe('Operations campaign',()=>{
  });
  test('best ratings persist and only completed missions unlock successors',()=>{
   expect(operationUnlocked(first.id,{})).toBe(true);expect(operationUnlocked(OPERATIONS[1].id,{})).toBe(false);
-  const won={...createOperationState(first.id),status:'won' as const,intel:true,elapsed:200};expect(operationStars(first,won,0)).toBe(3);let p=recordOperation({},won,0);expect(operationUnlocked(OPERATIONS[1].id,p)).toBe(true);
+  const won={...createOperationState(first.id),status:'won' as const,intel:true,elapsed:200};expect(operationStars(first,{...won,difficulty:'veteran'},0)).toBe(3);expect(operationStars(first,{...won,difficulty:'normal'},0)).toBe(2);let p=recordOperation({},won,0);expect(operationUnlocked(OPERATIONS[1].id,p)).toBe(true);
   p=recordOperation(p,{...won,elapsed:300,intel:false},2);expect(p[first.id]).toEqual({stars:3,bestSeconds:200,intel:true,completions:2});
   const guestProgress=recordOperation({}, {...won,missionId:'orbital_blackout'},0);expect(operationUnlocked('orbital_blackout',guestProgress)).toBe(true);expect(operationUnlocked('relay_siege',guestProgress)).toBe(true);
   expect(nextOperation(first.id)?.id).toBe(OPERATIONS[1].id);expect(nextOperation('missing')).toBeUndefined();expect(nextOperation(OPERATIONS.at(-1)!.id)).toBeUndefined();
