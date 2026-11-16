@@ -101,8 +101,9 @@ export function tickOperation(s:OperationState,map:Pick<MapDef,'spawns'>,actors:
 export function operationAwarenessMultiplier(s:Pick<OperationState,'missionId'|'stage'>):number {
  return s.missionId==='silent_entry'&&s.stage===0?1:1.45;
 }
-export function operationEncounter(m:OperationMission,stage:number,selectedDifficulty?:BotDifficulty){
- const count=Math.min(18,4+m.intensity+stage);
+export function operationEncounter(m:OperationMission,stage:number,selectedDifficulty?:BotDifficulty,players=1){
+ const squadScale=players>1?1.6:1;
+ const count=Math.min(24,Math.ceil((4+m.intensity+stage)*squadScale));
  const difficulty=selectedDifficulty??(m.intensity<=1?'easy':m.intensity<=3?'normal':'hard');
  return {count,reinforcementCount:Math.max(2,Math.ceil(count*.35)),roleWave:stage+1+(m.intensity-1)*2,difficulty:difficulty==='mixed'?undefined:difficulty};
 }
