@@ -5,7 +5,7 @@ import {makeEnvironmentMap} from '../src/lib/dynamic-environment';
 import {botPositionEmbedded} from '../src/lib/bot-physics';
 import {survivalRoleForSlot} from '../src/lib/survival-encounters';
 import {makeEngineStub} from './helpers/engine-stub';
-const actor=(pos:Vec3,id='human',alive=true):OperationActor=>({id,pos,alive});
+const actor=(pos:Vec3,id='human',alive=true,kills=0):OperationActor=>({id,pos,alive,kills});
 const first=OPERATIONS[0],map=getMap(first.mapId,'survival');
 function advance(s:OperationState,actors:OperationActor[],enemies:OperationActor[]=[],seconds=1){for(let i=0;i<seconds;i++)s=tickOperation(s,map,actors,enemies,1);return s;}
 describe('Operations campaign',()=>{
@@ -63,6 +63,15 @@ describe('Operations campaign',()=>{
  test('abort deadlines cannot award unlocks or stars',()=>{
   const s=tickOperation({...createOperationState(first.id),elapsed:OPERATION_DEADLINE_SECONDS},map,[actor([0,0,0])],[actor([20,0,0],'guard')],1);
   expect(s.status).toBe('failed');expect(operationStars(first,s,0)).toBe(0);expect(recordOperation({},s,0)).toEqual({});
+ });
+ test('Freight Intercept alarm challenge rewards fast kills and escalates later encounters when missed',()=>{
+  const m=operationById('freight_intercept')!,mp=getMap(m.mapId);let s=createOperationState(m.id);
+  s=tickOperation(s,mp,[actor([0,0,0],'squad',true,2)],[],1);expect(s.optionalChallengeStatus).toBe('active');
+  s=tickOperation(s,mp,[actor([0,0,0],'squad',true,6)],[],1);expect(s.optionalChallengeStatus).toBe('complete');expect(s.optionalChallengeKills).toBe(4);
+  let missed=createOperationState(m.id);missed=tickOperation(missed,mp,[actor([0,0,0],'squad',true,0)],[],1);
+  missed=tickOperation({...missed,optionalChallengeElapsed:44},mp,[actor([0,0,0],'squad',true,0)],[],1);
+  expect(missed.optionalChallengeStatus).toBe('failed');
+  expect(operationEncounter(m,1,'normal',1,true).count).toBeGreaterThan(operationEncounter(m,1,'normal',1,false).count);
  });
  test('enemy awareness is raised except during the opening Silent Entry approach',()=>{
   expect(operationAwarenessMultiplier({missionId:'silent_entry',stage:0})).toBe(1);
