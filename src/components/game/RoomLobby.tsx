@@ -22,7 +22,7 @@ interface Props {
 // scene is dimmed but visible.
 export function RoomLobby({ state, mode, operationId, onStart, onLeave, socketConnected }: Props) {
   const modeLabel = operationId ? "Operations · Co-op Campaign" : mode === "ctf" ? "Capture the Flag" : mode === "tdm" ? "Team Deathmatch" : mode === "killconfirmed" ? "Kill Confirmed" : mode === "survival" ? "Survival" : mode === "gungame" ? "Gun Game" : "Free-For-All";
-  const ModeIcon = mode === "ctf" ? Flag : (mode === "tdm" || mode === "killconfirmed") ? Shield : mode === "survival" ? Skull : mode === "gungame" ? Swords : Users;
+  const ModeIcon = operationId ? Swords : mode === "ctf" ? Flag : (mode === "tdm" || mode === "killconfirmed") ? Shield : mode === "survival" ? Skull : mode === "gungame" ? Swords : Users;
   const humans = state.players.filter((p) => !p.isBot);
   // Round 20a: Derive connection status from the prop (no effect needed).
   const connStatus: "connecting" | "connected" | "disconnected" =
