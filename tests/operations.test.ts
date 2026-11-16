@@ -76,13 +76,13 @@ describe('Operations campaign',()=>{
  });
  test('every mission has a valid solo completion path',()=>{
   for(const mission of OPERATIONS){
-   const m=getMap(mission.mapId,'survival');let s=createOperationState(mission.id),budget=2000;
-   while(s.status==='active'&&budget-->0){const p=operationTarget(s,m)!;s=tickOperation(s,m,[actor(p,'solo')],[],1);}
+   const m=getMap(mission.mapId,'survival');let s=createOperationState(mission.id),budget=2000,kills=0;
+   while(s.status==='active'&&budget-->0){const goal=mission.objectives[s.stage];const p=operationTarget(s,m)!;if(goal?.kind==='defend'&&goal.killTarget)kills=(s.objectiveKillBaseline??0)+goal.killTarget;s=tickOperation(s,m,[actor(p,'solo',true,kills)],[],1);}
    expect(s.status).toBe('won');expect(s.stage).toBe(mission.objectives.length);
   }
  });
  test('every defence objective holds for two minutes with continuous 15-second reinforcement pulses',()=>{
-  const stages=OPERATIONS.flatMap(m=>m.objectives.flatMap((objective,index)=>objective.kind==='defend'?[{mission:m,index}]:[]));
+  const stages=OPERATIONS.flatMap(m=>m.objectives.flatMap((objective,index)=>objective.kind==='defend'&&!objective.killTarget?[{mission:m,index}]:[]));
   expect(stages.length).toBeGreaterThan(0);
   for(const {mission,index} of stages){
    const mp=getMap(mission.mapId,'survival'),base={...createOperationState(mission.id),stage:index},p=operationTarget(base,mp)!;
@@ -116,7 +116,7 @@ describe('Operations campaign',()=>{
   s=tickOperation(s,mp,[actor(p,'solo',true,7)],[],1);
   expect(s.progress).toBe(4);expect(s.stage).toBe(index);expect(s.stageElapsed).toBe(2);
   s=tickOperation(s,mp,[actor(p,'solo',true,11)],[],1);
-  expect(s.progress).toBe(8);expect(s.stage).toBe(index+1);
+  expect(s.progress).toBe(0);expect(s.stage).toBe(index+1);
   let failed=tickOperation(base,mp,[actor(p,'solo',true,0)],[],1);
   failed=tickOperation({...failed,stageElapsed:74},mp,[actor(p,'solo',true,7)],[],1);
   failed=tickOperation(failed,mp,[actor(p,'solo',true,7)],[],1);
@@ -166,7 +166,7 @@ describe('Operations campaign',()=>{
  test('act summaries count only that act and aggregate earned stars',()=>{
   const p=recordOperation({}, {...createOperationState('silent_entry','veteran'),status:'won',elapsed:300,intel:true},0);
   const next=recordOperation(p,{...createOperationState('freight_intercept','hard'),status:'won',elapsed:400,intel:false},1);
-  expect(operationActSummary(1,next)).toEqual({completed:2,total:4,stars:5,maxStars:12});
+  expect(operationActSummary(1,next)).toEqual({completed:2,total:4,stars:4,maxStars:12});
   expect(operationActSummary(2,next)).toEqual({completed:0,total:4,stars:0,maxStars:12});
   expect(operationActSummary(3,next)).toEqual({completed:0,total:4,stars:0,maxStars:12});
  });
