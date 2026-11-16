@@ -343,7 +343,7 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
           : goal.kind==='deliver' ? hud.operation.carrierId ? `Carry package to marker · ${progress}/${goal.seconds}s` : "Pick up the dropped package"
           : `Extract · all operatives at zone · ${progress}/${goal.seconds}s`;
         const timedObjective=goal.kind!=='clear'&&goal.kind!=='deliver'||goal.kind==='deliver'&&!!hud.operation.carrierId;
-        const objectivePct=goal.seconds>0?Math.min(100,100*(goal.killTarget?hud.operation.stageElapsed:progress)/goal.seconds):0;
+        const objectivePct=goal.killTarget?Math.min(100,100*progress/goal.killTarget):goal.seconds>0?Math.min(100,100*progress/goal.seconds):0;
         const deadlineLeft=Math.max(0,OPERATION_DEADLINE_SECONDS-hud.operation.elapsed);
         const deadlinePct=Math.min(100,100*deadlineLeft/OPERATION_DEADLINE_SECONDS);
         const deadlineUrgent=deadlineLeft<=60,deadlineWarning=deadlineLeft<=300;
