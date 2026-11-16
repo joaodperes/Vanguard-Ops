@@ -10,9 +10,9 @@ test('campaign sync migrates legacy records and retains failed uploads for idemp
  try{
   const state={...createOperationState(OPERATIONS[0].id),status:'won' as const,stage:5,elapsed:123,intel:true};
   await expect(saveAccountOperation('test-player',state,0)).rejects.toThrow();
-  const queued=JSON.parse(values.get('vanguard_operations_pending_test-player')!);expect(queued).toHaveLength(1);
+  const queued=JSON.parse(values.get('vanguard_operations_pending_test-player')!);expect(queued).toHaveLength(1);delete queued[0].state.difficulty;values.set('vanguard_operations_pending_test-player',JSON.stringify(queued));
   fail=false;failGet=true;const synced=await syncOperationProgress('test-player');expect(synced.progress).toEqual({});expect(synced.firstClearRewards).toEqual([{missionId:'silent_entry',xp:150,credits:75}]);expect(JSON.parse(values.get('vanguard_operations_pending_test-player')!)).toEqual([]);failGet=false;
-  expect(writes[0].runId).toBe(writes[1].runId);
+  expect(writes[0].runId).toBe(writes[1].runId);expect(writes[1].state.difficulty).toBe('normal');
   values.set('vanguard_operations_test-player',JSON.stringify({silent_entry:{stars:3,bestSeconds:123,intel:true,completions:2}}));
   await syncOperationProgress('test-player');expect(values.has('vanguard_operations_test-player')).toBe(false);expect(writes.at(-1).kind).toBe('import');
  }finally{globalThis.fetch=oldFetch;useGame.setState({playerKey:oldKey});if(descriptor)Object.defineProperty(globalThis,'localStorage',descriptor);else Reflect.deleteProperty(globalThis,'localStorage');}
