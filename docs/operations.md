@@ -31,7 +31,7 @@ extraction resets. Enemy budgets grow with mission intensity and objective numbe
 The existing Survival specialists, arsenal, elite, healing, damage and self-revive
 systems supply combat. Co-op deployments scale encounter size with the active squad. Bot awareness is raised outside the opening stealth approach.
 Bot difficulty can be selected per deployment; the Veteran
-setting is required for the third campaign star. Later missions introduce engineers and disruptors sooner;
+setting is required for the third campaign star. Co-op deployments scale each encounter to the two-player squad and both operatives can activate objectives, recover intel and carry mission packages. Extraction requires every living operative to reach the zone; defend/secure progress can be contributed by either operative. Later missions introduce engineers and disruptors sooner;
 campaign objectives replace standard Survival's rotating objectives. Freight Intercept also has a timed optional alarm challenge: eliminate four guards within 45 seconds or later encounters receive more enemies. Operations does not use the Survival run-upgrade selection system.
 
 ## Campaign and rewards
