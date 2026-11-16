@@ -29,6 +29,7 @@ describe('Operations campaign',()=>{
    expect(mission.optionalObjective.label.length).toBeGreaterThan(0);
    const compiled=makeEnvironmentMap(getMap(mission.mapId,'survival'));
    const site=operationSite(compiled,mission.optionalObjective.site);
+   expect(mission.objectives.some(objective=>objective.site===mission.optionalObjective.site)).toBe(false);
    expect(site.every(Number.isFinite)).toBe(true);
    expect(botPositionEmbedded(compiled.cover,site)).toBe(false);
    let state=createOperationState(mission.id);
