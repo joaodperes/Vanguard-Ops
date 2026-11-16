@@ -768,7 +768,7 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
             </div>
           )}
           {mode === "survival" ? (
-            <div className="text-white/70 text-lg">{hud.survivalWaitingForWave ? "Returning after your partner clears the stage" : "Operations deployment ended"}</div>
+            <div className="text-white/70 text-lg">{hud.operation ? (hud.survivalWaitingForWave ? "Returning after your partner clears the stage" : "Operations deployment ended") : (hud.survivalWaitingForWave ? "Returning after your partner clears the wave" : "Survival run ended")}</div>
           ) : (
             <div className="text-white/70 text-lg">Respawning in <span className="text-white font-bold text-2xl">{hud.respawnIn}</span>s</div>
           )}
@@ -782,7 +782,7 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
           <div className="text-white/50 text-xs mt-2">
             {hud.survivalDownedLeft!==undefined
               ? "Eliminate an enemy within 30 seconds to self-revive with 35 HP."
-              : "Your teammate can bring you back by clearing this stage."}
+              : {hud.operation ? "Your teammate can bring you back by clearing this stage." : "Your teammate can bring you back by clearing this wave."}}
           </div>
         </div>
       )}
