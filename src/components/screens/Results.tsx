@@ -94,7 +94,7 @@ export function Results() {
           <p className="text-white/70">{r.won ? mission.debrief:"Regroup, adjust your loadout and try again. Completed missions remain available."}</p>
           {(()=>{
             const pace=operationTimePerformance(mission,r.operation!.elapsed);
-            return <p className="text-xs mt-2 ${pace.withinPar?'text-emerald-300':'text-amber-200'}">Mission time {formatOperationTime(pace.elapsedSeconds)} · Target {formatOperationTime(pace.parSeconds)} · {pace.withinPar?`${pace.deltaSeconds}s ahead`:`${pace.deltaSeconds}s over`}</p>;
+            return <p className={`text-xs mt-2 ${pace.withinPar?'text-emerald-300':'text-amber-200'}`}>Mission time {formatOperationTime(pace.elapsedSeconds)} · Target {formatOperationTime(pace.parSeconds)} · {pace.withinPar?`${pace.deltaSeconds}s ahead`:`${pace.deltaSeconds}s over`}</p>;
           })()}
           <div className="max-w-sm mx-auto mt-4 space-y-2 text-left">
             {operationStarCriteria(r.operation,r.deaths).map((criterion,index)=><div key={criterion.label} className="flex items-center gap-2 text-sm">
