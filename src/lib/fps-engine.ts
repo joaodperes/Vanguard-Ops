@@ -6177,7 +6177,8 @@ export class FPSEngine {
     }
     const mutators=survivalWaveMutators(this.survivalTier,this.survivalWave);
     if(!reinforcement)this.survivalObjective=this.operation ? undefined : createSurvivalObjective(this.survivalWave,mutators.boss,this.map.spawns.ffa);
-    const encounter=this.operation ? operationEncounter(operationById(this.operation.missionId)!,this.operation.stage,this.operation.difficulty,1,this.operation.optionalChallengeStatus==='failed'):undefined;
+    const squadSize=this.operation ? 1+[...this.combatants.values()].filter(c=>!c.isBot&&!c.isSelf&&c.alive).length : 1;
+    const encounter=this.operation ? operationEncounter(operationById(this.operation.missionId)!,this.operation.stage,this.operation.difficulty,squadSize,this.operation.optionalChallengeStatus==='failed'):undefined;
     const count=(reinforcement ? encounter?.reinforcementCount : encounter?.count) ?? Math.min(40,Math.ceil(survivalWaveBotCount(this.survivalWave)*mutators.spawnMul))+(mutators.boss ? 1 : 0);
     const hpMul=survivalWaveHealthMul(this.survivalWave)*mutators.healthMul;
     // Curated Survival arsenal; launchers are allowed, long-range snipers excluded.
@@ -6254,8 +6255,11 @@ export class FPSEngine {
       this.tickSurvivalEncounters(dt);
       const previousStage=this.operation?.stage,previousPulse=this.operation?.pulse;
       if(this.operation){
-        this.operation=tickOperation(this.operation,this.map,
-          [{id:this.selfId,pos:[this.pos.x,this.pos.y,this.pos.z],alive:this.alive&&!this.survivalDowned,kills:this.kills}],
+        const operationActors=[
+          {id:this.selfId,pos:[this.pos.x,this.pos.y,this.pos.z] as Vec3,alive:this.alive&&!this.survivalDowned,kills:this.kills},
+          ...[...this.combatants.values()].filter(c=>!c.isBot&&!c.isSelf).map(c=>({id:c.id,pos:c.pos,alive:c.alive&&!c.downed,kills:c.kills})),
+        ];
+        this.operation=tickOperation(this.operation,this.map,operationActors,
           [...this.combatants.values()].filter(c=>c.isBot).map(c=>({id:c.id,pos:c.pos,alive:c.alive,kills:c.kills})),dt);
         if(this.operation.status!=="active"){this.survivalWaveActive=false;this.finalizeMatchLocal();return;}
         if(this.operation.stage===previousStage&&this.operation.pulse!==previousPulse)this.startSurvivalWave(true);
