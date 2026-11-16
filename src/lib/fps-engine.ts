@@ -6199,7 +6199,7 @@ export class FPSEngine {
       const role=survivalRoleForSlot(encounter?.roleWave ?? this.survivalWave,n,boss,elite);
       const perk=boss||role?"steady":botPerkForMode("survival",this.survivalWave);
       const wonderId=perk==="wonder_weapon"?botWonderForMode("survival"):undefined;
-      const ai=this.makeBotAI(sp,encounter?.difficulty ?? survivalBotDifficulty(this.survivalTier,this.survivalWave),botArchetypeForCategory(weaponById(wid).category));
+      const ai=this.makeBotAI(sp,this.operation?.difficulty==='mixed'?undefined:encounter?.difficulty ?? survivalBotDifficulty(this.survivalTier,this.survivalWave),botArchetypeForCategory(weaponById(wid).category));
       ai.moveSpeed*=mutators.speedMul*(boss ? 1.3:1)*botMovementPerkMultiplier(perk);
       ai.skill=Math.min(0.98,ai.skill+mutators.skillBoost);
       if(mutators.skillBoost>0) ai.difficulty="veteran";
