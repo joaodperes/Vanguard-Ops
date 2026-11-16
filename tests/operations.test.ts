@@ -61,6 +61,19 @@ describe('Operations campaign',()=>{
   s=advance(s,[actor(away)]);expect(s.progress).toBe(0);s=advance(s,[actor(p)],[],12);expect(s.status).toBe('won');
   expect(tickOperation(s,map,[],[],1)).toBe(s);
  });
+ test('co-op squads share intel and extraction requires every living operative',()=>{
+  const mission=OPERATIONS[0],compiled=getMap(mission.mapId,'survival');
+  const intel=operationSite(compiled,mission.optionalObjective.site);
+  let s=createOperationState(mission.id);
+  s=tickOperation(s,compiled,[actor([intel[0]+20,intel[1],intel[2]],'host'),actor(intel,'partner')],[],1);
+  expect(s.intel).toBe(true);
+  s={...createOperationState(mission.id),stage:4};
+  const exit=operationTarget(s,compiled)!,away:Vec3=[exit[0]+20,exit[1],exit[2]];
+  s=advance(s,[actor(exit,'host'),actor(away,'partner')],[],12);
+  expect(s.status).toBe('active');expect(s.progress).toBe(0);
+  s=advance(s,[actor(exit,'host'),actor(exit,'partner')],[],12);
+  expect(s.status).toBe('won');
+ });
  test('every mission has a valid solo completion path',()=>{
   for(const mission of OPERATIONS){
    const m=getMap(mission.mapId,'survival');let s=createOperationState(mission.id),budget=2000;
