@@ -1,5 +1,5 @@
 import {describe,expect,test} from 'bun:test';
-import {OPERATIONS,OPERATION_DEADLINE_SECONDS,operationFirstClearReward,createOperationState,operationById,nextOperation,operationConfigValid,operationSite,operationTarget,tickOperation,operationEncounter,operationAwarenessMultiplier,operationStars,operationStarCriteria,recordOperation,operationUnlocked,loadOperationProgress,type OperationActor,type OperationState} from '../src/lib/operations';
+import {OPERATIONS,OPERATION_DEADLINE_SECONDS,operationFirstClearReward,createOperationState,operationById,nextOperation,operationConfigValid,operationSite,operationTarget,tickOperation,operationEncounter,operationAwarenessMultiplier,operationStars,operationStarCriteria,operationTimePerformance,formatOperationTime,recordOperation,operationUnlocked,loadOperationProgress,type OperationActor,type OperationState} from '../src/lib/operations';
 import {getMap,type Vec3} from '../src/lib/game-protocol';
 import {makeEnvironmentMap} from '../src/lib/dynamic-environment';
 import {botPositionEmbedded} from '../src/lib/bot-physics';
@@ -138,6 +138,15 @@ describe('Operations campaign',()=>{
   expect(operationStarCriteria({...base,intel:false},0).map(c=>c.earned)).toEqual([true,false,true]);
   expect(operationStarCriteria({...base,status:'failed'},0).map(c=>c.earned)).toEqual([false,false,false]);
   expect(operationStars(first,base,0)).toBe(3);
+ });
+ test('mission par targets provide consistent replay pace feedback without changing star rules',()=>{
+  const mission=operationById('silent_entry')!;
+  expect(operationTimePerformance(mission,mission.parSeconds-1)).toEqual({elapsedSeconds:mission.parSeconds-1,parSeconds:mission.parSeconds,withinPar:true,deltaSeconds:1});
+  expect(operationTimePerformance(mission,mission.parSeconds+1)).toEqual({elapsedSeconds:mission.parSeconds+1,parSeconds:mission.parSeconds,withinPar:false,deltaSeconds:1});
+  expect(operationTimePerformance(mission,Number.NaN)).toEqual({elapsedSeconds:0,parSeconds:mission.parSeconds,withinPar:true,deltaSeconds:mission.parSeconds});
+  expect(formatOperationTime(599)).toBe('9:59');
+  expect(formatOperationTime(600)).toBe('10:00');
+  expect(formatOperationTime(-5)).toBe('0:00');
  });
  test('first-clear payouts scale by campaign act',()=>{
   expect(operationFirstClearReward(OPERATIONS[0])).toEqual({xp:150,credits:75});
