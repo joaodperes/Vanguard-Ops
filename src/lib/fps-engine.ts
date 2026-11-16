@@ -6255,7 +6255,7 @@ export class FPSEngine {
       const previousStage=this.operation?.stage,previousPulse=this.operation?.pulse;
       if(this.operation){
         this.operation=tickOperation(this.operation,this.map,
-          [{id:this.selfId,pos:[this.pos.x,this.pos.y,this.pos.z],alive:this.alive&&!this.survivalDowned}],
+          [{id:this.selfId,pos:[this.pos.x,this.pos.y,this.pos.z],alive:this.alive&&!this.survivalDowned,kills:this.kills}],
           [...this.combatants.values()].filter(c=>c.isBot).map(c=>({id:c.id,pos:c.pos,alive:c.alive,kills:c.kills})),dt);
         if(this.operation.status!=="active"){this.survivalWaveActive=false;this.finalizeMatchLocal();return;}
         if(this.operation.stage===previousStage&&this.operation.pulse!==previousPulse)this.startSurvivalWave(true);
