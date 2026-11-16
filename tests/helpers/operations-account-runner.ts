@@ -26,6 +26,7 @@ try{
  const merged=await (await read(a.playerKey)).json();assert.deepEqual(merged.silent_entry,{stars:3,bestSeconds:123,intel:true,completions:4,firstClearRewarded:true,firstClearRunId:'completion_test_0001',firstClearXp:150,firstClearCredits:75});
  assert.equal((await read(a.playerKey,false)).status,401);assert.equal((await POST(request({...payload,playerKey:a.playerKey},false))).status,401);
  assert.equal((await POST(request({...payload,runId:'completion_test_0002',state:{...won,elapsed:NaN}}))).status,400);
+ assert.equal((await POST(request({...payload,runId:'deadline_test_0001',state:{...won,elapsed:1801}}))).status,400);
  assert.equal((await POST(request({kind:'complete',playerKey:b.playerKey,runId:'guest_completion_01',state:won,deaths:1},false))).status,200);
  assert.equal((await (await read(b.playerKey,false)).json()).silent_entry.stars,2);
  const career=await db.player.findUniqueOrThrow({where:{id:a.id}});assert.equal(career.xp,a.xp+150);assert.equal(career.credits,a.credits+75);assert.equal(career.careerXp,a.careerXp);assert.equal(career.survivalBestWave,a.survivalBestWave);

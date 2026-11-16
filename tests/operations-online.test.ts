@@ -7,7 +7,7 @@ import {createServer} from 'node:net';
 import type {C2S,S2C,LoadoutWire,CreateRoomConfig} from '../src/lib/game-protocol';
 const loadout:LoadoutWire={weaponId:'rifle_ar',weaponSkinId:'default',playerSkinId:'default',attachments:{sight:null,barrel:null,grip:null,magazine:null}};
 
-test('Operations missions are solo-only and cannot be created or joined as multiplayer rooms',async()=>{
+test('Operations missions are solo-only and cannot be hosted in multiplayer rooms',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'vanguard-operations-solo-'));
  await writeFile(join(dir,'test.sqlite'),'');
  const env={...process.env,DATABASE_URL:`file:${join(dir,'test.sqlite')}`};

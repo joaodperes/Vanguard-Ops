@@ -45,8 +45,8 @@ export const OPERATIONS:readonly OperationMission[]=[
   briefing:'Return to Emberhold to cut the command network at its source. Its defenders are expecting you this time.',debrief:'The command archive gives you the master shutdown sequence.',
   objectives:[goal('clear','Breach the command guard',6),goal('secure','Unlock the command archive',12,75),goal('defend','Hold the shutdown sequence transfer',4,110),goal('recover','Recover the master sequence',9,10),goal('extract','Escape with the master sequence',0,25)]},
  {id:'zero_hour',act:3,title:'Zero Hour',mapId:'orbital_nexus',intensity:5,parSeconds:900,
-  briefing:'One final insertion. Carry the master sequence into the station, hold the shutdown and get your squad home.',debrief:'The network is offline. Operation complete. Replay missions to improve your ratings and recover every intel cache.',
-  objectives:[goal('clear','Break the station blockade',2),goal('recover','Recover the shutdown carrier',10,10),goal('deliver','Install the master sequence',5,15),goal('defend','Defend the final shutdown',5,120),goal('clear','Eliminate the remaining command guard',12),goal('extract','Extract the entire surviving squad',0,30)]},
+  briefing:'One final insertion. Carry the master sequence into the station, hold the shutdown and make it to extraction.',debrief:'The network is offline. Operation complete. Replay missions to improve your ratings and recover every intel cache.',
+  objectives:[goal('clear','Break the station blockade',2),goal('recover','Recover the shutdown carrier',10,10),goal('deliver','Install the master sequence',5,15),goal('defend','Defend the final shutdown',5,120),goal('clear','Eliminate the remaining command guard',12),goal('extract','Reach the extraction zone',0,30)]},
 ];
 export const operationById=(id:unknown)=>typeof id==='string'?OPERATIONS.find(m=>m.id===id):undefined;
 export function nextOperation(id:string){const i=OPERATIONS.findIndex(m=>m.id===id);return i>=0 ? OPERATIONS[i+1]:undefined;}
