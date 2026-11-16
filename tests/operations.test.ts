@@ -1,5 +1,5 @@
 import {describe,expect,test} from 'bun:test';
-import {OPERATIONS,OPERATION_DEADLINE_SECONDS,operationFirstClearReward,createOperationState,operationById,nextOperation,operationConfigValid,operationSite,operationTarget,tickOperation,operationEncounter,operationAwarenessMultiplier,operationStars,operationStarCriteria,operationTimePerformance,formatOperationTime,recordOperation,operationUnlocked,loadOperationProgress,type OperationActor,type OperationState} from '../src/lib/operations';
+import {OPERATIONS,OPERATION_DEADLINE_SECONDS,operationFirstClearReward,createOperationState,operationById,nextOperation,operationConfigValid,operationSite,operationTarget,tickOperation,operationEncounter,operationAwarenessMultiplier,operationStars,operationStarCriteria,operationTimePerformance,formatOperationTime,operationActSummary,recordOperation,operationUnlocked,loadOperationProgress,type OperationActor,type OperationState} from '../src/lib/operations';
 import {getMap,type Vec3} from '../src/lib/game-protocol';
 import {makeEnvironmentMap} from '../src/lib/dynamic-environment';
 import {botPositionEmbedded} from '../src/lib/bot-physics';
@@ -147,6 +147,13 @@ describe('Operations campaign',()=>{
   expect(formatOperationTime(599)).toBe('9:59');
   expect(formatOperationTime(600)).toBe('10:00');
   expect(formatOperationTime(-5)).toBe('0:00');
+ });
+ test('act summaries count only that act and aggregate earned stars',()=>{
+  const p=recordOperation({}, {...createOperationState('silent_entry','veteran'),status:'won',elapsed:300,intel:true},0);
+  const next=recordOperation(p,{...createOperationState('freight_intercept','hard'),status:'won',elapsed:400,intel:false},1);
+  expect(operationActSummary(1,next)).toEqual({completed:2,total:4,stars:5,maxStars:12});
+  expect(operationActSummary(2,next)).toEqual({completed:0,total:4,stars:0,maxStars:12});
+  expect(operationActSummary(3,next)).toEqual({completed:0,total:4,stars:0,maxStars:12});
  });
  test('first-clear payouts scale by campaign act',()=>{
   expect(operationFirstClearReward(OPERATIONS[0])).toEqual({xp:150,credits:75});
