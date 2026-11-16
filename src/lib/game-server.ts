@@ -4436,7 +4436,7 @@ async function handle(socket: any, msg: C2S) {
   if (pauseRoom && pauseRoom.state !== "playing" &&
       !["listRooms","createRoom","joinRoom","startMatch","voteMap","readyNextRound","leaveRoom","leaveMatch","chat"].includes(msg.t)) return;
   switch (msg.t) {
-    case "voteMap": {    case "voteMap": {
+    case "voteMap": {
       if (!pauseRoom || pauseRoom.state === "playing" || !pauseRoom.players.has(socket.id)) return;
       const candidates = pauseRoom.mapCandidates ?? roomMapCandidates(pauseRoom.mode,pauseRoom.map.id,pauseRoom.teamSize,pauseRoom.roundNumber,pauseRoom.config.operationId);
       if (!candidates.includes(msg.mapId)) return;
@@ -4450,7 +4450,7 @@ async function handle(socket: any, msg: C2S) {
       broadcastRoomStatus(pauseRoom);
       break;
     }
-    case "leaveMatch": {    case "leaveMatch": {
+    case "leaveMatch": {
       const roomId = socketToRoom.get(socket.id);
       if (!roomId) return;
       const room = rooms.get(roomId);
