@@ -86,6 +86,13 @@ export function Operations(){
     <div className="mb-5">
      <p className="text-xs uppercase tracking-widest text-white/50 font-bold mb-2">Bot difficulty</p>
      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">{(['easy','normal','hard','veteran','mixed'] as BotDifficulty[]).map(level=><button key={level} type="button" aria-pressed={difficulty===level} onClick={()=>setDifficulty(level)} className={`rounded-lg border px-3 py-2 text-sm font-semibold capitalize ${difficulty===level?'border-amber-400 bg-amber-500/15 text-amber-200':'border-white/10 bg-black/30 text-white/65 hover:border-white/30'}`}>{level}</button>)}</div>
+     <p className="text-xs leading-relaxed text-white/55 mt-2">{({
+      easy:"Slower reactions and less accurate fire. A more forgiving deployment.",
+      normal:"Balanced enemy reactions, accuracy and movement.",
+      hard:"Faster target acquisition, stronger aim and more tactical movement.",
+      veteran:"Fastest reactions and most accurate, aggressive enemies. Required for the no-deaths third star.",
+      mixed:"Each enemy rolls a difficulty independently. Mixed deployments cannot earn the Veteran no-deaths star."
+     } as Record<BotDifficulty,string>)[difficulty]}</p>
     </div>
     <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 mb-4">
      <p className="text-xs uppercase tracking-widest text-amber-300 font-bold mb-2">First clear rewards</p>
