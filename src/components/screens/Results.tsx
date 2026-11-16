@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { weaponById, WEAPONS, WEAPON_SKINS, ATTACHMENTS, PLAYER_SKINS } from "@/lib/game-data";
 import { displayLabel } from "@/lib/display-labels";
 import { perkById } from "@/lib/perks";
-import { operationById, operationStars } from "@/lib/operations";
+import { operationById, operationStars, nextOperation } from "@/lib/operations";
 import { SURVIVAL_TIER_INFO } from "@/lib/survival";
 
 function unlockedGearLabel(id: string): string {
@@ -49,6 +49,7 @@ export function Results() {
   const kd = r.deaths === 0 ? r.kills.toFixed(2) : (r.kills / r.deaths).toFixed(2);
   const hsPct = r.kills > 0 ? Math.round((r.headshots / r.kills) * 100) : 0;
   const mission=operationById(r.operation?.missionId);
+  const followingMission=mission?nextOperation(mission.id):undefined;
   const isSurvival = playConfig.mode === "survival"&&!mission;
 
   return (
@@ -347,12 +348,18 @@ export function Results() {
         </div>
 
         <RoomRoundPanel results />
+        {mission&&r.won&&followingMission&&<Button
+          onClick={() => setScreen("operations")}
+          className="w-full mb-3 bg-amber-500 hover:bg-amber-400 text-black font-bold h-12"
+        >
+          <Trophy className="w-4 h-4 mr-2" /> Continue campaign · {followingMission.title}
+        </Button>}
         <div className="flex flex-col sm:flex-row gap-3">
           <Button
             onClick={() => setScreen(mission ? "operations":"play")}
             className="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-bold h-12"
           >
-            <RotateCcw className="w-4 h-4 mr-2" /> {mission ? "Campaign menu":roomConnect ? "Leave room · Match setup":"Play Again"}
+            <RotateCcw className="w-4 h-4 mr-2" /> {mission ? (r.won&&followingMission?"Replay / Campaign menu":"Campaign menu"):roomConnect ? "Leave room · Match setup":"Play Again"}
           </Button>
           <Button onClick={() => setScreen("menu")} variant="outline" className="flex-1 border-white/15 bg-black/30 text-white hover:bg-white/10 h-12">
             <Home className="w-4 h-4 mr-2" /> Main Menu
