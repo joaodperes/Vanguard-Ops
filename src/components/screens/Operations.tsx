@@ -3,14 +3,14 @@ import {useEffect,useRef,useState} from 'react';
 import {useGame} from '@/lib/game-store';
 import {OPERATIONS,operationUnlocked,operationFirstClearReward,type OperationProgress,type OperationMission} from '@/lib/operations';
 import {syncOperationProgress} from '@/lib/operations-client';
-import {getMap} from '@/lib/game-protocol';
+import {getMap,type BotDifficulty} from '@/lib/game-protocol';
 import {waitForAttachmentSaves} from '@/lib/attachment-save-queue';
 import {Button} from '@/components/ui/button';
 import {toast} from 'sonner';
 
 export function Operations(){
  const {playerKey,profile,setScreen,setRoomConnect,setPlayConfig}=useGame();
- const [progress,setProgress]=useState<OperationProgress>({}),[selected,setSelected]=useState(OPERATIONS[0].id),[launching,setLaunching]=useState(false);
+ const [progress,setProgress]=useState<OperationProgress>({}),[selected,setSelected]=useState(OPERATIONS[0].id),[launching,setLaunching]=useState(false),[difficulty,setDifficulty]=useState<BotDifficulty>('normal');
  const launchLock=useRef(false);
  const [loaded,setLoaded]=useState(false),[loadError,setLoadError]=useState(false);
  const [reload,setReload]=useState(0);
@@ -30,7 +30,7 @@ export function Operations(){
    if(!response.ok)throw new Error('Unable to load your saved loadout.');
    const fresh=await response.json();if(!fresh?.loadout)throw new Error('A saved loadout is required.');
    useGame.getState().setProfile(fresh);
-   setPlayConfig({mode:'survival',operationId:m.id,mapId:m.mapId,online:false,botCount:0,scoreLimit:0,timeLimit:0,botDifficulty:'normal',survivalTier:'default'});
+   setPlayConfig({mode:'survival',operationId:m.id,mapId:m.mapId,online:false,botCount:0,scoreLimit:0,timeLimit:0,botDifficulty:difficulty,survivalTier:'default'});
    setRoomConnect(null);
    setScreen('playing');
   }catch(error){toast.error(error instanceof Error?error.message:'Unable to deploy.');}
@@ -61,7 +61,11 @@ export function Operations(){
      <p><strong className="text-white/80">◇ Optional objective</strong> Locate and recover the intel cache for an additional star.</p>
      <p>★ Complete the mission.</p>
      <p>★ Recover the optional intel.</p>
-     <p>★ Complete the mission within the 30-minute deadline without dying.</p>
+     <p>★ Complete the mission on Veteran difficulty without dying.</p>
+    </div>
+    <div className="mb-5">
+     <p className="text-xs uppercase tracking-widest text-white/50 font-bold mb-2">Bot difficulty</p>
+     <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">{(['easy','normal','hard','veteran','mixed'] as BotDifficulty[]).map(level=><button key={level} type="button" aria-pressed={difficulty===level} onClick={()=>setDifficulty(level)} className={`rounded-lg border px-3 py-2 text-sm font-semibold capitalize ${difficulty===level?'border-amber-400 bg-amber-500/15 text-amber-200':'border-white/10 bg-black/30 text-white/65 hover:border-white/30'}`}>{level}</button>)}</div>
     </div>
     <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 mb-4">
      <p className="text-xs uppercase tracking-widest text-amber-300 font-bold mb-2">First clear rewards</p>
