@@ -114,7 +114,7 @@ describe('Operations campaign',()=>{
   let s=tickOperation(base,mp,[actor(p,'solo',true,3)],[],1);
   expect(s.progress).toBe(0); // First tick establishes the squad kill baseline.
   s=tickOperation(s,mp,[actor(p,'solo',true,7)],[],1);
-  expect(s.progress).toBe(4);expect(s.stage).toBe(index);
+  expect(s.progress).toBe(4);expect(s.stage).toBe(index);expect(s.stageElapsed).toBe(2);
   s=tickOperation(s,mp,[actor(p,'solo',true,11)],[],1);
   expect(s.progress).toBe(8);expect(s.stage).toBe(index+1);
   let failed=tickOperation(base,mp,[actor(p,'solo',true,0)],[],1);
