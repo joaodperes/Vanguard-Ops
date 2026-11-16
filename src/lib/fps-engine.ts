@@ -6177,7 +6177,7 @@ export class FPSEngine {
     }
     const mutators=survivalWaveMutators(this.survivalTier,this.survivalWave);
     if(!reinforcement)this.survivalObjective=this.operation ? undefined : createSurvivalObjective(this.survivalWave,mutators.boss,this.map.spawns.ffa);
-    const encounter=this.operation ? operationEncounter(operationById(this.operation.missionId)!,this.operation.stage,this.operation.difficulty):undefined;
+    const encounter=this.operation ? operationEncounter(operationById(this.operation.missionId)!,this.operation.stage,this.operation.difficulty,1,this.operation.optionalChallengeStatus==='failed'):undefined;
     const count=(reinforcement ? encounter?.reinforcementCount : encounter?.count) ?? Math.min(40,Math.ceil(survivalWaveBotCount(this.survivalWave)*mutators.spawnMul))+(mutators.boss ? 1 : 0);
     const hpMul=survivalWaveHealthMul(this.survivalWave)*mutators.healthMul;
     // Curated Survival arsenal; launchers are allowed, long-range snipers excluded.
@@ -6256,7 +6256,7 @@ export class FPSEngine {
       if(this.operation){
         this.operation=tickOperation(this.operation,this.map,
           [{id:this.selfId,pos:[this.pos.x,this.pos.y,this.pos.z],alive:this.alive&&!this.survivalDowned}],
-          [...this.combatants.values()].filter(c=>c.isBot).map(c=>({id:c.id,pos:c.pos,alive:c.alive})),dt);
+          [...this.combatants.values()].filter(c=>c.isBot).map(c=>({id:c.id,pos:c.pos,alive:c.alive,kills:c.kills})),dt);
         if(this.operation.status!=="active"){this.survivalWaveActive=false;this.finalizeMatchLocal();return;}
         if(this.operation.stage===previousStage&&this.operation.pulse!==previousPulse)this.startSurvivalWave(true);
       }
