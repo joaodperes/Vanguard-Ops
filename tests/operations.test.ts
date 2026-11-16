@@ -68,18 +68,31 @@ describe('Operations campaign',()=>{
    expect(s.status).toBe('won');expect(s.stage).toBe(mission.objectives.length);
   }
  });
- test('defence holds run for two minutes under continuous reinforcement pressure',()=>{
-  const m=operationById('freight_intercept')!,mp=getMap(m.mapId);const base={...createOperationState(m.id),stage:2};const p=operationTarget(base,mp)!;
-  let s=base;
-  for(let pulse=1;pulse<=7;pulse++){
-   s=tickOperation({...s,stageElapsed:pulse*15-1,pulse:pulse-1},mp,[actor(p)],[actor([p[0]+2,p[1],p[2]],'guard')],1);
-   expect(s.pulse).toBe(pulse);expect(s.progress).toBe(pulse*15);expect(s.stage).toBe(2);
+ test('every defence objective holds for two minutes under seven reinforcement pulses',()=>{
+  const stages=OPERATIONS.flatMap(m=>m.objectives.flatMap((objective,index)=>objective.kind==='defend'?[{mission:m,index}]:[]));
+  expect(stages.length).toBeGreaterThan(0);
+  for(const {mission,index} of stages){
+   const mp=getMap(mission.mapId,'survival'),base={...createOperationState(mission.id),stage:index},p=operationTarget(base,mp)!;
+   const guard=actor([p[0]+2,p[1],p[2]],'guard');let s=base;const pulses=new Set<number>();
+   for(let second=1;second<=120;second++){
+    s=tickOperation(s,mp,[actor(p)],[guard],1);
+    pulses.add(s.pulse);
+    expect(s.stage).toBe(index);
+    expect(s.stageElapsed).toBe(second);
+    expect(s.progress).toBe(second);
+    expect(s.pulse).toBe(Math.min(7,Math.floor(second/15)));
+   }
+   expect([...pulses]).toEqual([0,1,2,3,4,5,6,7]);
+   expect(s.pulse).toBe(7);
+   // The hold is complete, but a living defender still blocks stage completion.
+   s=tickOperation(s,mp,[actor(p)],[guard],1);
+   expect(s.stage).toBe(index);
+   // Clearing the final guard completes the hold without another timer delay.
+   s=tickOperation(s,mp,[actor(p)],[],1);
+   expect(s.stage).toBe(index+1);
+   expect(s.pulse).toBe(0);
+   expect(s.stageElapsed).toBe(0);
   }
-  s=tickOperation(s,mp,[actor(p)],[actor([p[0]+2,p[1],p[2]],'guard')],15);
-  expect(s.stageElapsed).toBe(120);expect(s.progress).toBe(120);expect(s.pulse).toBe(7);expect(s.stage).toBe(2);
-  s=tickOperation(s,mp,[actor(p)],[actor([p[0]+2,p[1],p[2]],'guard')],1);expect(s.stage).toBe(2);
-  s=tickOperation(s,mp,[actor(p)],[],1);expect(s.stage).toBe(3);expect(s.pulse).toBe(0);expect(s.stageElapsed).toBe(0);
-  expect(tickOperation({...base,stageElapsed:200},mp,[actor(p)],[],1).pulse).toBe(7);
  });
  test('abort deadlines cannot award unlocks or stars',()=>{
   const s=tickOperation({...createOperationState(first.id),elapsed:OPERATION_DEADLINE_SECONDS},map,[actor([0,0,0])],[actor([20,0,0],'guard')],1);
