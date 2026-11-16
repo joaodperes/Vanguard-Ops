@@ -1,9 +1,9 @@
 /** Operations campaign rules shared by local/networked simulations and account progression. */
 import type {MapDef,MapId,Vec3,BotDifficulty} from './game-protocol';
 export type OperationKind='clear'|'secure'|'defend'|'recover'|'deliver'|'extract';
-export interface OperationObjective {kind:OperationKind;label:string;site:number;seconds:number}
+export interface OperationObjective {kind:OperationKind;label:string;site:number;seconds:number;killTarget?:number}
 export interface OperationMission {id:string;act:number;title:string;mapId:MapId;briefing:string;debrief:string;intensity:number;parSeconds:number;objectives:OperationObjective[];optionalObjective:{label:string;site:number};optionalChallenge?:{label:string;kills:number;seconds:number}}
-const goal=(kind:OperationKind,label:string,site:number,seconds=0):OperationObjective=>({kind,label,site,seconds});
+const goal=(kind:OperationKind,label:string,site:number,seconds=0,killTarget?:number):OperationObjective=>({kind,label,site,seconds,...(killTarget?{killTarget}:{})});
 export const OPERATION_DEADLINE_SECONDS=30*60;
 export interface OperationFirstClearReward {missionId:string;xp:number;credits:number}
 export function operationFirstClearReward(m:Pick<OperationMission,'act'>):Omit<OperationFirstClearReward,'missionId'> {
@@ -34,7 +34,7 @@ export const OPERATIONS:readonly OperationMission[]=[
   objectives:[goal('clear','Secure the boarding corridor',1),goal('recover','Recover the reactor access module',8,6),goal('deliver','Install the module at the service uplink',4,12),goal('defend','Hold the reactor log transfer',4,120),goal('extract','Return to the docking perimeter',0,20)]},
  {id:'relay_siege',act:2,title:'Relay Siege',mapId:'compound',intensity:3,parSeconds:720,optionalObjective:{label:'Recover the relay access codes',site:15},
   briefing:'The ground relay is the only route into the command network. Seize its terminals and survive the response force.',debrief:'Command has located the final weapons cache. Act two is complete.',
-  objectives:[goal('secure','Seize the west relay',5,55),goal('secure','Seize the east relay',10,55),goal('defend','Defend the command handshake',2,120),goal('clear','Destroy the response force',7),goal('extract','Evacuate the relay',0,20)]},
+  objectives:[goal('secure','Seize the west relay',5,55),goal('secure','Seize the east relay',10,55),goal('defend','Hold the command relay and eliminate 8 hostiles',2,75,8),goal('clear','Destroy the response force',7),goal('extract','Evacuate the relay',0,20)]},
  {id:'last_shipment',act:3,title:'Last Shipment',mapId:'skybridge',intensity:4,parSeconds:780,optionalObjective:{label:'Secure the weapons inventory',site:13},
   briefing:'Stop the last weapons shipment. Recover the targeting package and upload its contents before the network relocates.',debrief:'The targeting package reveals an attack on the city.',
   objectives:[goal('clear','Break the cache defences',4),goal('recover','Recover the targeting package',9,8),goal('deliver','Carry the package to the factory uplink',2,12),goal('defend','Hold the targeting upload',2,120),goal('extract','Reach the freight extraction point',0,22)]},
@@ -54,7 +54,7 @@ export function nextOperation(id:string){const i=OPERATIONS.findIndex(m=>m.id===
 export function operationConfigValid(c:{operationId?:unknown;mode:string;mapId:string;survivalTier?:unknown}):boolean {
  const m=operationById(c.operationId);return !!m&&c.mode==='survival'&&c.mapId===m.mapId&&(c.survivalTier===undefined||c.survivalTier==='default');
 }
-export interface OperationState {missionId:string;difficulty:BotDifficulty;stage:number;progress:number;elapsed:number;stageElapsed:number;pulse:number;intel:boolean;optionalChallengeStatus?:'active'|'complete'|'failed';optionalChallengeElapsed?:number;optionalChallengeBaseline?:number;optionalChallengeKills?:number;carrierId?:string;packagePos?:Vec3;status:'active'|'won'|'failed'}
+export interface OperationState {missionId:string;difficulty:BotDifficulty;stage:number;progress:number;elapsed:number;stageElapsed:number;pulse:number;objectiveKillBaseline?:number;intel:boolean;optionalChallengeStatus?:'active'|'complete'|'failed';optionalChallengeElapsed?:number;optionalChallengeBaseline?:number;optionalChallengeKills?:number;carrierId?:string;packagePos?:Vec3;status:'active'|'won'|'failed'}
 export const createOperationState=(missionId:string,difficulty:BotDifficulty='normal'):OperationState=>({missionId,difficulty,stage:0,progress:0,elapsed:0,stageElapsed:0,pulse:0,intel:false,...(operationById(missionId)?.optionalChallenge?{optionalChallengeStatus:'active' as const,optionalChallengeElapsed:0,optionalChallengeKills:0}:{}),status:'active'});
 export interface OperationActor {id:string;pos:Vec3;alive:boolean;kills?:number}
 /** Use collision-cleared authored pads, with the same positions on both simulations. */
@@ -85,6 +85,12 @@ export function tickOperation(s:OperationState,map:Pick<MapDef,'spawns'>,actors:
  if(!n.intel&&living.some(a=>near(a.pos,operationSite(map,m.optionalObjective.site),2.5)))n.intel=true;
  const g=m.objectives[s.stage];if(!g)return {...n,status:'won'};
  if(g.kind==='defend')n.pulse=Math.floor(n.stageElapsed/15);
+ if(g.kind==='defend'&&g.killTarget){
+  const totalKills=actors.reduce((sum,a)=>sum+(Number.isFinite(a.kills)?Math.max(0,a.kills??0):0),0);
+  n.objectiveKillBaseline??=totalKills;
+  n.progress=Math.max(0,totalKills-n.objectiveKillBaseline);
+  if(n.stageElapsed>=g.seconds&&n.progress<g.killTarget)return {...n,status:'failed'};
+ }
  if(g.kind==='deliver'&&!living.some(a=>a.id===n.carrierId)){
   const fallen=actors.find(a=>a.id===n.carrierId);n.packagePos=fallen?.pos??n.packagePos;n.carrierId=undefined;
   const pickup=n.packagePos??operationSite(map,m.objectives[Math.max(0,s.stage-1)].site);
@@ -98,10 +104,11 @@ export function tickOperation(s:OperationState,map:Pick<MapDef,'spawns'>,actors:
   :g.kind==='deliver'?inside.some(a=>a.id===n.carrierId)&&!contested:g.kind==='defend'?inside.length>0:inside.length>0&&!contested;
  if(eligible)n.progress=Math.min(g.seconds,n.progress+delta);else if(g.kind==='extract')n.progress=0;
  // Guard elimination and pending reinforcement pulses both gate stage completion.
- if(eligible&&n.progress>=g.seconds&&foes.length===0&&n.pulse===s.pulse){
+ const objectiveComplete=g.kind==='defend'&&g.killTarget? n.progress>=g.killTarget : n.progress>=g.seconds;
+ if(eligible&&objectiveComplete&&(g.kind==='defend'&&g.killTarget?true:foes.length===0)&&n.pulse===s.pulse){
   if(g.kind==='recover'){n.carrierId=inside[0]?.id;n.packagePos=[...site];}
   if(g.kind==='deliver'){n.carrierId=undefined;n.packagePos=undefined;}
-  n.stage++;n.progress=0;n.stageElapsed=0;n.pulse=0;if(n.stage>=m.objectives.length)n.status='won';
+  n.stage++;n.progress=0;n.stageElapsed=0;n.pulse=0;n.objectiveKillBaseline=undefined;if(n.stage>=m.objectives.length)n.status='won';
  }
  return n;
 }
