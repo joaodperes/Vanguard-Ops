@@ -54,7 +54,7 @@ describe('Operations campaign',()=>{
   }
  });
  test('defence pressure is bounded and a new pulse cannot be skipped by completion',()=>{
-  const m=operationById('freight_intercept')!,mp=getMap(m.mapId);let s={...createOperationState(m.id),stage:2,stageElapsed:24.99,progress:74.99};const p=operationTarget(s,mp)!;
+  const m=operationById('freight_intercept')!,mp=getMap(m.mapId);let s={...createOperationState(m.id),stage:2,stageElapsed:24.99,progress:119.99};const p=operationTarget(s,mp)!;
   s=tickOperation(s,mp,[actor(p)],[],.05);expect(s.pulse).toBe(1);expect(s.stage).toBe(2);
   s=tickOperation(s,mp,[actor(p)],[actor([p[0]+30,p[1],p[2]],'reinforcement')],1);expect(s.stage).toBe(2);
   s=tickOperation(s,mp,[actor(p)],[],1);expect(s.stage).toBe(3);expect(s.pulse).toBe(0);expect(s.stageElapsed).toBe(0);
@@ -72,7 +72,7 @@ describe('Operations campaign',()=>{
  test('selected Operations difficulty overrides the mission default and Veteran is required for the third star',()=>{
   const m=OPERATIONS[0];expect(operationEncounter(m,0,'veteran').difficulty).toBe('veteran');expect(operationEncounter(m,0,'easy').difficulty).toBe('easy');expect(operationEncounter(m,0,'mixed').difficulty).toBeUndefined();
   expect(operationEncounter(m,0,'normal',2).count).toBe(Math.ceil(operationEncounter(m,0,'normal',1).count*1.6));
-  const won={...createOperationState(m.id,'veteran'),status:'won' as const,elapsed:600};expect(operationStars(m,won,0)).toBe(3);expect(operationStars(m,{...won,difficulty:'hard'},0)).toBe(2);expect(operationStars(m,won,1)).toBe(2);
+  const won={...createOperationState(m.id,'veteran'),status:'won' as const,intel:true,elapsed:600};expect(operationStars(m,won,0)).toBe(3);expect(operationStars(m,{...won,difficulty:'hard'},0)).toBe(2);expect(operationStars(m,won,1)).toBe(2);
  });
  test('first-clear payouts scale by campaign act',()=>{
   expect(operationFirstClearReward(OPERATIONS[0])).toEqual({xp:150,credits:75});
