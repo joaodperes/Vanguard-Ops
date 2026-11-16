@@ -10788,7 +10788,7 @@ export class FPSEngine {
 
   private updateOperationBeacons() {
     if(!this.operation)return;
-    const sites=[operationTarget(this.operation,this.map),this.operation.intel ? undefined : operationSite(this.map,15)];
+    const sites=[operationTarget(this.operation,this.map),this.operation.intel ? undefined : operationSite(this.map,operationById(this.operation.missionId)!.optionalObjective.site)];
     for(let i=0;i<2;i++){
       if(!this.operationBeacons[i]){
         const group=new THREE.Group(),material=new THREE.MeshBasicMaterial({color:i===0?0xfbbf24:0xffffff,transparent:true,opacity:.75,depthWrite:false});
@@ -13576,7 +13576,7 @@ export class FPSEngine {
             survivalObjectiveSite(this.survivalObjective)[2]-this.pos.z))+"m to marker":undefined,
         operation:this.operation,
         ...(this.operation ? (()=>{
-          const target=operationTarget(this.operation!,this.map),intel=operationSite(this.map,15);
+          const target=operationTarget(this.operation!,this.map),intel=operationSite(this.map,operationById(this.operation.missionId)!.optionalObjective.site);
           return {operationIntel:{x:radarToPercent(intel[0],this.map.size),z:radarToPercent(intel[2],this.map.size)},
             operationWaypoint:target ? {x:radarToPercent(target[0],this.map.size),z:radarToPercent(target[2],this.map.size),distance:Math.hypot(target[0]-this.pos.x,target[2]-this.pos.z),
               angle:Math.atan2(-(target[0]-this.pos.x),-(target[2]-this.pos.z))-this.yaw,vertical:target[1]-this.pos.y}:undefined};
