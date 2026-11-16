@@ -15,9 +15,10 @@ const MODE_HUD = {
   personalPrimary: string; personalSecondary: string; personalGoal: boolean;
 }>;
 
-export function matchHudInfo(mode: GameMode, survivalTier?: SurvivalTier) {
+export function matchHudInfo(mode: GameMode, survivalTier?: SurvivalTier, operation = false) {
   const info = MODE_HUD[mode];
   if (mode !== "survival") return info;
+  if (operation) return { ...info, title: "Operations · Campaign" };
   return {
     ...info,
     title: !survivalTier || survivalTier === "default"
