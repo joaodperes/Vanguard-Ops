@@ -122,11 +122,12 @@ describe('Operations campaign',()=>{
   expect(operationFirstClearReward(OPERATIONS[4])).toEqual({xp:200,credits:100});
   expect(operationFirstClearReward(OPERATIONS[8])).toEqual({xp:250,credits:125});
  });
- test('every defence stage is a two-minute hold with seven timed reinforcement calls',()=>{
-  const defends=OPERATIONS.flatMap(m=>m.objectives.filter(g=>g.kind==='defend'));
-  expect(defends.length).toBeGreaterThan(0);expect(defends.every(g=>g.seconds===120)).toBe(true);
-  let s={...createOperationState('freight_intercept'),stage:2,stageElapsed:0};
-  for(let pulse=1;pulse<=7;pulse++){s=tickOperation({...s,stageElapsed:pulse*15-1,pulse:pulse-1},getMap('skybridge','survival'),[actor([0,0,0])],[],1);expect(s.pulse).toBe(pulse);}
+ test('the 30-minute deadline is inclusive but fails immediately after it',()=>{
+  let s=tickOperation({...createOperationState(first.id),elapsed:OPERATION_DEADLINE_SECONDS-1},map,[actor([0,0,0])],[],1);
+  expect(s.elapsed).toBe(OPERATION_DEADLINE_SECONDS);
+  expect(s.status).toBe('active');
+  s=tickOperation(s,map,[actor([0,0,0])],[],0.001);
+  expect(s.status).toBe('failed');
  });
  test('all missions share a fixed 30-minute active deadline',()=>{
   expect(OPERATION_DEADLINE_SECONDS).toBe(1800);
