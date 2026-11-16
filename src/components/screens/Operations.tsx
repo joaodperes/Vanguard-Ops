@@ -60,7 +60,7 @@ export function Operations(){
     <p className="text-xs text-amber-300 uppercase tracking-widest">Act {mission.act} · {getMap(mission.mapId).name}</p><h2 className="text-3xl font-black mt-2">{mission.title}</h2><p className="text-white/70 mt-4 leading-relaxed">{mission.briefing}</p>
     <div className="text-sm text-white/65 my-5 space-y-3">
      <p><strong className="text-white/85">◆ Main objectives</strong> {mission.objectives.map(g=>g.label).join(' → ')}</p>
-     <p><strong className="text-white/85">◇ Optional objective</strong> Recover the intel cache at the optional marker.</p>
+     <p><strong className="text-white/85">◇ Optional objective</strong> {mission.optionalObjective.label}.</p>
      {mission.optionalChallenge&&<p><strong className="text-white/85">◇ Timed challenge</strong> {mission.optionalChallenge.label}: eliminate {mission.optionalChallenge.kills} enemies within {mission.optionalChallenge.seconds}s. Failure increases later enemy numbers.</p>}
      <p>★ Complete the mission.</p>
      <p>★ Recover the optional intel.</p>
