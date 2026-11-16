@@ -11,7 +11,7 @@ await db.user.create({data:{email:'operations-test@example.invalid',passwordHash
 const cookie=`${SESSION_COOKIE}=${createSessionToken(a.id)}`;
 function request(body:unknown,auth=true){return new NextRequest('http://localhost/api/operations/progress',{method:'POST',headers:{'Content-Type':'application/json',...(auth?{cookie}:{})},body:JSON.stringify(body)});}
 const read=(key:string,auth=true)=>GET(new NextRequest('http://localhost/api/operations/progress?playerKey='+key,{headers:auth?{cookie}:{}}));
-const won={...createOperationState(OPERATIONS[0].id),status:'won',stage:OPERATIONS[0].objectives.length,intel:true,elapsed:123};
+const won={...createOperationState(OPERATIONS[0].id,'veteran'),status:'won',stage:OPERATIONS[0].objectives.length,intel:true,elapsed:123};
 const payload={kind:'complete',playerKey:b.playerKey,runId:'completion_test_0001',state:won,deaths:0};
 try{
  const legacy=await db.player.findUniqueOrThrow({where:{id:'legacy-operations'}});assert.equal(legacy.operationsProgress,'{}');assert.equal(legacy.xp,1234);assert.equal(legacy.credits,5678);
