@@ -84,7 +84,7 @@ export function tickOperation(s:OperationState,map:Pick<MapDef,'spawns'>,actors:
  }
  if(!n.intel&&living.some(a=>near(a.pos,operationSite(map,m.optionalObjective.site),2.5)))n.intel=true;
  const g=m.objectives[s.stage];if(!g)return {...n,status:'won'};
- if(g.kind==='defend')n.pulse=Math.min(4,Math.floor(n.stageElapsed/25));
+ if(g.kind==='defend')n.pulse=Math.min(7,Math.floor(n.stageElapsed/15));
  if(g.kind==='deliver'&&!living.some(a=>a.id===n.carrierId)){
   const fallen=actors.find(a=>a.id===n.carrierId);n.packagePos=fallen?.pos??n.packagePos;n.carrierId=undefined;
   const pickup=n.packagePos??operationSite(map,m.objectives[Math.max(0,s.stage-1)].site);
@@ -95,7 +95,7 @@ export function tickOperation(s:OperationState,map:Pick<MapDef,'spawns'>,actors:
  const contested=foes.some(a=>near(a.pos,site,7));
  const eligible=g.kind==='clear'?living.length>0&&foes.length===0
   :g.kind==='extract'?living.length>0&&inside.length===living.length&&foes.length===0
-  :g.kind==='deliver'?inside.some(a=>a.id===n.carrierId)&&!contested:inside.length>0&&!contested;
+  :g.kind==='deliver'?inside.some(a=>a.id===n.carrierId)&&!contested:g.kind==='defend'?inside.length>0:inside.length>0&&!contested;
  if(eligible)n.progress=Math.min(g.seconds,n.progress+delta);else if(g.kind==='extract')n.progress=0;
  // Guard elimination and pending reinforcement pulses both gate stage completion.
  if(eligible&&n.progress>=g.seconds&&foes.length===0&&n.pulse===s.pulse){
