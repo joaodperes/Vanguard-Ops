@@ -92,8 +92,13 @@ export default function Page() {
 
   const handleMatchEnd = async (r: MatchEndResult) => {
     if(r.operation){
-      if(r.won&&r.completed){try{await saveAccountOperation(playerKey,r.operation,r.deaths);}catch(error){toast.error(error instanceof Error?error.message:"Unable to sync campaign progress.");}}
-      setMatchResult(r);setScreen("results");roomSend({t:"readyNextRound"});return;
+      let operationFirstClearRewards:Awaited<ReturnType<typeof saveAccountOperation>>=[];
+      let operationRewardSyncPending=false;
+      if(r.won&&r.completed){
+        try{operationFirstClearRewards=await saveAccountOperation(playerKey,r.operation,r.deaths);await refreshProfile();}
+        catch(error){operationRewardSyncPending=true;toast.error(error instanceof Error?error.message:"Unable to sync campaign progress.");}
+      }
+      setMatchResult({...r,operationFirstClearRewards,operationRewardSyncPending});setScreen("results");roomSend({t:"readyNextRound"});return;
     }
     try {
       const res = await fetch("/api/match/complete", {

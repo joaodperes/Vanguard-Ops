@@ -1,9 +1,15 @@
-/** Campaign rules shared by local play and authoritative co-op. */
+/** Solo Operations campaign rules shared by the local simulation and account progression. */
 import type {MapDef,MapId,Vec3,BotDifficulty} from './game-protocol';
 export type OperationKind='clear'|'secure'|'defend'|'recover'|'deliver'|'extract';
 export interface OperationObjective {kind:OperationKind;label:string;site:number;seconds:number}
 export interface OperationMission {id:string;act:number;title:string;mapId:MapId;briefing:string;debrief:string;intensity:number;parSeconds:number;objectives:OperationObjective[]}
 const goal=(kind:OperationKind,label:string,site:number,seconds=0):OperationObjective=>({kind,label,site,seconds});
+export const OPERATION_DEADLINE_SECONDS=30*60;
+export interface OperationFirstClearReward {missionId:string;xp:number;credits:number}
+export function operationFirstClearReward(m:Pick<OperationMission,'act'>):Omit<OperationFirstClearReward,'missionId'> {
+ const act=Math.max(1,Math.min(3,Math.floor(m.act)));
+ return {xp:100+act*50,credits:50+act*25};
+}
 export const OPERATIONS:readonly OperationMission[]=[
  {id:'silent_entry',act:1,title:'Silent Entry',mapId:'compound',intensity:1,parSeconds:600,
   briefing:'A stolen Vanguard relay has gone dark. Breach the jungle outpost, copy its dispatch records and escape with the first lead.',debrief:'The relay points to an arms pipeline running through Ridgefall.',
@@ -39,8 +45,8 @@ export const OPERATIONS:readonly OperationMission[]=[
   briefing:'Return to Emberhold to cut the command network at its source. Its defenders are expecting you this time.',debrief:'The command archive gives you the master shutdown sequence.',
   objectives:[goal('clear','Breach the command guard',6),goal('secure','Unlock the command archive',12,75),goal('defend','Hold the shutdown sequence transfer',4,110),goal('recover','Recover the master sequence',9,10),goal('extract','Escape with the master sequence',0,25)]},
  {id:'zero_hour',act:3,title:'Zero Hour',mapId:'orbital_nexus',intensity:5,parSeconds:900,
-  briefing:'One final insertion. Carry the master sequence into the station, hold the shutdown and get your squad home.',debrief:'The network is offline. Operation complete. Replay missions to improve your ratings and recover every intel cache.',
-  objectives:[goal('clear','Break the station blockade',2),goal('recover','Recover the shutdown carrier',10,10),goal('deliver','Install the master sequence',5,15),goal('defend','Defend the final shutdown',5,120),goal('clear','Eliminate the remaining command guard',12),goal('extract','Extract the entire surviving squad',0,30)]},
+  briefing:'One final insertion. Carry the master sequence into the station, hold the shutdown and make it to extraction.',debrief:'The network is offline. Operation complete. Replay missions to improve your ratings and recover every intel cache.',
+  objectives:[goal('clear','Break the station blockade',2),goal('recover','Recover the shutdown carrier',10,10),goal('deliver','Install the master sequence',5,15),goal('defend','Defend the final shutdown',5,120),goal('clear','Eliminate the remaining command guard',12),goal('extract','Reach the extraction zone',0,30)]},
 ];
 export const operationById=(id:unknown)=>typeof id==='string'?OPERATIONS.find(m=>m.id===id):undefined;
 export function nextOperation(id:string){const i=OPERATIONS.findIndex(m=>m.id===id);return i>=0 ? OPERATIONS[i+1]:undefined;}
@@ -66,7 +72,7 @@ export function tickOperation(s:OperationState,map:Pick<MapDef,'spawns'>,actors:
  const m=operationById(s.missionId);if(!m)return {...s,status:'failed'};
  const delta=Number.isFinite(dt)?Math.max(0,Math.min(dt,1)):0;
  const n={...s,elapsed:s.elapsed+delta,stageElapsed:s.stageElapsed+delta};
- if(n.elapsed>m.parSeconds*2)return {...n,status:'failed'};
+ if(n.elapsed>OPERATION_DEADLINE_SECONDS)return {...n,status:'failed'};
  const living=actors.filter(a=>a.alive),foes=enemies.filter(a=>a.alive);
  if(!n.intel&&living.some(a=>near(a.pos,operationSite(map,15),2.5)))n.intel=true;
  const g=m.objectives[s.stage];if(!g)return {...n,status:'won'};
@@ -91,11 +97,11 @@ export function tickOperation(s:OperationState,map:Pick<MapDef,'spawns'>,actors:
  }
  return n;
 }
-export function operationEncounter(m:OperationMission,stage:number,players:number){
- const count=Math.min(18,4+m.intensity+stage+Math.max(0,players-1)*3);
+export function operationEncounter(m:OperationMission,stage:number){
+ const count=Math.min(18,4+m.intensity+stage);
  return {count,reinforcementCount:Math.max(2,Math.ceil(count*.35)),roleWave:stage+1+(m.intensity-1)*2,difficulty:(m.intensity<=1?'easy':m.intensity<=3?'normal':'hard') as Exclude<BotDifficulty,'mixed'>};
 }
-export interface OperationRecord {stars:number;bestSeconds:number;intel:boolean;completions:number}
+export interface OperationRecord {stars:number;bestSeconds:number;intel:boolean;completions:number;firstClearRewarded?:boolean;firstClearRunId?:string;firstClearXp?:number;firstClearCredits?:number}
 export type OperationProgress=Record<string,OperationRecord>;
 export function operationUnlocked(id:string,p:OperationProgress):boolean {
  const i=OPERATIONS.findIndex(m=>m.id===id);return i>=0&&!!p[id]?.completions||i===0||i>0&&!!p[OPERATIONS[i-1].id]?.completions;
@@ -105,14 +111,20 @@ export function operationStars(m:OperationMission,s:OperationState,deaths:number
 }
 export function recordOperation(p:OperationProgress,s:OperationState,deaths:number):OperationProgress {
  const m=operationById(s.missionId);if(!m||s.status!=='won')return p;
- const old=p[m.id];return {...p,[m.id]:{stars:Math.max(old?.stars??0,operationStars(m,s,deaths)),bestSeconds:Math.min(old?.bestSeconds??Infinity,Math.ceil(s.elapsed)),intel:s.intel||!!old?.intel,completions:(old?.completions??0)+1}};
+ const old=p[m.id];const record:OperationRecord={stars:Math.max(old?.stars??0,operationStars(m,s,deaths)),bestSeconds:Math.min(old?.bestSeconds??Infinity,Math.ceil(s.elapsed)),intel:s.intel||!!old?.intel,completions:(old?.completions??0)+1};
+ if(old?.firstClearRewarded&&typeof old.firstClearXp==='number'&&typeof old.firstClearCredits==='number')Object.assign(record,{firstClearRewarded:true,firstClearRunId:old.firstClearRunId,firstClearXp:old.firstClearXp,firstClearCredits:old.firstClearCredits});
+ return {...p,[m.id]:record};
 }
 export function normalizeOperationProgress(raw:unknown):OperationProgress {
  if(!raw||typeof raw!=='object'||Array.isArray(raw))return {};
  return Object.fromEntries(OPERATIONS.flatMap(m=>{
   const r=(raw as OperationProgress)[m.id];
-  return r&&Number.isInteger(r.stars)&&r.stars>=1&&r.stars<=3&&Number.isInteger(r.bestSeconds)&&r.bestSeconds>=0&&r.bestSeconds<=m.parSeconds*2&&Number.isInteger(r.completions)&&r.completions>0&&r.completions<=1000000
-   ?[[m.id,{stars:r.stars,bestSeconds:r.bestSeconds,intel:r.intel===true,completions:r.completions}]]:[];
+  if(!r||!Number.isInteger(r.stars)||r.stars<1||r.stars>3||!Number.isInteger(r.bestSeconds)||r.bestSeconds<0||r.bestSeconds>OPERATION_DEADLINE_SECONDS||!Number.isInteger(r.completions)||r.completions<=0||r.completions>1000000)return [];
+  const firstClearXp=typeof r.firstClearXp==='number'&&Number.isInteger(r.firstClearXp)&&r.firstClearXp>=0&&r.firstClearXp<=10000?r.firstClearXp:-1;
+  const firstClearCredits=typeof r.firstClearCredits==='number'&&Number.isInteger(r.firstClearCredits)&&r.firstClearCredits>=0&&r.firstClearCredits<=10000?r.firstClearCredits:-1;
+  const firstClear=r.firstClearRewarded===true&&firstClearXp>=0&&firstClearCredits>=0;
+  const firstClearRunId=firstClear&&typeof r.firstClearRunId==='string'&&/^[a-zA-Z0-9_-]{16,100}$/.test(r.firstClearRunId)?r.firstClearRunId:undefined;
+  return [[m.id,{stars:r.stars,bestSeconds:r.bestSeconds,intel:r.intel===true,completions:r.completions,...(firstClear?{firstClearRewarded:true,firstClearRunId,firstClearXp,firstClearCredits}:{})}]];
  }));
 }
 /** Legacy browser records are read only for migration into the player database. */

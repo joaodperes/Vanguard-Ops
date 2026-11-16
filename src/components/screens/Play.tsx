@@ -31,7 +31,6 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { getMapIcon } from "./map-icons";
-import { operationById } from "@/lib/operations";
 import { SURVIVAL_TIERS, SURVIVAL_TIER_INFO, ZERO_SURVIVAL_PROGRESS, survivalUnlocked, type SurvivalProgress } from "@/lib/survival";
 
 // Bot difficulty options shown in the Create Room tab. "mixed" rolls a random
@@ -239,7 +238,6 @@ export function Play() {
     if (!(await prepareMatchLoadout())) return;
     setRoomConnect({ kind: "join", roomId: room.id, password, roomName: room.name, team });
     setPlayConfig({
-      operationId:room.operationId,
       mode: room.mode,
       mapId: room.mapId,
       online: true,
@@ -251,16 +249,6 @@ export function Play() {
     });
     setScreen("playing");
     toast.success(`Joining "${room.name}"…`);
-  };
-
-  const handleQuickPlay = async () => {
-    if (!(await prepareMatchLoadout())) return;
-    const mode = roomConfig.mode;
-    const mapId = mapAllowedForMode(mode,roomConfig.mapId) ? roomConfig.mapId : mode === "ctf" ? "forest_warfare" : "compound";
-    setRoomConnect({ kind: "quick" });
-    setPlayConfig({
-      operationId:undefined, mode, mapId, online: true, botCount: 0, botDifficulty: "normal", survivalTier: "default" });
-    setScreen("playing");
   };
 
   const cap = roomCapacity(roomConfig.mode, roomConfig.teamSize, roomConfig.survivalPlayers);
@@ -327,8 +315,7 @@ export function Play() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
                 {/* Game mode */}
                 <Section className="h-full" icon={<Swords className="w-4 h-4 text-amber-400" />} title="Game Mode" hint="Choose the match type">
-                  <Button onClick={handleQuickPlay} disabled={serverOnline !== true} className="w-full mb-3 bg-amber-600 hover:bg-amber-500">Quick Play · {MATCH_MODES[roomConfig.mode].label}</Button>
-                  {/* <p className="text-xs text-white/50 mb-3">Join a public match in the selected mode, or start one with bots. Custom settings apply to Create Room.</p> */}
+                  <p className="text-xs text-white/50 mb-3">Choose a mode, then create a room with your preferred settings or browse active rooms.</p>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {(["ffa", "tdm", "killconfirmed", "ctf", "survival", "gungame"] as GameMode[]).map((m) => (
                       <ModePickCard key={m} mode={m} selected={roomConfig.mode === m} onSelect={(mode) => setRoomConfig({ mode, mapId: mapAllowedForMode(mode,roomConfig.mapId)?roomConfig.mapId:mode==="ctf"?"forest_warfare":"compound", scoreLimit: MATCH_MODES[mode].defaultScoreLimit, timeLimit: MATCH_MODES[mode].defaultTimeLimit * 60 })} />
@@ -944,7 +931,7 @@ function RoomCard({ room, onJoin }: { room: RoomSummary; onJoin: () => void }) {
           </span>
           {room.mode === "survival" && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-200">
-              {room.operationId ? `Operations · ${operationById(room.operationId)?.title ?? "Campaign"}` : <>{SURVIVAL_TIER_INFO[room.survivalTier ?? "default"].label} · {room.survivalTier === "default" || !room.survivalTier ? "30 rounds" : "Endless"}</>}
+              <>{SURVIVAL_TIER_INFO[room.survivalTier ?? "default"].label} · {room.survivalTier === "default" || !room.survivalTier ? "30 rounds" : "Endless"}</>
             </span>
           )}
           {room.mode !== "survival" && (

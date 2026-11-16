@@ -207,9 +207,9 @@ export interface EngineOptions {
   weaponVolume?: number;       // 0..100, gunfire, reloads, weapon handling
   combatVolume?: number;       // 0..100, hits, eliminations and damage
   uiVolume?: number;           // 0..100, countdown and match/objective alerts
-  // Room lobby: when set, the engine sends createRoom/joinRoom instead of joinMatch.
+  // Online play requires an explicit room creation or room-browser selection.
   roomConnect?: {
-    kind: "create" | "join" | "quick";
+    kind: "create" | "join";
     config?: import("./game-protocol").CreateRoomConfig;
     roomId?: string;
     password?: string | null;
@@ -6177,7 +6177,7 @@ export class FPSEngine {
     }
     const mutators=survivalWaveMutators(this.survivalTier,this.survivalWave);
     if(!reinforcement)this.survivalObjective=this.operation ? undefined : createSurvivalObjective(this.survivalWave,mutators.boss,this.map.spawns.ffa);
-    const encounter=this.operation ? operationEncounter(operationById(this.operation.missionId)!,this.operation.stage,1):undefined;
+    const encounter=this.operation ? operationEncounter(operationById(this.operation.missionId)!,this.operation.stage):undefined;
     const count=(reinforcement ? encounter?.reinforcementCount : encounter?.count) ?? Math.min(40,Math.ceil(survivalWaveBotCount(this.survivalWave)*mutators.spawnMul))+(mutators.boss ? 1 : 0);
     const hpMul=survivalWaveHealthMul(this.survivalWave)*mutators.healthMul;
     // Curated Survival arsenal; launchers are allowed, long-range snipers excluded.
@@ -6813,10 +6813,7 @@ export class FPSEngine {
     const join = () => {
       this.movementSendBudget.reset();
       const rc = this.opts.roomConnect ? useGame.getState().roomConnect ?? this.opts.roomConnect : undefined;
-      if (rc?.kind === "quick") {
-        this.socket.emit("message", { t: "quickPlay", playerKey: this.opts.playerKey,
-          name: this.opts.playerName, loadout: this.opts.loadout, mode: this.opts.mode } as C2S);
-      } else if (rc?.kind === "create" && rc.config) {
+      if (rc?.kind === "create" && rc.config) {
         console.log("[FPS] socket connected, sending createRoom");
         this.socket.emit("message", {
           t: "createRoom", playerKey: this.opts.playerKey, name: this.opts.playerName,
@@ -6830,12 +6827,9 @@ export class FPSEngine {
           team: rc.team ?? "auto",
         } as any);
       } else {
-        console.log("[FPS] socket connected, sending joinMatch");
-        this.socket.emit("message", {
-          t: "joinMatch", playerKey: this.opts.playerKey, name: this.opts.playerName,
-          mode: this.opts.mode, botCount: this.opts.botCount, loadout: this.opts.loadout,
-          mapId: this.opts.mapId,
-        } as any);
+        this.socket.disconnect();
+        this.opts.onRoomError?.("Select or create a room before connecting.");
+        return;
       }
       this.lastPingAt = performance.now();
     };

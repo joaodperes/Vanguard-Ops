@@ -1441,7 +1441,6 @@ export interface PlayerNet {
 
 // ---- Client -> Server events ----
 export type C2S =
-  | { t: "joinMatch"; playerKey: string; name: string; mode: GameMode; botCount: number; loadout: LoadoutWire; team?: "red" | "blue"; mapId?: MapId }
   | { t: "leaveMatch" }
   | { t:"squadOrder";kind:import("./squad-coordination").SquadCommand;pos:Vec3 }
   | { t: "state"; pos: Vec3; yaw: number; pitch: number; aiming: boolean; firing: boolean; reloading: boolean; alive: boolean; sprinting?: boolean }
@@ -1463,7 +1462,6 @@ export type C2S =
   | { t: "weaponSwap"; slot: "primary" | "secondary" | "melee" | "wonder" }   // player changed weapon slot
   | { t: "queueLoadout"; loadout: LoadoutWire }  // validated by server; equips on next respawn
   // ---- Room lobby system ----
-  | { t: "quickPlay"; playerKey: string; name: string; loadout: LoadoutWire; mode: GameMode }
   | { t: "voteMap"; mapId: MapId }
   | { t: "readyNextRound" }
   | { t: "listRooms" }

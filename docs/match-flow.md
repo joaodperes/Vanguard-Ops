@@ -24,16 +24,16 @@ the recipient sees the invited room in the browser and uses the ordinary team
 and password dialog. Full, expired and between-round rooms display an unavailable
 message with refresh available. Clipboard failure exposes a selectable link.
 
-Protocol additions: `quickPlay`, `voteMap`, `readyNextRound`, `roomStatus`, and
-`roundLaunched`. Deploy frontend and game server together and restart the server.
-No catalogs or database schema change. Rooms remain in-memory and do not survive
-a server restart. Losing a results connection requires returning to match setup
-to rejoin an available room.
+The room protocol includes `createRoom`, `listRooms`, `joinRoom`, `voteMap`,
+`readyNextRound`, `roomStatus` and `roundLaunched`. Deploy frontend and game
+server together and restart the server. No catalogs or database schema change.
+Rooms remain in-memory and do not survive a server restart. Losing a results
+connection requires returning to match setup to rejoin an available room.
 
 ## Verification
 
-- `tests/room-flow.test.ts`: matchmaking filters, compatible map choices,
-  vote replacement/ties and invitation URLs.
+- `tests/room-flow.test.ts`: compatible room maps, vote replacement/ties and
+  invitation URLs.
 - `tests/room-session.test.ts`: isolated client process checks connection
   retention, round transitions, passwords and leaving.
 - `tests/room-flow-online.test.ts`: real Socket.IO clients and a temporary SQLite
