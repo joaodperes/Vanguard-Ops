@@ -1,5 +1,5 @@
 import {squadIntent,validSquadOrder,squadOrderPoint,type SquadOrder} from "./squad-coordination";
-import { operationById, nextOperation, createOperationState, tickOperation, operationEncounter, operationConfigValid, type OperationState } from "./operations";
+import { operationById, nextOperation, createOperationState, tickOperation, operationEncounter, operationConfigValid, operationAwarenessMultiplier, type OperationState } from "./operations";
 import { survivalRoleForSlot, survivalRoleHealthMultiplier, survivalFrontalArmor, tickSurvivalSpecialists, createSurvivalObjective, tickSurvivalObjective, SURVIVAL_ROLE_INFO, type SurvivalActor, type SurvivalObjective } from "./survival-encounters";
 import { survivalPauseActive, survivalFirstChoiceDeadline, remainingSurvivalUpgradeSeconds } from "./survival-pause";
 import { blastCanDamage, blastDistance, blastExposureDistance, blastUnobstructed } from "./explosion-damage-rules";
@@ -655,7 +655,7 @@ function createLobbyRoom(
   // Use a placeholder for now; startMatchInRoom overwrites it.
   const room: Room = {
     id, mode, config, map,
-    operation:config.operationId ? createOperationState(config.operationId):undefined,
+    operation:config.operationId ? createOperationState(config.operationId,cfg.botDifficulty):undefined,
     players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(), pendingLoadouts: new Map(), playerKeys: new Map(),
     assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(map), overtime: false, orbitalCharge:0, orbitalHolders:new Set<string>(), tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
     startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
@@ -2399,7 +2399,7 @@ function startSurvivalWave(room: Room,reinforcement=false) {
   }
   const mutators=survivalWaveMutators(room.config.survivalTier ?? "default",room.wave);
   const baseCount=survivalEnemyCount(room.wave, room.players.size, survivalWaveBotCount);
-  const encounter=room.operation ? operationEncounter(operationById(room.operation.missionId)!,room.operation.stage):undefined;
+  const encounter=room.operation ? operationEncounter(operationById(room.operation.missionId)!,room.operation.stage,room.botDifficulty,room.players.size):undefined;
   const count=(reinforcement ? encounter?.reinforcementCount : encounter?.count) ?? Math.min(40,Math.ceil(baseCount*mutators.spawnMul))+(mutators.boss ? 1 : 0);
   const hpMul = survivalWaveHealthMul(room.wave)*mutators.healthMul;
   // Match archetypes to any eligible standard weapon, not a legacy fixed list.
@@ -2764,9 +2764,7 @@ function tickRoomSimulation(room: Room) {
           // Award rerolls at boss clear, not only when a pick is available.
           if(survivalWaveMutators(room.config.survivalTier??"default",room.wave).boss)
             for(const p of room.players.values())room.survivalRerolls.set(p.id,(room.survivalRerolls.get(p.id)??1)+1);
-          if(room.operation||survivalUpgradeDue(room.wave)||
-             survivalWaveMutators(room.config.survivalTier??"default",room.wave).boss)
-            offerSurvivalUpgrades(room);
+          if(!room.operation&&(survivalUpgradeDue(room.wave)||survivalWaveMutators(room.config.survivalTier??"default",room.wave).boss)) offerSurvivalUpgrades(room);
         }
       }
     }
@@ -2895,7 +2893,8 @@ function nearestEnemy(room: Room, p: PlayerNet): PlayerNet | null {
   // Bots require LINE OF SIGHT to acquire a target (they're no longer omniscient).
   // If no visible enemy exists, the bot falls back to wandering. This makes bots
   // feel less psychic — you can break LoS to escape them.
-  const radius=Math.min(botDetectionRange(room.bots.get(p.id)?.ai.difficulty??"normal",weaponById(p.weaponId).category)*botAwarenessPerkMultiplier(room.loadouts.get(p.id)?.perkId),
+  const awareness=room.operation?operationAwarenessMultiplier(room.operation):1;
+  const radius=Math.min(botDetectionRange(room.bots.get(p.id)?.ai.difficulty??"normal",weaponById(p.weaponId).category)*botAwarenessPerkMultiplier(room.loadouts.get(p.id)?.perkId)*awareness,
     room.map.id==="whiteout_depot"?whiteoutVisibility(room.environmentTime,p.pos):Infinity);
   const candidates=room.actorIndex?.near(p.pos[0],p.pos[2],radius)
     .sort((a,b)=>Number(a.isBot)-Number(b.isBot))??allCombatants(room);
@@ -2905,7 +2904,7 @@ function nearestEnemy(room: Room, p: PlayerNet): PlayerNet | null {
     const d = Math.hypot(e.pos[0] - p.pos[0], e.pos[2] - p.pos[2]);
     if (d >= bestD) continue;
     // Only acquire targets within the bot's engagement range AND with clear LoS.
-    if (d > Math.min(botDetectionRange(room.bots.get(p.id)?.ai.difficulty??"normal",weaponById(p.weaponId).category)*botAwarenessPerkMultiplier(room.loadouts.get(p.id)?.perkId),
+    if (d > Math.min(botDetectionRange(room.bots.get(p.id)?.ai.difficulty??"normal",weaponById(p.weaponId).category)*botAwarenessPerkMultiplier(room.loadouts.get(p.id)?.perkId)*awareness,
       room.map.id==="whiteout_depot"?whiteoutVisibility(room.environmentTime,p.pos):Infinity)) continue;
     const fromY = p.pos[1] + PLAYER_HEIGHT / 2;
     const toY = e.pos[1] + PLAYER_HEIGHT / 2;
@@ -4908,7 +4907,7 @@ async function handle(socket: any, msg: C2S) {
     case "listRooms": {
       const list: RoomSummary[] = [];
       for (const r of rooms.values()) {
-        if (r.ended || r.config.operationId) continue;
+        if (r.ended) continue;
         // Show both lobby and playing rooms in the browser. A room is "open" if
         // there's a human slot (or a bot to replace in a bot-filled room).
         const open = r.players.size < r.capacity || (r.fillWithBots && r.bots.size > 0);
@@ -4923,10 +4922,10 @@ async function handle(socket: any, msg: C2S) {
       const loadout = await validatedMatchLoadout(msg.playerKey, msg.loadout);
       if (socket.connected === false) return;
       const cfg = msg.config;
-      if(cfg.operationId!==undefined){
-        socket.emit("message",{t:"roomError",message:"Operations missions are solo-only and cannot be hosted online."} as S2C);break;
+      if(cfg.operationId!==undefined&&!operationConfigValid(cfg)){
+        socket.emit("message",{t:"roomError",message:"Invalid Operations mission or map selection."} as S2C);break;
       }
-      if (!mapAllowedForMode(cfg.mode,cfg.mapId)) {
+      if (!operationConfigValid(cfg)&&!mapAllowedForMode(cfg.mode,cfg.mapId)) {
         socket.emit("message", { t: "roomError", message: "This map is not available in the selected mode." } as S2C);
         break;
       }
@@ -4978,7 +4977,6 @@ async function handle(socket: any, msg: C2S) {
       const loadout = await validatedMatchLoadout(msg.playerKey, msg.loadout);
       if (socket.connected === false) return;
       const targetRoom=rooms.get(msg.roomId);
-      if(targetRoom?.config.operationId){socket.emit("message",{t:"roomError",message:"Operations missions are solo-only and cannot be joined online."} as S2C);break;}
       if (targetRoom?.mode==="survival") {
         const tier=normalizeSurvivalTier(targetRoom.config.survivalTier);
         if(tier!=="default") {
