@@ -1,7 +1,7 @@
 "use client";
 import {useEffect,useRef,useState} from 'react';
 import {useGame} from '@/lib/game-store';
-import {OPERATIONS,operationUnlocked,operationFirstClearReward,type OperationProgress,type OperationMission} from '@/lib/operations';
+import {OPERATIONS,operationUnlocked,operationFirstClearReward,operationTimePerformance,formatOperationTime,type OperationProgress,type OperationMission} from '@/lib/operations';
 import {syncOperationProgress} from '@/lib/operations-client';
 import {getMap,recommendedTeamSize,type BotDifficulty,type CreateRoomConfig} from '@/lib/game-protocol';
 import {waitForAttachmentSaves} from '@/lib/attachment-save-queue';
@@ -52,7 +52,8 @@ export function Operations(){
       const available=operationUnlocked(m.id,progress),record=progress[m.id];
       return <button key={m.id} aria-pressed={selected===m.id} onClick={()=>setSelected(m.id)} className={`text-left rounded-lg border p-3 transition-colors ${selected===m.id?'border-amber-400 bg-amber-500/15':'border-white/10 bg-white/5 hover:bg-white/10'}`}>
        <span className="text-xs text-white/50">{String(OPERATIONS.indexOf(m)+1).padStart(2,'0')} · {getMap(m.mapId).name}</span><span className="block font-bold mt-1">{!available?'🔒 ':''}{m.title}</span>
-       <span className="text-amber-300 text-xs">{record?`${'★'.repeat(record.stars)}${'☆'.repeat(3-record.stars)} · ${Math.floor(record.bestSeconds/60)}:${String(record.bestSeconds%60).padStart(2,'0')}`:available?'Ready to deploy':'Complete the preceding mission'}</span>
+       <span className="text-amber-300 text-xs">{record?`${'★'.repeat(record.stars)}${'☆'.repeat(3-record.stars)} · ${record.completions} clear${record.completions===1?'':'s'}`:available?'Ready to deploy':'Complete the preceding mission'}</span>
+       {record&&<span className="block text-[10px] text-white/45 mt-1">Best {formatOperationTime(record.bestSeconds)} · Target {formatOperationTime(m.parSeconds)}</span>}
       </button>;
      })}</div></div>)}
    </section>
@@ -73,6 +74,14 @@ export function Operations(){
       <p className="text-white/85 font-semibold mb-1">◇ Optional challenge</p>
       <p className="leading-relaxed">{mission.optionalChallenge.label}: eliminate {mission.optionalChallenge.kills} enemies within {mission.optionalChallenge.seconds}s. Failure increases later enemy numbers.</p>
      </div>}
+     {record&&(()=>{
+      const pace=operationTimePerformance(mission,record.bestSeconds);
+      return <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+       <p className="text-xs uppercase tracking-widest text-white/55 font-bold mb-1">Personal best</p>
+       <p className="text-sm text-white/85">{formatOperationTime(record.bestSeconds)} <span className="text-white/40">/ target {formatOperationTime(mission.parSeconds)}</span></p>
+       <p className={`text-xs mt-1 ${pace.withinPar?'text-emerald-300':'text-amber-200'}`}>{pace.withinPar?`${pace.deltaSeconds}s ahead of target`:`${pace.deltaSeconds}s over target`}</p>
+      </div>;
+     })()}
      <div className="border-t border-white/10 pt-3 space-y-1.5">
       <p>★ Complete the mission.</p>
       <p>★ Recover the optional intel.</p>
