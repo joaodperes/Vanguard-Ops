@@ -100,7 +100,7 @@ export function Results() {
             {operationStarCriteria(r.operation,r.deaths).map((criterion,index)=><div key={criterion.label} className="flex items-center gap-2 text-sm">
               <span className={criterion.earned?"text-amber-300":"text-white/25"}>{criterion.earned?"★":"☆"}</span>
               <span className={criterion.earned?"text-white/85":"text-white/45"}>{criterion.label}</span>
-              {index===2&&<span className="ml-auto text-[10px] uppercase tracking-wider text-white/35">{r.operation.difficulty}</span>}
+              {index===2&&<span className="ml-auto text-[10px] uppercase tracking-wider text-white/35">{r.operation!.difficulty}</span>}
             </div>)}
           </div>
           <p className="text-white/50 text-sm mt-3">Intel {r.operation.intel ? "recovered":"not recovered"}{mission.optionalChallenge ? ` · ${r.operation.optionalChallengeStatus==='complete'?'Alarm prevented':r.operation.optionalChallengeStatus==='failed'?'Alarm triggered':'Alarm unresolved'}`:''} · Objectives {r.operation.stage}/{mission.objectives.length} · Campaign progress syncs to your player account.</p>
