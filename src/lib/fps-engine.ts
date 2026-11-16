@@ -1,6 +1,6 @@
 import {DEFAULT_CONTROLS,canonicalKey,stick,type ControlSettings} from "./control-settings";
 import {squadIntent,validSquadOrder,squadOrderPoint,type SquadOrder,type SquadCommand} from "./squad-coordination";
-import { operationById, createOperationState, tickOperation, operationEncounter, operationConfigValid, operationTarget, operationSite, type OperationState } from "./operations";
+import { operationById, createOperationState, tickOperation, operationEncounter, operationConfigValid, operationTarget, operationSite, operationAwarenessMultiplier, type OperationState } from "./operations";
 import { survivalRoleForSlot, survivalRoleHealthMultiplier, survivalFrontalArmor, tickSurvivalSpecialists, createSurvivalObjective, tickSurvivalObjective, survivalObjectiveSite, survivalObjectiveText, SURVIVAL_ROLE_INFO, type SurvivalRole, type SurvivalActor, type SurvivalObjective } from "./survival-encounters";
 import { combatIdentity, tracerIdentity } from "./combat-identity";
 import { combatThreats, type CombatHazard, type CombatThreat } from "./combat-threats";
@@ -13066,7 +13066,8 @@ export class FPSEngine {
       const target=cached.targetId===this.selfId?selfC:this.combatants.get(cached.targetId);
       if(target?.alive)return target;
     }
-    const radius=Math.min(botDetectionRange(c.ai?.difficulty??"normal",weaponById(c.weaponId).category)*botAwarenessPerkMultiplier(c.perkId),
+    const awareness=this.operation?operationAwarenessMultiplier(this.operation):1;
+    const radius=Math.min(botDetectionRange(c.ai?.difficulty??"normal",weaponById(c.weaponId).category)*botAwarenessPerkMultiplier(c.perkId)*awareness,
       this.map.id==="whiteout_depot"?whiteoutVisibility(this.environmentTime,c.pos):Infinity);
     const candidates = [...(this.actorIndex.size
       ?this.actorIndex.near(c.pos[0],c.pos[2],radius):this.combatants.values()), selfC];
@@ -13079,7 +13080,7 @@ export class FPSEngine {
       const d = Math.hypot(e.pos[0] - c.pos[0], e.pos[2] - c.pos[2]);
       if (d >= bestD) continue;
       // Only acquire targets within engagement range AND with clear LoS.
-      if (d > Math.min(botDetectionRange(c.ai?.difficulty??"normal",weaponById(c.weaponId).category)*botAwarenessPerkMultiplier(c.perkId),
+      if (d > Math.min(botDetectionRange(c.ai?.difficulty??"normal",weaponById(c.weaponId).category)*botAwarenessPerkMultiplier(c.perkId)*awareness,
         this.map.id==="whiteout_depot"?whiteoutVisibility(this.environmentTime,c.pos):Infinity)) continue;
       const fromY = c.pos[1] + PLAYER_HEIGHT / 2;
       const toY = e.pos[1] + PLAYER_HEIGHT / 2;
