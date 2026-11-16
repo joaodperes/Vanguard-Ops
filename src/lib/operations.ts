@@ -102,7 +102,8 @@ export function tickOperation(s:OperationState,map:Pick<MapDef,'spawns'>,actors:
  const eligible=g.kind==='clear'?living.length>0&&foes.length===0
   :g.kind==='extract'?living.length>0&&inside.length===living.length&&foes.length===0
   :g.kind==='deliver'?inside.some(a=>a.id===n.carrierId)&&!contested:g.kind==='defend'?inside.length>0:inside.length>0&&!contested;
- if(eligible)n.progress=Math.min(g.seconds,n.progress+delta);else if(g.kind==='extract')n.progress=0;
+ // Kill-target defence uses progress for kills; its deadline is tracked by stageElapsed.
+ if(eligible&&!(g.kind==='defend'&&g.killTarget))n.progress=Math.min(g.seconds,n.progress+delta);else if(!eligible&&g.kind==='extract')n.progress=0;
  // Guard elimination and pending reinforcement pulses both gate stage completion.
  const objectiveComplete=g.kind==='defend'&&g.killTarget? n.progress>=g.killTarget : n.progress>=g.seconds;
  if(eligible&&objectiveComplete&&(g.kind==='defend'&&g.killTarget?true:foes.length===0)&&n.pulse===s.pulse){
