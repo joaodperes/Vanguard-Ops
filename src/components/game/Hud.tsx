@@ -3,7 +3,7 @@ import {useSettings} from "@/lib/settings-store";
 import { useEffect, useState } from "react";
 import type { HudState, ScoreRow } from "@/lib/fps-engine";
 import { formatMatchClock } from "@/lib/match-clock";
-import { operationById } from "@/lib/operations";
+import { operationById, OPERATION_DEADLINE_SECONDS } from "@/lib/operations";
 import { SURVIVAL_UPGRADES, survivalUpgradeValueText, type SurvivalUpgradeId } from "@/lib/survival-upgrades";
 import { scoreboardRules } from "@/lib/scoreboard-rules";
 import type { GameMode } from "@/lib/game-protocol";
@@ -340,7 +340,7 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
           <div className="text-white font-bold text-sm">{goal.label}</div>
           <div className="text-xs text-white/75 mt-1">{goal.kind==='clear' ? "Eliminate all hostiles":`${Math.floor(hud.operation.progress)}/${goal.seconds}s · Hold the marked area`} · {hud.survivalEnemiesLeft??0} hostiles</div>
           {w&&<div className="flex justify-center items-center gap-2 text-amber-200 text-xs mt-1"><span className="inline-block text-lg" style={{transform:`rotate(${-w.angle}rad)`}}>↑</span> ◆ {Math.round(w.distance)}m {Math.abs(w.vertical)>2.5 ? w.vertical>0 ? "· Above":"· Below":""}</div>}
-          <div className="text-[10px] text-white/50">{hud.operation.intel ? "◇ Intel recovered":"◇ Intel optional"} · {Math.max(0,Math.ceil(mission.parSeconds*2-hud.operation.elapsed))}s until abort</div>
+          <div className="text-[10px] text-white/50">{hud.operation.intel ? "◇ Intel recovered":"◇ Intel optional"} · {Math.max(0,Math.ceil(OPERATION_DEADLINE_SECONDS-hud.operation.elapsed))}s until abort</div>
           {!isTouch&&hud.operation.carrierId&&<div className="text-[10px] text-amber-200">Package carried by squad · Bring carrier to ◆</div>}
         </div>;
       })()}
@@ -465,11 +465,11 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
 
         {mode === "survival" && (
           <div className="max-w-[90vw] text-center text-[10px] tracking-wide text-amber-200 font-semibold uppercase">
-            {hud.survivalTier === "default" || !hud.survivalTier ? "Standard · 30 waves" : `${hud.survivalTier} · Endless`}
-            {(hud.survivalModifierNames?.length ?? 0) > 0 && <span className="text-rose-300"> · {hud.survivalModifierNames!.join(" · ")}</span>}
+            {hud.operation ? "Operations · Campaign deployment" : hud.survivalTier === "default" || !hud.survivalTier ? "Standard · 30 waves" : `${hud.survivalTier} · Endless`}
+            {!hud.operation && (hud.survivalModifierNames?.length ?? 0) > 0 && <span className="text-rose-300"> · {hud.survivalModifierNames!.join(" · ")}</span>}
             {hud.survivalObjectiveHint && <div className="mt-1 rounded bg-black/75 px-3 py-2 text-cyan-200 normal-case text-xs">{hud.survivalObjectiveHint}</div>}
-            {hud.survivalBossWave && <span className="text-rose-300 font-black"> · Boss wave</span>}
-            {Object.values(hud.survivalUpgradeRanks??{}).some(n=>(n??0)>0) && (
+            {!hud.operation && hud.survivalBossWave && <span className="text-rose-300 font-black"> · Boss wave</span>}
+            {!hud.operation && Object.values(hud.survivalUpgradeRanks??{}).some(n=>(n??0)>0) && (
               <span className="text-cyan-300" title={Object.entries(hud.survivalUpgradeRanks??{})
                 .filter(([,rank])=>(rank??0)>0)
                 .map(([id,rank])=>id.replaceAll("_"," ")+" ×"+rank).join(" · ")}>
