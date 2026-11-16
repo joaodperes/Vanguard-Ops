@@ -3,7 +3,7 @@ import {useEffect,useRef,useState} from 'react';
 import {useGame} from '@/lib/game-store';
 import {OPERATIONS,operationUnlocked,operationFirstClearReward,type OperationProgress,type OperationMission} from '@/lib/operations';
 import {syncOperationProgress} from '@/lib/operations-client';
-import {getMap,type BotDifficulty} from '@/lib/game-protocol';
+import {getMap,recommendedTeamSize,type BotDifficulty,type CreateRoomConfig} from '@/lib/game-protocol';
 import {waitForAttachmentSaves} from '@/lib/attachment-save-queue';
 import {Button} from '@/components/ui/button';
 import {toast} from 'sonner';
@@ -21,7 +21,7 @@ export function Operations(){
  const mission=OPERATIONS.find(m=>m.id===selected)!,unlocked=operationUnlocked(mission.id,progress);
  const completed=OPERATIONS.filter(m=>progress[m.id]?.completions).length;
  const record=progress[mission.id],firstClear=operationFirstClearReward(mission);
- async function deploy(m:OperationMission){
+ async function deploy(m:OperationMission,coOp=false){
   if(!loaded||launchLock.current||!operationUnlocked(m.id,progress))return;
   launchLock.current=true;setLaunching(true);
   try{
@@ -30,8 +30,11 @@ export function Operations(){
    if(!response.ok)throw new Error('Unable to load your saved loadout.');
    const fresh=await response.json();if(!fresh?.loadout)throw new Error('A saved loadout is required.');
    useGame.getState().setProfile(fresh);
-   setPlayConfig({mode:'survival',operationId:m.id,mapId:m.mapId,online:false,botCount:0,scoreLimit:0,timeLimit:0,botDifficulty:difficulty,survivalTier:'default'});
-   setRoomConnect(null);
+   if(coOp){
+    const config:CreateRoomConfig={mode:'survival',operationId:m.id,mapId:m.mapId,teamSize:recommendedTeamSize(m.mapId,'survival'),fillWithBots:false,password:null,roomName:`Operations · ${m.title}`,botDifficulty:difficulty,survivalPlayers:2,survivalTier:'default'};
+    setRoomConnect({kind:'create',config,roomName:config.roomName});
+   }else setRoomConnect(null);
+   setPlayConfig({mode:'survival',operationId:m.id,mapId:m.mapId,online:coOp,botCount:0,scoreLimit:0,timeLimit:0,botDifficulty:difficulty,survivalTier:'default'});
    setScreen('playing');
   }catch(error){toast.error(error instanceof Error?error.message:'Unable to deploy.');}
   finally{launchLock.current=false;setLaunching(false);}
@@ -73,7 +76,7 @@ export function Operations(){
      <p className="text-xs text-white/45 mt-2">{record?.firstClearRewarded?'Claimed':record?.completions?'Previously cleared':'Awarded once on your first successful clear'}</p>
     </div>
     {!unlocked&&<p className="text-amber-200 mb-3">Complete the preceding mission to unlock this deployment.</p>}
-    <div className="flex flex-wrap gap-2"><Button disabled={!loaded||!unlocked||launching||!profile} onClick={()=>deploy(mission)} className="bg-amber-500 hover:bg-amber-400 text-black font-bold">{launching?'Deploying…':'Deploy solo'}</Button></div>
+    <div className="flex flex-wrap gap-2"><Button disabled={!loaded||!unlocked||launching||!profile} onClick={()=>deploy(mission)} className="bg-amber-500 hover:bg-amber-400 text-black font-bold">{launching?'Deploying…':'Deploy solo'}</Button><Button variant="outline" disabled={!loaded||!unlocked||launching||!profile} onClick={()=>deploy(mission,true)}>Host co-op</Button></div>
    </section>
   </div>
  </main>;
