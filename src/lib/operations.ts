@@ -129,6 +129,16 @@ export function operationStarCriteria(s:OperationState,deaths:number):{label:str
   {label:'Complete on Veteran without dying',earned:won&&s.difficulty==='veteran'&&deaths===0},
  ];
 }
+/** Compare a run against the authored replay target without affecting stars or unlocks. */
+export function operationTimePerformance(m:Pick<OperationMission,'parSeconds'>,elapsed:number):{elapsedSeconds:number;parSeconds:number;withinPar:boolean;deltaSeconds:number} {
+ const elapsedSeconds=Number.isFinite(elapsed)?Math.max(0,Math.ceil(elapsed)):0;
+ const delta=m.parSeconds-elapsedSeconds;
+ return {elapsedSeconds,parSeconds:m.parSeconds,withinPar:delta>=0,deltaSeconds:Math.abs(delta)};
+}
+export function formatOperationTime(seconds:number):string {
+ const safe=Number.isFinite(seconds)?Math.max(0,Math.floor(seconds)):0;
+ return `${Math.floor(safe/60)}:${String(safe%60).padStart(2,'0')}`;
+}
 export function operationStars(m:OperationMission,s:OperationState,deaths:number):number {
  return operationStarCriteria(s,deaths).filter(criterion=>criterion.earned).length;
 }
