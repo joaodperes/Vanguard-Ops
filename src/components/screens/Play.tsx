@@ -246,6 +246,7 @@ export function Play() {
       timeLimit: cfg.defaultTimeLimit,
       botDifficulty: "normal",  // joiners inherit the room's difficulty (server-authoritative)
       survivalTier: room.survivalTier ?? "default",
+      operationId: room.operationId,
     });
     setScreen("playing");
     toast.success(`Joining "${room.name}"…`);
