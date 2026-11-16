@@ -58,7 +58,7 @@ describe('Operations campaign',()=>{
   s=tickOperation(s,mp,[actor(p)],[],.05);expect(s.pulse).toBe(1);expect(s.stage).toBe(2);
   s=tickOperation(s,mp,[actor(p)],[actor([p[0]+30,p[1],p[2]],'reinforcement')],1);expect(s.stage).toBe(2);
   s=tickOperation(s,mp,[actor(p)],[],1);expect(s.stage).toBe(3);expect(s.pulse).toBe(0);expect(s.stageElapsed).toBe(0);
-  expect(tickOperation({...createOperationState(m.id),stage:2,stageElapsed:200},mp,[],[],1).pulse).toBe(3);
+  expect(tickOperation({...createOperationState(m.id),stage:2,stageElapsed:200},mp,[],[],1).pulse).toBe(4);
  });
  test('abort deadlines cannot award unlocks or stars',()=>{
   const s=tickOperation({...createOperationState(first.id),elapsed:OPERATION_DEADLINE_SECONDS},map,[actor([0,0,0])],[actor([20,0,0],'guard')],1);
@@ -72,6 +72,12 @@ describe('Operations campaign',()=>{
   expect(operationFirstClearReward(OPERATIONS[0])).toEqual({xp:150,credits:75});
   expect(operationFirstClearReward(OPERATIONS[4])).toEqual({xp:200,credits:100});
   expect(operationFirstClearReward(OPERATIONS[8])).toEqual({xp:250,credits:125});
+ });
+ test('every defence stage is a two-minute hold with four timed reinforcement calls',()=>{
+  const defends=OPERATIONS.flatMap(m=>m.objectives.filter(g=>g.kind==='defend'));
+  expect(defends.length).toBeGreaterThan(0);expect(defends.every(g=>g.seconds===120)).toBe(true);
+  let s={...createOperationState('freight_intercept'),stage:2,stageElapsed:0};
+  for(let pulse=1;pulse<=4;pulse++){s=tickOperation({...s,stageElapsed:pulse*25-1,pulse:pulse-1},getMap('skybridge','survival'),[actor([0,0,0])],[],1);expect(s.pulse).toBe(pulse);}
  });
  test('all missions share a fixed 30-minute active deadline',()=>{
   expect(OPERATION_DEADLINE_SECONDS).toBe(1800);
