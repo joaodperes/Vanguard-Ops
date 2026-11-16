@@ -97,6 +97,10 @@ export function tickOperation(s:OperationState,map:Pick<MapDef,'spawns'>,actors:
  }
  return n;
 }
+/** Enemy acquisition is more assertive outside the opening stealth approach. */
+export function operationAwarenessMultiplier(s:Pick<OperationState,'missionId'|'stage'>):number {
+ return s.missionId==='silent_entry'&&s.stage===0?1:1.45;
+}
 export function operationEncounter(m:OperationMission,stage:number,selectedDifficulty?:BotDifficulty){
  const count=Math.min(18,4+m.intensity+stage);
  const difficulty=selectedDifficulty??(m.intensity<=1?'easy':m.intensity<=3?'normal':'hard');
