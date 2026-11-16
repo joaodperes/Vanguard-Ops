@@ -27,15 +27,15 @@ Every stage requires its encounter to be defeated. Timers never despawn living
 opponents. Terminal/defence progress is retained when enemies contest the site;
 extraction resets. Enemy budgets grow with mission intensity and objective number.
 The existing Survival specialists, arsenal, elite, healing, damage and self-revive
-systems supply combat. Later missions introduce engineers and disruptors sooner;
-campaign objectives replace standard Survival's rotating objectives. Choose a run
-upgrade after each objective; upgrades reset on a new deployment.
+systems supply combat. Bot difficulty can be selected per deployment; the Veteran
+setting is required for the third campaign star. Later missions introduce engineers and disruptors sooner;
+campaign objectives replace standard Survival's rotating objectives. Operations does not use the Survival run-upgrade selection system.
 
 ## Campaign and rewards
 
 Complete a mission to unlock the next; previous missions remain replayable. Earn
-one star for completion, one for optional intel, and one for beating par time with
-no personal deaths. Every mission has the same 30-minute active-time deadline;
+one star for completion, one for optional intel, and one for completing on
+Veteran bot difficulty with no personal deaths. Every mission has the same 30-minute active-time deadline;
 briefings and upgrade/menu pauses do not consume it.
 
 First clears award a one-time payout per mission:
