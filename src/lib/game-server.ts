@@ -2404,7 +2404,7 @@ function startSurvivalWave(room: Room,reinforcement=false) {
   const hpMul = survivalWaveHealthMul(room.wave)*mutators.healthMul;
   // Match archetypes to any eligible standard weapon, not a legacy fixed list.
   const skinRotation = Math.floor(Math.random()*BOT_OPERATIVE_SKINS.length);
-  const waveDiff=encounter?.difficulty ?? survivalBotDifficulty(room.config.survivalTier ?? "default",room.wave);
+  const waveDiff=room.operation?.difficulty==='mixed'?resolveBotDifficulty(room):encounter?.difficulty ?? survivalBotDifficulty(room.config.survivalTier ?? "default",room.wave);
   for (let n = 0; n < count; n++) {
     const id = genId("svbot");
     // ---- Round 18-b: spread out spawns ----
