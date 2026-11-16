@@ -1,10 +1,10 @@
 "use client";
 import {useGame} from './game-store';
-import {loadOperationProgress,normalizeOperationProgress,type OperationState,type OperationProgress,type OperationFirstClearReward} from './operations';
+import {loadOperationProgress,normalizeOperationProgress,operationById,type OperationState,type OperationProgress,type OperationFirstClearReward} from './operations';
 type Pending={runId:string;state:OperationState;deaths:number};
 type SyncResult={progress:OperationProgress;firstClearRewards:OperationFirstClearReward[]};
 const queueKey=(key:string)=>'vanguard_operations_pending_'+key;
-function pending(key:string):Pending[]{try{const p=JSON.parse(localStorage.getItem(queueKey(key))??'[]');return Array.isArray(p)?p.filter(v=>v&&typeof v.runId==='string'&&v.state&&typeof v.state==='object').map(v=>({...v,state:{...v.state,difficulty:['easy','normal','hard','veteran','mixed'].includes(v.state.difficulty)?v.state.difficulty:'normal'}})):[];}catch{return [];}}
+function pending(key:string):Pending[]{try{const p=JSON.parse(localStorage.getItem(queueKey(key))??'[]');return Array.isArray(p)?p.filter(v=>v&&typeof v.runId==='string'&&v.state&&typeof v.state==='object').map(v=>{const mission=operationById(v.state.missionId);const challengeStatus=mission?.optionalChallenge&&!['complete','failed'].includes(v.state.optionalChallengeStatus??'')?'failed':v.state.optionalChallengeStatus;return {...v,state:{...v.state,difficulty:['easy','normal','hard','veteran','mixed'].includes(v.state.difficulty)?v.state.difficulty:'normal',...(mission?.optionalChallenge?{optionalChallengeStatus:challengeStatus,optionalChallengeElapsed:v.state.optionalChallengeElapsed??mission.optionalChallenge.seconds,optionalChallengeKills:v.state.optionalChallengeKills??0}:{})}};}):[];}catch{return [];}}
 async function send(key:string,payload:object):Promise<SyncResult>{
  if(useGame.getState().playerKey!==key)throw Error('Player account changed; sync cancelled.');
  const r=await fetch('/api/operations/progress',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({playerKey:key,...payload})});
