@@ -16,8 +16,9 @@ recovery, delivery and terminal progress.
 
 - Clear: defeat the encounter. The beacon is a rally point, not an arena boundary.
 - Secure: occupy the terminal site for its accumulated hold duration.
-- Defend: hold a longer upload while four reinforcement groups arrive at
-  25-second intervals during a fixed two-minute hold. Newly due reinforcements cannot be skipped by a timer.
+- Defend: hold a fixed two-minute upload while seven reinforcement groups arrive
+  every 15 seconds. The hold timer continues under enemy pressure, but the stage
+  cannot complete until all active defenders are eliminated.
 - Recover: occupy the recovery site to pick up its mission package.
 - Deliver: bring the actual carrier to the destination. If the carrier is downed,
   the package drops at their last known position and can be recovered after revival.
