@@ -61,6 +61,7 @@ export function Operations(){
     <div className="text-sm text-white/65 my-5 space-y-3">
      <p><strong className="text-white/85">◆ Main objectives</strong> {mission.objectives.map(g=>g.label).join(' → ')}</p>
      <p><strong className="text-white/85">◇ Optional objective</strong> Recover the intel cache at the optional marker.</p>
+     {mission.optionalChallenge&&<p><strong className="text-white/85">◇ Timed challenge</strong> {mission.optionalChallenge.label}: eliminate {mission.optionalChallenge.kills} enemies within {mission.optionalChallenge.seconds}s. Failure increases later enemy numbers.</p>}
      <p>★ Complete the mission.</p>
      <p>★ Recover the optional intel.</p>
      <p>★ Complete on Veteran difficulty without dying.</p>
