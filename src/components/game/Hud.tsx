@@ -361,7 +361,7 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
           {w&&<div className="flex justify-center items-center gap-2 text-amber-200 text-xs mt-1"><span className="inline-block text-lg" style={{transform:`rotate(${-w.angle}rad)`}}>↑</span> ◆ {Math.round(w.distance)}m {Math.abs(w.vertical)>2.5 ? w.vertical>0 ? "· Above":"· Below":""}</div>}
           <div className="text-[10px] text-white/50">{hud.operation.intel ? "◇ Intel recovered":"◇ Intel optional"}</div>
           {mission.optionalChallenge&&<div className={`text-[10px] mt-1 ${hud.operation.optionalChallengeStatus==='failed'?'text-rose-300':hud.operation.optionalChallengeStatus==='complete'?'text-emerald-300':'text-amber-200'}`}>{hud.operation.optionalChallengeStatus==='complete'?'◇ Alarm prevented':hud.operation.optionalChallengeStatus==='failed'?'◇ Alarm raised · later enemy numbers increased':`◇ ${mission.optionalChallenge.label}: ${hud.operation.optionalChallengeKills??0}/${mission.optionalChallenge.kills} · ${Math.max(0,Math.ceil(mission.optionalChallenge.seconds-(hud.operation.optionalChallengeElapsed??0)))}s`}</div>}
-          {!isTouch&&hud.operation.carrierId&&<div className="text-[10px] text-amber-200">Package carried by squad · Bring carrier to ◆</div>}
+          {hud.operation.carrierId&&<div className="text-[10px] text-amber-200">Package carrier: {hud.scoreboard.find(player=>player.id===hud.operation?.carrierId)?.name??"Squad operative"} · Bring them to ◆</div>}
         </div>;
       })()}
       {/* Lean, objective-only scoreboard. Mode identity remains in countdown / TAB scoreboard. */}
