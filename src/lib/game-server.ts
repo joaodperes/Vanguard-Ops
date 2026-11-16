@@ -2399,7 +2399,7 @@ function startSurvivalWave(room: Room,reinforcement=false) {
   }
   const mutators=survivalWaveMutators(room.config.survivalTier ?? "default",room.wave);
   const baseCount=survivalEnemyCount(room.wave, room.players.size, survivalWaveBotCount);
-  const encounter=room.operation ? operationEncounter(operationById(room.operation.missionId)!,room.operation.stage,room.botDifficulty,room.players.size):undefined;
+  const encounter=room.operation ? operationEncounter(operationById(room.operation.missionId)!,room.operation.stage,room.botDifficulty,room.players.size,room.operation.optionalChallengeStatus==='failed'):undefined;
   const count=(reinforcement ? encounter?.reinforcementCount : encounter?.count) ?? Math.min(40,Math.ceil(baseCount*mutators.spawnMul))+(mutators.boss ? 1 : 0);
   const hpMul = survivalWaveHealthMul(room.wave)*mutators.healthMul;
   // Match archetypes to any eligible standard weapon, not a legacy fixed list.
@@ -2747,7 +2747,7 @@ function tickRoomSimulation(room: Room) {
         const previousStage=room.operation?.stage,previousPulse=room.operation?.pulse;
         if(room.operation){
           room.operation=tickOperation(room.operation,room.map,
-            [...room.players.values()].map(p=>({id:p.id,pos:p.pos,alive:p.alive&&!room.downed.has(p.id)})),
+            [...room.players.values()].map(p=>({id:p.id,pos:p.pos,alive:p.alive&&!room.downed.has(p.id),kills:p.kills})),
             [...room.bots.values()].map(p=>({id:p.id,pos:p.pos,alive:p.alive})),1/20);
           if(room.operation.status!=="active"){room.waveActive=false;endMatch(room);return;}
           if(room.operation.stage===previousStage&&room.operation.pulse!==previousPulse)startSurvivalWave(room,true);
