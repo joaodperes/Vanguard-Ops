@@ -107,6 +107,21 @@ describe('Operations campaign',()=>{
    expect(s.stageElapsed).toBe(0);
   }
  });
+ test('kill-target defence objectives require the squad to hold the site and reach the kill target before timeout',()=>{
+  const mission=operationById('relay_siege')!,index=mission.objectives.findIndex(g=>g.killTarget),mp=getMap(mission.mapId,'survival');
+  expect(index).toBeGreaterThanOrEqual(0);
+  const base={...createOperationState(mission.id),stage:index},p=operationTarget(base,mp)!;
+  let s=tickOperation(base,mp,[actor(p,'solo',true,3)],[],1);
+  expect(s.progress).toBe(0); // First tick establishes the squad kill baseline.
+  s=tickOperation(s,mp,[actor(p,'solo',true,7)],[],1);
+  expect(s.progress).toBe(4);expect(s.stage).toBe(index);
+  s=tickOperation(s,mp,[actor(p,'solo',true,11)],[],1);
+  expect(s.progress).toBe(8);expect(s.stage).toBe(index+1);
+  let failed=tickOperation(base,mp,[actor(p,'solo',true,0)],[],1);
+  failed=tickOperation({...failed,stageElapsed:74},mp,[actor(p,'solo',true,7)],[],1);
+  failed=tickOperation(failed,mp,[actor(p,'solo',true,7)],[],1);
+  expect(failed.status).toBe('failed');
+ });
  test('abort deadlines cannot award unlocks or stars',()=>{
   const s=tickOperation({...createOperationState(first.id),elapsed:OPERATION_DEADLINE_SECONDS},map,[actor([0,0,0])],[actor([20,0,0],'guard')],1);
   expect(s.status).toBe('failed');expect(operationStars(first,s,0)).toBe(0);expect(recordOperation({},s,0)).toEqual({});
