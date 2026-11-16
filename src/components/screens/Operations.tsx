@@ -55,13 +55,12 @@ export function Operations(){
    </section>
    <section className="rounded-2xl border border-white/10 bg-gradient-to-br from-zinc-900 to-black p-6 self-start lg:sticky lg:top-20" aria-label="Mission briefing">
     <p className="text-xs text-amber-300 uppercase tracking-widest">Act {mission.act} · {getMap(mission.mapId).name}</p><h2 className="text-3xl font-black mt-2">{mission.title}</h2><p className="text-white/70 mt-4 leading-relaxed">{mission.briefing}</p>
-    <ol className="mt-5 space-y-2 text-sm text-white/80 list-decimal pl-5">{mission.objectives.map((g,i)=><li key={i}>{g.label}{g.seconds>0&&<span className="text-white/40"> · {g.seconds}s</span>}</li>)}</ol>
-    <div className="text-sm text-white/60 my-5 space-y-3">
-     <p><strong className="text-white/80">◆ Main objective</strong> Complete the mission objectives above and reach extraction.</p>
-     <p><strong className="text-white/80">◇ Optional objective</strong> Locate and recover the intel cache for an additional star.</p>
+    <div className="text-sm text-white/65 my-5 space-y-3">
+     <p><strong className="text-white/85">◆ Main objectives</strong> {mission.objectives.map(g=>g.label).join(' → ')}</p>
+     <p><strong className="text-white/85">◇ Optional objective</strong> Recover the intel cache at the optional marker.</p>
      <p>★ Complete the mission.</p>
      <p>★ Recover the optional intel.</p>
-     <p>★ Complete the mission on Veteran difficulty without dying.</p>
+     <p>★ Complete on Veteran difficulty without dying.</p>
     </div>
     <div className="mb-5">
      <p className="text-xs uppercase tracking-widest text-white/50 font-bold mb-2">Bot difficulty</p>
