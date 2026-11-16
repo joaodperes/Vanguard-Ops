@@ -54,8 +54,8 @@ export function nextOperation(id:string){const i=OPERATIONS.findIndex(m=>m.id===
 export function operationConfigValid(c:{operationId?:unknown;mode:string;mapId:string;survivalTier?:unknown}):boolean {
  const m=operationById(c.operationId);return !!m&&c.mode==='survival'&&c.mapId===m.mapId&&(c.survivalTier===undefined||c.survivalTier==='default');
 }
-export interface OperationState {missionId:string;stage:number;progress:number;elapsed:number;stageElapsed:number;pulse:number;intel:boolean;carrierId?:string;packagePos?:Vec3;status:'active'|'won'|'failed'}
-export const createOperationState=(missionId:string):OperationState=>({missionId,stage:0,progress:0,elapsed:0,stageElapsed:0,pulse:0,intel:false,status:'active'});
+export interface OperationState {missionId:string;difficulty:BotDifficulty;stage:number;progress:number;elapsed:number;stageElapsed:number;pulse:number;intel:boolean;carrierId?:string;packagePos?:Vec3;status:'active'|'won'|'failed'}
+export const createOperationState=(missionId:string,difficulty:BotDifficulty='normal'):OperationState=>({missionId,difficulty,stage:0,progress:0,elapsed:0,stageElapsed:0,pulse:0,intel:false,status:'active'});
 export interface OperationActor {id:string;pos:Vec3;alive:boolean}
 /** Use collision-cleared authored pads, with the same positions on both simulations. */
 export function operationSite(map:Pick<MapDef,'spawns'>,index:number):Vec3 {
@@ -97,9 +97,10 @@ export function tickOperation(s:OperationState,map:Pick<MapDef,'spawns'>,actors:
  }
  return n;
 }
-export function operationEncounter(m:OperationMission,stage:number){
+export function operationEncounter(m:OperationMission,stage:number,selectedDifficulty?:BotDifficulty){
  const count=Math.min(18,4+m.intensity+stage);
- return {count,reinforcementCount:Math.max(2,Math.ceil(count*.35)),roleWave:stage+1+(m.intensity-1)*2,difficulty:(m.intensity<=1?'easy':m.intensity<=3?'normal':'hard') as Exclude<BotDifficulty,'mixed'>};
+ const difficulty=selectedDifficulty??(m.intensity<=1?'easy':m.intensity<=3?'normal':'hard');
+ return {count,reinforcementCount:Math.max(2,Math.ceil(count*.35)),roleWave:stage+1+(m.intensity-1)*2,difficulty:difficulty==='mixed'?undefined:difficulty};
 }
 export interface OperationRecord {stars:number;bestSeconds:number;intel:boolean;completions:number;firstClearRewarded?:boolean;firstClearRunId?:string;firstClearXp?:number;firstClearCredits?:number}
 export type OperationProgress=Record<string,OperationRecord>;
@@ -107,7 +108,7 @@ export function operationUnlocked(id:string,p:OperationProgress):boolean {
  const i=OPERATIONS.findIndex(m=>m.id===id);return i>=0&&!!p[id]?.completions||i===0||i>0&&!!p[OPERATIONS[i-1].id]?.completions;
 }
 export function operationStars(m:OperationMission,s:OperationState,deaths:number):number {
- return s.status==='won'?1+Number(s.intel)+Number(deaths===0&&s.elapsed<=m.parSeconds):0;
+ return s.status==='won'?1+Number(s.intel)+Number(deaths===0&&s.difficulty==='veteran'):0;
 }
 export function recordOperation(p:OperationProgress,s:OperationState,deaths:number):OperationProgress {
  const m=operationById(s.missionId);if(!m||s.status!=='won')return p;
