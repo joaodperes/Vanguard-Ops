@@ -71,6 +71,7 @@ describe('Operations campaign',()=>{
  });
  test('selected Operations difficulty overrides the mission default and Veteran is required for the third star',()=>{
   const m=OPERATIONS[0];expect(operationEncounter(m,0,'veteran').difficulty).toBe('veteran');expect(operationEncounter(m,0,'easy').difficulty).toBe('easy');expect(operationEncounter(m,0,'mixed').difficulty).toBeUndefined();
+  expect(operationEncounter(m,0,'normal',2).count).toBe(Math.ceil(operationEncounter(m,0,'normal',1).count*1.6));
   const won={...createOperationState(m.id,'veteran'),status:'won' as const,elapsed:600};expect(operationStars(m,won,0)).toBe(3);expect(operationStars(m,{...won,difficulty:'hard'},0)).toBe(2);expect(operationStars(m,won,1)).toBe(2);
  });
  test('first-clear payouts scale by campaign act',()=>{
