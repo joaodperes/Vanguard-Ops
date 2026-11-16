@@ -118,6 +118,13 @@ export function operationEncounter(m:OperationMission,stage:number,selectedDiffi
 }
 export interface OperationRecord {stars:number;bestSeconds:number;intel:boolean;completions:number;firstClearRewarded?:boolean;firstClearRunId?:string;firstClearXp?:number;firstClearCredits?:number}
 export type OperationProgress=Record<string,OperationRecord>;
+/** Summarise authored campaign progress for an act, ignoring unknown imported records. */
+export function operationActSummary(act:number,p:OperationProgress):{completed:number;total:number;stars:number;maxStars:number} {
+ const missions=OPERATIONS.filter(m=>m.act===act);
+ const completed=missions.filter(m=>(p[m.id]?.completions??0)>0).length;
+ const stars=missions.reduce((sum,m)=>sum+Math.max(0,Math.min(3,Math.floor(p[m.id]?.stars??0))),0);
+ return {completed,total:missions.length,stars,maxStars:missions.length*3};
+}
 export function operationUnlocked(id:string,p:OperationProgress):boolean {
  const i=OPERATIONS.findIndex(m=>m.id===id);return i>=0&&!!p[id]?.completions||i===0||i>0&&!!p[OPERATIONS[i-1].id]?.completions;
 }
