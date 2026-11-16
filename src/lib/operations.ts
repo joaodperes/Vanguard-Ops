@@ -1,4 +1,4 @@
-/** Solo Operations campaign rules shared by the local simulation and account progression. */
+/** Operations campaign rules shared by local/networked simulations and account progression. */
 import type {MapDef,MapId,Vec3,BotDifficulty} from './game-protocol';
 export type OperationKind='clear'|'secure'|'defend'|'recover'|'deliver'|'extract';
 export interface OperationObjective {kind:OperationKind;label:string;site:number;seconds:number}
