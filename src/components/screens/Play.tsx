@@ -894,7 +894,7 @@ function RoomCard({ room, onJoin }: { room: RoomSummary; onJoin: () => void }) {
   const mapDef = MAP_LIST.find((m) => m.id === room.mapId);
   const MapGlyph = getMapIcon(room.mapId);
   const full = room.humans >= room.capacity;
-  const Icon = room.mode === "ffa" ? Users : (room.mode === "tdm" || room.mode === "killconfirmed" || room.mode === "ctf") ? Shield : room.mode === "gungame" ? Swords : Skull;
+  const Icon = room.operationId ? Swords : room.mode === "ffa" ? Users : (room.mode === "tdm" || room.mode === "killconfirmed" || room.mode === "ctf") ? Shield : room.mode === "gungame" ? Swords : Skull;
   const inLobby = room.state === "lobby";
 
   return (
@@ -930,11 +930,13 @@ function RoomCard({ room, onJoin }: { room: RoomSummary; onJoin: () => void }) {
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-black/40 border border-white/5 text-white/60">
             <MapGlyph className="w-3 h-3" style={{ color: mapDef?.accentColor }} /> {displayMapLabel(mapDef?.name ?? room.mapName ?? room.mapId)}
           </span>
-          {room.mode === "survival" && (
+          {room.operationId ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-200">Operations campaign</span>
+          ) : room.mode === "survival" ? (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-200">
               <>{SURVIVAL_TIER_INFO[room.survivalTier ?? "default"].label} · {room.survivalTier === "default" || !room.survivalTier ? "30 rounds" : "Endless"}</>
             </span>
-          )}
+          ) : null}
           {room.mode !== "survival" && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-black/40 border border-white/5 text-white/60">
               <Users className="w-3 h-3" /> {room.mode === "ffa" || room.mode === "gungame" ? `${room.capacity} slots` : `${room.teamSize}v${room.teamSize}`}
