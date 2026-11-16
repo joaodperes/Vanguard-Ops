@@ -79,7 +79,7 @@ describe("Thunderclap blast and map gravity",()=>{
   expect(shots.slice(1).some(s=>s.path.bounces!.length>0)).toBe(true);
   expect(clusterDamage(3,shots[0])).toBeGreaterThan(75);
   expect(clusterDamage(3,shots[1])).toBeGreaterThan(40);
-  expect(clusterDamage(7,shots[0])).toBe(0);expect(CLUSTER_MAX_DAMAGE).toBe(240);
+  expect(clusterDamage(7,shots[0])).toBe(0);expect(CLUSTER_MAX_DAMAGE).toBe(175);
  });
  test("Orbital Nexus uses its lower world gravity in both flight and ricochets",()=>{
   const ordinary=clusterShots([0,1.62,0],[0,0,1],[],"compound");

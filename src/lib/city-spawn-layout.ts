@@ -17,6 +17,9 @@ export function expandCitySpawnPositions(
   regions: readonly MapRegion[],
   cover: readonly CoverBox[],
   minimum: number,
+  // Lamp posts are visible props without cover colliders. Keep generated spawns
+  // clear of them, as spawnClear() does for authored spawns.
+  props: readonly {kind:string;x:number;z:number;y?:number;h?:number}[] = [],
 ): Vec3[] {
   const result: Vec3[] = authored.map(p => [...p] as Vec3);
   if (result.length >= minimum || !result.length) return result;
@@ -27,6 +30,9 @@ export function expandCitySpawnPositions(
 
   const safe = (x:number,z:number):boolean =>
     insideRegions(x,z,regions,3.2) &&
+    !props.some(p => p.kind === "lamp" &&
+      Math.hypot(x-p.x,z-p.z) < 1.7 &&
+      (p.y??0) < 1.8 && (p.y??0)+(p.h??3) > 0) &&
     !solids.some(c => Math.abs(x - c.pos[0]) < c.size[0] + 1.3 &&
       Math.abs(z - c.pos[2]) < c.size[2] + 1.3);
 

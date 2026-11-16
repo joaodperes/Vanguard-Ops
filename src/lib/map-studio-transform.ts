@@ -28,3 +28,12 @@ export function rotatedExtents(
   const swapped=normalizeTurns(turns-oldTurn)%2===1;
   return {w:swapped?z:x,h:initial.h*Math.abs(scale.y),d:swapped?x:z,turns};
 }
+
+/** A Move gizmo changes only position. Restore sizes and orientation from the
+ * latest saved map data, rather than stale dimensions in a Three.js selection. */
+export function preserveSavedGeometryOnMove<T extends {w:number;h:number;d:number;turns:number}>(
+  candidate:T,
+  saved:{w:number;h:number;d:number;turns?:number},
+):T {
+  return {...candidate,w:saved.w,h:saved.h,d:saved.d,turns:normalizeTurns(saved.turns??0)};
+}

@@ -15,7 +15,7 @@ export const QUICK_MELEE_REACH = 3.5; // shared safety cap; ordinary weapons ret
 export const MELEE_HALF_ARC_DEGREES: Readonly<Record<string,number>> = {
   shiv: 38,
   knife_tactical: 40,
-  baton: 43,
+  // The throwing-knife slot uses a projectile, not a melee cone.
   machete: 46,
   axe: 50,
   hammer: 52,

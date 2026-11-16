@@ -7,9 +7,14 @@ import { makeEnvironmentMap } from "../src/lib/dynamic-environment";
 import { botPositionEmbedded } from "../src/lib/bot-physics";
 
 describe("authored map combat layouts", () => {
-  test("all ten maps have dedicated tactical cover and playable spawns", () => {
-    expect(MAP_LIST).toHaveLength(10);
+  test("all maps have dedicated tactical cover and playable spawns", () => {
+    expect(MAP_LIST).toHaveLength(11);
     for (const map of MAP_LIST) {
+      if(map.id==="emberhold"){
+        expect(map.editorLegacyCoverCount).toBe(0);
+        expect(map.spawns.ffa.length).toBeGreaterThanOrEqual(32);
+        continue;
+      }
       if(map.id==="whiteout_depot"){
         expect(MAP_BLUEPRINTS.maps.whiteout_depot.features.length).toBeGreaterThan(60);
         expect(map.spawns.red.length).toBeGreaterThanOrEqual(7);
@@ -37,9 +42,8 @@ describe("authored map combat layouts", () => {
           for(const point of map.spawns[team]) expect(botPositionEmbedded(collision,point)).toBe(false);
           continue;
         }
-        if(map.id==="skybridge"||map.id==="floodgate"||map.id==="whiteout_depot"){
-          // Ridgefall's old outdoor spawn coordinates were deliberately removed.
-          // The compiled factory must use only the new indoor JSON spawn set.
+        if(map.id==="skybridge"||map.id==="floodgate"||map.id==="whiteout_depot"||map.id==="emberhold"){
+          // These layouts use only the authored JSON spawn set.
           expect(map.spawns[team]).toEqual(MAP_BLUEPRINTS.maps[map.id].spawns[team]);
           for(const point of map.spawns[team])expect(botPositionEmbedded(collision,point)).toBe(false);
           continue;
@@ -98,16 +102,20 @@ describe("authored map combat layouts", () => {
     const ids = new Set<string>();
     for (const map of MAP_LIST) {
       const doors = map.environment?.filter(e => e.type === "destructible_wall") ?? [];
+      for (const environment of map.environment ?? []) {
+        expect(ids.has(environment.id)).toBe(false);
+        ids.add(environment.id);
+      }
       if (map.id === "arena_neon" || map.id === "terminal" || map.id === "forest_warfare") {
         expect(doors).toHaveLength(0);
         expect(map.environment?.length ?? 0).toBe(0);
         continue;
       }
-      expect(doors.length).toBeGreaterThanOrEqual(1);
-      for (const environment of map.environment ?? []) {
-        expect(ids.has(environment.id)).toBe(false);
-        ids.add(environment.id);
+      if (map.id === "emberhold") {
+        expect(doors).toHaveLength(0);
+        continue;
       }
+      expect(doors.length).toBeGreaterThanOrEqual(1);
       for (const door of doors) {
         // Floodgate's five interlocking dam shutters are one coordinated
         // destructible objective, not independent flanked doorways.

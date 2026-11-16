@@ -1,4 +1,4 @@
-import { getMap, type MapDef, type Vec3 } from "./game-protocol";
+import { getMap, type CoverBox, type MapDef, type Vec3 } from "./game-protocol";
 
 /** Private, client-only range. Never appears in matchmaking or public map listings. */
 export const RANGE_TARGETS: readonly Vec3[] = [
@@ -9,6 +9,58 @@ export const RANGE_TARGETS: readonly Vec3[] = [
 ];
 
 export const RANGE_SPAWN: Vec3 = [0, 0, -32];
+
+/** Two side corridors are accessible through 6-unit openings in the central
+ * lane walls, just beyond the player's spawn. Station colliders occupy only
+ * the outer lanes: the original target practice stays unobstructed.
+ */
+export const RANGE_MATERIAL_ENTRANCE_Z = -27;
+export const RANGE_MATERIAL_SHOOT_Z = -18;
+
+export interface RangeMaterialStation {
+  id: string;
+  label: string;
+  behavior: string;
+  material: NonNullable<CoverBox["material"]>;
+  x: number;
+  /** Full panel thickness; independent of the visual material. */
+  thickness: number;
+  target: Vec3;
+}
+
+export const RANGE_MATERIAL_STATIONS: readonly RangeMaterialStation[] = [
+  { id:"glass",label:"GLASS",behavior:"CRACKS / SHATTERS",
+    material:"glass",x:-21,thickness:.36,target:[-21,0,15] },
+  { id:"wood",label:"THIN WOOD",behavior:"SPLINTERS / BREAKS",
+    material:"thin_wood",x:-33,thickness:.8,target:[-33,0,15] },
+  { id:"light",label:"LIGHT COVER",behavior:"CHIPS / BREAKS",
+    material:"light_cover",x:17,thickness:1,target:[17,0,15] },
+  { id:"metal",label:"SHEET METAL",behavior:"SPARKS / HOLDS",
+    material:"sheet_metal",x:27,thickness:.6,target:[27,0,15] },
+  { id:"concrete",label:"CONCRETE",behavior:"BULLETPROOF CONTROL",
+    material:"concrete",x:37,thickness:1.2,target:[37,0,15] },
+] as const;
+
+/** Half extents are important: the cover resolver measures the actual
+ * thickness crossed, not merely a surface's material identifier.
+ * Panels are chest-high so dummies' heads remain visible for aiming.
+ */
+export const RANGE_MATERIAL_PANELS: readonly CoverBox[] = RANGE_MATERIAL_STATIONS.map(station => ({
+  pos:[station.x,.875,0] as Vec3,
+  size:[2.35,.875,station.thickness/2] as Vec3,
+  kind:"cover" as const,
+  material:station.material,
+  ballisticId:station.material==="concrete" ? undefined : "range_material_"+station.id,
+}));
+
+/** Split each separating wall at the same entrance. No wall collider spans
+ * the 6-unit doorway, so the firing lanes can be reached on foot.
+ */
+export const RANGE_SIDE_WALLS: readonly CoverBox[] = [-12,12].flatMap(x => [
+  {pos:[x,2.5,-33] as Vec3,size:[.65,2.5,3] as Vec3,kind:"solid" as const},
+  {pos:[x,2.5,6] as Vec3,size:[.65,2.5,30] as Vec3,kind:"solid" as const},
+]);
+
 
 /** Extra, moving humanoid dummies for tracking practice. All three travel
  * inside the open, walled firing lane; only the x coordinate changes.
@@ -48,13 +100,14 @@ export function createFiringRangeMap(): MapDef {
     ...base,
     name: "Firing Range",
     shortName: "Range",
-    description: "Private equipment trial with stationary and strafing, respawning targets.",
+    description: "Private equipment trial with stationary, strafing and material-penetration targets.",
     size: 42,
     wallHeight: 7,
-    // No obstructing cover between shooting line and practice targets.
+    // The center lane stays open; accessible side lanes demonstrate material
+    // damage, caliber-dependent through-cover hits and permanent hard cover.
     cover: [
-      { pos: [-12, 2.5, 0], size: [0.65, 2.5, 36], kind: "solid" },
-      { pos: [12, 2.5, 0], size: [0.65, 2.5, 36], kind: "solid" },
+      ...RANGE_SIDE_WALLS.map(box=>({...box,pos:[...box.pos] as Vec3,size:[...box.size] as Vec3})),
+      ...RANGE_MATERIAL_PANELS.map(box=>({...box,pos:[...box.pos] as Vec3,size:[...box.size] as Vec3})),
       { pos: [0, 3, 35], size: [12, 3, 0.8], kind: "solid" },
     ],
     spawns: { ffa: [[...RANGE_SPAWN]], red: [[...RANGE_SPAWN]], blue: [[...RANGE_SPAWN]] },

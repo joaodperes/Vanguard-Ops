@@ -2,6 +2,7 @@ import {resolveMatchLoadout} from "../src/lib/match-loadout";
 import {describe,expect,test} from "bun:test";
 import * as THREE from "three";
 import {FPSEngine} from "../src/lib/fps-engine";
+import {makeEngineStub} from "./helpers/engine-stub";
 import {weaponById,usesWonderCharges} from "../src/lib/game-data";
 import {resolveLoadout} from "../src/lib/game-data";
 import {rayRiotShield,damageRiotShield,shieldBlocksFire,RIOT_SHIELD_ID,RIOT_SHIELD_HP} from "../src/lib/riot-shield";
@@ -42,7 +43,7 @@ describe("physical 250 HP riot panel",()=>{
   expect(shieldBlocksFire(RIOT_SHIELD_ID,true,0)).toBe(false);
  });
  test("actual offline bot shots drain the panel, then hit health after it breaks",()=>{
-  const e:any=Object.create(FPSEngine.prototype);
+  const e:any=makeEngineStub();
   Object.assign(e,{opts:{mode:"ffa",team:"ffa",playerName:"test"},selfId:"self",pos:new THREE.Vector3(),yaw:0,
    health:100,alive:true,weaponId:RIOT_SHIELD_ID,aiming:true,reloading:false,sprinting:false,riotShieldHp:250,
    combatants:new Map(),map:{cover:[]},selfSpawnProtectedUntil:0,sound:{play(){}},takeDamage(dmg:number){this.health-=dmg;}});
@@ -56,8 +57,8 @@ describe("physical 250 HP riot panel",()=>{
   const w=weaponById(RIOT_SHIELD_ID),p9=weaponById("pistol_side");
   expect(usesWonderCharges(w)).toBe(false);
   expect(w.stats.damage).toBe(p9.stats.damage);expect(w.stats.magSize).toBe(p9.stats.magSize);
-  const kit=resolveLoadout({primaryWeapon:w.id,secondaryWeapon:"launcher_rocket",meleeWeapon:"knife_tactical",perkId:"battle_hardened"} as any);
-  expect(kit.weapon.id).toBe(w.id);expect(kit.secondary.id).toBe("launcher_rocket");
+  const kit=resolveLoadout({primaryWeapon:"rifle_ar",wonderWeaponId:w.id,secondaryWeapon:"launcher_rocket",meleeWeapon:"knife_tactical",perkId:"wonder_weapon"} as any);
+  expect(kit.weapon.id).toBe("rifle_ar");expect(kit.wonderWeaponId).toBe(w.id);expect(kit.secondary.id).toBe("launcher_rocket");
   const invalid=resolveLoadout({primaryWeapon:"rifle_ar",secondaryWeapon:w.id} as any);expect(invalid.secondary.id).toBe("pistol_side");
  });
 });
@@ -85,7 +86,7 @@ describe("cluster shell and delayed area damage",()=>{
  });
  test("actual offline volley caps stacked blasts and respects cover",()=>{
   const run=(clear:boolean)=>{
-   const e:any=Object.create(FPSEngine.prototype),damage:number[]=[];
+   const e:any=makeEngineStub(),damage:number[]=[];
    const target={id:"enemy",pos:[0,0,0],alive:true,team:"blue"};
    Object.assign(e,{opts:{mode:"tdm"},bulletSpitters:new Map(),clusterVolleys:new Map(),matchEnded:false,combatants:new Map([[target.id,target]]),
     spawnExplosion(){},hasLineOfSight(){return clear;},applyDamageLocal(_t:any,d:number){damage.push(d);}});
@@ -138,15 +139,23 @@ test("Annihilator loads beside the receiver while Reclaimer stays above its arro
  expect(top.prop[0]).toBe(0);expect(top.prop[1]).toBeGreaterThan(0);
 });
 
-test("authoritative loadout accepts each Wonder as primary and rejects it as secondary",()=>{
- const player={xp:0,weaponUnlocks:[],loadout:null};
- for(const id of ["wonder_cluster",RIOT_SHIELD_ID]){
-  const request:any={weaponId:id,secondaryWeaponId:id,attachments:{}};
-  const kit=resolveMatchLoadout(player,request);expect(kit.weaponId).toBe(id);expect(kit.secondaryWeaponId).toBe("pistol_side");
- }
+test("authoritative loadout only allows owned and persisted slot-four Wonders",()=>{
+  for(const id of ["wonder_cluster",RIOT_SHIELD_ID]){
+    const player={xp:0,weaponUnlocks:[],wonderUnlocks:[{weaponId:id}],
+      loadout:{secondaryWeapon:"pistol_side",primaryReticle:"classic",secondaryReticle:"classic",
+        primaryCharm:"none",secondaryCharm:"none",wonderWeaponId:id}};
+    const request:any={weaponId:"rifle_ar",wonderWeaponId:id,perkId:"wonder_weapon",
+      secondaryWeaponId:id,attachments:{}};
+    const kit=resolveMatchLoadout(player,request);
+    expect(kit.weaponId).toBe("rifle_ar");expect(kit.wonderWeaponId).toBe(id);
+    expect(kit.secondaryWeaponId).toBe("pistol_side");
+    expect(resolveMatchLoadout({...player,wonderUnlocks:[]},request).wonderWeaponId).toBeUndefined();
+    expect(resolveMatchLoadout(player,{...request,perkId:"battle_hardened"}).wonderWeaponId).toBeUndefined();
+  }
 });
+
 test("Deadlock tagged bullets hit the shield while flame cones bypass it",()=>{
- const e:any=Object.create(FPSEngine.prototype);
+ const e:any=makeEngineStub();
  const victim:any={...carrier,id:"target",pos:[0,0,8],yaw:Math.PI,alive:true,team:"blue",health:100};
  Object.assign(e,{opts:{mode:"tdm",team:"red"},selfId:"self",combatants:new Map([[victim.id,victim]]),
   smartTags:new Map([[victim.id,performance.now()+4500]]),eff:{damage:25,range:30},localBurning:new Map(),
@@ -158,12 +167,13 @@ test("Deadlock tagged bullets hit the shield while flame cones bypass it",()=>{
 });
 
 test("death does not freeze cluster timers or leave a shield on the death camera",()=>{
- const e:any=Object.create(FPSEngine.prototype);let ticks=0;
+ const e:any=makeEngineStub();let ticks=0;
  Object.assign(e,{opts:{mode:"ffa",online:false},pos:new THREE.Vector3(),camera:new THREE.PerspectiveCamera(),yaw:0,pitch:0,
   alive:false,matchEnded:false,lobbyActive:false,preMatchCountdown:0,elapsedSeconds:0,timeLeft:0,
   riotShieldModel:new THREE.Group(),riotShieldHp:250,weaponId:RIOT_SHIELD_ID,aiming:false,combatants:new Map(),
   vmParts:[],tracers:[],projectiles:[],respawnAt:performance.now()+5000,lastHudAt:performance.now(),
   tickDeathBombs(){},tickBulletSpitters(){},animateOrbitalReactor(){},tickOrbitalPickup(){},
+  updateWonderWorld(){}, // World-effect rendering is unrelated to this death-state regression.
   tickOfflineMines(){},pulseMineBeacons(){},updateEnvironment(){},tickGravityWells(){},
   tickClusterVolleys(){ticks++;},updateCombatantMeshes(){}});
  e.update(.05);expect(ticks).toBe(1);expect(e.riotShieldModel.visible).toBe(false);

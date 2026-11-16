@@ -1,7 +1,71 @@
 /** Client-only onboarding state. Each guest/account keeps its own checkpoint. */
+import type { GameMode } from "./game-protocol";
+
+// The PvP briefing must cover every GameMode except Survival. Keep this
+// exhaustive when a new mode is added; tests also compare with the catalog.
+export type CompetitiveModeId = Exclude<GameMode, "survival">;
+export const COMPETITIVE_MODE_IDS = ["ffa", "tdm", "gungame", "killconfirmed", "ctf"] as const satisfies readonly CompetitiveModeId[];
+export const COMPETITIVE_MODE_GUIDES = {
+  ffa: {
+    label: "Free-For-All",
+    objective: "Every operative fights for themselves. Reach the kill limit first, or finish with the most kills when time runs out.",
+    tip: "There are no teammates — check every angle and pick your fights.",
+  },
+  tdm: {
+    label: "Team Deathmatch",
+    objective: "Red versus Blue. Every elimination adds to your team's score; the first team to the kill limit wins.",
+    tip: "Stay near your squad and cover each other's approaches.",
+  },
+  gungame: {
+    label: "Gun Game",
+    objective: "Each kill advances you to a new weapon. Work through the full rotation and score a kill with the final melee weapon to win.",
+    tip: "Adapt your distance and positioning as your weapon changes.",
+  },
+  killconfirmed: {
+    label: "Kill Confirmed",
+    objective: "Eliminated players drop dog tags. Collect enemy tags to score and recover friendly tags to stop opponents scoring.",
+    tip: "Guard teammates collecting tags; a kill alone does not confirm the point.",
+  },
+  ctf: {
+    label: "Capture the Flag",
+    objective: "Steal the enemy flag and bring it to your base while your own flag is home. The team with the required captures wins.",
+    tip: "Escort your carrier, defend your flag and return it when stolen.",
+  },
+} as const satisfies Record<CompetitiveModeId, { label: string; objective: string; tip: string }>;
+
+
 export const TUTORIAL_VERSION = 1;
-export const TUTORIAL_PHASES = ["welcome", "practice", "loadout", "modes", "ready"] as const;
+export const TUTORIAL_PHASES = ["welcome", "practice", "loadout", "ballistics", "modes", "progression", "ready"] as const;
 export type TutorialPhase = typeof TUTORIAL_PHASES[number];
+
+/** Shared chapter catalog drives both the full guide and live-practice picker.
+ * New players can follow the sequence; returning players can skip to any topic.
+ */
+export const TUTORIAL_CHAPTERS: readonly {
+  id: TutorialPhase; label: string; description: string;
+}[] = [
+  {id:"welcome",label:"Overview",description:"Where to begin"},
+  {id:"practice",label:"Controls",description:"Live firing drills"},
+  {id:"loadout",label:"Equipment",description:"Weapons and loadouts"},
+  {id:"ballistics",label:"Penetration",description:"Bullets and materials"},
+  {id:"modes",label:"Game modes",description:"Rules and objectives"},
+  {id:"progression",label:"Progression",description:"Ranks, mastery and rewards"},
+  {id:"ready",label:"Quick start",description:"Where to play next"},
+];
+
+/** Optional one-shot deep link from the Armory to a specific guide chapter. */
+const TUTORIAL_REQUEST_KEY="vanguard_tutorial_chapter";
+export function requestTutorialChapter(phase:TutorialPhase):void {
+  try { sessionStorage.setItem(TUTORIAL_REQUEST_KEY,phase); } catch {}
+}
+export function consumeTutorialChapter():TutorialPhase|null {
+  try {
+    const value=sessionStorage.getItem(TUTORIAL_REQUEST_KEY);
+    sessionStorage.removeItem(TUTORIAL_REQUEST_KEY);
+    return TUTORIAL_PHASES.includes(value as TutorialPhase)?value as TutorialPhase:null;
+  }catch { return null; }
+}
+
 export interface TutorialProgress {
   version: typeof TUTORIAL_VERSION;
   status: "in_progress" | "completed" | "skipped";
@@ -14,6 +78,7 @@ export const PRACTICE_TASKS = [
   { title: "Eliminate a target", desktop: "Face the targets down the lane. Left-click to fire until one falls.", touch: "Face the targets down the lane. Hold Fire until one falls." },
   { title: "Reload your weapon", desktop: "Press R and let the reload finish. Fire a shot first if the magazine is full.", touch: "Tap Reload and let it finish. Fire a shot first if the magazine is full." },
   { title: "Switch weapons", desktop: "Press 2 for your sidearm, 3 for melee, or Q to quick-swap. F performs a quick melee attack.", touch: "Tap slot 2 for your sidearm or 3 for melee. The knife button performs a quick melee attack." },
+  { title: "Throw a frag grenade", desktop: "Press G to throw a Frag Grenade downrange. You start with two per life; keep clear of the blast.", touch: "Tap Tactical to throw a Frag Grenade downrange. You start with two per life; keep clear of the blast." },
 ] as const;
 
 export function newTutorialProgress(): TutorialProgress {
@@ -53,7 +118,7 @@ export function shouldOfferTutorial(profile: { xp: number; matchesPlayed: number
 /** These are real simulation observations, shared by keyboard and touch input. */
 export interface PracticeSample {
   x: number; z: number; aiming: boolean; kills: number;
-  ammo: number; reloading: boolean; weaponId: string;
+  ammo: number; reloading: boolean; weaponId: string; equipmentCharges?: number;
 }
 export interface PracticeState {
   step: number;
@@ -80,6 +145,8 @@ export function advancePractice(state: PracticeState, sample: PracticeSample): P
         previous.weaponId === sample.weaponId && sample.ammo > previous.ammo;
       break;
     case 4: completed = !!previous && sample.weaponId !== previous.weaponId; break;
+    case 5: completed = previous?.equipmentCharges !== undefined && sample.equipmentCharges !== undefined &&
+      sample.equipmentCharges < previous.equipmentCharges; break;
   }
   return { step: state.step + (completed ? 1 : 0), distance, last: sample };
 }

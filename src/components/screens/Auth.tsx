@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
 import { useGame } from "@/lib/game-store";
-import { Crosshair, Mail, Lock, User, LogIn, UserPlus, Eye, EyeOff, ChevronRight } from "lucide-react";
+import { Mail, Lock, User, LogIn, UserPlus, Eye, EyeOff, ChevronRight } from "lucide-react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -69,10 +70,7 @@ export function Auth() {
           {/* logo */}
           <div className="text-center mb-7">
             <div className="inline-flex items-center gap-2.5 mb-3">
-              <div className="relative w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-rose-600 flex items-center justify-center shadow-lg shadow-amber-900/40">
-                <Crosshair className="w-7 h-7 text-white" />
-                <div className="absolute inset-0 rounded-xl ring-1 ring-white/20" />
-              </div>
+              <Image src="/logo.svg" alt="Vanguard Ops emblem" width={48} height={48} priority className="w-12 h-12 drop-shadow-[0_8px_20px_rgba(245,158,11,0.25)]" />
             </div>
             <h1 className="text-3xl font-black tracking-[0.25em] text-white">VANGUARD</h1>
             <p className="text-[11px] tracking-[0.5em] text-amber-400/80 mt-1">OPS · CLASSIFIED</p>
@@ -160,7 +158,7 @@ export function Auth() {
       </main>
 
       <footer className="relative border-t border-white/10 py-3 text-center text-[11px] text-white/30">
-        VANGUARD OPS · Browser FPS · Secure credentials auth
+        VANGUARD OPS · Secure credentials auth
       </footer>
     </div>
   );

@@ -1,4 +1,10 @@
 import { CTF_LAYOUTS } from "./ctf-layouts";
+import {EQUIPMENT} from "./equipment";
+import {PERKS} from "./perks";
+import {PERKS_SCHEMA,EQUIPMENT_SCHEMA} from "./loadout-contract";
+import {
+  CATALOG_SCHEMAS,category,slot,id,label,num,pos,cssColor,
+} from "./catalog-contract";
 /**
  * Build-time content validation. Safe to import from Bun tests or scripts;
  * game startup deliberately does not run schemas on every frame.
@@ -7,7 +13,6 @@ import { CTF_LAYOUTS } from "./ctf-layouts";
  * docs/content-authoring.md and with the public types in game-data.ts.
  */
 import { z } from "zod";
-import { MAX_PLAYER_LEVEL } from "./progression";
 import {
   WEAPONS, ATTACHMENTS, WEAPON_SKINS, PLAYER_SKINS, WEAPON_CHALLENGES,
   WEAPON_ATTACHMENT_COMPAT, CATEGORY_ATTACHMENT_CHOICES, SIGHT_DEFS,
@@ -16,96 +21,9 @@ import {
   ACHIEVEMENT_TIER_COLORS,
 } from "./game-data";
 import { MAP_BLUEPRINTS, validateBlueprint } from "./map-blueprints";
-import { MAP_VISUAL_THEMES } from "./map-visuals";
-
-const id = z.string().regex(/^[a-z][a-z0-9_:-]*$/);
-const label = z.string().min(1);
-const num = z.number().finite();
-const count = num.int().nonnegative();
-const pos = num.positive();
-const unit = num.min(0).max(1);
-const category = z.enum(["assault", "smg", "shotgun", "dmr", "sniper", "lmg", "pistol", "pdw", "launcher", "melee"]);
-const slot = z.enum(["sight", "barrel", "grip", "magazine"]);
-const rarity = z.enum(["common", "rare", "epic", "legendary"]);
-const weaponSkinRarity = z.enum(["common", "rare", "epic", "legendary", "prestige"]);
-const cssColor = z.string().regex(/^#[0-9a-fA-F]{6}$/);
-
-const stats = z.object({
-  damage: num.nonnegative(), fireRate: pos, magSize: pos, reloadTime: num.nonnegative(),
-  spread: num.nonnegative(), adsSpread: num.nonnegative(), recoil: num.nonnegative(),
-  range: pos, adsTime: num.nonnegative(), moveSpeed: pos, auto: z.boolean(),
-  headshotMult: pos, falloffEndMultiplier: pos.optional(),
-  minDamageMultiplier: unit.optional(), burst: pos.int().optional(),
-  pellets: pos.int().optional(), reloadStyle: z.literal("incremental").optional(),
-  reloadPerRound: pos.optional(),
-});
-const heat = z.object({
-  kind: z.literal("heat"), heatPerShot: pos, coolPerSecond: pos, coolDelayMs: count,
-  overheatAt: pos, resumeAt: num.nonnegative(), ventSeconds: pos,
-});
-const arc = z.object({ kind: z.literal("arc"), jumps: pos.int(), radius: pos, decay: unit });
-const bolt = z.object({
-  kind: z.literal("bolt"), pickupRadius: pos, lifetimeMs: pos, quickReloadSeconds: pos,
-});
-const weapon = z.object({
-  id, name: label, description: label, category,
-  unlockLevel: pos.int().max(MAX_PLAYER_LEVEL), unlockCost: count,
-  stats, disabled: z.boolean().optional(), attachments: z.array(slot).optional(), baseSightType: z.string().optional(),
-  explosive: z.object({ radius: pos }).optional(),
-  special: z.discriminatedUnion("kind", [heat, arc, bolt]).optional(),
-  wonder: z.object({
-    kind: z.enum(["singularity", "corrosion", "turret", "smart", "flame", "storm", "sludge", "cluster", "shield"]),
-    maxCharges: z.number().int().min(1).max(8),
-    rechargeMs: pos, killBonusMs: count, radius: num.nonnegative(),
-  }).optional(),
-});
-const attachment = z.object({
-  id, name: label, description: label, slot, unlockLevel: pos.int().max(MAX_PLAYER_LEVEL),
-  unlockCost: count, exclusiveWeaponIds: z.array(id).optional(),
-  weaponCategories: z.array(category).optional(), recommendedFor: z.array(category).optional(),
-  sightType: z.string().optional(),
-  shotgunAmmo: z.enum(["slug","pellets","dragons_breath","beanbag"]).optional(),
-  effects: z.object({
-    damage: num.optional(), recoil: num.optional(), spread: num.optional(),
-    adsSpread: num.optional(), adsTime: num.optional(), magSize: num.optional(),
-    reloadTime: num.optional(), moveSpeed: num.optional(), range: num.optional(),
-  }),
-});
-const skin = z.object({
-  id, name: label, unlockLevel: pos.int().max(MAX_PLAYER_LEVEL), unlockCost: count, rarity: weaponSkinRarity,
-  tier: z.enum(["standard", "rare", "legendary"]), artBrief: label, color: cssColor,
-  metalness: unit, roughness: unit, emissive: cssColor.optional(),
-  emissiveIntensity: num.nonnegative().optional(),
-  prestige: z.enum(["cosmic", "toxic"]).optional(), shopCurrency: z.enum(["credits", "career"]).optional(),
-});
-const operator = z.object({
-  id, name: label, unlockLevel: pos.int().max(MAX_PLAYER_LEVEL), unlockCost: count, rarity,
-  color: cssColor, accent: cssColor, emissive: cssColor.optional(), shopCurrency: z.enum(["credits", "career"]).optional(),
-});
-const challenge = z.object({
-  id, weaponId: id, skinId: id, goal: pos,
-  metric: z.string().min(1), title: label, description: label,
-  requirements: z.array(z.object({ metric: label, goal: pos })).optional(),
-});
-const rotatingChallenge = z.object({
-  id, metric: label, goal: pos, rewardXp: count, rewardCredits: count,
-  title: label, description: label, icon: label,
-  category: z.enum(["daily", "weekly", "elite"]).optional(),
-});
-const achievement = z.object({
-  id, metric: label, goal: pos, rewardXp: count, rewardCredits: count,
-  title: label, description: label, icon: label,
-  tier: z.enum(["bronze", "silver", "gold", "platinum"]),
-  category: z.enum(["pvp", "pve", "career", "mastery"]),
-  series: id,
-  seriesTier: pos.int(),
-  rewardTitle: label.optional(),
-});
-const sight = z.object({
-  type: label, name: label, zoom: pos, reticle: label,
-  adsFovReduction: num, adsSensMul: pos, description: label,
-  overlay: z.string().optional(),
-});
+import {MAP_DOCUMENTS,validateMapDocument} from "./map-documents";
+import {MAPS} from "./game-protocol";
+import {validateObjectives} from "./map-objectives";
 
 export interface ContentValidationInput {
   weapons?: unknown;
@@ -140,24 +58,28 @@ export function validateGameContent(overrides: ContentValidationInput = {}): str
       found.add(entry.id);
     }
   }
+  check("perks", PERKS, PERKS_SCHEMA);
+  check("equipment", EQUIPMENT, EQUIPMENT_SCHEMA);
+  unique("perks", PERKS);
+  unique("equipment", EQUIPMENT);
   const arrays: [string, unknown, z.ZodTypeAny][] = [
-    ["weapons", w, z.array(weapon)],
-    ["attachments", a, z.array(attachment)],
-    ["weapon skins", sk, z.array(skin)],
-    ["operator skins", op, z.array(operator)],
-    ["weapon challenges", ch, z.array(challenge)],
-    ["daily challenges", DAILY_CHALLENGE_POOL, z.array(rotatingChallenge)],
-    ["weekly challenges", WEEKLY_CHALLENGE_POOL, z.array(rotatingChallenge)],
-    ["elite quests (legacy)", ELITE_QUESTS, z.array(rotatingChallenge)],
-    ["achievements", achievements, z.array(achievement)],
-    ["ranks", RANKS, z.array(z.object({level:pos.int(),name:label,shortName:label,color:cssColor,insignia:label}))],
-    ["killstreak callouts", KILLSTREAK_CALLOUTS, z.array(z.object({threshold:pos.int(),label,icon:label,color:cssColor}))],
+    ["weapons", w, CATALOG_SCHEMAS["weapons"]],
+    ["attachments", a, CATALOG_SCHEMAS["attachments"]],
+    ["weapon skins", sk, CATALOG_SCHEMAS["weapon-skins"]],
+    ["operator skins", op, CATALOG_SCHEMAS["operator-skins"]],
+    ["weapon challenges", ch, CATALOG_SCHEMAS["weapon-challenges"]],
+    ["daily challenges", DAILY_CHALLENGE_POOL, CATALOG_SCHEMAS["daily-challenges"]],
+    ["weekly challenges", WEEKLY_CHALLENGE_POOL, CATALOG_SCHEMAS["weekly-challenges"]],
+    ["elite quests (legacy)", ELITE_QUESTS, CATALOG_SCHEMAS["elite-quests"]],
+    ["achievements", achievements, CATALOG_SCHEMAS["achievements"]],
+    ["ranks", RANKS, CATALOG_SCHEMAS.ranks],
+    ["killstreak callouts", KILLSTREAK_CALLOUTS, CATALOG_SCHEMAS["killstreak-callouts"]],
   ];
   for (const [name, value, schema] of arrays) {
     check(name, value, schema);
     unique(name, value);
   }
-  const parsedAchievements = z.array(achievement).safeParse(achievements);
+  const parsedAchievements = CATALOG_SCHEMAS.achievements.safeParse(achievements);
   if (parsedAchievements.success) {
     const tiers = new Set<string>();
     for (const entry of parsedAchievements.data) {
@@ -168,16 +90,12 @@ export function validateGameContent(overrides: ContentValidationInput = {}): str
         issues.push(`achievements: ${entry.id} grants a title before the final series tier`);
     }
   }
-  check("sight definitions", SIGHT_DEFS, z.record(z.string(), sight));
-  check("attachment compatibility", WEAPON_ATTACHMENT_COMPAT, z.record(z.string(), z.record(z.string(), z.array(id))));
-  check("category attachment choices", CATEGORY_ATTACHMENT_CHOICES, z.record(z.string(), z.record(z.string(), z.array(id))));
-  check("reward constants", REWARDS, z.record(z.string(), num));
-  check("achievement tier colors", ACHIEVEMENT_TIER_COLORS, z.record(z.string(), cssColor));
-  check("match modes", MATCH_MODES, z.record(z.string(), z.object({
-    id:label,label,description:label,icon:label,defaultScoreLimit:count,
-    scoreOptions:z.array(count),defaultTimeLimit:count,timeOptions:z.array(count),
-    teamBased:z.boolean(),accentColor:cssColor,
-  })));
+  check("sight definitions", SIGHT_DEFS, CATALOG_SCHEMAS["sight-definitions"]);
+  check("attachment compatibility", WEAPON_ATTACHMENT_COMPAT, CATALOG_SCHEMAS["attachment-compatibility"]);
+  check("category attachment choices", CATEGORY_ATTACHMENT_CHOICES, CATALOG_SCHEMAS["category-attachments"]);
+  check("reward constants", REWARDS, CATALOG_SCHEMAS.rewards);
+  check("achievement tier colors", ACHIEVEMENT_TIER_COLORS, CATALOG_SCHEMAS["achievement-colors"]);
+  check("match modes", MATCH_MODES, CATALOG_SCHEMAS["match-modes"]);
 
   if (Array.isArray(w) && Array.isArray(a) && Array.isArray(sk) && Array.isArray(ch)) {
     const weaponIds = new Set(w.map(v => v?.id));
@@ -215,48 +133,51 @@ export function validateGameContent(overrides: ContentValidationInput = {}): str
   if (Array.isArray(w)) for (const item of w) {
     if (item?.baseSightType && !(item.baseSightType in SIGHT_DEFS))
       issues.push("weapon " + item.id + ": unknown baseSightType " + item.baseSightType);
-    if (item?.category === "launcher" && !(typeof item?.explosive?.radius === "number" && item.explosive.radius > 0))
+    if (item?.category === "launcher" && item?.wonder?.kind !== "ricochet" && !(typeof item?.explosive?.radius === "number" && item.explosive.radius > 0))
       issues.push("weapon " + item.id + ": launcher requires a positive explosive radius");
     if (item?.category !== "launcher" && item?.explosive)
       issues.push("weapon " + item.id + ": non-launcher cannot declare explosive radius");
   }
-  if (Array.isArray(a)) for (const item of a)
+  if (Array.isArray(a)) for (const item of a) {
     if (item?.sightType && !(item.sightType in SIGHT_DEFS))
       issues.push("attachment " + item.id + ": unknown sightType " + item.sightType);
+    if (item?.bodyPenetration) {
+      const boltHead = item.slot === "barrel" && !!item.exclusiveWeaponIds?.length &&
+        item.exclusiveWeaponIds.every(weaponId =>
+          Array.isArray(w) && w.some(entry => entry?.id === weaponId && entry.special?.kind === "bolt"));
+      if ((item.slot !== "magazine" && !boltHead) || !item.exclusiveWeaponIds?.length)
+        issues.push("attachment " + item.id + ": penetrating projectiles require magazine ammunition or a bolt-weapon barrel and explicit weapon whitelist");
+      for (const weaponId of item.exclusiveWeaponIds ?? []) {
+        const supported = Array.isArray(w) ? w.find(entry => entry?.id === weaponId) : undefined;
+        if (!supported) issues.push("attachment " + item.id + ": unknown eligible weapon " + weaponId);
+        else if (supported.category === "melee" || supported.category === "shotgun" ||
+                 supported.category === "launcher" || supported.wonder || supported.explosive ||
+                 (supported.special && !(boltHead && supported.special.kind === "bolt")))
+          issues.push("attachment " + item.id + ": unsupported projectile type for " + weaponId);
+        else {
+          const choices = WEAPON_ATTACHMENT_COMPAT[weaponId]?.[item.slot as "magazine"|"barrel"] ??
+            CATEGORY_ATTACHMENT_CHOICES[supported.category as keyof typeof CATEGORY_ATTACHMENT_CHOICES]?.[item.slot as "magazine"|"barrel"] ?? [];
+          if (!choices.includes(item.id))
+            issues.push("attachment " + item.id + ": missing " + item.slot + " compatibility for " + weaponId);
+        }
+      }
+    }
+  }
 
-  // Every shipped biome has a separate JSON palette and prop library.
-  // Validate those files as well as walkable geometry, not just map metadata.
-  const themeSchema=z.object({
-    biome:label,label,ambient:pos,vegetation:unit,
-    surfaces:z.record(
-      z.enum(["floor","wall","cover","stair","platform"]),
-      z.object({
-        pattern:z.enum(["concrete","metal","grate","planks","rust","moss","brick","stone","pavers","snow","asphalt","grass"]),tileSize:pos.max(100),roughness:unit,
-      }).strict(),
-    ).refine(s=>["floor","wall","cover","stair","platform"].every(k=>k in s),
-      "Every map requires floor/wall/cover/stair/platform surface recipes").optional(),
-    palette:z.object({
-      floor:cssColor,wall:cssColor,cover:cssColor,accent:cssColor,
-      platform:cssColor,stair:cssColor,sky:cssColor,fog:cssColor,grid:cssColor,
-    }),
-    props:z.array(z.object({
-      kind:z.enum(["tree","bush","rock","ruin","temple","shop","lamp","container",
-        "crane","terminal","sign","antenna","building","boat","dock","garden","bench","bandstand",
-        "furnace","conveyor","hydraulic_press","generator","storage_rack","vent_stack",
-        "industrial_pipe","steel_coil","cargo_pallet"]),
-      x:num,z:num,y:num.optional(),w:pos.optional(),d:pos.optional(),h:pos.optional(),text:label.optional(),color:cssColor.optional(),
-    })),
-  });
-  for(const [mapId,theme] of Object.entries(MAP_VISUAL_THEMES))
-    check("visual theme "+mapId,theme,themeSchema);
+  // validateMapDocument() checks each published theme with the SAME contract
+  // that Map Studio imports use. Do not define a second prop/type whitelist here.
     if (MAP_BLUEPRINTS.version !== 1) issues.push("map blueprints: unsupported version");
   if (!Object.keys(MAP_BLUEPRINTS.maps).length) issues.push("map blueprints: no maps");
   for (const [mapId, bp] of Object.entries(MAP_BLUEPRINTS.maps)) {
+    for(const problem of validateMapDocument(MAP_DOCUMENTS[mapId]))issues.push("map document "+mapId+": "+problem);
     if (!id.safeParse(mapId).success) issues.push("map " + mapId + ": invalid ID");
     for (const problem of validateBlueprint(bp)) issues.push("map " + mapId + ": " + problem);
     if (bp.templateMapId && !(bp.templateMapId in MAP_BLUEPRINTS.maps))
       issues.push("map " + mapId + ": unknown base template " + bp.templateMapId);
   }
+  for(const [mapId,map] of Object.entries(MAPS))
+    for(const problem of validateObjectives(map))issues.push("runtime map "+mapId+": "+problem);
+
   for(const [mapId,layout] of Object.entries(CTF_LAYOUTS)) {
     const bp=MAP_BLUEPRINTS.maps[mapId];
     if(!bp)issues.push("CTF layout: unknown map "+mapId);

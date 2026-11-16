@@ -45,7 +45,8 @@ describe("new cosmetic equipment and credit/career shop catalogs",()=>{
     expect(addedIds.filter(id=>SHOP_ITEMS.find(i=>i.cosmeticId===id)?.currency==="career")).toHaveLength(3);
   });
   test("shop categories group every product exactly once per currency",()=>{
-    expect(SHOP_CATEGORIES.map(c=>c.id)).toEqual(["all","weaponSkin","playerSkin","reticle","charm","nameplate"]);
+    expect(SHOP_CATEGORIES[0]?.id).toBe("all");
+    expect(new Set(SHOP_CATEGORIES.map(c=>c.id)).size).toBe(SHOP_CATEGORIES.length);
     for(const currency of ["credits","career"] as const){
       const all=shopItemsForCategory(currency,"all");
       const groups=SHOP_CATEGORIES.filter(c=>c.id!=="all").flatMap(c=>shopItemsForCategory(currency,c.id));

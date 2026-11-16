@@ -32,6 +32,17 @@ describe("true sight magnification", () => {
       expect(acog).toBeGreaterThan(thermal);
     }
   });
+  test("1x reflex optics still use non-optical camera ADS framing", () => {
+    for(const type of ["red_dot","holo"] as const){
+      const fov=adsFieldOfView(75,SIGHT_DEFS[type]);
+      const apparent=Math.tan(75*Math.PI/360)/Math.tan(fov*Math.PI/360);
+      expect(SIGHT_DEFS[type].zoom).toBe(1);
+      expect(fov).toBe(51);
+      expect(apparent).toBeGreaterThan(1.6);
+      expect(apparent).toBeLessThan(1.7);
+    }
+    expect(sightDefForAttachments({sight:"sight_compact_reflex"}).type).toBe("red_dot");
+  });
   test("1x iron and red dot maintain existing ADS framing", () => {
     expect(adsFieldOfView(75, SIGHT_DEFS.iron)).toBe(75 - SIGHT_DEFS.iron.adsFovReduction);
     expect(adsFieldOfView(75, SIGHT_DEFS.red_dot)).toBe(75 - SIGHT_DEFS.red_dot.adsFovReduction);

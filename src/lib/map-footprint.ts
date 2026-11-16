@@ -5,13 +5,16 @@
  * physics, network and radar coordinates.
  */
 import type { MapDef, MapId, Vec3, EnvironmentObject } from "./game-protocol";
-import { MAP_BLUEPRINTS, featureBoxes, regionBoundary, authoredHazardEnvironment, compileVisibleLegacyBoxes, type MapBlueprint } from "./map-blueprints";
+import { MAP_BLUEPRINTS, featureBoxes, regionBoundary, authoredHazardEnvironment, compileVisibleLegacyBoxes, resolveStairAttachments, type MapBlueprint } from "./map-blueprints";
 import { visualThemeForMap, paletteToGameTheme, mapProps, propColliders, type MapVisualTheme } from "./map-visuals";
 import { detectLegacyStairFlights } from "./legacy-stair-flights";
 import { expandCitySpawnPositions } from "./city-spawn-layout";
 
+import {legacyObjectiveMap} from "./map-objectives";
+
 export type MapPace = "compact" | "balanced" | "tactical";
 export const MAP_FOOTPRINT: Record<MapId, { scale: number; pace: MapPace; description: string }> = {
+  emberhold: {scale:1,pace:"balanced",description:"A stone keep with four crossings over a lethal lava moat"},
   whiteout_depot: {scale:1,pace:"balanced",description:"Snowbound freight sheds, covered rail platforms and a sheltered service gallery"},
   floodgate: {scale:1,pace:"tactical",description:"16v16 CTF · covered turbine hall, spillway pressure purges and maintenance-yard flanks"},
   orbital_nexus: {scale:1,pace:"balanced",description:"Mirrored flag vaults, reactor deck, jet launch pads and three assault lanes"},
@@ -33,10 +36,16 @@ function scaleEnvironment(o:EnvironmentObject,s:number):EnvironmentObject {
 export function applyMapFootprint(base:MapDef,draft?:{blueprint:MapBlueprint;theme:MapVisualTheme}):MapDef {
   const factor=MAP_FOOTPRINT[base.id]?.scale ?? 1;
   // Re-entrant use (including old test fixtures) should not stamp districts twice.
-  const plan=draft?.blueprint??((!base.regions?.length && base.size>=40)?MAP_BLUEPRINTS.maps[base.id]:null);
+  const sourcePlan=draft?.blueprint??((!base.regions?.length && base.size>=40)?MAP_BLUEPRINTS.maps[base.id]:null);
+  const plan=sourcePlan?{...sourcePlan,features:resolveStairAttachments(sourcePlan.features)}:null;
   const environment=(base.id==="arena_neon"||base.id==="terminal"||base.id==="skybridge"?[]:base.environment??[]).map(o=>scaleEnvironment(o,factor));
   const scaledBase:MapDef={
-    ...base,size:Math.round(base.size*factor*1000)/1000,
+    ...base,
+    modeSpawns:plan?.modeSpawns?structuredClone(plan.modeSpawns):base.modeSpawns,
+    objectives:structuredClone(plan?.objectives??base.objectives??legacyObjectiveMap(base.id).objectives??[]),
+    modes:[...(plan?.modes??base.modes??legacyObjectiveMap(base.id).modes??["ffa","tdm","survival","gungame","killconfirmed"])],
+    gravityScale:plan?.gravityScale??base.gravityScale??legacyObjectiveMap(base.id).gravityScale??1,
+    size:Math.round(base.size*factor*1000)/1000,
     // Old maps included a full rectangular perimeter. Leaving these walls
     // behind turns the new outdoor districts into inaccessible rings.
     // Region-union walls replace these, without blocking core-to-flank travel.
@@ -76,13 +85,19 @@ export function applyMapFootprint(base:MapDef,draft?:{blueprint:MapBlueprint;the
   const allSpawns=[...activeLegacySpawns.ffa,...activeLegacySpawns.red,...activeLegacySpawns.blue,
     ...plan.spawns.ffa,...plan.spawns.red,...plan.spawns.blue];
   const props=mapProps(base.id,plan,visuals,allSpawns);
+  // A spawn on the top face of a platform is supported by it.
   const obstructsSpawn=(c:import("./game-protocol").CoverBox)=>allSpawns.some(p=>
     Math.abs(p[0]-c.pos[0]) < c.size[0]+1.25 &&
     Math.abs(p[2]-c.pos[2]) < c.size[2]+1.25 &&
-    p[1]+1.8>c.pos[1]-c.size[1] && p[1]<c.pos[1]+c.size[1]+.3);
+    p[1]+1.8>c.pos[1]-c.size[1] && p[1]<c.pos[1]+c.size[1]+(c.kind==="platform"?0:.3));
   // Preserve all spawn choices. A cover island or its approach stairs must
   // not strand the surrounding playable district or spawn-kill a player.
-  const flankFeatures=plan.features.filter(f=>!featureBoxes(f).some(obstructsSpawn));
+  // Emberhold is a fully authored multi-level castle: a dungeon spawn must
+  // never erase its enclosing walls or any stair that connects floors.
+  // Other legacy maps still use the optional flank-prop spawn filter.
+  const flankFeatures=base.id==="emberhold"
+    ? plan.features
+    : plan.features.filter(f=>!featureBoxes(f).some(obstructsSpawn));
   const halfExtent=Math.max(...regions.flatMap(r=>[Math.abs(r.x)+r.w/2,Math.abs(r.z)+r.d/2]))+3;
   // Older inner-circle spawn sets remain as fallbacks; larger districts receive
   // many additional spawns so players do not endlessly recycle the center.
@@ -107,8 +122,13 @@ export function applyMapFootprint(base:MapDef,draft?:{blueprint:MapBlueprint;the
   // Detect flights before spatial overrides, so groups remain stable even when
   // a user modifies an individual tread's position or elevation.
   const editorLegacyStairFlights=detectLegacyStairFlights(legacyCoverSource);
+  // Existing tactical prefabs were historically untyped and silently behaved
+  // as concrete. Preserve their protective gameplay, but record the decision.
+  // New authored thin cover uses an explicit material and never relies on this.
   const legacyCover=compileVisibleLegacyBoxes(
-    legacyCoverSource,plan.legacyCoverDisabled,plan.legacyCoverOverrides);
+    legacyCoverSource,plan.legacyCoverDisabled,plan.legacyCoverOverrides)
+    .map(c=>(c.kind??"cover")==="cover"&&!c.material?
+      {...c,kind:"cover" as const,material:"reinforced" as const}:c);
   // Ridgefall replaces the old skybridge arena. The inherited breakable wall
   // at (0,-28) sat inside the new central staircase, could absorb shots and
   // was not a usable doorway. Keep only authored factory hazards instead.
@@ -118,13 +138,13 @@ export function applyMapFootprint(base:MapDef,draft?:{blueprint:MapBlueprint;the
   const legacyEnvironment=compileVisibleLegacyBoxes(
     legacyEnvironmentSource,plan.legacyEnvironmentDisabled,plan.legacyEnvironmentOverrides);
   const fullCover = [...legacyCover,...flankFeatures.flatMap(featureBoxes),
-    ...propColliders(props,allSpawns),
+    ...propColliders(props,allSpawns,flankFeatures),
     ...regionBoundary(regions,base.id==="shipyard"?1.2:base.id==="skybridge"?18:11)];
   const initialSpawns = { ffa:addSpawns("ffa"),red:addSpawns("red"),blue:addSpawns("blue") };
   const expandedSpawns = isAfterlight ? {
-    ffa: expandCitySpawnPositions(initialSpawns.ffa,regions,fullCover,32),
-    red: expandCitySpawnPositions(initialSpawns.red,regions,fullCover,16),
-    blue: expandCitySpawnPositions(initialSpawns.blue,regions,fullCover,16),
+    ffa: expandCitySpawnPositions(initialSpawns.ffa,regions,fullCover,32,props),
+    red: expandCitySpawnPositions(initialSpawns.red,regions,fullCover,16,props),
+    blue: expandCitySpawnPositions(initialSpawns.blue,regions,fullCover,16,props),
   } : initialSpawns;
   return {
     ...scaledBase,name:plan.name,shortName:plan.shortName,description:plan.description,

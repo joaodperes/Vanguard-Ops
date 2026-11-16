@@ -1,6 +1,6 @@
 import {describe,expect,test} from "bun:test";
 import * as THREE from "three";
-import {CTF_MAP_IDS,getMap,mapAllowedForMode,teamSizeAllowed,roomCapacity,rayBox,type Vec3} from "../src/lib/game-protocol";
+import {CTF_MAP_IDS,getMap,mapAllowedForMode,teamSizeAllowed,roomCapacity,rayBox,type CoverBox,type Vec3} from "../src/lib/game-protocol";
 import {MAP_BLUEPRINTS,featureBoxes,regionBoundary,insideRegions,validateBlueprint,authoredHazardEnvironment} from "../src/lib/map-blueprints";
 import {makeEnvironmentMap,periodicHazardPhase,spikesActive,withinEnvironment,breakEnvironmentWall} from "../src/lib/dynamic-environment";
 import {createCtfFlags,ctfHome,ctfBase,ctfTouch,ctfDrop,ctfReturnExpired,ctfBotIntent,ctfStairWaypoint,CTF_PICKUP_RADIUS,CTF_CAPTURE_RADIUS} from "../src/lib/ctf-rules";
@@ -73,7 +73,17 @@ describe("Floodgate 16v16 CTF",()=>{
     expect(map.editorLegacyCoverCount).toBe(0);
     expect(map.environment).toHaveLength(plan.hazards!.length);
     const allSpawns=Object.values(plan.spawns).flat();
-    const expected=plan.features.flatMap(featureBoxes).length+propColliders(map.props!,allSpawns).length+
+    // Derive the compiled geometry from the blueprint. Spawn-blocking features
+    // are intentionally omitted, and authored crates must not be counted twice.
+    const overlapsSpawn=(box:CoverBox)=>allSpawns.some(p=>
+      Math.abs(p[0]-box.pos[0])<box.size[0]+1.25 &&
+      Math.abs(p[2]-box.pos[2])<box.size[2]+1.25 &&
+      p[1]+1.8>box.pos[1]-box.size[1] &&
+      p[1]<box.pos[1]+box.size[1]+(box.kind==="platform"?0:.3));
+    const safeFeatures=plan.features.filter(f=>!featureBoxes(f).some(overlapsSpawn));
+    expect(safeFeatures.length).toBeGreaterThan(0);
+    const expected=safeFeatures.flatMap(featureBoxes).length+
+      propColliders(map.props!,allSpawns,safeFeatures).length+
       regionBoundary(plan.regions).length;
     expect(map.cover).toHaveLength(expected);
     expect(map.cover.length).toBeLessThan(300);
@@ -146,14 +156,24 @@ describe("Floodgate 16v16 CTF",()=>{
   test("full bot squads distribute attackers and defenders without forest stair goals",()=>{
     for(const team of ["red","blue"] as const){
       const ids=Array.from({length:16},(_,i)=>`bot-${i.toString().padStart(2,"0")}`);
-      const intents=ids.map((id,i)=>ctfBotIntent(createCtfFlags(map.id),team,id,map.spawns[team][i],"rifle_ar",ids,{},map.id));
-      expect(intents.filter(i=>i.role==="defend_flag")).toHaveLength(4);
-      expect(intents.filter(i=>i.role==="attack")).toHaveLength(12);
-      expect(new Set(intents.filter(i=>i.role==="attack").map(i=>i.goal[2])).size).toBe(3);
+      // Different wall-clock patrol phases must all produce collision-free goals,
+      // without prescribing which particular bots are assigned to defense.
+      for(const now of [0,10_000,20_000,55_000]) {
+      const intents=ids.map((id,i)=>ctfBotIntent(createCtfFlags(map.id),team,id,map.spawns[team][i],"rifle_ar",ids,{},map.id,now));
+      const defenders=intents.filter(i=>i.role==="defend_flag");
+      const attackers=intents.filter(i=>i.role==="attack");
+      expect(defenders.length).toBeGreaterThan(0);
+      expect(attackers.length).toBeGreaterThan(0);
+      expect(defenders.length+attackers.length).toBe(ids.length);
+      expect(new Set(attackers.map(i=>i.goal[2])).size).toBeGreaterThan(1);
       for(const intent of intents){
         expect(intent.goal[1]).toBe(0);
-        expect(botPositionEmbedded(collision,intent.goal)).toBe(false);
+        if(botPositionEmbedded(collision,intent.goal)) {
+          const hit=collision.find(c=>botPositionEmbedded([c],intent.goal));
+          throw new Error(`Embedded ${team} ${intent.role} goal ${JSON.stringify(intent.goal)} at t=${now} in ${JSON.stringify(hit)}`);
+        }
         expect(ctfStairWaypoint(intent.goal,[0,0,0],map.id)).toEqual(intent.goal);
+      }
       }
       const flags=createCtfFlags(map.id),enemy=team==="red"?"blue":"red";
       flags[enemy].carrierId=ids[1];

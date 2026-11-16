@@ -1,6 +1,9 @@
 "use client";
+import {formatCredits} from "@/lib/format-credits";
 import { useEffect, useState, useMemo } from "react";
 import { useGame } from "@/lib/game-store";
+import { EQUIPMENT, DEFAULT_EQUIPMENT, equipmentUnlocked, type EquipmentId } from "@/lib/equipment";
+import { weaponAvailability } from "@/lib/weapon-availability";
 import { weaponCategoryLabel } from "@/lib/display-labels";
 import { PERKS, DEFAULT_PERK_ID, perkById, perkUnlocked, type PerkId } from "@/lib/perks";
 import { WeaponStatsPreview, EMPTY_ATTACHMENTS, type AttachmentMap } from "./WeaponStatsPreview";
@@ -8,10 +11,12 @@ import {
   WEAPONS,
   weaponById,
   isPrimaryWeaponCategory,
+  isStandardMeleeWeapon,
   type WeaponCategory, type WeaponSlot, type WeaponDef,
 } from "@/lib/game-data";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Check, Coins, Save, Crosshair, Zap, Swords, ChevronDown, Package } from "lucide-react";
 import { toast } from "sonner";
 
@@ -42,19 +47,26 @@ interface LoadoutSelectorProps {
 }
 
 export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, children }: LoadoutSelectorProps) {
-  const { profile, refreshProfile, playerKey } = useGame();
+  const { profile, refreshProfile, setProfile, playerKey } = useGame();
   const [saving, setSaving] = useState(false);
+  const [purchasing, setPurchasing] = useState(false);
+  const [pendingPurchase, setPendingPurchase] = useState<{ weapon: WeaponDef; slot: WeaponSlot } | null>(null);
   const current = profile?.loadout ?? null;
   const level = profile?.level ?? 1;
   const [primary, setPrimary] = useState(current?.weapon.id ?? "rifle_ar");
   const [secondary, setSecondary] = useState(current?.secondary.id ?? "pistol_side");
   const [melee, setMelee] = useState(current?.melee.id ?? "knife_tactical");
+  const [equipmentId, setEquipmentId] = useState<EquipmentId>(current?.equipmentId ?? DEFAULT_EQUIPMENT);
   // Which slot's dropdown is currently open. Only one can be open at a time.
-  const [openSlot, setOpenSlot] = useState<WeaponSlot | "perk" | null>(null);
+  const [openSlot, setOpenSlot] = useState<WeaponSlot | "perk" | "equipment" | null>(null);
   const [perkId, setPerkId] = useState<PerkId>(DEFAULT_PERK_ID);
   const [savedPerk, setSavedPerk] = useState<PerkId>(DEFAULT_PERK_ID);
+  const [wonderWeaponId, setWonderWeaponId] = useState(current?.wonderWeaponId ?? "");
+  const [savedWonderWeaponId, setSavedWonderWeaponId] = useState(current?.wonderWeaponId ?? "");
   useEffect(() => { const selected = (current?.perkId ?? DEFAULT_PERK_ID) as PerkId; setPerkId(selected); setSavedPerk(selected); }, [current?.perkId]);
 
+  useEffect(() => { setEquipmentId(current?.equipmentId ?? DEFAULT_EQUIPMENT); }, [current?.equipmentId]);
+  useEffect(() => { setWonderWeaponId(current?.wonderWeaponId ?? ""); setSavedWonderWeaponId(current?.wonderWeaponId ?? ""); }, [current?.wonderWeaponId]);
   // Sync local state when the profile changes (e.g. after a save round-trip).
   // Hook is called unconditionally (before any early return) so React's
   // rules-of-hooks are satisfied.
@@ -90,7 +102,8 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
 
   const dirtyForPreset = !!current && (
     primary !== current.weapon.id || secondary !== current.secondary.id ||
-    melee !== current.melee.id || perkId !== savedPerk
+    melee !== current.melee.id || equipmentId !== current.equipmentId ||
+    perkId !== savedPerk || wonderWeaponId !== savedWonderWeaponId
   );
   useEffect(() => { onDirtyChange?.(dirtyForPreset); }, [dirtyForPreset, onDirtyChange]);
 
@@ -99,11 +112,60 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
   }
 
   const ownedForSlot = (slot: WeaponSlot): WeaponDef[] => {
-    if (slot === "primary") return WEAPONS.filter((w) => !w.disabled && PRIMARY_CATEGORIES.includes(w.category));
-    if (slot === "secondary") return WEAPONS.filter((w) =>
+    if (slot === "primary") return WEAPONS.filter((w) => !w.disabled && !w.wonder && PRIMARY_CATEGORIES.includes(w.category));
+    if (slot === "secondary") return WEAPONS.filter((w) => !w.disabled && !w.wonder && (
       ["pistol", "pdw", "launcher"].includes(w.category) || (perkId === "well_prepared" &&
-        isPrimaryWeaponCategory(w.category) && !w.wonder && w.id !== primary));
-    return WEAPONS.filter((w) => w.category === "melee");
+        isPrimaryWeaponCategory(w.category) && w.id !== primary)));
+    return WEAPONS.filter(isStandardMeleeWeapon);
+  };
+
+  // Unlock in the swap menu, then select the weapon in the draft loadout.
+  // Only Confirm Loadout actually equips it.
+  const selectWeapon = (slot: WeaponSlot, id: string) => {
+    if (slot === "primary") {
+      setPrimary(id);
+      if (id === secondary) setSecondary("pistol_side");
+    } else if (slot === "secondary") {
+      setSecondary(id);
+    } else {
+      setMelee(id);
+    }
+    setOpenSlot(null);
+  };
+
+  const confirmPurchase = async () => {
+    if (!pendingPurchase || purchasing) return;
+    const { weapon, slot } = pendingPurchase;
+    if (weaponAvailability(weapon, level, ownedWeaponIds) !== "purchasable") return;
+    if (profile.credits < weapon.unlockCost) return;
+
+    setPurchasing(true);
+    try {
+      const res = await fetch("/api/unlock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerKey, kind: "weapon", itemId: weapon.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error || "Weapon unlock failed");
+        return;
+      }
+      // Use the authoritative updated profile returned by the unlock API.
+      if (data.profile) setProfile(data.profile);
+      else await refreshProfile();
+      selectWeapon(slot, weapon.id);
+      setPendingPurchase(null);
+      toast.success(`Unlocked ${weapon.name}`, {
+        description: weapon.unlockCost
+          ? `-${formatCredits(weapon.unlockCost)} CR · Confirm your loadout to equip`
+          : "Confirm your loadout to equip",
+      });
+    } catch {
+      toast.error("Network error — weapon was not selected");
+    } finally {
+      setPurchasing(false);
+    }
   };
 
   // Has the user made unsaved changes?
@@ -111,11 +173,16 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
     primary !== current.weapon.id ||
     secondary !== current.secondary.id ||
     melee !== current.melee.id ||
-    perkId !== savedPerk
+    equipmentId !== current.equipmentId ||
+    perkId !== savedPerk || wonderWeaponId !== savedWonderWeaponId
   );
 
   const save = async () => {
+    if (perkId === "wonder_weapon" && !profile.prestige.wonderWeapons.includes(wonderWeaponId)) {
+      toast.error("Unlock and select a Wonder Weapon first"); return;
+    }
     if (!perkUnlocked(perkId, level)) { toast.error(`Unlock this perk at level ${perkById(perkId).unlockLevel}`); return; }
+    if (!equipmentUnlocked(equipmentId, level)) { toast.error("Tactical equipment is locked"); return; }
     setSaving(true);
     const validSecondary = perkId === "well_prepared" || !isPrimaryWeaponCategory(weaponById(secondary).category);
     const savedSecondary = validSecondary && secondary !== primary ? secondary : "pistol_side";
@@ -128,11 +195,14 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
           primaryWeapon: primary,
           secondaryWeapon: savedSecondary,
           perkId,
+          wonderWeaponId,
           meleeWeapon: melee,
+          equipmentId,
         }),
       });
       if (res.ok) {
         setSavedPerk(perkId);
+        setSavedWonderWeaponId(wonderWeaponId);
         toast.success("Loadout confirmed");
         await refreshProfile();
         onSaved?.();
@@ -154,34 +224,36 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
           <Crosshair className="w-4 h-4 text-amber-400" />
           <h2 className="text-white font-bold tracking-wider uppercase text-sm">Current Loadout</h2>
           <span className="text-white/40 text-xs hidden sm:inline">
-            Pick your Primary, Secondary, and Melee weapons. Customize attachments &amp; skins per weapon below.
+            Choose Primary, Secondary, Melee, Tactical and Perk. Tactical stock refills on respawn; Tactician also regenerates spent charges.
           </span>
         </div>
         <Button
           onClick={save}
-          disabled={saving || !dirty}
+          disabled={saving || purchasing || !dirty}
           className="bg-amber-500 hover:bg-amber-400 text-black font-semibold disabled:opacity-50"
           size="sm"
         >
           <Check className="w-3.5 h-3.5 mr-1.5" /> {saving ? "Confirming…" : "Confirm Loadout"}
         </Button>
       </div>
-      <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 items-stretch">
         <SlotCard
           slot="primary"
           label="Primary"
           icon={<Zap className="w-4 h-4 text-amber-400" />}
           weapon={weaponById(primary)}
           ownedWeaponIds={ownedWeaponIds}
+          level={level}
           ownedForSlot={ownedForSlot}
           open={openSlot === "primary"}
           onToggle={() => setOpenSlot(openSlot === "primary" ? null : "primary")}
-          onSelect={(id) => { setPrimary(id); if (id === secondary) setSecondary("pistol_side"); setOpenSlot(null); }}
+          onSelect={(id) => selectWeapon("primary", id)}
           compact={compact}
+          onPurchaseRequest={(weapon, slot) => { setOpenSlot(null); setPendingPurchase({ weapon, slot }); }}
 
           attachments={primary === current.weapon.id ? current.attachments : EMPTY_ATTACHMENTS}
           onCustomize={onCustomize ? () => onCustomize(weaponById(primary), "primary") : undefined}
-          canCustomize={primary === current.weapon.id}
+          customizationConfirmed={primary === current.weapon.id}
         />
         <SlotCard
           slot="secondary"
@@ -189,67 +261,153 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
           icon={<Crosshair className="w-4 h-4 text-amber-400" />}
           weapon={weaponById(perkId !== "well_prepared" && isPrimaryWeaponCategory(weaponById(secondary).category) ? "pistol_side" : secondary)}
           ownedWeaponIds={ownedWeaponIds}
+          level={level}
           ownedForSlot={ownedForSlot}
           open={openSlot === "secondary"}
           onToggle={() => setOpenSlot(openSlot === "secondary" ? null : "secondary")}
-          onSelect={(id) => { setSecondary(id); setOpenSlot(null); }}
+          onSelect={(id) => selectWeapon("secondary", id)}
           compact={compact}
+          onPurchaseRequest={(weapon, slot) => { setOpenSlot(null); setPendingPurchase({ weapon, slot }); }}
 
           attachments={secondary === current.secondary.id ? current.secondaryAttachments : EMPTY_ATTACHMENTS}
           onCustomize={onCustomize ? () => onCustomize(weaponById(secondary), "secondary") : undefined}
-          canCustomize={secondary === current.secondary.id && (perkId === "well_prepared" || !isPrimaryWeaponCategory(weaponById(secondary).category))}
+          customizationConfirmed={secondary === current.secondary.id && (perkId === "well_prepared" || !isPrimaryWeaponCategory(weaponById(secondary).category))}
         />
-        <SlotCard
-          slot="melee"
-          label="Melee"
-          icon={<Swords className="w-4 h-4 text-amber-400" />}
-          weapon={weaponById(melee)}
-          ownedWeaponIds={ownedWeaponIds}
-          ownedForSlot={ownedForSlot}
-          open={openSlot === "melee"}
-          onToggle={() => setOpenSlot(openSlot === "melee" ? null : "melee")}
-          onSelect={(id) => { setMelee(id); setOpenSlot(null); }}
-          compact={compact}
+        {/* Melee has fewer applicable stats, so share the third column with
+            the Perk and Tactical cards rather than spending a fourth column. */}
+        <div className="flex min-w-0 flex-col gap-3 sm:col-span-2 lg:col-span-1">
+          <SlotCard
+            slot="melee"
+            label="Melee"
+            icon={<Swords className="w-4 h-4 text-amber-400" />}
+            weapon={weaponById(melee)}
+            ownedWeaponIds={ownedWeaponIds}
+            level={level}
+            ownedForSlot={ownedForSlot}
+            open={openSlot === "melee"}
+            onToggle={() => setOpenSlot(openSlot === "melee" ? null : "melee")}
+            onSelect={(id) => selectWeapon("melee", id)}
+            compact={compact}
+            onPurchaseRequest={(weapon, slot) => { setOpenSlot(null); setPendingPurchase({ weapon, slot }); }}
 
-          attachments={melee === current.melee.id ? current.meleeAttachments : EMPTY_ATTACHMENTS}
-          onCustomize={onCustomize ? () => onCustomize(weaponById(melee), "melee") : undefined}
-          canCustomize={melee === current.melee.id}
-        />
-        <div className="relative" data-slot-dropdown>
-          <div className={`rounded-xl border border-white/10 bg-black/40 overflow-hidden ${compact ? "p-2.5" : "p-3"}`}>
-            <div className="flex items-center gap-2 mb-2">
-              <Package className="w-4 h-4 text-amber-400" />
-              <span className="text-white/70 text-xs uppercase tracking-widest font-semibold">Passive Perk</span>
-              <Badge variant="outline" className="ml-auto border-white/15 text-white/50 text-[10px]">Always active</Badge>
+            attachments={melee === current.melee.id ? current.meleeAttachments : EMPTY_ATTACHMENTS}
+            onCustomize={onCustomize ? () => onCustomize(weaponById(melee), "melee") : undefined}
+            customizationConfirmed={melee === current.melee.id}
+          />
+          <div className="relative" data-slot-dropdown>
+            <div className={`rounded-xl border border-amber-500/15 bg-black/40 overflow-hidden ${compact ? "p-2.5" : "p-3"}`}>
+              <div className="flex items-center gap-2 mb-2">
+                <Package className="w-4 h-4 text-amber-400" />
+                <span className="text-white/70 text-xs uppercase tracking-widest font-semibold">Perk / Wonder Weapon</span>
+                <Badge variant="outline" className="ml-auto border-white/15 text-white/50 text-[10px]">Always active</Badge>
+              </div>
+              <div className="flex min-w-0 items-baseline gap-2 mb-2">
+                <span className="max-w-[50%] shrink-0 truncate text-white font-bold text-sm" title={perkById(perkId).name}>{perkById(perkId).name}</span>
+                <span className="min-w-0 truncate text-white/40 text-[10px]" title={perkById(perkId).description}>{perkById(perkId).description}</span>
+              </div>
+              {perkId === "wonder_weapon" && <div className="mb-2 space-y-1">
+                <label htmlFor="loadout-wonder" className="text-violet-200 text-[10px]">Slot 4 · Owned Wonder Weapon</label>
+                <select id="loadout-wonder" value={wonderWeaponId} onChange={e=>setWonderWeaponId(e.target.value)}
+                  className="w-full bg-zinc-950 text-white text-xs rounded border border-violet-500/40 p-2">
+                  <option value="">Choose a Wonder Weapon</option>
+                  {WEAPONS.filter(w=>w.wonder && !w.disabled && profile.prestige.wonderWeapons.includes(w.id))
+                    .map(w=><option key={w.id} value={w.id}>{w.name}</option>)}
+                </select>
+                {!profile.prestige.wonderWeapons.some(id=>WEAPONS.some(w=>w.id===id&&!w.disabled)) &&
+                  <p className="text-amber-300 text-[10px]">Earn Wonder unlocks through Prestige and Mastery in the Armory.</p>}
+              </div>}
+              <button type="button" onClick={() => setOpenSlot(openSlot === "perk" ? null : "perk")}
+                className="w-full px-2.5 py-1.5 rounded-md border border-white/10 bg-black/40 hover:bg-white/5 text-white/80 text-xs flex items-center justify-center gap-1.5 transition-colors">
+                <Check className="w-3 h-3 text-emerald-400" /> Swap Perk
+                <ChevronDown className={`w-3 h-3 ml-auto transition-transform ${openSlot === "perk" ? "rotate-180" : ""}`} />
+              </button>
             </div>
-            <div className={`relative ${compact ? "h-12" : "h-16"} rounded-lg mb-2 overflow-hidden flex items-center justify-center bg-gradient-to-br from-zinc-800 to-black`}>
-              <Zap className="w-7 h-7 text-amber-400/70" />
-              <span className="absolute left-2 top-1.5 text-[10px] uppercase tracking-wider text-white/40">Specialization</span>
-            </div>
-            <div className="text-white font-bold text-sm truncate mb-1">{perkById(perkId).name}</div>
-            <div className="text-white/40 text-[10px] mb-2 min-h-7 leading-snug line-clamp-2">{perkById(perkId).description}</div>
-            <button type="button" onClick={() => setOpenSlot(openSlot === "perk" ? null : "perk")}
-              className="w-full px-2.5 py-1.5 rounded-md border border-white/10 bg-black/40 hover:bg-white/5 text-white/80 text-xs flex items-center justify-center gap-1.5 transition-colors">
-              <Check className="w-3 h-3 text-emerald-400" /> Swap Perk
-              <ChevronDown className={`w-3 h-3 ml-auto transition-transform ${openSlot === "perk" ? "rotate-180" : ""}`} />
-            </button>
+            {openSlot === "perk" && (
+              <div className="absolute z-40 left-0 right-0 mt-1 rounded-lg border border-white/15 bg-zinc-900/95 backdrop-blur shadow-2xl max-h-72 overflow-y-auto">
+                {PERKS.map(perk => <button key={perk.id} type="button" disabled={level < perk.unlockLevel} onClick={() => {
+                    setPerkId(perk.id);
+                    if (perk.id !== "well_prepared" && isPrimaryWeaponCategory(weaponById(secondary).category)) setSecondary("pistol_side");
+                    setOpenSlot(null);
+                  }}
+                  className={`w-full text-left px-3 py-2.5 text-xs flex flex-col gap-1 ${level < perk.unlockLevel ? "opacity-45 cursor-not-allowed" : "hover:bg-white/5"} ${perkId === perk.id ? "bg-amber-500/15 text-amber-300" : "text-white/80"}`}>
+                  <span className="font-semibold flex items-center justify-between gap-2">{perk.name}<span className={level >= perk.unlockLevel ? "text-emerald-300 text-[10px]" : "text-amber-300 text-[10px]"}>{perk.id === DEFAULT_PERK_ID ? "Default" : `LVL ${perk.unlockLevel}`}</span></span>
+                  <span className="text-white/40 leading-relaxed">{perk.description}</span>
+                </button>)}
+              </div>
+            )}
           </div>
-          {openSlot === "perk" && (
-            <div className="absolute z-40 left-0 right-0 mt-1 rounded-lg border border-white/15 bg-zinc-900/95 backdrop-blur shadow-2xl max-h-72 overflow-y-auto">
-              {PERKS.map(perk => <button key={perk.id} type="button" disabled={level < perk.unlockLevel} onClick={() => {
-                  setPerkId(perk.id);
-                  if (perk.id !== "well_prepared" && isPrimaryWeaponCategory(weaponById(secondary).category)) setSecondary("pistol_side");
-                  setOpenSlot(null);
-                }}
-                className={`w-full text-left px-3 py-2.5 text-xs flex flex-col gap-1 ${level < perk.unlockLevel ? "opacity-45 cursor-not-allowed" : "hover:bg-white/5"} ${perkId === perk.id ? "bg-amber-500/15 text-amber-300" : "text-white/80"}`}>
-                <span className="font-semibold flex items-center justify-between gap-2">{perk.name}<span className={level >= perk.unlockLevel ? "text-emerald-300 text-[10px]" : "text-amber-300 text-[10px]"}>{perk.unlockLevel === 1 ? "Default" : `LVL ${perk.unlockLevel}`}</span></span>
-                <span className="text-white/40 leading-relaxed">{perk.description}</span>
-              </button>)}
+          <div className="relative" data-slot-dropdown>
+            <div className={`rounded-xl border border-cyan-500/15 bg-black/40 overflow-hidden ${compact ? "p-2.5" : "p-3"}`}>
+              <div className="flex items-center gap-2 mb-2">
+                <Package className="w-4 h-4 text-cyan-400" />
+                <span className="text-white/70 text-xs uppercase tracking-widest font-semibold">Tactical</span>
+                <Badge variant="outline" className="ml-auto border border-cyan-500/25 text-cyan-300 text-[10px]">G · Throw</Badge>
+              </div>
+              <div className="flex min-w-0 items-baseline gap-2 mb-2">
+                <span className="max-w-[50%] shrink-0 truncate text-white font-bold text-sm" title={EQUIPMENT.find(e => e.id === equipmentId)?.name}>{EQUIPMENT.find(e => e.id === equipmentId)?.name}</span>
+                <span className="min-w-0 truncate text-white/40 text-[10px]" title={EQUIPMENT.find(e => e.id === equipmentId)?.description}>{EQUIPMENT.find(e => e.id === equipmentId)?.description}</span>
+              </div>
+              <button type="button" onClick={() => setOpenSlot(openSlot === "equipment" ? null : "equipment")}
+                className="w-full px-2.5 py-1.5 rounded-md border border-white/10 bg-black/40 hover:bg-white/5 text-white/80 text-xs flex items-center justify-center gap-1.5 transition-colors">
+                <Check className="w-3 h-3 text-emerald-400" /> Change Tactical
+                <ChevronDown className={`w-3 h-3 ml-auto transition-transform ${openSlot === "equipment" ? "rotate-180" : ""}`} />
+              </button>
             </div>
-          )}
+            {openSlot === "equipment" && <div className="absolute z-40 left-0 right-0 mt-1 rounded-lg border border-white/15 bg-zinc-900/95 backdrop-blur shadow-2xl max-h-72 overflow-y-auto">
+              {EQUIPMENT.map(item => {
+                const unlocked = equipmentUnlocked(item.id, level);
+                return <button key={item.id} type="button" disabled={!unlocked}
+                  onClick={() => { setEquipmentId(item.id); setOpenSlot(null); }}
+                  className={`w-full px-3 py-2.5 text-left text-xs flex flex-col gap-1 ${!unlocked ? "opacity-45 cursor-not-allowed" : equipmentId === item.id ? "bg-cyan-500/15 text-cyan-300" : "text-white/80 hover:bg-white/5"}`}>
+                  <span className="font-semibold flex justify-between gap-2">{item.name}<span className={unlocked ? "text-cyan-300/70" : "text-amber-300"}>{unlocked ? `${item.charges} / life` : `LVL ${item.unlockLevel}`}</span></span>
+                  <span className="text-white/40 leading-snug">{item.description}</span>
+                </button>;
+              })}
+            </div>}
+          </div>
         </div>
       </div>
       {children}
+      <Dialog open={!!pendingPurchase} onOpenChange={(open) => { if (!open && !purchasing) setPendingPurchase(null); }}>
+        <DialogContent className="border-white/15 bg-zinc-950 text-white sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Unlock {pendingPurchase?.weapon.name}?</DialogTitle>
+            <DialogDescription className="text-white/60">
+              Purchase this weapon for your {pendingPurchase?.slot} slot. It will be
+              selected in your draft loadout; confirm the loadout to equip it.
+            </DialogDescription>
+          </DialogHeader>
+          {pendingPurchase && (
+            <div className="rounded-lg border border-white/10 bg-black/40 p-3 space-y-2 text-sm">
+              <div className="flex justify-between gap-3">
+                <span className="text-white/60">Unlock price</span>
+                <span className="font-semibold text-amber-300 flex items-center gap-1">
+                  <Coins className="w-4 h-4" /> {formatCredits(pendingPurchase.weapon.unlockCost)} CR
+                </span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-white/60">Your balance</span>
+                <span className="text-white">{formatCredits(profile.credits)} CR</span>
+              </div>
+              {profile.credits < pendingPurchase.weapon.unlockCost && (
+                <p className="text-rose-300 text-xs">
+                  Not enough credits. You need {formatCredits(pendingPurchase.weapon.unlockCost - profile.credits)} more CR.
+                </p>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" disabled={purchasing} onClick={() => setPendingPurchase(null)}
+              className="border-white/20 bg-transparent text-white hover:bg-white/10">Cancel</Button>
+            <Button type="button" onClick={confirmPurchase}
+              disabled={purchasing || !pendingPurchase || profile.credits < pendingPurchase.weapon.unlockCost}
+              className="bg-amber-500 hover:bg-amber-400 text-black font-semibold">
+              <Coins className="w-4 h-4 mr-1.5" />
+              {purchasing ? "Unlocking…" : "Confirm Unlock"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -263,23 +421,24 @@ interface SlotCardProps {
   icon: React.ReactNode;
   weapon: WeaponDef;
   ownedWeaponIds: Set<string>;
+  level: number;
   ownedForSlot: (slot: WeaponSlot) => WeaponDef[];
+  onPurchaseRequest: (weapon: WeaponDef, slot: WeaponSlot) => void;
   open: boolean;
   onToggle: () => void;
   onSelect: (id: string) => void;
   compact?: boolean;
   attachments: AttachmentMap;
   onCustomize?: () => void;
-  canCustomize?: boolean;
+  customizationConfirmed?: boolean;
 }
 
-function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, ownedForSlot, open, onToggle, onSelect, compact, attachments, onCustomize, canCustomize }: SlotCardProps) {
-  const skinColor = "#2b2f36"; // fallback — actual skin color comes from the equipped weaponSkinId (handled in modal)
+function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, level, ownedForSlot, onPurchaseRequest, open, onToggle, onSelect, compact, attachments, onCustomize, customizationConfirmed }: SlotCardProps) {
   const candidates = ownedForSlot(slot).slice().sort((a, b) => a.unlockLevel - b.unlockLevel || a.name.localeCompare(b.name));
   const ownedCount = candidates.filter((w) => ownedWeaponIds.has(w.id)).length;
   return (
-    <div className="relative" data-slot-dropdown>
-      <div className={`rounded-xl border border-white/10 bg-black/40 overflow-hidden ${compact ? "p-2.5" : "p-3"}`}>
+    <div className="relative min-w-0" data-slot-dropdown>
+      <div className={`h-full flex flex-col rounded-xl border border-white/10 bg-black/40 ${compact ? "p-2.5" : "p-3"}`}>
         <div className="flex items-center gap-2 mb-2">
           {icon}
           <span className="text-white/70 text-xs uppercase tracking-widest font-semibold">{label}</span>
@@ -287,50 +446,45 @@ function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, ownedForSlot, ope
             {ownedCount} owned
           </Badge>
         </div>
-        {/* weapon preview strip */}
-        <div className={`relative ${compact ? "h-12" : "h-16"} rounded-lg mb-2 overflow-hidden flex items-center justify-center`}
-          style={{ background: `linear-gradient(135deg, ${skinColor}, #0a0a0a)` }}>
-          <div className="absolute left-2 top-1.5 text-[10px] uppercase tracking-wider text-white/40">{weaponCategoryLabel(weapon.category)}</div>
-          <div className="w-24 h-2 rounded-sm" style={{ background: skinColor }} />
-          <div className="absolute bottom-1.5 left-2 text-[10px] text-white/60 font-mono">
-            DMG {weapon.stats.damage} · RoF {weapon.stats.fireRate}
-          </div>
+        <div className="flex items-baseline gap-2 min-w-0 mb-2">
+          <div className="text-white font-bold text-sm min-w-0 truncate" title={weapon.name}>{weapon.name}</div>
+          <span className="text-white/40 text-[10px] uppercase shrink-0 whitespace-nowrap">{weaponCategoryLabel(weapon.category)}</span>
         </div>
-        <div className="flex items-center justify-between mb-1">
-          <div className="text-white font-bold text-sm truncate">{weapon.name}</div>
-        </div>
-        <div className="text-white/40 text-[10px] uppercase mb-2">{weaponCategoryLabel(weapon.category)} · LVL {weapon.unlockLevel}</div>
-        <div className="rounded-md bg-zinc-950/60 border border-white/5 px-2 py-2 mb-3 h-[227px] overflow-y-auto">
+        <div className="rounded-md bg-zinc-950/60 border border-white/5 px-2.5 py-2 mb-3">
           <WeaponStatsPreview weapon={weapon} equipped={attachments} compact />
         </div>
-        {canCustomize && onCustomize && (
-          <button type="button" onClick={onCustomize}
-            className="w-full mb-2 px-2.5 py-1.5 rounded-md border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-200 text-xs font-semibold">
-            {slot === "melee" ? "Skins & Challenges" : "Customize this slot"}
+        <div className="mt-auto flex flex-col gap-2">
+          {onCustomize && (
+            <button type="button" onClick={onCustomize}
+              title={customizationConfirmed ? "Customize attachments, skins and challenges" : "Preview customization — confirm your loadout to equip attachments and skins"}
+              className="w-full px-2.5 py-1.5 rounded-md border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-200 text-xs font-semibold">
+              {customizationConfirmed ? (slot === "melee" ? "Skins & Challenges" : "Customize this slot") : "Preview customization"}
+            </button>
+          )}
+          <button
+            onClick={onToggle}
+            className="w-full px-2.5 py-1.5 rounded-md border border-white/10 bg-black/40 hover:bg-white/5 text-white/80 text-xs flex items-center justify-center gap-1.5 transition-colors"
+          >
+            <Check className="w-3 h-3 text-emerald-400" />
+            Swap {label}
+            <ChevronDown className={`w-3 h-3 ml-auto transition-transform ${open ? "rotate-180" : ""}`} />
           </button>
-        )}
-        <button
-          onClick={onToggle}
-          className="w-full px-2.5 py-1.5 rounded-md border border-white/10 bg-black/40 hover:bg-white/5 text-white/80 text-xs flex items-center justify-center gap-1.5 transition-colors"
-        >
-          <Check className="w-3 h-3 text-emerald-400" />
-          Swap {label}
-          <ChevronDown className={`w-3 h-3 ml-auto transition-transform ${open ? "rotate-180" : ""}`} />
-        </button>
+        </div>
       </div>
-      {/* Dropdown list of owned weapons for this slot */}
+      {/* All eligible slot weapons: owned, purchasable, and level-locked. */}
       {open && (
         <div className="absolute z-40 left-0 right-0 mt-1 rounded-lg border border-white/15 bg-zinc-900/95 backdrop-blur shadow-2xl max-h-72 overflow-y-auto">
           {candidates.map((w) => {
-            const isOwned = ownedWeaponIds.has(w.id);
+            const availability = weaponAvailability(w, level, ownedWeaponIds);
+            const isOwned = availability === "owned";
             const selected = w.id === weapon.id;
             return (
               <button
                 key={w.id}
-                disabled={!isOwned}
-                onClick={() => onSelect(w.id)}
+                disabled={availability === "level-locked"}
+                onClick={() => isOwned ? onSelect(w.id) : onPurchaseRequest(w, slot)}
                 className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between transition-colors ${
-                  selected ? "bg-amber-500/15 text-amber-300" : isOwned ? "text-white/80 hover:bg-white/5" : "text-white/30 cursor-not-allowed"
+                  selected ? "bg-amber-500/15 text-amber-300" : isOwned ? "text-white/80 hover:bg-white/5" : availability === "purchasable" ? "text-amber-100 hover:bg-amber-500/10" : "text-white/30 cursor-not-allowed"
                 }`}
               >
                 <span className="flex items-center gap-2 min-w-0">
@@ -338,12 +492,12 @@ function SlotCard({ slot, label, icon, weapon, ownedWeaponIds, ownedForSlot, ope
                   <span className="font-semibold truncate">{w.name}</span>
                   <span className="text-white/40 text-[10px] uppercase shrink-0">{weaponCategoryLabel(w.category)}</span>
                 </span>
-                {!isOwned && (
+                {availability === "level-locked" && (
                   <span className="text-rose-400/70 text-[10px] shrink-0">LVL {w.unlockLevel}</span>
                 )}
-                {isOwned && !selected && w.unlockCost > 0 && (
-                  <span className="text-amber-300/60 text-[10px] shrink-0 flex items-center gap-0.5">
-                    <Coins className="w-2.5 h-2.5" /> {w.unlockCost}
+                {availability === "purchasable" && (
+                  <span className="text-amber-300 text-[10px] shrink-0 flex items-center gap-0.5">
+                    <Coins className="w-2.5 h-2.5" /> {formatCredits(w.unlockCost)} CR
                   </span>
                 )}
               </button>

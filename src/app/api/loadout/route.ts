@@ -1,7 +1,10 @@
 import { levelForXp } from "@/lib/progression";
+import { ownsOperativeSkin } from "@/lib/collection-ownership";
 import { NextRequest, NextResponse } from "next/server";
 import { parseWeaponSetups, rememberSetup } from "@/lib/weapon-setups";
-import { parseSavedLoadouts } from "@/lib/saved-loadouts";
+import { validWonderModule, validWonderFinish, validWonderKillEffect } from "@/lib/wonder-expansion";
+import { parseSavedLoadouts, presetWonderEquipFields } from "@/lib/saved-loadouts";
+import { EQUIPMENT, equipmentUnlocked } from "@/lib/equipment";
 import { cosmeticById, cosmeticShopOwnership } from "@/lib/cosmetics";
 import { db } from "@/lib/db";
 import { attachmentsForWeaponSelection, emptyAttachmentMap } from "@/lib/loadout-attachments";
@@ -10,6 +13,8 @@ import { skinChallengesForWeaponAndSkin } from "@/lib/armory-challenges";
 import { buildProfileView, getOrCreatePlayer, safeWeaponId } from "@/lib/player-service";
 import {
   WEAPONS,
+  PLAYER_SKINS,
+  activeMeleeWeaponId,
   isPrimaryWeaponCategory,
   weaponById,
   weaponAttachmentSlots,
@@ -76,14 +81,23 @@ export async function POST(req: NextRequest) {
     const owner = await getOrCreatePlayer(ownerKey);
     const preset = parseSavedLoadouts(owner.loadout?.savedLoadouts).find(p => p.id === rawBody.presetId);
     if (!preset) return NextResponse.json({ error: "Saved loadout not found" }, { status: 404 });
-    body = { ...preset, playerKey: rawBody.playerKey };
+    // Presets remain usable if their archived melee choice is now disabled.
+    // Keep the saved snapshot unchanged for possible future reactivation.
+    body = {
+      ...preset,
+      ...presetWonderEquipFields(preset),
+      meleeWeapon: activeMeleeWeaponId(preset.meleeWeapon),
+      playerKey: rawBody.playerKey,
+    };
   }
   const {
     playerKey: bodyKey,
     primaryWeapon,
     secondaryWeapon: requestedSecondaryWeapon,
     perkId,
+    wonderWeaponId: requestedWonderWeaponId,
     meleeWeapon,
+    equipmentId,
     weaponSkin,
     secondaryWeaponSkin,
     meleeWeaponSkin,
@@ -97,7 +111,9 @@ export async function POST(req: NextRequest) {
     primaryWeapon?: string;
     secondaryWeapon?: string;
     perkId?: string;
+    wonderWeaponId?: string;
     meleeWeapon?: string;
+    equipmentId?: string;
     weaponSkin?: string;
     secondaryWeaponSkin?: string;
     meleeWeaponSkin?: string;
@@ -111,6 +127,10 @@ export async function POST(req: NextRequest) {
   if (!playerKey) return NextResponse.json({ error: "playerKey required" }, { status: 400 });
   const player = await getOrCreatePlayer(playerKey);
   if (!player) return NextResponse.json({ error: "player not found" }, { status: 404 });
+  if (equipmentId !== undefined && !EQUIPMENT.some(item => item.id === equipmentId))
+    return NextResponse.json({ error: "Unknown tactical equipment" }, { status: 400 });
+  if (equipmentId !== undefined && !equipmentUnlocked(equipmentId, levelForXp(player.xp)))
+    return NextResponse.json({ error: "Tactical equipment requires level " + EQUIPMENT.find(e => e.id === equipmentId)!.unlockLevel }, { status: 403 });
 
   // Level-gated passive unlocks: clients must explicitly identify the
   // selected perk when equipping a second primary. The server checks level.
@@ -119,6 +139,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Perk is locked at your current level" }, { status: 403 });
   }
   if (selectedPerk.unlockLevel > levelForXp(player.xp)) selectedPerk = perkById(DEFAULT_PERK_ID);
+  let wonderWeaponId = requestedWonderWeaponId ?? player.loadout?.wonderWeaponId ?? "";
+  if (selectedPerk.id === "wonder_weapon") {
+    const candidate = WEAPONS.find(w => w.id === wonderWeaponId);
+    if (!candidate?.wonder || candidate.disabled) return NextResponse.json(
+      { error: "Unlock and select a Wonder Weapon before equipping this perk" }, { status: 403 });
+    const owned = await db.wonderUnlock.findUnique({ where: {
+      playerId_weaponId: { playerId: player.id, weaponId: candidate.id },
+    } });
+    if (!owned) return NextResponse.json({ error: "This Wonder Weapon is not unlocked" }, { status: 403 });
+  } else if (requestedWonderWeaponId) {
+    const candidate = WEAPONS.find(w => w.id === requestedWonderWeaponId);
+    if (!candidate?.wonder || candidate.disabled) wonderWeaponId = "";
+    else {
+      const owned = await db.wonderUnlock.findUnique({ where: {
+        playerId_weaponId: { playerId: player.id, weaponId: candidate.id },
+      } });
+      if (!owned) wonderWeaponId = "";
+    }
+  }
   let secondaryWeapon = requestedSecondaryWeapon;
   // A perk-only update must also remove a now-ineligible second primary.
   // Pass the fallback through the normal attachment/skin/setup validation.
@@ -137,7 +176,7 @@ export async function POST(req: NextRequest) {
       const owned = await db.wonderUnlock.findUnique({ where: {
         playerId_weaponId: { playerId: player.id, weaponId: w.id },
       } });
-      if (!owned) return NextResponse.json({ error: "Unlock this Wonder Weapon using a Prestige token first" }, { status: 403 });
+      return NextResponse.json({ error: "Wonder Weapons must be equipped in slot 4" }, { status: 403 });
     }
     if (!w.wonder && w.unlockCost > 0 && !player.weaponUnlocks.some(u => u.weaponId === w.id)) {
       return NextResponse.json({ error: "Primary weapon must be unlocked or purchased first" }, { status: 403 });
@@ -153,7 +192,7 @@ export async function POST(req: NextRequest) {
     if (!w.wonder && w.unlockCost > 0 && !player.weaponUnlocks.some(u => u.weaponId === w.id)) {
       return NextResponse.json({ error: "Secondary weapon must be unlocked or purchased first" }, { status: 403 });
     }
-    if(w.wonder) return NextResponse.json({error:"Wonder Weapons use the Primary slot"},{status:403});
+    if(w.wonder) return NextResponse.json({error:"Wonder Weapons must be equipped in slot 4"},{status:403});
     const anotherPrimary = isPrimaryWeaponCategory(w.category);
     if (anotherPrimary && (!canEquipSecondaryPrimary(selectedPerk.id, levelForXp(player.xp)) || w.wonder ||
       w.id === (primaryWeapon ?? player.loadout?.primaryWeapon ?? "rifle_ar"))) {
@@ -170,6 +209,8 @@ export async function POST(req: NextRequest) {
   if (meleeWeapon !== undefined) {
     const w = WEAPONS.find((x) => x.id === meleeWeapon);
     if (!w) return NextResponse.json({ error: "unknown meleeWeapon" }, { status: 400 });
+    if (w.disabled) return NextResponse.json({ error: "Weapon is temporarily disabled" }, { status: 403 });
+    if (w.wonder) return NextResponse.json({ error: "Wonder Weapons must be equipped in slot 4" }, { status: 403 });
     if (w.category !== "melee") {
       return NextResponse.json({ error: "meleeWeapon must be a melee weapon" }, { status: 400 });
     }
@@ -182,6 +223,34 @@ export async function POST(req: NextRequest) {
   // Snapshot previous selections before changing any slot. A weapon's saved
   // setup follows its weapon ID rather than the transient loadout slot.
   const setups=parseWeaponSetups(player.loadout?.weaponSetups);
+  // Wonder options are persisted in the existing per-weapon setup JSON. Neither
+  // a client-supplied module nor a finish is trusted without permanent ownership.
+  const wonderCustomizeWeaponId=typeof body.wonderCustomizeWeaponId==="string"?body.wonderCustomizeWeaponId:"";
+  const wonderFields=["wonderModuleId","wonderSkinId","wonderKillEffectId"] as const;
+  const changingWonder=wonderFields.some(field=>body[field]!==undefined);
+  if(changingWonder){
+    const selected=WEAPONS.find(w=>w.id===wonderCustomizeWeaponId&&w.wonder&&!w.disabled);
+    if(!selected)return NextResponse.json({error:"Choose an owned Wonder to customize"},{status:400});
+    const owned=await db.wonderUnlock.findUnique({where:{playerId_weaponId:{
+      playerId:player.id,weaponId:selected.id,
+    }}});
+    if(!owned)return NextResponse.json({error:"Wonder Weapon not unlocked"},{status:403});
+    const purchases=await db.careerShopPurchase.findMany({where:{playerId:player.id,currency:"wonder"},select:{itemKey:true}});
+    const keys=new Set(purchases.map(p=>p.itemKey));
+    const picked=(field:typeof wonderFields[number])=>body[field]===undefined?undefined:typeof body[field]==="string"?body[field]:null;
+    const moduleId=picked("wonderModuleId"),skinId=picked("wonderSkinId"),effectId=picked("wonderKillEffectId");
+    if(moduleId===null||skinId===null||effectId===null||
+      (moduleId!==undefined&&(!validWonderModule(selected.id,moduleId)||(moduleId!==""&&!keys.has("module_"+moduleId))))||
+      (skinId!==undefined&&skinId!==""&&(!validWonderFinish(selected.id,skinId)||!keys.has(skinId+"_"+selected.id)))||
+      (effectId!==undefined&&effectId!==""&&(!validWonderKillEffect(selected.id,effectId)||!keys.has(effectId+"_"+selected.id))))
+      return NextResponse.json({error:"Purchase this Wonder customization before equipping it"},{status:403});
+    const current=setups[selected.id]??{skin:"default",attachments:{sight:null,barrel:null,grip:null,magazine:null}};
+    setups[selected.id]={...current,
+      ...(moduleId!==undefined?{moduleId}:{ }),
+      ...(skinId!==undefined?{skin:skinId}:{ }),
+      ...(effectId!==undefined?{killEffectId:effectId}:{ }),
+    };
+  }
   if(player.loadout){
     rememberSetup(setups,player.loadout.primaryWeapon,player.loadout.weaponSkin,player.loadout.attachments);
     rememberSetup(setups,player.loadout.secondaryWeapon,player.loadout.secondaryWeaponSkin,player.loadout.secondaryAttachments);
@@ -258,10 +327,12 @@ export async function POST(req: NextRequest) {
   const sanitizedWeaponSkin=candidatePrimarySkin??(effectivePrimary!==previousPrimary?"default":undefined);
   const sanitizedSecondarySkin=candidateSecondarySkin??(effectiveSecondary!==previousSecondary?"default":undefined);
   const sanitizedMeleeSkin=candidateMeleeSkin??(effectiveMelee!==(player.loadout?.meleeWeapon??"knife_tactical")?"default":undefined);
-    if (playerSkin !== undefined &&
-      playerSkin !== "default" && playerSkin !== player.selectedSkin &&
-      !player.playerSkinUnlocks.some(u => u.skinId === playerSkin)) {
-    return NextResponse.json({ error: "operator skin not owned" }, { status: 403 });
+  if (playerSkin !== undefined) {
+    const def = PLAYER_SKINS.find(s => s.id === playerSkin);
+    if (!def || !ownsOperativeSkin(def, levelForXp(player.xp),
+      ["default", player.selectedSkin, ...player.playerSkinUnlocks.map(u => u.skinId)])) {
+      return NextResponse.json({ error: "operator skin not owned" }, { status: 403 });
+    }
   }
 
   // Validate all paid cosmetic choices before committing an updated loadout.
@@ -292,7 +363,9 @@ export async function POST(req: NextRequest) {
       primaryWeapon: primaryWeapon ?? "rifle_ar",
       secondaryWeapon: secondaryWeapon ?? "pistol_side",
       meleeWeapon: meleeWeapon ?? "knife_tactical",
+      equipmentId: equipmentId ?? "frag",
       perkId: selectedPerk.id,
+      wonderWeaponId,
       weaponSkin: sanitizedWeaponSkin ?? "default",
       secondaryWeaponSkin: sanitizedSecondarySkin ?? "default",
       meleeWeaponSkin: sanitizedMeleeSkin ?? "default",
@@ -316,7 +389,9 @@ export async function POST(req: NextRequest) {
       ...(primaryWeapon !== undefined ? { primaryWeapon } : {}),
       ...(secondaryWeapon !== undefined ? { secondaryWeapon } : {}),
       ...(meleeWeapon !== undefined ? { meleeWeapon } : {}),
+      ...(equipmentId !== undefined ? { equipmentId } : {}),
       perkId: selectedPerk.id,
+      wonderWeaponId,
       ...(sanitizedWeaponSkin !== undefined ? { weaponSkin: sanitizedWeaponSkin } : {}),
       ...(sanitizedSecondarySkin !== undefined ? { secondaryWeaponSkin: sanitizedSecondarySkin } : {}),
       ...(sanitizedMeleeSkin !== undefined ? { meleeWeaponSkin: sanitizedMeleeSkin } : {}),

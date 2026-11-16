@@ -50,6 +50,8 @@ export type SfxName =
   | "headshot"
   | "kill"
   | "reload"
+  | "revolver_reload"
+  | "revolver_close"
   | "death"
   | "level_up"
   | "wave_start"
@@ -57,18 +59,47 @@ export type SfxName =
   | "footstep"
   | "water_footstep"
   | "empty_click"
+  | "wonder_error"
+  | "mech_eject"
   | "swap"
   | "ads_in"
   | "ads_out"
   | "countdown_tick"
   | "match_start"
+  | "overtime_start"
   | "match_win"
   | "match_lose"
   | "flag_taken"
   | "flag_scored"
   | "flag_enemy_scored"
   | "flag_returned"
-  | "flag_lost";
+  | "flag_lost"
+  | "equipment_throw"
+  | "equipment_impact"
+  | "equipment_frag"
+  | "equipment_flash"
+  | "equipment_taser"
+  | "equipment_mine_arm"
+  | "equipment_mine_detonate"
+  | "equipment_cover"
+  | "equipment_poison";
+
+/** All synthesized cues have one independently controllable sound category.
+ * Distant gunfire is routed to Weapons by playDistantShot. */
+export type SfxChannel = "weapons" | "footsteps" | "combat" | "ui";
+export function soundChannelFor(name: SfxName): SfxChannel {
+  if (name === "footstep" || name === "water_footstep") return "footsteps";
+  if (name === "equipment_throw") return "weapons";
+  if (name.startsWith("equipment_")) return "combat";
+  if (name.startsWith("shot_") || name === "melee_swing" || name === "melee_hit" ||
+      name === "reload" || name === "revolver_reload" || name === "revolver_close" ||
+      name === "empty_click" || name === "swap" || name === "ads_in" || name === "ads_out")
+    return "weapons";
+  if (name === "mech_eject") return "combat";
+  if (name === "hit_marker" || name === "headshot" || name === "kill" ||
+      name === "death" || name === "hit_taken") return "combat";
+  return "ui"; // Level-up, countdown, match and objective alerts.
+}
 
 // Map a weapon id to its shot category. Falls back to "rifle".
 // Used by both the local player's own gunshot and by enemy fire synthesis.
@@ -147,10 +178,10 @@ const SHOT_PROFILES: Record<WeaponShotCategory, ShotProfile> = {
 };
 
 /** Expected loudness of a remote footstep at world-space distance. */
-export function footstepVolumeAtDistance(distance: number, sprinting = false): number {
+export function footstepVolumeAtDistance(distance: number, sprinting = false, inWater = false): number {
   if (!Number.isFinite(distance) || distance >= 38) return 0;
   const attenuation = Math.pow(Math.max(0, 1 - Math.max(0, distance) / 38), 2);
-  return (sprinting ? 0.72 : 0.5) * attenuation;
+  return (sprinting ? 0.72 : 0.5) * attenuation * (inWater ? 0.8 : 1);
 }
 
 export class SoundManager {
@@ -163,7 +194,10 @@ export class SoundManager {
   private footstepGain: GainNode | null = null;
   private masterVolume = 0.8;
   private footstepVolume = 0.85;
-  private fxVolume = 1;
+  private fxVolume = 1; // Legacy general-effects bus; stays at unity with the new mixer.
+  private weaponVolume = 1;
+  private combatVolume = 1;
+  private uiVolume = 1;
   private muted = false;
   // Throttle: don't play more than N of the same sfx within `windowMs`.
   private lastPlayed: Map<SfxName, number> = new Map();
@@ -235,6 +269,14 @@ export class SoundManager {
     }
   }
 
+  /** Apply gains when synthesizing a cue so its reverb follows its channel.
+   * Footsteps already have a dedicated Web Audio bus, so are not doubled. */
+  setChannelVolumes(levels: { weapons: number; combat: number; ui: number }) {
+    this.weaponVolume = Math.max(0, Math.min(1, levels.weapons));
+    this.combatVolume = Math.max(0, Math.min(1, levels.combat));
+    this.uiVolume = Math.max(0, Math.min(1, levels.ui));
+  }
+
   setFxVolume(v: number) {
     this.fxVolume = Math.max(0, Math.min(1, v));
     if (this.masterGain && this.ctx) {
@@ -279,7 +321,12 @@ export class SoundManager {
     if (!this.ctx || !this.masterGain || this.muted) return;
     if(this.ctx.state==="suspended")void this.ctx.resume().catch(()=>{});
     const now = this.ctx.currentTime;
-    const vol = opts.volume ?? 1.0;
+    const channel = soundChannelFor(name);
+    const channelLevel = channel === "weapons" ? this.weaponVolume
+      : channel === "combat" ? this.combatVolume
+      : channel === "ui" ? this.uiVolume : 1;
+    const vol = (opts.volume ?? 1.0) * channelLevel;
+    if (vol <= 0) return;
     const throttle = opts.throttleMs ?? 0;
     if (throttle > 0) {
       const last = this.lastPlayed.get(name) ?? 0;
@@ -302,6 +349,8 @@ export class SoundManager {
       case "headshot": this.synthHeadshot(vol); break;
       case "kill": this.synthKill(vol); break;
       case "reload": this.synthReload(vol); break;
+      case "revolver_reload": this.synthRevolverReload(vol); break;
+      case "revolver_close": this.synthRevolverClose(vol); break;
       case "death": this.synthDeath(vol); break;
       case "level_up": this.synthLevelUp(vol); break;
       case "wave_start": this.synthWaveStart(vol); break;
@@ -309,6 +358,8 @@ export class SoundManager {
       case "footstep": this.synthFootstep(vol); break;
       case "water_footstep": this.synthWaterFootstep(vol); break;
       case "empty_click": this.synthBlip(1200, 0.02, vol * 0.3, "square"); break;
+      case "wonder_error": this.synthWonderError(vol); break;
+      case "mech_eject": this.synthEquipmentCue("equipment_frag", vol * .5); break;
       case "swap": this.synthSwap(vol); break;
       case "ads_in": this.synthBlip(440, 0.03, vol * 0.25, "sine"); break;
       case "ads_out": this.synthBlip(330, 0.03, vol * 0.25, "sine"); break;
@@ -316,17 +367,27 @@ export class SoundManager {
       case "match_lose": this.synthMatchLose(vol); break;
       case "countdown_tick": this.synthBlip(740, .075, vol * .7, "sine"); break;
       case "match_start": this.synthMatchStart(vol); break;
+      case "overtime_start": this.synthOvertimeStart(vol); break;
       case "flag_taken": this.synthFlagFanfare("pickup", vol); break;
       case "flag_scored": this.synthFlagFanfare("score", vol); break;
       case "flag_enemy_scored": this.synthFlagFanfare("enemy_score", vol); break;
       case "flag_returned": this.synthFlagFanfare("return", vol); break;
       case "flag_lost": this.synthFlagFanfare("loss", vol); break;
+      case "equipment_throw":
+      case "equipment_impact":
+      case "equipment_frag":
+      case "equipment_flash":
+      case "equipment_taser":
+      case "equipment_mine_arm":
+      case "equipment_mine_detonate":
+      case "equipment_cover":
+      case "equipment_poison": this.synthEquipmentCue(name, vol); break;
     }
   }
 
   /** Footsteps of other players/bots attenuate by WORLD distance, not screen size. */
   playFootstepAtDistance(distance: number, sprinting = false, inWater = false): void {
-    const volume = footstepVolumeAtDistance(distance, sprinting)*(inWater?1.65:1);
+    const volume = footstepVolumeAtDistance(distance, sprinting, inWater);
     if (volume < 0.004) return;
     const now=this.ctx?.currentTime??0;
     // Ambient bot traffic should not allocate dozens of overlapping noise
@@ -373,7 +434,7 @@ export class SoundManager {
     if (distAtten <= 0.01) return;
     // Suppressor: -60% volume AND low-pass @ 500Hz (muffled, deeper).
     const suppMul = suppressed ? 0.4 : 1.0;
-    const finalVol = volume * distAtten * suppMul;
+    const finalVol = volume * distAtten * suppMul * this.weaponVolume;
     if (finalVol <= 0.001) return;
 
     if (suppressed) {
@@ -507,6 +568,86 @@ export class SoundManager {
     subOsc.start(t); subOsc.stop(t + dur + 0.05);
   }
 
+  /** Short noise sweeps give tactical equipment a mechanical signature without assets. */
+  private equipmentNoise(vol: number, fromHz: number, toHz: number, duration: number, type: BiquadFilterType = "bandpass") {
+    const ctx = this.ctx!, t = ctx.currentTime;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noiseBuffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = type;
+    filter.frequency.setValueAtTime(fromHz, t);
+    filter.frequency.exponentialRampToValueAtTime(toHz, t + duration);
+    if (type === "bandpass") filter.Q.value = 0.8;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(Math.max(0.0001, vol), t);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+    src.connect(filter).connect(gain).connect(this.masterGain!);
+    src.start(t); src.stop(t + duration);
+    src.onended = () => { src.disconnect(); filter.disconnect(); gain.disconnect(); };
+  }
+
+  private equipmentThump(vol: number, fromHz: number, toHz: number, duration: number) {
+    const ctx = this.ctx!, t = ctx.currentTime;
+    const osc = ctx.createOscillator(), gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(fromHz, t);
+    osc.frequency.exponentialRampToValueAtTime(toHz, t + duration);
+    gain.gain.setValueAtTime(Math.max(0.0001, vol), t);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+    osc.connect(gain).connect(this.masterGain!);
+    osc.start(t); osc.stop(t + duration + 0.01);
+    osc.onended = () => { osc.disconnect(); gain.disconnect(); };
+  }
+
+  /** Distinct throw, bounce/impact, explosive, electrical and placement cues.
+   *  All amplitudes go through the existing channel mixer and peak limiter. */
+  private synthEquipmentCue(name: SfxName, vol: number) {
+    const t = this.ctx!.currentTime;
+    switch (name) {
+      case "equipment_throw":
+        this.equipmentNoise(vol * 0.42, 950, 2600, 0.14);
+        this.clickAt(t + 0.015, vol * 0.45);
+        break;
+      case "equipment_impact":
+        this.equipmentNoise(vol * 0.42, 1300, 360, 0.12);
+        this.equipmentThump(vol * 0.26, 105, 60, 0.12);
+        break;
+      case "equipment_frag":
+        this.equipmentNoise(vol * 0.85, 2400, 430, 0.46, "lowpass");
+        this.equipmentNoise(vol * 0.46, 3300, 900, 0.065, "highpass");
+        this.equipmentThump(vol * 0.85, 110, 36, 0.42);
+        break;
+      case "equipment_flash":
+        // Short, forceful pop with no prolonged piercing high tone.
+        this.equipmentNoise(vol * 0.66, 1700, 600, 0.22, "lowpass");
+        this.equipmentThump(vol * 0.42, 175, 78, 0.12);
+        break;
+      case "equipment_taser":
+        this.equipmentNoise(vol * 0.58, 2800, 1200, 0.22, "highpass");
+        this.equipmentThump(vol * 0.28, 240, 105, 0.16);
+        this.synthBlip(680, 0.065, vol * 0.21, "sawtooth");
+        break;
+      case "equipment_mine_arm":
+        this.clickAt(t, vol * 0.45);
+        this.synthBlip(690, 0.075, vol * 0.35, "sine");
+        this.clickAt(t + 0.13, vol * 0.28);
+        break;
+      case "equipment_mine_detonate":
+        this.equipmentNoise(vol * 0.73, 1600, 320, 0.32, "lowpass");
+        this.equipmentThump(vol * 0.85, 140, 42, 0.33);
+        break;
+      case "equipment_cover":
+        this.equipmentNoise(vol * 0.57, 820, 190, 0.26, "lowpass");
+        this.equipmentThump(vol * 0.67, 125, 48, 0.25);
+        this.clickAt(t + 0.11, vol * 0.38);
+        break;
+      case "equipment_poison":
+        this.equipmentNoise(vol * 0.36, 2200, 800, 0.18, "highpass");
+        this.clickAt(t + 0.02, vol * 0.34);
+        break;
+    }
+  }
+
   /** A short tonal blip. */
   private synthBlip(freq: number, dur: number, vol: number, type: OscillatorType = "sine") {
     const ctx = this.ctx!;
@@ -519,6 +660,23 @@ export class SoundManager {
     g.gain.exponentialRampToValueAtTime(0.001, t + dur);
     osc.connect(g).connect(this.masterGain!);
     osc.start(t); osc.stop(t + dur + 0.02);
+  }
+
+  /** Electronic double-buzz; scheduled through Web Audio, no JS timers. */
+  private synthWonderError(vol: number) {
+    const ctx=this.ctx!,start=ctx.currentTime;
+    for(let i=0;i<2;i++){
+      const at=start+i*.11,osc=ctx.createOscillator(),g=ctx.createGain();
+      osc.type="sawtooth";
+      osc.frequency.setValueAtTime(240-i*45,at);
+      osc.frequency.exponentialRampToValueAtTime(140-i*25,at+.085);
+      g.gain.setValueAtTime(.0001,at);
+      g.gain.linearRampToValueAtTime(Math.max(.0001,vol*.16),at+.012);
+      g.gain.exponentialRampToValueAtTime(.0001,at+.09);
+      osc.connect(g).connect(this.masterGain!);
+      osc.start(at);osc.stop(at+.10);
+      osc.onended=()=>{osc.disconnect();g.disconnect();};
+    }
   }
 
   /** Hit marker: a high pitched ding-ding (two quick blips). */
@@ -571,6 +729,19 @@ export class SoundManager {
     // and at a slightly higher pitch (3200Hz vs 2500Hz) for a distinct metal-
     // on-metal "clack" that separates it from the mag-in click.
     this.clickAt(t + 0.6, vol * 0.45, 3200, 0.025);
+  }
+
+  /** Cylinder unlock, empty-case rattle and speedloader seating, not a pistol slide. */
+  private synthRevolverReload(vol: number) {
+    const t = this.ctx!.currentTime;
+    this.clickAt(t, vol * .66, 1250, .070);
+    this.clickAt(t + .20, vol * .40, 3400, .026);
+    for (let i=0;i<4;i++) this.clickAt(t + .37 + i*.060, vol*.24, 2600+i*270, .020);
+  }
+  private synthRevolverClose(vol: number) {
+    const t=this.ctx!.currentTime;
+    this.clickAt(t,vol*.75,1450,.055);
+    this.clickAt(t+.037,vol*.37,3500,.018);
   }
 
   /** Short filtered-noise mechanical click. `freq` controls the highpass cutoff
@@ -787,6 +958,39 @@ export class SoundManager {
     });
   }
 
+  /** Urgent two-tone warning with a final rising sting: distinct from the
+   * opening GO cue and score fanfares, without an external audio asset. */
+  private synthOvertimeStart(vol: number) {
+    const ctx = this.ctx!;
+    const t = ctx.currentTime;
+    const notes = [392, 523.25, 392, 659.25];
+    notes.forEach((freq, i) => {
+      const start = t + i * .18;
+      const osc = ctx.createOscillator();
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(freq, start);
+      const filter = ctx.createBiquadFilter();
+      filter.type = "lowpass";
+      filter.frequency.value = 1800;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(.0001, start);
+      gain.gain.linearRampToValueAtTime(Math.max(.0001,vol * .23), start + .018);
+      gain.gain.exponentialRampToValueAtTime(.0001, start + .16);
+      osc.connect(filter).connect(gain).connect(this.masterGain!);
+      osc.start(start); osc.stop(start + .17);
+    });
+    const low = ctx.createOscillator();
+    low.type = "triangle";
+    low.frequency.setValueAtTime(196,t);
+    low.frequency.exponentialRampToValueAtTime(293.66,t + .85);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(.0001,t);
+    gain.gain.linearRampToValueAtTime(Math.max(.0001,vol * .12),t + .12);
+    gain.gain.exponentialRampToValueAtTime(.0001,t + .95);
+    low.connect(gain).connect(this.masterGain!);
+    low.start(t); low.stop(t + .96);
+  }
+
   /** Player took damage: a sharp low thud. */
   private synthHitTaken(vol: number) {
     const ctx = this.ctx!;
@@ -834,9 +1038,10 @@ export class SoundManager {
     const splash=ctx.createBufferSource();
     splash.buffer=this.noiseBuffer;
     const band=ctx.createBiquadFilter();
-    band.type="bandpass";band.frequency.value=1550;band.Q.value=.65;
+    // Lower the piercing splash pitch while keeping it recognizably wet.
+    band.type="bandpass";band.frequency.value=950;band.Q.value=.7;
     const gain=ctx.createGain();
-    gain.gain.setValueAtTime(Math.max(.0001,vol*.65),t);
+    gain.gain.setValueAtTime(Math.max(.0001,vol*.40),t);
     gain.gain.exponentialRampToValueAtTime(.0001,t+.19);
     splash.connect(band).connect(gain).connect(this.footstepGain!);
     splash.start(t);splash.stop(t+.20);
@@ -845,7 +1050,7 @@ export class SoundManager {
     thump.type="sine";
     thump.frequency.setValueAtTime(95,t);
     thump.frequency.exponentialRampToValueAtTime(48,t+.13);
-    thumpGain.gain.setValueAtTime(Math.max(.0001,vol*.22),t);
+    thumpGain.gain.setValueAtTime(Math.max(.0001,vol*.15),t);
     thumpGain.gain.exponentialRampToValueAtTime(.0001,t+.14);
     thump.connect(thumpGain).connect(this.footstepGain!);
     thump.start(t);thump.stop(t+.15);

@@ -3,39 +3,16 @@
  * one JSON file per map; the 3D builder only knows reusable prop primitives.
  * Never use Math.random here: browser and server share collision silhouettes.
  */
-import bunker from "../data/map-themes/bunker.json";
-import shipyard from "../data/map-themes/shipyard.json";
-import compound from "../data/map-themes/compound.json";
-import terminal from "../data/map-themes/terminal.json";
-import skybridge from "../data/map-themes/skybridge.json";
-import arenaNeon from "../data/map-themes/arena_neon.json";
-import orbitalNexus from "../data/map-themes/orbital_nexus.json";
-import whiteoutDepot from "../data/map-themes/whiteout_depot.json";
-import floodgate from "../data/map-themes/floodgate.json";
+import {MAP_DOCUMENTS} from "./map-documents";
 import type { CoverBox, MapTheme, Vec3 } from "./game-protocol";
 import type { MapBlueprint } from "./map-blueprints";
-import { insideRegions, featureBoxes } from "./map-blueprints";
+import { insideRegions, featureBoxes, type MapFeature } from "./map-blueprints";
+import {castleSceneryBoxes,isCastlePropKind} from "./castle-scenery";
 
-export type PropKind = "tree" | "bush" | "rock" | "ruin" | "temple" | "shop" | "lamp" |
-  "container" | "crane" | "terminal" | "sign" | "antenna" |
-  "building" | "boat" | "dock" | "garden" | "bench" | "bandstand" |
-  "furnace" | "conveyor" | "hydraulic_press" | "generator" | "storage_rack" |
-  "vent_stack" | "industrial_pipe" | "steel_coil" | "cargo_pallet";
-export interface MapProp {
-  kind: PropKind; x: number; z: number; y?: number;
-  /** Stable identifier for a generated lot; survives moving a promoted building. */
-  lotId?: string;
-  w?: number; d?: number; h?: number; text?: string; color?: string;
-  /** Saved editor orientation; extent dimensions already reflect the rotation. */
-  turns?: 0 | 1 | 2 | 3;
-  /** Shared day/night architectural metadata; used by rendering AND authoritative collision. */
-  use?: "house" | "cafe" | "supermarket" | "bakery" | "apartments" | "office" | "hotel" | "library" | "diner" | "clinic" | "workshop" | "gallery" | "florist" | "gym";
-  shape?: "rect" | "narrow" | "round";
-  stairSide?: "east" | "west";
-  /** Buildings with no roof route have neither inner nor external stairs. */
-  roofAccess?: boolean;
-  facade?: "brick" | "stucco" | "concrete" | "glass" | "timber" | "industrial";
-}
+import type {MapProp,MapVisualTheme,PropKind,SurfacePattern,SurfaceSlot,SurfaceRecipe} from "./map-theme-contract";
+export {MAP_SURFACE_PATTERNS as SURFACE_PATTERNS} from "./map-theme-contract";
+export type {MapProp,MapVisualTheme,PropKind,SurfacePattern,SurfaceSlot,SurfaceRecipe} from "./map-theme-contract";
+export type MapSurfaceRecipes = Record<SurfaceSlot,SurfaceRecipe>;
 /** Shared runtime/editor façade recipes, blended by the renderer in linear color space. */
 export const CITY_USE_FACADE_COLORS:Record<string,number>={
   house:0xac866c,cafe:0xb87d58,supermarket:0x548477,
@@ -48,31 +25,7 @@ export const CITY_FACADE_TINTS:Record<string,number>={
   brick:0xa45b48,stucco:0xd1bba0,concrete:0x92949b,
   glass:0x638aa2,timber:0x947556,industrial:0x777e86,
 };
-export const SURFACE_PATTERNS = ["concrete","metal","grate","planks","rust","moss","brick","stone","pavers","snow","asphalt","grass"] as const;
-export type SurfacePattern = typeof SURFACE_PATTERNS[number];
-export type SurfaceSlot = "floor" | "wall" | "cover" | "stair" | "platform";
-/** Physical texture scale is in WORLD units, not arbitrary geometry UV units. */
-export interface SurfaceRecipe { pattern: SurfacePattern; tileSize: number; roughness: number }
-export type MapSurfaceRecipes = Record<SurfaceSlot, SurfaceRecipe>;
-export interface MapVisualTheme {
-  biome: string; label: string; inheritPropsFrom?: string;
-  surfaces?: MapSurfaceRecipes;
-  palette: {
-    floor:string; wall:string; cover:string; accent:string;
-    platform:string; stair:string; sky:string; fog:string; grid:string;
-  };
-  ambient:number;
-  vegetation:number;
-  props:MapProp[];
-}
-export const MAP_VISUAL_THEMES: Record<string,MapVisualTheme> = {
-  bunker:bunker as MapVisualTheme,shipyard:shipyard as MapVisualTheme,
-  compound:compound as MapVisualTheme,terminal:terminal as MapVisualTheme,
-  skybridge:skybridge as MapVisualTheme,arena_neon:arenaNeon as MapVisualTheme,
-  orbital_nexus:orbitalNexus as MapVisualTheme,
-  floodgate:floodgate as MapVisualTheme,
-  whiteout_depot:whiteoutDepot as MapVisualTheme,
-};
+export const MAP_VISUAL_THEMES:Record<string,MapVisualTheme>=Object.fromEntries(Object.entries(MAP_DOCUMENTS).map(([id,d])=>[id,d.theme]));
 
 export function visualThemeForMap(id:string,templateMapId?:string):MapVisualTheme {
   const own=MAP_VISUAL_THEMES[id] ?? MAP_VISUAL_THEMES[templateMapId ?? ""] ?? MAP_VISUAL_THEMES.compound;
@@ -268,7 +221,8 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
   }
   // Deterministic visual/physics parity: do not render an actor-blocking
   // structure whose generated hitboxes would be missing or intersect a spawn.
-  const solidKinds=new Set<PropKind>(["tree","rock","ruin","temple","shop","building","container","boat","dock"]);
+  const solidKinds=new Set<PropKind>(["tree","rock","ruin","temple","shop","building","container","boat","dock",
+  "castle_building","castle_well","castle_stall","castle_cart","castle_target","castle_barrel","castle_brazier"]);
   const stairways=result.filter(p=>p.kind==="building"||p.kind==="bandstand")
     .flatMap(p=>(p.kind==="building"?cityBuildingBoxes(p):cityBandstandBoxes(p)).filter(c=>c.kind==="stair"));
   return result.filter(p=>{
@@ -277,6 +231,12 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
         Math.abs(c.pos[2]-p.z)<c.size[2]+3))return false;
     }
     if(!solidKinds.has(p.kind))return true;
+    if(isCastlePropKind(p.kind))
+      // A dungeon spawn beneath a courtyard prop must not hide its upper-floor model.
+      return !castleSceneryBoxes(p).some(c=>spawns.some(s=>
+        s[1]<c.pos[1]+c.size[1]+.3 && s[1]+1.8>c.pos[1]-c.size[1] &&
+        Math.abs(s[0]-c.pos[0])<c.size[0]+1.25 &&
+        Math.abs(s[2]-c.pos[2])<c.size[2]+1.25));
     if(p.kind==="building")
       // Same 3D spawn clearance as addBuilding: elevated spawns must not
       // disqualify safe residences many metres below them.
@@ -379,6 +339,20 @@ export function cityHasUsableInteriorStairs(p:MapProp):boolean{
   const tread=(d-5.2)/Math.ceil(h/.39);
   return w>=15.5&&d>=16&&tread>=.55&&h<=7.2;
 }
+/** Collision material is an authored gameplay role, not guessed from a facade
+ * color. Thin interior furniture can be shot through and destroyed; the heavy
+ * machinery and the building envelope cannot.
+ */
+export function cityFixtureMaterial(style:CityFixtureStyle):
+  "thin_wood"|"light_cover"|"reinforced" {
+  if(style==="partition"||style==="plant"||style==="sofa"||style==="reception"||
+     style==="display"||style==="exam_bed")return "light_cover";
+  if(["oven","server_rack","treadmill","locker","espresso"].includes(style))return "reinforced";
+  return "thin_wood";
+}
+export function cityFixtureBallisticId(p:MapProp,index:number):string{
+  return `city:fixture:${p.lotId??(`${p.x}:${p.z}`)}:${index}`;
+}
 export function cityBuildingBoxes(p:MapProp):CoverBox[]{
   const quarter=(((p.turns??0)%4)+4)%4;
   const odd=quarter%2===1;
@@ -388,10 +362,11 @@ export function cityBuildingBoxes(p:MapProp):CoverBox[]{
   const cosine=[1,0,-1,0][quarter],sine=[0,1,0,-1][quarter];
   const wall=.42,door=Math.min(5,w*.31),front=(w-door)/2;
   const a:CoverBox[]=[];
-  const put=(x:number,y:number,z:number,hx:number,hy:number,hz:number,kind:"cover"|"platform"|"stair"="cover")=>{
+  const put=(x:number,y:number,z:number,hx:number,hy:number,hz:number,kind:"cover"|"platform"|"stair"="cover",material:CoverBox["material"]="reinforced",ballisticId?:string)=>{
     if(hx>.01&&hy>.01&&hz>.01)a.push({
       kind,pos:[p.x+cosine*x+sine*z,(p.y??0)+y,p.z-sine*x+cosine*z],
       size:[odd?hz:hx,hy,odd?hx:hz],
+      ...(kind==="cover"?{material,ballisticId}:{}),
     });
   };
   if(p.shape==="round"){
@@ -454,8 +429,10 @@ export function cityBuildingBoxes(p:MapProp):CoverBox[]{
     }
     put(side*(w/2+.82),h+.16,crest,1.45,.16,1.5,"platform");
   }
-  for(const fixture of cityInteriorFixtures({...p,w,d})){
-    put(fixture.x,fixture.h/2,fixture.z,fixture.w/2,fixture.h/2,fixture.d/2);
+  for(const [index,fixture] of cityInteriorFixtures({...p,w,d}).entries()){
+    const material=cityFixtureMaterial(fixture.style);
+    put(fixture.x,fixture.h/2,fixture.z,fixture.w/2,fixture.h/2,fixture.d/2,
+      "cover",material,material==="reinforced"?undefined:cityFixtureBallisticId(p,index));
   }
   return a;
 }
@@ -465,13 +442,21 @@ export function cityBandstandBoxes(p:MapProp):CoverBox[]{
   const steps=featureBoxes({id:"bandstand",kind:"platform",x:p.x,z:p.z,w,d,h}).slice(1);
   const pillars:CoverBox[]=[];
   for(const x of [-w*.42,w*.42])for(const z of [-d*.42,d*.42])
-    pillars.push({kind:"cover",pos:[p.x+x,(h+5.2)/2,p.z+z],size:[.36,(h+5.2)/2,.36]});
+    pillars.push({kind:"cover",material:"reinforced",pos:[p.x+x,(h+5.2)/2,p.z+z],size:[.36,(h+5.2)/2,.36]});
   return [roof,...steps,...pillars];
 }
 
-export function propColliders(props:readonly MapProp[],spawns:readonly Vec3[]):CoverBox[] {
+/** Namespaced, coordinate-stable ID for non-structural authored map furniture. */
+export function mapPropBallisticId(p:MapProp):string {
+  return `prop:${p.kind}:${p.x}:${p.y??0}:${p.z}`;
+}
+export function propColliders(props:readonly MapProp[],spawns:readonly Vec3[],authoredFeatures:readonly MapFeature[]=[]):CoverBox[] {
   const result:CoverBox[]=[];
   for(const p of props){
+    if(isCastlePropKind(p.kind)){
+      result.push(...castleSceneryBoxes(p));
+      continue;
+    }
     const h=p.h??(p.kind==="shop"?7:3);
     let size:Vec3|null=null;
     if(p.kind==="tree")size=[0.45,Math.min(3,h)/2,0.45];
@@ -483,7 +468,34 @@ export function propColliders(props:readonly MapProp[],spawns:readonly Vec3[]):C
       continue;
     }
     if(p.kind==="bench"){
-      result.push({kind:"cover",pos:[p.x,.56,p.z],size:[1.3,.56,.53]});
+      result.push({kind:"cover",pos:[p.x,.56,p.z],size:[1.3,.56,.53],
+        material:"thin_wood",ballisticId:mapPropBallisticId(p)});
+      continue;
+    }
+    if(p.kind==="cargo_pallet"){
+      // Most factory pallets dress an explicit blueprint crate. Whiteout's
+      // pallets were visual-only: give them the exact same server/client body.
+      const alreadyAuthored=authoredFeatures.some(f=>f.kind==="cover" &&
+        Math.abs(f.x-p.x)<.1&&Math.abs(f.z-p.z)<.1 &&
+        Math.abs(f.w-(p.w??7))<.2&&Math.abs(f.d-(p.d??6))<.2);
+      if(!alreadyAuthored)result.push({kind:"cover",pos:[p.x,(p.y??0)+h/2,p.z],
+        size:[(p.w??7)/2,h/2,(p.d??6)/2],material:"light_cover",
+        ballisticId:mapPropBallisticId(p)});
+      continue;
+    }
+    if(p.kind==="sarcophagus"){
+      // Solid stone burial chests: preserve the exact same footprint in both
+      // authoritative collision and the client renderer.
+      result.push({kind:"cover",pos:[p.x,(p.y??0)+h/2,p.z],
+        size:[(p.w??2.2)/2,h/2,(p.d??3.1)/2],material:"reinforced"});
+      continue;
+    }
+    if(p.kind==="terminal"){
+      // 3D terminals are solid-looking consoles, not walk-through decoration.
+      // Match the renderer's 2 x 2.2 x 1.3 body plus its shallow front screen
+      // (the screen extends to local Z +0.74). Keep this collider in the
+      // shared map so movement, bots and bullets agree in solo and online.
+      result.push({kind:"cover",pos:[p.x,(p.y??0)+1.1,p.z],size:[1,1.1,.75],material:"reinforced"});
       continue;
     }
     if(p.kind==="bandstand"){
@@ -492,7 +504,25 @@ export function propColliders(props:readonly MapProp[],spawns:readonly Vec3[]):C
     }
     if(!size)continue;
     if(spawns.some(s=>Math.abs(s[0]-p.x)<size[0]+3&&Math.abs(s[2]-p.z)<size[2]+3))continue;
-    result.push({kind:"cover",pos:[p.x,p.y??(size[1]),p.z],size});
+    if(p.kind==="ruin"||p.kind==="temple"){
+      // The models are OPEN stone frames, not solid volumes. Previously the
+      // invisible AABB blocked bullets and actors through the centre of a
+      // visibly empty ruin. Match all four columns and the overhead lintel.
+      const q=(((p.turns??0)%4)+4)%4,odd=q%2===1;
+      const w=odd?(p.d??7):(p.w??8),d=odd?(p.w??8):(p.d??7);
+      const cos=[1,0,-1,0][q],sin=[0,1,0,-1][q],col=Math.max(1.2,w*.14);
+      const put=(x:number,y:number,z:number,wx:number,hy:number,dz:number)=>{
+        result.push({kind:"cover",material:"concrete",
+          pos:[p.x+cos*x+sin*z,(p.y??0)+y,p.z-sin*x+cos*z],
+          size:[odd?dz:wx,hy,odd?wx:dz]});
+      };
+      for(const x of [-w*.35,w*.35])for(const z of [-d*.35,d*.35])
+        put(x,h*.37,z,col/2,h*.37,col/2);
+      put(0,h*.8,0,w/2,.325,d*.08);
+      continue;
+    }
+    result.push({kind:"cover",pos:[p.x,p.y??(size[1]),p.z],size,
+      material:p.kind==="rock"?"concrete":"reinforced"});
   }
   return result;
 }

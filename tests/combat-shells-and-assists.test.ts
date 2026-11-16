@@ -40,14 +40,17 @@ describe("shotgun ammunition",()=>{
     expect(bean.pellets).toBeLessThan(base.pellets??999);
     expect(bean.fireRate).toBeGreaterThan(base.fireRate);
     expect(bean.damage).toBeLessThan(base.damage);
-    expect(fire.pellets).toBe(1);
+    // Dragon's Breath is now a close-range incendiary pellet fan, not a slug.
+    expect(fire.pellets).toBeGreaterThan(1);
+    expect(fire.pellets).toBeLessThan(base.pellets??999);
     expect(fire.shotgunAmmo).toBe("dragons_breath");
   });
-  test("Mauler combat shotgun falloff retains meaningful intermediate damage",()=>{
+  test("Mauler combat shotgun is specialized for close quarters with steep falloff",()=>{
     const w=WEAPONS.find(x=>x.id==="shotgun_combat")!;
-    expect(w.stats.range).toBeGreaterThanOrEqual(25);
-    expect(w.stats.minDamageMultiplier??0).toBeGreaterThanOrEqual(.3);
-    expect(w.stats.falloffEndMultiplier??0).toBeGreaterThanOrEqual(1.8);
+    expect(w.stats.range).toBeGreaterThanOrEqual(10);
+    expect(w.stats.range).toBeLessThanOrEqual(15);
+    expect(w.stats.minDamageMultiplier??1).toBeLessThanOrEqual(.25);
+    expect(w.stats.falloffEndMultiplier??9).toBeLessThanOrEqual(1.8);
   });
   test("melee is faster than its own base move speed and never has a headshot objective",()=>{
     const w=WEAPONS.find(x=>x.id==="knife_tactical")!;

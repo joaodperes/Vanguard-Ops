@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { captureSavedLoadout, cleanLoadoutName, parseSavedLoadouts, MAX_SAVED_LOADOUTS } from "../src/lib/saved-loadouts";
+import { captureSavedLoadout, cleanLoadoutName, parseSavedLoadouts, presetWonderEquipFields, MAX_SAVED_LOADOUTS } from "../src/lib/saved-loadouts";
 
 const equipped = {
   primaryWeapon: "rifle_ar", secondaryWeapon: "pistol_side", meleeWeapon: "knife_tactical",
@@ -64,6 +64,68 @@ describe("Named loadout slots", () => {
     expect(slots[0].secondaryCharm).toBe("charm_compass");
     expect(slots[0].attachments.sight).toBe("sight_acog");
   });
+  test("captures tactical and an equipped Wonder's module, finish and kill effect", () => {
+    const active = {
+      ...equipped,
+      equipmentId: "cover",
+      wonderWeaponId: "wonder_phasebreaker",
+      weaponSetups: JSON.stringify({
+        wonder_phasebreaker: {
+          skin: "wonder_ion_accelerator", moduleId: "overcharged_coil",
+          killEffectId: "wonder_kill_rail_fracture", attachments: {},
+        },
+      }),
+    };
+    const preset = captureSavedLoadout(active, "wonder", "Phasebreaker", "wonder_weapon");
+    expect(preset.equipmentId).toBe("cover");
+    expect(preset.wonderCustomization).toEqual({
+      moduleId: "overcharged_coil", skinId: "wonder_ion_accelerator",
+      killEffectId: "wonder_kill_rail_fracture",
+    });
+    const loaded = parseSavedLoadouts(JSON.stringify([preset]))[0];
+    expect(presetWonderEquipFields(loaded)).toEqual({
+      wonderCustomizeWeaponId: "wonder_phasebreaker",
+      wonderModuleId: "overcharged_coil", wonderSkinId: "wonder_ion_accelerator",
+      wonderKillEffectId: "wonder_kill_rail_fracture",
+    });
+  });
+
+  test("different presets can remember independent configurations of the same Wonder", () => {
+    const base = { ...equipped, wonderWeaponId: "wonder_phasebreaker" };
+    const first = captureSavedLoadout({
+      ...base, weaponSetups: JSON.stringify({ wonder_phasebreaker: {
+        skin: "wonder_ion_accelerator", moduleId: "overcharged_coil",
+        killEffectId: "wonder_kill_rail_fracture", attachments: {},
+      } }),
+    }, "first", "High Impact", "wonder_weapon");
+    const second = captureSavedLoadout({
+      ...base, weaponSetups: JSON.stringify({ wonder_phasebreaker: {
+        skin: "default", moduleId: "magnetized_rounds", killEffectId: "", attachments: {},
+      } }),
+    }, "second", "Long Range", "wonder_weapon");
+    const [savedFirst, savedSecond] = parseSavedLoadouts(JSON.stringify([first, second]));
+    expect(savedFirst.wonderCustomization?.moduleId).toBe("overcharged_coil");
+    expect(savedSecond.wonderCustomization).toEqual({
+      moduleId: "magnetized_rounds", skinId: "", killEffectId: "",
+    });
+    expect(presetWonderEquipFields(savedSecond).wonderSkinId).toBe("");
+    expect(savedFirst.wonderCustomization?.moduleId).toBe("overcharged_coil");
+  });
+
+  test("legacy presets and non-Wonder perks leave the global Wonder setup unchanged", () => {
+    const old = captureSavedLoadout(equipped, "old", "Legacy", "steady");
+    expect(presetWonderEquipFields(old)).toEqual({});
+    const legacyWonder = { ...old, perkId: "wonder_weapon", wonderWeaponId: "wonder_phasebreaker" };
+    expect(presetWonderEquipFields(parseSavedLoadouts(JSON.stringify([legacyWonder]))[0])).toEqual({});
+    const unusedWonder = captureSavedLoadout({
+      ...equipped, wonderWeaponId: "wonder_phasebreaker", weaponSetups: "{}",
+    }, "no-wonder", "Standard", "steady");
+    expect(unusedWonder.wonderCustomization).toBeUndefined();
+    expect(presetWonderEquipFields(unusedWonder)).toEqual({});
+    const malformedWonder = { ...legacyWonder, wonderCustomization: { moduleId: 42 } };
+    expect(parseSavedLoadouts(JSON.stringify([malformedWonder]))[0].wonderCustomization).toBeUndefined();
+  });
+
   test("sanitizes long or broken names and invalid serialized data", () => {
     expect(cleanLoadoutName("   Heavy   Weapons   ")).toBe("Heavy Weapons");
     expect(cleanLoadoutName("x".repeat(100)).length).toBe(24);

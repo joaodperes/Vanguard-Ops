@@ -57,7 +57,8 @@ describe("Ridgefall factory redesign",()=>{
         expect(base?.kind).toBe("cover");
       }
     }
-    expect(propColliders(machines,compiled.spawns.ffa)).toEqual([]);
+    // Dressing shares authored factory crate collision: no duplicate pallets.
+    expect(propColliders(machines,compiled.spawns.ffa,blueprint.features)).toEqual([]);
   });
   test("shared FPS and editor factory asset builder makes identifiable real meshes",()=>{
     for(const kind of FACTORY_MACHINE_KINDS){

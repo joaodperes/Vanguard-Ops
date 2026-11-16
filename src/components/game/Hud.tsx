@@ -2,12 +2,16 @@
 import { useEffect, useState } from "react";
 import type { HudState, ScoreRow } from "@/lib/fps-engine";
 import { formatMatchClock } from "@/lib/match-clock";
+import { SURVIVAL_UPGRADES, survivalUpgradeValueText, type SurvivalUpgradeId } from "@/lib/survival-upgrades";
 import { scoreboardRules } from "@/lib/scoreboard-rules";
 import type { GameMode } from "@/lib/game-protocol";
 import { Minimap } from "./Minimap";
 import { weaponById, WEAPONS, ATTACHMENTS } from "@/lib/game-data";
 import { displayMapLabel } from "@/lib/display-labels";
+import { deathCauseLabel } from "@/lib/death-cause";
 import { matchHudInfo } from "@/lib/match-hud";
+import { LAVA_DEATH_SOURCE } from "@/lib/dynamic-environment";
+import { orbitalChargeLabel } from "@/lib/orbital-reactor";
 import { ctfFlagLine, killRank, teamScorePerspective } from "@/lib/hud-top-stats";
 import type { WeaponCategory } from "@/lib/game-data";
 import { Heart, Zap, Trophy, Skull, Clock, LogOut, Users, AlertTriangle, Crosshair as CrosshairIcon, Shield, ChevronUp, Siren } from "lucide-react";
@@ -34,6 +38,7 @@ const CATEGORY_ACCENT: Record<WeaponCategory, { color: string; label: string }> 
 interface Props {
   hud: HudState;
   onExit: () => void;
+  onExitMech?: () => void;
   mode: GameMode;
   crosshairColor?: string;
   crosshairSize?: number;
@@ -43,7 +48,7 @@ interface Props {
   scopeOverlay?: boolean;
 }
 
-export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSize = 8, reticleStyle = "classic", showPing = true, isTouch = false, scopeOverlay = true }: Props) {
+export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e", crosshairSize = 8, reticleStyle = "classic", showPing = true, isTouch = false, scopeOverlay = true }: Props) {
   const [showScoreboard, setShowScoreboard] = useState(false);
   const [hitFlash, setHitFlash] = useState(0);
   const [dmgFlash, setDmgFlash] = useState(0);
@@ -61,13 +66,13 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
       // Only open the scoreboard while the player is actively in the match
       // (pointer locked). This prevents Tab from opening the scoreboard over
       // the "CLICK TO PLAY" overlay when the pointer is unlocked.
-      if (e.code === "Tab" && hud.pointerLocked) { e.preventDefault(); setShowScoreboard(true); }
+      if (e.code === "Tab" && (hud.pointerLocked || !!hud.matchEnding)) { e.preventDefault(); setShowScoreboard(true); }
     };
     const up = (e: KeyboardEvent) => { if (e.code === "Tab") setShowScoreboard(false); };
     window.addEventListener("keydown", dn);
     window.addEventListener("keyup", up);
     return () => { window.removeEventListener("keydown", dn); window.removeEventListener("keyup", up); };
-  }, [hud.pointerLocked]);
+  }, [hud.pointerLocked, hud.matchEnding]);
 
   // ---- Prevent scoreboard / click-to-play overlap ----
   // The "CLICK TO PLAY" overlay (rendered by GameCanvas) shows whenever the
@@ -80,8 +85,8 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
   // until the pointer is locked again. This makes the two overlays mutually
   // exclusive by construction.
   useEffect(() => {
-    if (!hud.pointerLocked) setShowScoreboard(false);
-  }, [hud.pointerLocked]);
+    if (!hud.pointerLocked && !hud.matchEnding) setShowScoreboard(false);
+  }, [hud.pointerLocked, hud.matchEnding]);
 
   useEffect(() => { if (hud.hitMarker) setHitFlash(hud.hitMarker); }, [hud.hitMarker]);
   // Round 20g: Headshot marker — separate flash state for the distinct red marker.
@@ -130,8 +135,21 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
   const regenMs = hud.regenCooldownMs ?? 0;
   const regenWaiting = regenMs > 0 && hud.alive && hud.health < hud.maxHealth;
   const regenSec = Math.ceil(regenMs / 1000);
-  // ---- Weapon slot indicator (1/2/3) ----
-  const slotNum = hud.weaponSlot === "primary" ? 1 : hud.weaponSlot === "secondary" ? 2 : 3;
+  // Slot 4 displays its recharge progress even while the player holds a rifle.
+  const slotNum = hud.weaponSlot === "primary" ? 1 : hud.weaponSlot === "secondary" ? 2 : hud.weaponSlot === "melee" ? 3 : 4;
+  const wonderSlotStatus = !hud.wonderWeaponId ? undefined :
+    hud.wonderWeaponId === "wonder_riot_shield"
+      ? (hud.wonderShieldHp??0)>0 ? "READY" : `${Math.ceil((hud.wonderShieldRechargeMs??0)/1000)}s`
+      : (hud.wonderCharges??0)>0
+        ? `${hud.wonderCharges}/${hud.wonderChargeMax??1}`
+        : `${Math.ceil((hud.wonderSlotCooldownMs??0)/1000)}s`;
+
+  const wonderSlotProgress = !hud.wonderWeaponId ? undefined :
+    hud.wonderWeaponId === "wonder_riot_shield"
+      ? (hud.wonderShieldHp ?? 0) > 0 ? 1 :
+        Math.max(0,1-(hud.wonderShieldRechargeMs ?? 0)/55000)
+      : (hud.wonderCharges ?? 0) > 0 ? 1 :
+        Math.max(0,Math.min(1,1-(hud.wonderSlotCooldownMs ?? 0)/Math.max(1,hud.wonderSlotChargeTotalMs ?? 1)));
 
   // ---- Local player's team (TDM scoreboard grouping) ----
   // In TDM mode the scoreboard is split into Red/Blue panels; we use this to
@@ -145,6 +163,52 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
 
   return (
     <div className="absolute inset-0 pointer-events-none select-none font-mono">
+      {/* Inside the Juggernaut: the view through a steel helmet aperture, not an
+          ordinary infantry HUD. Keep the centre unobstructed for aiming. */}
+      {hud.mechArmor!==undefined && (
+        <div className="absolute inset-0 overflow-hidden" data-testid="juggernaut-visor">
+          <div className="absolute inset-0" style={{
+            boxShadow:"inset 0 0 0 9px rgba(12,19,25,.93), inset 0 0 0 17px rgba(65,88,100,.74), inset 0 0 95px 40px rgba(0,0,0,.75)",
+          }} />
+          <div className="absolute inset-x-[5%] top-0 h-8 rounded-b-[55%] border-b-[5px] border-slate-500/80 bg-gradient-to-b from-slate-950 to-transparent" />
+          <div className="absolute inset-x-[5%] bottom-0 h-10 rounded-t-[55%] border-t-[5px] border-slate-500/80 bg-gradient-to-t from-slate-950 to-transparent" />
+          <div className="absolute top-[7%] bottom-[7%] left-0 w-[4%] rounded-r-[60%] border-r-[5px] border-slate-500/70 bg-slate-950/90" />
+          <div className="absolute top-[7%] bottom-[7%] right-0 w-[4%] rounded-l-[60%] border-l-[5px] border-slate-500/70 bg-slate-950/90" />
+          <div className="absolute bottom-16 left-[7%] text-cyan-200/80 text-[10px] uppercase tracking-[.23em]">
+            <span className="block text-xs font-black tracking-wider">L / MINIGUN</span>
+            <span>LMB · {hud.mechMinigunAmmo??0} ROUNDS</span>
+          </div>
+          <div className="absolute bottom-16 right-[7%] text-amber-200/80 text-right text-[10px] uppercase tracking-[.23em]">
+            <span className="block text-xs font-black tracking-wider">R / {hud.mechSecondaryName??"Shotgun"}</span>
+            <span>RMB · {hud.mechSecondaryAmmo??0} ROUNDS</span>
+          </div>
+          <div className="absolute top-[15%] left-[7%] text-cyan-300/65 text-[9px] tracking-[.18em]">PILOT LINK · ACTIVE</div>
+          <div className="absolute top-[15%] right-[7%] text-cyan-300/65 text-[9px] tracking-[.18em] text-right">TACTICAL VISOR</div>
+        </div>
+      )}
+      {hud.mechEnterAvailable&&<div className="absolute top-[28%] left-1/2 -translate-x-1/2 rounded-lg border border-sky-400/70 bg-slate-950/90 px-5 py-3 text-center shadow-lg shadow-sky-900/30">
+        <div className="text-sky-200 text-sm font-black tracking-widest">JUGGERNAUT READY</div>
+        <div className="text-white text-xs mt-1">PRESS E TO ENTER MECH</div>
+      </div>}
+      {hud.mechArmor!==undefined&&<div className="absolute top-14 left-1/2 -translate-x-1/2 rounded-lg border border-cyan-500/60 bg-slate-950/90 px-4 py-3 text-center min-w-64 shadow-md shadow-cyan-900/30">
+        <div className="text-cyan-200 text-sm tracking-[.15em] font-bold">JUGGERNAUT</div>
+        <div className="text-white font-black text-lg mt-1">ARMOR {Math.ceil(hud.mechArmor)}/{hud.mechArmorMax??450}</div>
+        <div className="mt-1 grid grid-cols-2 gap-4 text-[11px]">
+          <span className="text-emerald-200">LMB · Minigun <b>{hud.mechMinigunAmmo??0}</b></span>
+          <span className="text-amber-200">RMB · {hud.mechSecondaryName??"Shotgun"} <b>{hud.mechSecondaryAmmo??0}</b></span>
+        </div>
+        <div className="text-[10px] text-white/50 mt-1">No jumping, sprinting or ADS · X to exit</div>
+        <button type="button" onClick={onExitMech} disabled={!onExitMech}
+          className="pointer-events-auto mt-2 rounded-md border border-cyan-400/50 bg-cyan-500/15 px-3 py-1.5 text-xs font-bold text-cyan-100 hover:bg-cyan-500/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300">
+          Exit Juggernaut (X)
+        </button>
+      </div>}
+      {hud.railChargePercent!==undefined&&<div className="absolute left-1/2 -translate-x-1/2 top-[19%] rounded-md border border-sky-400/40 bg-black/70 px-4 py-2 text-xs text-sky-200">
+        PHASEBREAKER CHARGING · {hud.railChargePercent}%
+      </div>}
+      {hud.chronoRecallMs!==undefined&&hud.chronoRecallMs>0&&<div className="absolute top-[23%] left-1/2 -translate-x-1/2 rounded-md border border-violet-400/50 bg-black/70 px-4 py-2 text-xs text-violet-200">
+        CHRONO ANCHOR ACTIVE · FIRE TO RETURN · {(hud.chronoRecallMs/1000).toFixed(1)}s
+      </div>}
       {/* damage vignette */}
       {showDmg && (
         <div className="absolute inset-0" style={{ boxShadow: "inset 0 0 200px 40px rgba(239,68,68,0.55)", opacity: 1 - dmgAge / 350 }} />
@@ -156,6 +220,35 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           boxShadow:"inset 0 0 110px 18px rgba(107,185,213,0.28)",
           opacity:Math.max(0,1-shieldAge/320),
         }} />
+      )}
+      {/* Flashbang: blurry, desaturated afterimage instead of painful full-screen white. */}
+      {hud.alive && (hud.flashRemainingMs??0)>0 && (
+        <>
+          <div className="absolute inset-0" style={{
+            background:"radial-gradient(ellipse at 50% 44%, rgba(192,195,186,.66) 0%, rgba(119,126,127,.74) 61%, rgba(15,21,27,.86) 100%)",
+            backdropFilter:`blur(${Math.min(12,(hud.flashRemainingMs??0)/280*1.5)}px) saturate(0.12) contrast(0.72)`,
+            WebkitBackdropFilter:`blur(${Math.min(12,(hud.flashRemainingMs??0)/280*1.5)}px) saturate(0.12) contrast(0.72)`,
+            opacity:Math.min(.92,Math.max(0,(hud.flashRemainingMs??0)/1800)),
+          }} />
+          <div className="absolute left-1/2 top-[21%] -translate-x-1/2 flex items-center gap-2 rounded border border-white/35 bg-black/75 px-4 py-2 font-black tracking-[0.22em] text-white text-sm">
+            <AlertTriangle className="w-4 h-4" />
+            FLASHED · {Math.ceil((hud.flashRemainingMs??0)/1000)}S
+          </div>
+        </>
+      )}
+      {/* Tasers jam ADS and add sway, small involuntary steps and hipfire
+          inaccuracy without preventing movement, reloads or firing. */}
+      {hud.alive && (hud.taserRemainingMs??0)>0 && (
+        <>
+          <div className="absolute inset-0 animate-pulse" style={{
+            boxShadow:"inset 0 0 95px 12px rgba(24,200,255,0.26)",
+          }} />
+          <div className="absolute left-1/2 top-[26%] -translate-x-1/2 flex items-center gap-2 rounded border border-cyan-300/70 bg-black/75 px-4 py-2 font-black tracking-[0.16em] text-cyan-200 text-sm"
+               style={{textShadow:"0 0 12px rgba(40,210,255,.5)"}}>
+            <Zap className="w-4 h-4 animate-pulse" />
+            TASERED · ADS JAMMED / AIM UNSTABLE · {Math.ceil((hud.taserRemainingMs??0)/1000)}S
+          </div>
+        </>
       )}
       {/* Round 20h: Spawn protection overlay — cyan vignette + "PROTECTED" label */}
       {hud.alive && hud.selfSpawnProtected && (
@@ -334,7 +427,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
                 <>
                   <span className="text-white/30">·</span>
                   <span className="text-[10px] font-bold uppercase text-violet-300">
-                    Reactor {hud.orbitalCharge}/10
+                    {orbitalChargeLabel(hud.orbitalCharge, hud.orbitalKillsRequired)}
                     {hud.orbitalReaper ? " · REAPER EQUIPPED" : ""}
                   </span>
                 </>
@@ -355,7 +448,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           "border-cyan-300/20 bg-black/60 text-cyan-100/80"
         }`} role="status">{hud.mapEvent.label}</div>}
         {mode !== "ctf" && hud.orbitalCharge !== undefined && <div className="rounded-md border border-violet-400/20 bg-black/60 px-3 py-1 text-center text-xs font-bold text-violet-300" role="status">
-          Reactor {hud.orbitalCharge}/10{hud.orbitalReaper ? " · REAPER EQUIPPED" : ""}
+          {orbitalChargeLabel(hud.orbitalCharge, hud.orbitalKillsRequired)}{hud.orbitalReaper ? " · REAPER EQUIPPED" : ""}
         </div>}
         {mode !== "ctf" && hud.orbitalWarning && <div className="rounded px-2 py-1 bg-amber-950/80 text-amber-300 text-xs text-center">{hud.orbitalWarning}</div>}
 
@@ -368,6 +461,13 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             {hud.survivalTier === "default" || !hud.survivalTier ? "Standard · 30 waves" : `${hud.survivalTier} · Endless`}
             {(hud.survivalModifierNames?.length ?? 0) > 0 && <span className="text-rose-300"> · {hud.survivalModifierNames!.join(" · ")}</span>}
             {hud.survivalBossWave && <span className="text-rose-300 font-black"> · Boss wave</span>}
+            {Object.values(hud.survivalUpgradeRanks??{}).some(n=>(n??0)>0) && (
+              <span className="text-cyan-300" title={Object.entries(hud.survivalUpgradeRanks??{})
+                .filter(([,rank])=>(rank??0)>0)
+                .map(([id,rank])=>id.replaceAll("_"," ")+" ×"+rank).join(" · ")}>
+                {" · "+Object.values(hud.survivalUpgradeRanks??{}).reduce((a,b)=>a+(b??0),0)+" upgrades"}
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -386,7 +486,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
       <div className={`absolute left-3 flex flex-col gap-1 max-w-[55vw] ${isTouch ? "top-[84px]" : "top-[88px]"}`}>
         {hud.killFeed.slice(0, isTouch ? 4 : 5).map((k, i) => (
           <div key={i} className={`bg-black/55 backdrop-blur rounded border border-white/10 flex items-center gap-1.5 ${isTouch ? "px-1.5 py-0.5 text-[10px]" : "px-3 py-1 text-xs"}`} style={{ animation: "killfeedSlide 0.3s ease-out" }}>
-            <span className={teamColor(k.killerTeam)}>{k.killer}</span>
+            <span className={teamColor(k.killerTeam)}>{k.weapon === LAVA_DEATH_SOURCE ? "Lava" : k.killer}</span>
             <span className="text-white/40">{k.headshot ? "⊚" : "›"}</span>
             <span className={teamColor(k.victimTeam)}>{k.victim}</span>
           </div>
@@ -396,11 +496,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
       {/* Perk information stacks BELOW the radar, never across its markers.
           Minimap: top 56px, height 176px desktop / 128px touch. */}
       <div className={`absolute right-4 flex flex-col items-end gap-2 ${isTouch ? "top-[234px]" : "top-[248px]"}`}>
-        {hud.perkName && (
-          <div className="px-2.5 py-1 rounded-md bg-black/75 border border-amber-500/20 text-amber-200 text-[11px] max-w-44 text-right">
-            Perk: {hud.perkName}
-          </div>
-        )}
+        
         {hud.perkName === "Scavenger" && (hud.scavengerPacksNearby ?? 0) > 0 && (
           <div className="rounded-md bg-black/80 border border-emerald-400/50 px-3 py-1 text-emerald-200 text-xs font-bold">
             AMMO CACHE NEARBY ×{hud.scavengerPacksNearby}
@@ -412,10 +508,10 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           </div>
         )}
       </div>
-      {hud.matchEnding && <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none bg-black/30">
-        <div className="text-center bg-black/70 border border-amber-400/40 rounded-xl px-10 py-7 shadow-xl">
-          <div className="text-3xl font-black tracking-widest text-amber-300">{hud.matchEnding}</div>
-          <div className="text-white/60 text-xs mt-2 tracking-widest uppercase">Match complete · final scores loading</div>
+      {/* A discreet finish banner keeps the winning death fall and TAB scoreboard visible. */}
+      {hud.matchEnding && <div className="absolute bottom-[17%] left-1/2 -translate-x-1/2 z-40 pointer-events-none text-center">
+        <div className="bg-black/65 border border-amber-400/40 rounded-xl px-6 py-3 shadow-xl backdrop-blur-sm">
+          <div className="text-2xl font-black tracking-widest text-amber-300">{hud.matchEnding}</div>
         </div>
       </div>}
       {hud.quickMeleeAt && now - hud.quickMeleeAt < 350 && <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center">
@@ -492,7 +588,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
 
       {/* bottom right: ammo + weapon + slot indicator (desktop only — mobile
           uses the centered bottom cluster below). */}
-      {!isTouch && (
+      {!isTouch && hud.mechArmor===undefined && (
       <div className="absolute bottom-6 right-6 text-right">
         <div className="text-white/60 text-xs uppercase tracking-widest mb-0.5 flex items-center justify-end gap-1.5">
           {/* Category color dot — matches the 3D accent band on the weapon model */}
@@ -522,6 +618,14 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             </span>
             <span className="text-[11px] text-white/55">{hud.ammo} deployment charge · Fire to plant</span>
           </div>
+        ) : hud.akimbo ? (
+          <div className="flex flex-col items-end">
+            <div className="flex items-end gap-3">
+              <span className="text-xs text-white/60">{isTouch ? "LEFT" : "LMB · LEFT"} <b className="text-white text-2xl tabular-nums">{hud.akimboLeftAmmo ?? 0}</b><span className="text-white/40">/{hud.akimboHandMagSize ?? 6}</span></span>
+              <span className="text-xs text-white/60">{isTouch ? "RIGHT" : "RMB · RIGHT"} <b className="text-white text-2xl tabular-nums">{hud.akimboRightAmmo ?? 0}</b><span className="text-white/40">/{hud.akimboHandMagSize ?? 6}</span></span>
+            </div>
+            <div className="text-[10px] text-amber-300/70 mt-1">{isTouch ? "BOTH BUTTONS = BOTH GUNS · NO ADS" : "BOTH BUTTONS = SIMULTANEOUS SHOTS · NO ADS · R RELOAD"}</div>
+          </div>
         ) : (
           <div className="flex items-end justify-end gap-1">
             <span className={`text-4xl font-bold tabular-nums ${lowAmmo ? "text-rose-400 animate-pulse" : ammoPct < 0.5 ? "text-amber-300" : "text-white"}`}>{hud.ammo}</span>
@@ -536,13 +640,31 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
         </div>}
         {hud.wonderRechargeMs !== undefined && <div className="text-violet-300 text-[11px] mt-1">{hud.wonderRechargeMs > 0 ? `CHARGING · ${(hud.wonderRechargeMs / 1000).toFixed(1)}s` : hud.weaponId === "wonder_turret" ? "PLANT WITH FIRE" : "WONDER CHARGE READY"} · {hud.weaponId === "wonder_turret" ? "Placed turret lasts 25s" : "No reserve ammo"}</div>}
         {hud.boltCharges !== undefined && <div className="text-emerald-300 text-[10px] mt-1">Recovered bolts: {hud.boltCharges} · proximity pickup</div>}
-        {hud.wonderRechargeMs === undefined && hud.heat === undefined && lowAmmo && !hud.reloading && <div className="text-rose-400 text-[10px] mt-1 flex items-center justify-end gap-1"><AlertTriangle className="w-2.5 h-2.5" /> LOW AMMO — RELOAD</div>}
+        {hud.equipmentName && mode !== "gungame" && (
+          <div className={`text-[10px] mt-1 font-semibold ${hud.equipmentCharges ? "text-cyan-300" : "text-white/35"}`}>
+            G · {hud.equipmentName.toUpperCase()} {hud.equipmentCharges ?? 0} LEFT{(hud.equipmentRechargeMs??0)>0 ? ` · +1 IN ${((hud.equipmentRechargeMs??0)/1000).toFixed(1)}s` : ""}
+          </div>
+        )}
+        {hud.meleeWeaponId === "baton" && hud.weaponId !== "baton" && mode !== "gungame" && (
+          <div className="text-amber-300 text-[10px] mt-1">
+            F · THROWING KNIFE {hud.meleeKnifeCharges ?? 1}/1
+          </div>
+        )}
+        {hud.weaponId === "baton" && (
+          <div className="text-amber-200/80 text-[10px] mt-1">
+            {mode==="gungame"
+              ? hud.ammo>=1?"KNIFE READY":`+1 KNIFE IN ${((hud.knifeRechargeMs??0)/1000).toFixed(1)}s`
+              : "ONE PER LIFE · REFILL ON DEATH"}
+          </div>
+        )}
+        {hud.wonderRechargeMs === undefined && hud.heat === undefined && hud.weaponId!=="baton" && lowAmmo && !hud.reloading && <div className="text-rose-400 text-[10px] mt-1 flex items-center justify-end gap-1"><AlertTriangle className="w-2.5 h-2.5" /> LOW AMMO — RELOAD</div>}
         {/* Weapon slot indicator: 3 mini-slots showing 1=primary, 2=secondary, 3=melee.
             The active slot is highlighted; others are dim. Weapon name shows under each. */}
         <div className="mt-2 flex items-center justify-end gap-1.5">
           <SlotPip n={1} name={hud.primaryName} active={slotNum === 1} color="emerald" weaponId={hud.primaryWeaponId} />
           <SlotPip n={2} name={hud.secondaryName} active={slotNum === 2} color="amber" weaponId={hud.secondaryWeaponId} />
           <SlotPip n={3} name={hud.meleeName} active={slotNum === 3} color="rose" weaponId={hud.meleeWeaponId} />
+          {hud.wonderWeaponId && <SlotPip n={4} name={hud.wonderName??"Wonder"} active={slotNum===4} color="violet" weaponId={hud.wonderWeaponId} status={wonderSlotStatus} chargeProgress={wonderSlotProgress} />}
         </div>
       </div>
       )}
@@ -578,8 +700,15 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
               <><span className={`tabular-nums font-bold text-xs ${lowAmmo ? "text-rose-400 animate-pulse" : ammoPct < 0.5 ? "text-amber-300" : "text-white"}`}>{hud.ammo}</span><span className="text-white/40 text-[9px]">/{hud.magSize}</span></>
             )}
             {hud.boltCharges !== undefined && <span className="text-emerald-400 text-[9px]">+{hud.boltCharges} bolts</span>}
+            {hud.equipmentName && mode !== "gungame" && <span className="text-cyan-300 text-[9px]">T {hud.equipmentCharges ?? 0}{(hud.equipmentRechargeMs??0)>0 ? ` +${Math.ceil((hud.equipmentRechargeMs??0)/1000)}s` : ""}</span>}
+            {hud.meleeWeaponId==="baton" && hud.weaponId!=="baton" && mode!=="gungame" &&
+              <span className="text-amber-300 text-[9px]">F {hud.meleeKnifeCharges ?? 1}/1</span>}
+            {hud.weaponId==="baton" && <span className="text-amber-300 text-[9px]">
+              {mode==="gungame" ? `${Math.ceil((hud.knifeRechargeMs??0)/1000)}s recharge` : "per life"}
+            </span>}
             {hud.reloading && <span className="ml-1 text-amber-400 text-[9px] uppercase font-bold animate-pulse">{hud.heat !== undefined ? "VENT" : "RLD"}</span>}
             {hud.wonderRechargeMs !== undefined && <span className="ml-1 text-violet-300 text-[9px] font-mono">{hud.wonderRechargeMs > 0 ? `${Math.ceil(hud.wonderRechargeMs / 1000)}s` : "READY"}</span>}
+            {hud.wonderWeaponId && slotNum!==4 && <span className="ml-1 inline-flex items-center gap-1 text-violet-300 text-[9px] font-mono"><WonderChargePip progress={wonderSlotProgress ?? 0} /> W4 {wonderSlotStatus}</span>}
           </div>
           {/* Bottom row: health + stamina bars (small, side by side) */}
           <div className="flex items-center gap-2">
@@ -615,20 +744,20 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
       {!hud.alive && (
         <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center">
           <div className="text-rose-500 text-5xl font-black tracking-widest mb-2" style={{ textShadow: "0 0 20px rgba(239,68,68,0.6)" }}>ELIMINATED</div>
-          {hud.lastDeath && (
+          {hud.lastDeath?.weaponId === LAVA_DEATH_SOURCE ? (
+            <div className="my-4 px-6 py-3 rounded-xl border border-amber-500/40 bg-black/75 text-amber-200">Fell into the lava moat</div>
+          ) : hud.lastDeath && (
             <div className="my-4 px-6 py-3 rounded-xl border border-white/20 bg-black/75 text-center max-w-[88vw]">
               <div className="text-white/65 uppercase text-xs tracking-widest">Eliminated by</div>
               <div className="text-white font-bold text-lg">{hud.lastDeath.killer}</div>
-              <div className="text-amber-200 text-sm">{!WEAPONS.some(w=>w.id===hud.lastDeath!.weaponId)
-                ? "Environment: "+hud.lastDeath.weaponId.replace(/^(hazard_|env_)/,"").replaceAll("_"," ")
-                : weaponById(hud.lastDeath.weaponId).name}</div>
+              <div className="text-amber-200 text-sm">{deathCauseLabel(hud.lastDeath.weaponId)}</div>
               {hud.lastDeath.attachments.length>0 && <div className="text-white/60 text-xs mt-1">
                 {hud.lastDeath.attachments.map(id=>ATTACHMENTS.find(a=>a.id===id)?.name??id).join(" · ")}
               </div>}
             </div>
           )}
           {mode === "survival" ? (
-            <div className="text-white/70 text-lg">Survival run ended</div>
+            <div className="text-white/70 text-lg">{hud.survivalWaitingForWave ? "Returning after your partner clears the wave" : "Survival run ended"}</div>
           ) : (
             <div className="text-white/70 text-lg">Respawning in <span className="text-white font-bold text-2xl">{hud.respawnIn}</span>s</div>
           )}
@@ -637,9 +766,13 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
 
       {mode === "survival" && hud.survivalDowned && (
         <div className="absolute left-1/2 top-1/3 -translate-x-1/2 z-40 rounded-xl border border-amber-400/50 bg-black/80 px-7 py-5 text-center">
-          <div className="text-amber-300 text-2xl font-black tracking-wider">DOWNED</div>
-          <div className="text-white/75 text-sm mt-1">Secondary weapon only · Hold position</div>
-          <div className="text-white/50 text-xs mt-2">Survive until your teammate clears the wave to rejoin during preparation.</div>
+          <div className="text-amber-300 text-2xl font-black tracking-wider">DOWNED {hud.survivalDownedLeft!==undefined ? "· "+hud.survivalDownedLeft+"s" : ""}</div>
+          <div className="text-white/75 text-sm mt-1">Secondary weapon only · Cannot move</div>
+          <div className="text-white/50 text-xs mt-2">
+            {hud.survivalDownedLeft!==undefined
+              ? "Eliminate an enemy within 30 seconds to self-revive with 35 HP."
+              : "Your teammate can bring you back by clearing this wave."}
+          </div>
         </div>
       )}
 
@@ -709,7 +842,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
           In TDM mode, the scoreboard is split into two side-by-side team panels
           (Red / Blue) so friendlies and enemies are visually grouped. In all
           other modes (ffa / gungame / survival) it remains a single flat table. */}
-      {showScoreboard && hud.alive !== undefined && hud.pointerLocked && (
+      {showScoreboard && hud.alive !== undefined && (hud.pointerLocked || !!hud.matchEnding) && (
         (mode === "tdm" || mode === "killconfirmed" || mode === "ctf") ? (
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[640px] max-w-[94vw]">
             <div className="bg-black/80 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden">
@@ -730,7 +863,7 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
             </div>
           </div>
         ) : (
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[520px] max-w-[92vw]">
+          <div className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 ${mode==="survival"?"w-[780px]":"w-[520px]"} max-w-[92vw]`}>
             <div className="bg-black/80 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden">
               <div className="px-4 py-2.5 bg-white/5 border-b border-white/10 flex items-center gap-2">
                 <Users className="w-4 h-4 text-white/70" />
@@ -748,10 +881,11 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
                       <th className="text-center px-2 py-1.5 font-medium w-14">K</th>
                       <th className="text-center px-2 py-1.5 font-medium w-14">D</th>
                       <th className="text-center px-4 py-1.5 font-medium w-16">Score</th>
+                      {mode==="survival" && <th className="text-left px-3 py-1.5 font-medium">Active upgrades</th>}
                     </tr>
                   </thead>
                   <tbody>
-                    {[...hud.scoreboard].sort((a, b) => b.score - a.score).map((r) => (
+                    {hud.scoreboard.filter(r=>mode!=="survival"||!r.isBot).sort((a, b) => b.score - a.score).map((r) => (
                       <tr key={r.id} className={`border-t border-white/5 ${r.isSelf ? "bg-emerald-500/10" : ""}`}>
                         <td className="px-4 py-1.5">
                           <span className={`inline-block w-2 h-2 rounded-full mr-2 ${teamDot(r.team)}`} />
@@ -761,6 +895,27 @@ export function Hud({ hud, onExit, mode, crosshairColor = "#22c55e", crosshairSi
                         <td className="text-center px-2 py-1.5 text-white tabular-nums">{r.kills}</td>
                         <td className="text-center px-2 py-1.5 text-white/50 tabular-nums">{r.deaths}</td>
                         <td className="text-center px-4 py-1.5 text-white font-bold tabular-nums">{r.score}</td>
+                        {mode==="survival" && (
+                          <td className="px-3 py-2">
+                            <div className="flex max-w-[390px] flex-wrap gap-1">
+                              {Object.entries(hud.survivalPlayerRanks?.[r.id]??
+                                (r.isSelf?hud.survivalUpgradeRanks??{}:{}))
+                                .filter(([,rank])=>(rank??0)>0)
+                                .map(([id,rank])=>{
+                                  const def=SURVIVAL_UPGRADES.find(u=>u.id===id);
+                                  const previous={ [id]: Math.max(0,(rank??0)-1) };
+                                  return <span key={id}
+                                    title={def?survivalUpgradeValueText(def.id,previous as Record<SurvivalUpgradeId,number>):id}
+                                    className="inline-flex rounded border border-cyan-500/25 bg-cyan-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-200">
+                                    {def?.name??id} ×{rank}
+                                  </span>;
+                                })}
+                              {!Object.values(hud.survivalPlayerRanks?.[r.id]??
+                                (r.isSelf?hud.survivalUpgradeRanks??{}:{})).some(v=>(v??0)>0) &&
+                                <span className="text-xs text-white/35">No upgrades</span>}
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -852,11 +1007,18 @@ function TeamPanel({ team, score, rows, selfTeam, scoreLabel, limit }: { team: "
 // ---- Weapon slot indicator pip ----
 // Small badge showing the slot number (1/2/3) + a short weapon name. The active
 // slot is highlighted with the slot's accent color; inactive slots are dim.
-function SlotPip({ n, name, active, color, weaponId }: { n: number; name: string; active: boolean; color: "emerald" | "amber" | "rose"; weaponId?: string }) {
+function WonderChargePip({progress}:{progress:number}) {
+  const pct=Math.round(Math.max(0,Math.min(1,progress))*100);
+  return <span role="img" aria-label={pct===100?"Wonder ready":`Wonder charging ${pct}%`}
+    className="inline-block h-3.5 w-3.5 shrink-0 rounded-full border border-white/25"
+    style={{background:`conic-gradient(#22c55e ${pct}%, #080a0b ${pct}% 100%)`,boxShadow:pct===100?"0 0 7px #22c55e88":"none"}} />;
+}
+function SlotPip({ n, name, active, color, weaponId, status, chargeProgress }: { n: number; name: string; active: boolean; color: "emerald" | "amber" | "rose" | "violet"; weaponId?: string; status?: string; chargeProgress?: number }) {
   const colorClasses = {
     emerald: active ? "border-emerald-400/70 bg-emerald-500/20 text-emerald-200" : "border-white/10 bg-black/40 text-white/40",
     amber: active ? "border-amber-400/70 bg-amber-500/20 text-amber-200" : "border-white/10 bg-black/40 text-white/40",
     rose: active ? "border-rose-400/70 bg-rose-500/20 text-rose-200" : "border-white/10 bg-black/40 text-white/40",
+    violet: active ? "border-violet-400/70 bg-violet-500/20 text-violet-200" : "border-white/10 bg-black/40 text-white/40",
   };
   // Category dot — shows the weapon's category color (matches the 3D band).
   const catDot = weaponId ? (() => {
@@ -867,8 +1029,9 @@ function SlotPip({ n, name, active, color, weaponId }: { n: number; name: string
   return (
     <div className={`px-1.5 py-0.5 rounded border text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors ${colorClasses[color]}`}>
       <span className="tabular-nums opacity-80">{n}</span>
-      {catDot}
+      {chargeProgress !== undefined ? <WonderChargePip progress={chargeProgress} /> : catDot}
       <span className="truncate max-w-[60px] text-[9px]">{name.split(" ")[0]}</span>
+      {status && <span className="text-[9px] tabular-nums text-violet-300/90 ml-0.5 whitespace-nowrap">{status}</span>}
     </div>
   );
 }
@@ -900,7 +1063,8 @@ function GunGameProgress({ index, total, currentWeaponId, compact }: { index: nu
 // Renders the appropriate reticle based on the equipped sight type. For 1x sights
 // (iron/red_dot/holo/laser) we render the standard crosshair. For magnified sights
 // (acog/hunter/thermal/nvg) we render a scope circle + reticle, with tinted overlays
-// for thermal (amber) and NVG (green). Fades in/out with ADS progress.
+// for thermal (amber). NVG color grading happens inside the 3D-rendered scope
+// lens, preserving enemy green against desaturated world colors.
 function ScopeOrCrosshair({
   hud, crosshairColor, crosshairSize, reticleStyle, dynamicGap, showHit, hitMarkerAge, scopeOverlay,
 }: {
@@ -924,6 +1088,7 @@ function ScopeOrCrosshair({
   // The dedicated `scoped` flag also triggers it for snipers with non-scope sights.
   const showScope = scopeOverlay && (isMagnified || isSniperScoped) && adsP > 0.5;
   const hasReflex = sightType === "red_dot" || sightType === "holo";
+  const compactReflex = hud.sightAttachmentId === "sight_compact_reflex";
   // Reticle color per sight type. Snipers (scoped flag) use the dark sniper crosshair.
   const reticleColor =
     sightType === "thermal" ? "#ffb347" :
@@ -949,12 +1114,19 @@ function ScopeOrCrosshair({
     // silently overridden by the inline `transform` property.
     return (
       <div className="absolute" style={{ left: '50%', top: '50%', width: 0, height: 0, pointerEvents: 'none' }}>
-          {/* Reflex-window frame is part of the physical weapon mesh.
-              HUD renders only the reticle, never a contradictory round housing. */}
-          {hasReflex && sightType==="holo" && adsP>.3 && (
-            <div className="absolute rounded-full border pointer-events-none"
-              style={{width:29,height:29,transform:"translate(-50%,-50%)",
-                borderColor:reticleColor,opacity:Math.min(.7,(adsP-.3)*1.4)}}/>
+          {/* Reflex optic sight picture, small open lens without a dark vignette.
+              Compact Reflex uses the red-dot reticle but a smaller frame. */}
+          {hasReflex && scopeOverlay && adsP>.15 && (
+            <div className="absolute pointer-events-none"
+              style={{transform:"translate(-50%,-50%)",opacity:Math.min(.85,(adsP-.15)/.65),
+                width:compactReflex?62:sightType==="holo"?96:76,
+                height:compactReflex?46:sightType==="holo"?76:64}}>
+              <div className={`absolute inset-0 border-2 ${sightType==="holo"?"rounded-xl":"rounded-[45%]"}`}
+                style={{borderColor:"#4f626b",background:"radial-gradient(ellipse at center, rgba(130,198,218,.08) 0%, rgba(32,84,102,.14) 80%, rgba(3,13,20,.16) 100%)",
+                  boxShadow:"inset 0 0 0 2px #131f28, 0 0 0 2px #151e23, 0 2px 8px #0009"}} />
+              <div className="absolute bottom-[-5px] left-[35%] w-[30%] h-[5px] rounded-sm bg-[#283b45]" />
+              {sightType==="holo" && <div className="absolute inset-[22%] border border-emerald-400/30 rounded-full" />}
+            </div>
           )}
           {/* For red_dot/holo/laser, render a single dot in the reticle color instead of the crosshair */}
           {(sightType === "red_dot" || sightType === "holo" || sightType === "laser") && adsP > 0.3 ? (
@@ -991,12 +1163,11 @@ function ScopeOrCrosshair({
   const scopeOpacity = Math.min(1, (adsP - 0.5) / 0.45);  // 0..1 fade-in
   const tintBg =
     sightType === "thermal" ? "rgba(255,140,30,0.10)" :
-    sightType === "nvg" ? "rgba(40,180,60,0.12)" :
     "rgba(0,0,0,0)";
   return (
     <>
-      {/* Tinted full-screen wash for thermal/NVG (skipped for sniper/hunter/acog which use a clean dark scope) */}
-      {sightType !== "hunter" && sightType !== "acog" && sightType !== "sniper_scope" && !isSniperScoped && (
+      {/* The renderer grades NVG only inside the lens; thermal keeps its HUD tint. */}
+      {sightType === "thermal" && !isSniperScoped && (
         <div className="absolute inset-0 pointer-events-none" style={{ background: tintBg, opacity: scopeOpacity }} />
       )}
       {/* Scope vignette: black ring around the visible circle */}

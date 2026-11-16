@@ -1,10 +1,11 @@
 "use client";
+import {formatCredits} from "@/lib/format-credits";
 import { achievementTitle, achievementRequirement } from "@/lib/achievement-titles";
 import { useGame } from "@/lib/game-store";
 import { Button } from "@/components/ui/button";
 import { Trophy, RotateCcw, Home, Zap, Coins, TrendingUp, Star, Crown, Award, Target, Skull, Flame, Clock, Crosshair } from "lucide-react";
 import { toast } from "sonner";
-import { weaponById, WEAPONS, WEAPON_SKINS, ATTACHMENTS } from "@/lib/game-data";
+import { weaponById, WEAPONS, WEAPON_SKINS, ATTACHMENTS, PLAYER_SKINS } from "@/lib/game-data";
 import { displayLabel } from "@/lib/display-labels";
 import { perkById } from "@/lib/perks";
 import { SURVIVAL_TIER_INFO } from "@/lib/survival";
@@ -13,6 +14,7 @@ function unlockedGearLabel(id: string): string {
   return WEAPONS.find(w => w.id === id)?.name
     ?? WEAPON_SKINS.find(s => s.id === id)?.name
     ?? ATTACHMENTS.find(a => a.id === id)?.name
+    ?? PLAYER_SKINS.find(s => s.id === id)?.name
     ?? displayLabel(id);
 }
 
@@ -117,7 +119,7 @@ export function Results() {
                 <div className="rounded-xl bg-amber-500/5 border border-amber-500/20 p-3 flex items-center gap-3">
                   <Coins className="w-5 h-5 text-amber-400" />
                   <div>
-                    <div className="text-2xl font-black text-white tabular-nums">+{rewards.creditsGained}</div>
+                    <div className="text-2xl font-black text-white tabular-nums">+{formatCredits(rewards.creditsGained)}</div>
                     <div className="text-white/50 text-xs uppercase tracking-wider">Credits</div>
                   </div>
                 </div>
@@ -140,7 +142,7 @@ export function Results() {
                     <div key={key} className="grid grid-cols-[1fr_auto_auto] items-center gap-x-5 border-b border-white/5 px-4 py-3 text-sm last:border-b-0">
                       <span className="text-white/80 font-medium">{label}</span>
                       <span className="w-16 text-right tabular-nums text-cyan-300">+{rewards.breakdown?.[key]?.xp ?? 0}</span>
-                      <span className="w-16 text-right tabular-nums text-amber-300">+{rewards.breakdown?.[key]?.credits ?? 0}</span>
+                      <span className="w-16 text-right tabular-nums text-amber-300">+{formatCredits(rewards.breakdown?.[key]?.credits ?? 0)}</span>
                     </div>
                   ))}
                 </div>
@@ -241,16 +243,16 @@ export function Results() {
                   <div className="text-cyan-300 font-bold text-sm mb-2"><Crosshair className="w-4 h-4 inline mr-1" /> Now Available in the Armory</div>
                   <div className="flex flex-wrap gap-2">
                     {rewards.newUnlocks.purchasableWeapons.map((id: string) => <span key={id} className="text-xs border border-cyan-500/20 bg-cyan-500/10 text-cyan-100 rounded-md px-2 py-1">
-                      {weaponById(id).name} · {weaponById(id).unlockCost} CR
+                      {weaponById(id).name} · {formatCredits(weaponById(id).unlockCost)} CR
                     </span>)}
                   </div>
                 </div>
               )}
-              {rewards.newUnlocks && (rewards.newUnlocks.weapons.length || rewards.newUnlocks.weaponSkins.length || rewards.newUnlocks.attachments.length) > 0 && (
+              {rewards.newUnlocks && (rewards.newUnlocks.weapons.length || rewards.newUnlocks.weaponSkins.length || rewards.newUnlocks.attachments.length || rewards.newUnlocks.playerSkins.length) > 0 && (
                 <div className="p-3 rounded-xl bg-rose-500/5 border border-rose-500/20">
                   <div className="text-rose-300 font-bold text-sm mb-2 flex items-center gap-1.5"><Crown className="w-4 h-4" /> New Gear Unlocked</div>
                   <div className="flex flex-wrap gap-1.5">
-                    {[...rewards.newUnlocks.weapons, ...rewards.newUnlocks.weaponSkins, ...rewards.newUnlocks.attachments].map((id: string) => (
+                    {[...rewards.newUnlocks.weapons, ...rewards.newUnlocks.weaponSkins, ...rewards.newUnlocks.attachments, ...rewards.newUnlocks.playerSkins].map((id: string) => (
                       <span key={id} className="text-xs px-2 py-1 rounded-md bg-rose-500/15 text-rose-200 border border-rose-500/20">{unlockedGearLabel(id)}</span>
                     ))}
                   </div>

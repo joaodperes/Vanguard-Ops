@@ -3,40 +3,44 @@
 // Imported by BOTH the Next.js client (`@/lib/game-protocol`) and the
 // socket.io game-server mini-service (relative path). Keep in sync.
 // ============================================================================
+import {supportsMapMode,type ObjectiveMap} from "./map-objectives";
 import type { ClusterVolley } from "./cluster-grenades";
 import { TACTICAL_COVER, OUTER_SPAWNS } from "./map-tactics";
 import type { SurvivalTier } from "./survival";
+import type { SurvivalUpgradeId, SurvivalUpgradeOffer, SurvivalUpgradeRanks } from "./survival-upgrades";
 import { applyMapFootprint } from "./map-footprint";
 import { MAP_BLUEPRINTS, type MapBlueprint } from "./map-blueprints";
 import type { MapVisualTheme } from "./map-visuals";
 import { FOREST_SPAWNS, FOREST_WARFARE_COVER, FOREST_REGIONS, FOREST_HALF_EXTENT } from "./forest-warfare";
-import { CTF_LAYOUTS } from "./ctf-layouts";
 import type { CtfFlags } from "./ctf-rules";
 
 export type Vec3 = [number, number, number];
 export type GameMode = "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed" | "ctf";
-export type MapId = "compound" | "skybridge" | "bunker" | "shipyard" | "terminal" | "arena_neon" | "forest_warfare" | "orbital_nexus" | "floodgate" | "whiteout_depot";
+export type MapId = "compound" | "skybridge" | "bunker" | "shipyard" | "terminal" | "arena_neon" | "forest_warfare" | "orbital_nexus" | "floodgate" | "whiteout_depot" | "emberhold";
 
 // ---- Room lobby system -------------------------------------------------------
 // Per-team player count options for the "Create a Room" flow.
-export const TEAM_SIZES = [3, 4, 5, 7, 9, 16] as const;
+export const TEAM_SIZES = [3, 4, 5, 7, 9, 12, 16] as const;
 export type TeamSize = (typeof TEAM_SIZES)[number];
 
-/** City and Floodgate support 32; Blacksite has tighter mode-specific limits. */
+/** The Afterlight editions share their city layout and room-size options. */
 export function isAfterlightCityMap(mapId: MapId | string): boolean {
   return mapId === "terminal" || mapId === "arena_neon";
 }
 export function teamSizesForMap(mapId: MapId | string, mode: GameMode = "tdm"): readonly TeamSize[] {
   if (mapId === "bunker") return mode === "ffa" || mode === "gungame" ? [3,4] : [3,5];
-  if (isAfterlightCityMap(mapId)) return mode === "ffa" || mode === "gungame" ? [5,7,9,16] : [5,7,9,16];
+  if (isAfterlightCityMap(mapId)) return [5,7,9,16];
+  // Castle is dense at 32 operatives: cap every supported mode at 12 per side / 24 total.
+  if (mapId === "emberhold") return [5,7,9,12];
   if (mapId === "floodgate") return [5,7,9,16];
   if (mapId === "compound" || mapId === "skybridge") return [3,5,7,9];
   return [3,5,7];
 }
 export function recommendedTeamSize(mapId: MapId | string, mode: GameMode = "tdm"): TeamSize {
   if(mapId==="bunker")return 3;
-  if(isAfterlightCityMap(mapId))return mode==="ffa"||mode==="gungame"?7:9;
-  if(mapId==="floodgate"||mapId==="compound"||mapId==="skybridge")return 7;
+  // 9 per side = 18 operatives in both day and night Afterlight editions.
+  if(isAfterlightCityMap(mapId))return 9;
+  if(mapId==="floodgate"||mapId==="compound"||mapId==="skybridge"||mapId==="emberhold")return 7;
   return 5;
 }
 export function teamSizeAllowed(mapId: MapId | string, teamSize: number, mode: GameMode = "tdm"): teamSize is TeamSize {
@@ -116,6 +120,10 @@ export interface CoverBox {
   pos: Vec3;     // center
   size: Vec3;    // half-extents
   kind?: "solid" | "cover" | "accent" | "platform" | "stair";
+  /** Author-assigned ballistic material; missing = fully protective. */
+  material?: import("./cover-penetration").BallisticMaterial;
+  /** Stable Map Studio feature ID used by cover hit/damage replication. */
+  ballisticId?: string;
   environmentId?: string; // dynamically updated solid; not part of the static map geometry
 }
 
@@ -151,6 +159,10 @@ export function stairs(
 }
 
 // ---- Map definitions --------------------------------------------------------
+// The base templates below contain legacy geometry, not the canonical player-
+// facing identities. Map names, codes and descriptions are authored in
+// src/data/maps/*.json and read through MAP_BLUEPRINTS (including fallbacks).
+
 export interface MapTheme {
   floor: number;
   floorPattern: number;
@@ -177,12 +189,15 @@ export interface MapAccentLight {
 /** Map-authored interactive objects. Coordinates follow CoverBox half-extents. */
 export type EnvironmentObject =
   | { id: string; type: "fire"; pos: Vec3; size: Vec3; dps: number }
+  | { id: string; type: "lava"; pos: Vec3; size: Vec3 }
   | { id: string; type: "spikes"; pos: Vec3; size: Vec3; damage: number; period: number; activeFor: number; offset?: number; warningFor?: number; visual?: "spikes" | "steam" }
   | { id: string; type: "jump_pad"; pos: Vec3; size: Vec3; launch: Vec3 }
   | { id: string; type: "moving_platform"; pos: Vec3; size: Vec3; to: Vec3; period: number }
   | { id: string; type: "destructible_wall"; pos: Vec3; size: Vec3; hp: number };
 
-export interface MapDef {
+export type MapModeSpawns=Partial<Record<GameMode,{red:Vec3[];blue:Vec3[]}>>;
+export interface MapDef extends ObjectiveMap {
+  modeSpawns?:MapModeSpawns;
   id: MapId;
   name: string;
   shortName: string;
@@ -986,6 +1001,7 @@ const ARENA_NEON_LIGHTS: MapAccentLight[] = [
  * Moving platforms are optional side-route props, never mandatory bot links.
  */
 const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
+  emberhold: [],
   whiteout_depot: [],
   floodgate: [],
   orbital_nexus: [],
@@ -1034,9 +1050,18 @@ const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
   arena_neon: [],
 };
 const BASE_MAPS: Record<MapId, MapDef> = {
+  emberhold: {
+    id: "emberhold", name: MAP_BLUEPRINTS.maps.emberhold.name, shortName: MAP_BLUEPRINTS.maps.emberhold.shortName,
+    description: MAP_BLUEPRINTS.maps.emberhold.description,
+    size: 100, wallHeight: 11, cover: TACTICAL_COVER.emberhold, environment: ENVIRONMENTS.emberhold,
+    spawns: OUTER_SPAWNS.emberhold, accentColor: "#ef924a",
+    theme: { floor: 0x332c2c, floorPattern: 0x575052, wall: 0x4e4546, cover: 0x797069,
+      coverAccent: 0xef924a, stair: 0x8c8176, platform: 0x6c6768,
+      sky: "#342c3c", fog: "#463b42", fogNear: 45, fogFar: 320, ambient: 1.2, gridColor: 0x575052 },
+  },
   whiteout_depot: {
-    id:"whiteout_depot",name:"Whiteout Depot",shortName:"WHD",
-    description:"A snowbound rail depot for up to 7v7 CTF.",
+    id:"whiteout_depot",name: MAP_BLUEPRINTS.maps.whiteout_depot.name,shortName: MAP_BLUEPRINTS.maps.whiteout_depot.shortName,
+    description: MAP_BLUEPRINTS.maps.whiteout_depot.description,
     // Physical objects and all spawns are authored only in the blueprint/theme.
     size:128,wallHeight:14,cover:TACTICAL_COVER.whiteout_depot,environment:ENVIRONMENTS.whiteout_depot,
     spawns:OUTER_SPAWNS.whiteout_depot,biome:"snow_rail",accentColor:"#64d8dc",
@@ -1046,8 +1071,8 @@ const BASE_MAPS: Record<MapId, MapDef> = {
     lights:[],
   },
   floodgate: {
-    id:"floodgate",name:"Floodgate",shortName:"FLD",
-    description:"A stormbound hydroelectric complex built for 16v16 CTF.",
+    id:"floodgate",name: MAP_BLUEPRINTS.maps.floodgate.name,shortName: MAP_BLUEPRINTS.maps.floodgate.shortName,
+    description: MAP_BLUEPRINTS.maps.floodgate.description,
     // Physical objects and all 32 spawns are authored only in the blueprint/theme.
     size:176,wallHeight:14,cover:TACTICAL_COVER.floodgate,environment:ENVIRONMENTS.floodgate,
     spawns:OUTER_SPAWNS.floodgate,biome:"hydroelectric",accentColor:"#64d8dc",
@@ -1057,8 +1082,8 @@ const BASE_MAPS: Record<MapId, MapDef> = {
     lights:[],
   },
   orbital_nexus: {
-    id:"orbital_nexus",name:"Orbital Nexus",shortName:"ONX",
-    description:"CTF aboard an orbital station above a violet gas giant.",
+    id:"orbital_nexus",name: MAP_BLUEPRINTS.maps.orbital_nexus.name,shortName: MAP_BLUEPRINTS.maps.orbital_nexus.shortName,
+    description: MAP_BLUEPRINTS.maps.orbital_nexus.description,
     size:100,wallHeight:32,cover:TACTICAL_COVER.orbital_nexus,environment:ENVIRONMENTS.orbital_nexus,
     spawns:OUTER_SPAWNS.orbital_nexus,biome:"orbital",accentColor:"#4ce8fb",
     theme:{floor:0x202a40,floorPattern:0x305578,wall:0x323d62,cover:0x64728f,
@@ -1095,9 +1120,9 @@ const BASE_MAPS: Record<MapId, MapDef> = {
   compound: {
     id: "compound",
     environment: ENVIRONMENTS.compound,
-    name: "Compound",
-    shortName: "CMP",
-    description: "Symmetric arena with a central raised platform and four corner bunkers. Balanced for all ranges.",
+    name: MAP_BLUEPRINTS.maps.compound.name,
+    shortName: MAP_BLUEPRINTS.maps.compound.shortName,
+    description: MAP_BLUEPRINTS.maps.compound.description,
     size: 64,
     wallHeight: 10,
     cover: [...COMPOUND_COVER, ...TACTICAL_COVER.compound],
@@ -1123,9 +1148,9 @@ const BASE_MAPS: Record<MapId, MapDef> = {
   skybridge: {
     id: "skybridge",
     environment: ENVIRONMENTS.skybridge,
-    name: "Skybridge",
-    shortName: "SKY",
-    description: "Vertical-focused map with crossing catwalks and corner sniper towers. Height is power.",
+    name: MAP_BLUEPRINTS.maps.skybridge.name,
+    shortName: MAP_BLUEPRINTS.maps.skybridge.shortName,
+    description: MAP_BLUEPRINTS.maps.skybridge.description,
     size: 64,
     wallHeight: 14,
     cover: [...SKYBRIDGE_COVER, ...TACTICAL_COVER.skybridge],
@@ -1151,9 +1176,9 @@ const BASE_MAPS: Record<MapId, MapDef> = {
   bunker: {
     id: "bunker",
     environment: ENVIRONMENTS.bunker,
-    name: "Bunker",
-    shortName: "BNK",
-    description: "Tight enclosed CQC with a perimeter upper walkway. Close-quarters brutality.",
+    name: MAP_BLUEPRINTS.maps.bunker.name,
+    shortName: MAP_BLUEPRINTS.maps.bunker.shortName,
+    description: MAP_BLUEPRINTS.maps.bunker.description,
     size: 60,
     wallHeight: 9,
     cover: [...BUNKER_COVER, ...TACTICAL_COVER.bunker],
@@ -1179,9 +1204,9 @@ const BASE_MAPS: Record<MapId, MapDef> = {
   shipyard: {
     id: "shipyard",
     environment: ENVIRONMENTS.shipyard,
-    name: "Shipyard",
-    shortName: "SHY",
-    description: "Tight industrial dockside — stacked containers, crane walkways, brutal close-quarters firefights.",
+    name: MAP_BLUEPRINTS.maps.shipyard.name,
+    shortName: MAP_BLUEPRINTS.maps.shipyard.shortName,
+    description: MAP_BLUEPRINTS.maps.shipyard.description,
     size: 62,
     wallHeight: 11,
     cover: [...SHIPYARD_COVER, ...TACTICAL_COVER.shipyard],
@@ -1201,9 +1226,9 @@ const BASE_MAPS: Record<MapId, MapDef> = {
   terminal: {
     id: "terminal",
     environment: ENVIRONMENTS.terminal,
-    name: "Terminal",
-    shortName: "TRM",
-    description: "Modern airport concourse — polished floors, glass walls, second-level walkway. Classic mid-range engagements.",
+    name: MAP_BLUEPRINTS.maps.terminal.name,
+    shortName: MAP_BLUEPRINTS.maps.terminal.shortName,
+    description: MAP_BLUEPRINTS.maps.terminal.description,
     size: 64,
     wallHeight: 12,
     cover: [...TERMINAL_COVER, ...TACTICAL_COVER.terminal],
@@ -1223,9 +1248,9 @@ const BASE_MAPS: Record<MapId, MapDef> = {
   arena_neon: {
     id: "arena_neon",
     environment: ENVIRONMENTS.arena_neon,
-    name: "Neon Plaza",
-    shortName: "NPN",
-    description: "Sprawling cyberpunk plaza — 2-story central tower, 4 corner platforms, elevated bridges at y=6. Vertical arcade-shooter heaven.",
+    name: MAP_BLUEPRINTS.maps.arena_neon.name,
+    shortName: MAP_BLUEPRINTS.maps.arena_neon.shortName,
+    description: MAP_BLUEPRINTS.maps.arena_neon.description,
     size: 64,
     wallHeight: 14,
     cover: [...ARENA_NEON_COVER, ...TACTICAL_COVER.arena_neon],
@@ -1253,9 +1278,11 @@ export const MAPS: Record<string, MapDef> = {
   skybridge: applyMapFootprint(BASE_MAPS.skybridge),
   bunker: applyMapFootprint(BASE_MAPS.bunker),
   shipyard: applyMapFootprint(BASE_MAPS.shipyard),
+  emberhold: applyMapFootprint(BASE_MAPS.emberhold),
   terminal: applyMapFootprint({
     ...BASE_MAPS.arena_neon,
-    id:"terminal",theme:BASE_MAPS.terminal.theme,
+    id:"terminal",name:BASE_MAPS.terminal.name,shortName:BASE_MAPS.terminal.shortName,
+    description:BASE_MAPS.terminal.description,theme:BASE_MAPS.terminal.theme,
     accentColor:BASE_MAPS.terminal.accentColor,
     lights:BASE_MAPS.terminal.lights,environment:[],
   }),
@@ -1273,30 +1300,50 @@ for (const [id, blueprint] of Object.entries(MAP_BLUEPRINTS.maps)) {
 }
 
 export const MAP_LIST: MapDef[] = Object.values(MAPS);
-export const CTF_MAP_IDS: readonly MapId[] = ["forest_warfare", "orbital_nexus", "floodgate", "compound", "skybridge", "whiteout_depot"];
+export const CTF_MAP_IDS: readonly MapId[] = MAP_LIST.filter(m=>supportsMapMode(m,"ctf")).map(m=>m.id).sort((a,b)=>{
+  const priority=["forest_warfare","orbital_nexus","floodgate","compound","skybridge","whiteout_depot"];
+  const rank=(id:string)=>{const i=priority.indexOf(id);return i<0?priority.length:i;};
+  return rank(a)-rank(b);
+});
 export const mapAllowedForMode = (mode: GameMode, id: MapId | string): boolean =>
-  mode === "ctf" ? CTF_MAP_IDS.includes(id as MapId) :
-  // Each team mode keeps nine maps without deleting either Afterlight lighting variant.
-  mode === "tdm" ? id in MAPS && id !== "arena_neon" :
-  mode === "killconfirmed" ? id in MAPS && id !== "terminal" :
-  !["forest_warfare", "orbital_nexus", "floodgate", "whiteout_depot"].includes(id);
+  !!MAPS[id] && supportsMapMode(MAPS[id],mode);
+
+/** Resolve the map and room-size together. Switching to a mode without support
+ * for the selected map must not send the old map's team size to the server. */
+export function resolveRoomSelection(mode: GameMode, mapId: MapId, teamSize: TeamSize): { mapId: MapId; teamSize: TeamSize } {
+  const effectiveMapId: MapId = mapAllowedForMode(mode, mapId)
+    ? mapId : mode === "ctf" ? "forest_warfare" : "compound";
+  return {
+    mapId: effectiveMapId,
+    // Direct/invalid room selections reset to the effective map recommendation.
+    // The menu separately preserves the nearest legal size on a mode-only switch.
+    teamSize: teamSizeAllowed(effectiveMapId, teamSize, mode)
+      ? teamSize : recommendedTeamSize(effectiveMapId, mode),
+  };
+}
+
+export function mapForMode(map:MapDef,mode?:GameMode):MapDef {
+  const pools=mode?map.modeSpawns?.[mode]:undefined;
+  return pools?{...map,spawns:{...map.spawns,red:pools.red,blue:pools.blue}}:map;
+}
 
 export function getMap(id: MapId | string | undefined, mode?: GameMode): MapDef {
   const map = id && id in MAPS ? MAPS[id as MapId] : MAPS.compound;
-  const layout = mode === "ctf" ? CTF_LAYOUTS[map.id] : undefined;
-  return layout ? {...map,spawns:{...map.spawns,red:layout.spawns.red,blue:layout.spawns.blue}} : map;
+  return mapForMode(map,mode);
 }
 
 /** Client-side, offline-only compilation for unsaved Map Studio drafts.
  * Never modifies MAPS or the server map catalog and cannot affect matchmaking. */
-export function compileMapStudioDraft(mapId:string,blueprint:MapBlueprint,theme:MapVisualTheme):MapDef {
-  const templateId=(blueprint.templateMapId||mapId) as MapId;
+export function compileMapStudioDraft(mapId:string,blueprint:MapBlueprint,theme:MapVisualTheme,mode?:GameMode):MapDef {
+  // Shipped maps can have an old fallback template ID (Orbital used bunker).
+  // Their draft must start from the SAME native base as the published map.
+  const templateId=(mapId in BASE_MAPS?mapId:(blueprint.templateMapId||mapId)) as MapId;
   const template=BASE_MAPS[templateId]??BASE_MAPS.compound;
   const base=templateId==="terminal"?{
     ...BASE_MAPS.arena_neon,id:"terminal" as MapId,theme:BASE_MAPS.terminal.theme,
     accentColor:BASE_MAPS.terminal.accentColor,lights:BASE_MAPS.terminal.lights,environment:[],
   }:template;
-  return applyMapFootprint({...base,id:mapId as MapId},{blueprint,theme});
+  return mapForMode(applyMapFootprint({...base,id:mapId as MapId},{blueprint,theme}),mode);
 }
 
 // Legacy single-map exports (default to compound) for backward compat
@@ -1308,7 +1355,12 @@ export const SPAWN_POINTS = MAPS.compound.spawns;
 // ---- Network protocol -------------------------------------------------------
 export interface LoadoutWire {
   perkId?: import("./perks").PerkId;
-  /** @deprecated Removed from loadout UI in v9. For legacy data compatibility only. */
+  /** Owned Wonder available only when the Wonder Weapon perk is equipped. */
+  wonderWeaponId?: string;
+  wonderModuleId?: string;
+  wonderSkinId?: string;
+  wonderKillEffectId?: string;
+  /** Persisted tactical selection; validated against the player's saved loadout. */
   equipmentId?: import("./equipment").EquipmentId;
   weaponId: string;
   // Secondary (sidearm, or an additional primary with Well Prepared) and melee ids — used by the engine to support
@@ -1355,6 +1407,7 @@ export interface PlayerNet {
   charmId?: string;
   nameplateId?: string;
   bossMaxHealth?: number;
+  eliteMaxHealth?: number;
   kills: number;
   deaths: number;
   lastShotAt: number;
@@ -1373,15 +1426,22 @@ export type C2S =
   | { t: "joinMatch"; playerKey: string; name: string; mode: GameMode; botCount: number; loadout: LoadoutWire; team?: "red" | "blue"; mapId?: MapId }
   | { t: "leaveMatch" }
   | { t: "state"; pos: Vec3; yaw: number; pitch: number; aiming: boolean; firing: boolean; reloading: boolean; alive: boolean; sprinting?: boolean }
-  | { t: "shot"; origin: Vec3; dir: Vec3; weaponId: string; skinId: string }   // server-side raycast
+  | { t: "shot"; origin: Vec3; dir: Vec3; weaponId: string; skinId: string; aiming?: boolean; akimboHand?: "left" | "right" }   // server-side raycast; shotgun ADS is sampled at fire-time
   | { t: "reload" }
+  | { t: "harbingerDesignate" } // ADS requests a new visible priority target for the deployed drone
   | { t: "deployTurret" } // a placed device, not a bullet ray / ordinary shot
+  | { t: "enterMech"; dropId: string }
+  | { t: "exitMech" } // pilot voluntarily leaves and consumes the Juggernaut
+  | { t: "mechShot"; mode: "minigun" | "secondary"; origin: Vec3; dir: Vec3 }
   | { t: "recoverBolt"; boltId: string }
   | { t: "quickMelee" }
   | { t: "collectScavenger"; id: string }
-  | { t: "useEquipment" } // deprecated; server ignores this packet
+  | { t: "useEquipment" } // intent only; server validates the item, aim and stock
+  | { t: "chooseSurvivalUpgrade"; upgradeId: SurvivalUpgradeId }
+  | { t: "rerollSurvivalUpgrade" }
+  | { t: "setSurvivalPause"; paused: boolean }
   | { t: "chat"; text: string }
-  | { t: "weaponSwap"; slot: "primary" | "secondary" | "melee" }   // player changed weapon slot
+  | { t: "weaponSwap"; slot: "primary" | "secondary" | "melee" | "wonder" }   // player changed weapon slot
   | { t: "queueLoadout"; loadout: LoadoutWire }  // validated by server; equips on next respawn
   // ---- Room lobby system ----
   | { t: "listRooms" }
@@ -1416,11 +1476,17 @@ export interface KillFeedEntry {
 export interface SnapshotPlayer {
   id: string; name: string; team: string; isBot: boolean;
   pos: Vec3; yaw: number; pitch: number; health: number; alive: boolean;
-  weaponId: string; weaponSkinId: string; playerSkinId: string;
+  weaponId: string; weaponSkinId: string; playerSkinId: string; wonderSkinId?:string;
+  /** Authoritative dual-revolver presentation (Bastion grip only). */
+  akimbo?: boolean;
+  akimboSightId?: string;
+  akimboBarrelId?: string;
   charmId?: string; nameplateId?: string;
   /** Optional Survival boss HUD/armor metadata sent by the server. */
   bossMaxHealth?: number;
+  eliteMaxHealth?: number;
   bossCharge?: number;
+  downed?: boolean;
   kills: number; deaths: number; aiming: boolean; reloading: boolean;
   perkId?: import("./perks").PerkId;
   // Round 19e: Spawn protection timestamp (ms, Date.now()) — client shows a
@@ -1436,28 +1502,60 @@ export interface LobbyPlayer {
   id: string; name: string; team: string; isBot: boolean; isHost: boolean;
 }
 
+export interface MaterialCoverImpact {
+  coverId: string;
+  material: import("./cover-penetration").BallisticMaterial;
+  point: Vec3;
+  /** Remaining integrity on breakable materials; null on permanent sheet metal. */
+  hp: number | null;
+  destroyed: boolean;
+}
+
 export type S2C =
+  | { t: "materialCoverImpact"; impact: MaterialCoverImpact }
   | { t: "clusterVolley"; volley: ClusterVolley; serverNow: number }
   | { t: "gravityWell"; id: string; ownerId: string; ownerTeam: string; pos: Vec3; radius: number; activatesAt: number; expiresAt: number; serverNow?: number }
   | { t: "gravityDetonate"; id: string; pos: Vec3; radius?: number }
+  | { t: "harbingerPlaced"; id:string; ownerId:string; ownerTeam:string; pos:Vec3; expiresAt:number; hp:number; moduleId:string }
+  | { t: "harbingerRemoved"; id:string }
+  | { t: "harbingerFired"; id:string; target:Vec3 }
+  | { t: "harbingerScan"; ids:string[]; durationMs:number }
   | { t: "turretPlaced"; id: string; ownerId: string; pos: Vec3; yaw: number; expiresAt: number }
+  | { t: "chronoAnchor"; playerId:string; pos:Vec3; expiresAt:number }
+  | { t: "chronoRecall"; playerId:string; pos:Vec3 }
+  | { t: "phantomDecoy"; id:string; ownerId:string; pos:Vec3; yaw:number; createdAt:number; expiresAt:number; count:number }
+  | { t: "mechDrop"; id:string; ownerId:string; pos:Vec3; landAt:number; expiresAt:number; moduleId:string }
+  | { t: "mechLanded"; id:string; pos:Vec3 }
+  | { t: "mechEntered"; id:string; playerId:string; armor:number; minigunAmmo:number; secondaryAmmo:number; moduleId:string }
+  | { t: "mechDestroyed"; id:string; playerId:string }
+  | { t: "mechAmmo"; armor:number; minigunAmmo:number; secondaryAmmo:number }
+  | { t: "mechShotFx"; attackerId:string; mode:"minigun"|"shotgun"|"swarm"; origin:Vec3; dir:Vec3 }
   | { t: "turretRejected"; reason: string }
   | { t: "turretFired"; id: string; target: Vec3 }
   | { t: "turretRemoved"; id: string }
-  | { t: "survivalDowned"; playerId: string; weaponId: string }
+  | { t: "survivalDowned"; playerId: string; weaponId: string; selfReviveUntil?: number }
+  | { t: "survivalReviveExpired"; playerId: string }
   | { t: "survivalRecovered"; playerId: string; pos: Vec3; health: number }
+  | { t: "survivalUpgradeOffer"; offer: SurvivalUpgradeOffer; ranks: SurvivalUpgradeRanks }
+  | { t: "survivalUpgradeChosen"; upgradeId: SurvivalUpgradeId; ranks: SurvivalUpgradeRanks }
   | { t: "deathBomb"; id: string; ownerId: string; pos: Vec3; explodesAt: number }
   | { t: "deathBombExplode"; id: string; pos: Vec3 }
   | { t: "scavengerDrop"; id: string; pos: Vec3; expiresAt: number }
   | { t: "scavengerRemove"; id: string }
   | { t: "scavengerCollected"; id: string }
-  | { t: "equipmentFx"; equipmentId: import("./equipment").EquipmentId; position: Vec3; ownerId: string; mineId?: string; mineState?: "placed" | "triggered"; path?: Vec3[]; flightMs?: number }
-  | { t: "equipmentStatus"; effect: "flash" | "stun"; durationMs: number }
-  | { t: "equipmentState"; remaining: number }
+  | { t: "equipmentFx"; equipmentId: import("./equipment").EquipmentId; position: Vec3; ownerId: string; mineId?: string; mineState?: "placed" | "triggered"; path?: Vec3[]; pathTimesMs?: number[]; flightMs?: number }
+  | { t: "equipmentStatus"; effect: "flash" | "taser" | "cryo"; durationMs: number; visualDurationMs?: number }
+  | { t: "equipmentStatusFx"; effect: "flash" | "taser" | "cryo"; victimId: string; durationMs: number }
+  | { t: "equipmentState"; remaining: number; nextRechargeMs?: number }
+  | { t: "equipmentRejected"; reason: string }
+  | { t: "deployedCoverPlaced"; cover: import("./deployable-cover").DeployedCover }
+  | { t: "deployedCoverDamaged"; id: string; hp: number }
+  | { t: "deployedCoverRemoved"; id: string }
   | { t: "equipmentMineRemoved"; mineId: string }
   | { t: "joined"; matchId: string; selfId: string; mode: GameMode; team: string; config: MatchConfig; mapId: MapId; players: SnapshotPlayer[] }
-  | { t: "snapshot"; clusterVolleys?: ClusterVolley[]; poisoned?: { id: string; expiresAt: number }[]; burning?: { id: string; expiresAt: number }[]; wonderFields?: { id: string; ownerId: string; ownerTeam: string; weaponId: string; kind: "flame" | "sludge"; pos: Vec3; radius: number; expiresAt: number }[]; stormMines?: { id: string; pos: Vec3; expiresAt: number }[]; serverNow?: number; environmentTime?: number; environmentWalls?: Record<string, number>; floodgateRulesVersion?: number; floodgateBreachAt?: number|null; turrets?: { id: string; ownerId: string; pos: Vec3; yaw: number; expiresAt: number }[]; gravityWells?: { id: string; ownerId: string; ownerTeam: string; pos: Vec3; radius: number; activatesAt: number; expiresAt: number }[]; scavengerDrops?: { id: string; pos: Vec3; expiresAt: number }[]; players: SnapshotPlayer[]; scores: Record<string, number>; teamScores: { red: number; blue: number }; timeLeft: number; elapsedSeconds?: number; wave?: number; enemiesLeft?: number; reinforcements?: number; prepLeft?: number; preMatchCountdown?: number; gungameWeapons?: string[]; tags?: KillConfirmedTag[]; tagStats?: Record<string, { confirmations: number; denials: number }>; ctfFlags?: CtfFlags; ctfOvertime?: boolean; ctfBases?: {red:Vec3;blue:Vec3}; ctfRulesVersion?: number; orbitalCharge?: number; orbitalHolders?: string[]; orbitalRulesVersion?: number }
-  | { t: "hit"; attackerId: string; victimId: string; damage: number; headshot: boolean; killed: boolean; weaponId: string; botDifficulty?: KillDifficulty; defendedFlag?: boolean }
+  | { t: "snapshot"; harbingerDrones?: {id:string;ownerId:string;ownerTeam:string;pos:Vec3;expiresAt:number;hp:number;moduleId:string}[]; mechDrops?: {id:string;ownerId:string;pos:Vec3;landAt:number;expiresAt:number;moduleId:string;landed:boolean;enteredBy?:string}[]; phantomDecoys?: {id:string;ownerId:string;pos:Vec3;yaw:number;createdAt:number;expiresAt:number;count:number}[]; survivalPaused?: boolean; survivalUpgradePendingCount?: number; survivalUpgradeSecondsLeft?: number; deployedCovers?: import("./deployable-cover").DeployedCover[]; clusterVolleys?: ClusterVolley[]; poisoned?: { id: string; expiresAt: number }[]; burning?: { id: string; expiresAt: number }[]; wonderFields?: { id: string; ownerId: string; ownerTeam: string; weaponId: string; kind: "flame" | "sludge"; pos: Vec3; radius: number; expiresAt: number }[]; stormMines?: { id: string; pos: Vec3; expiresAt: number }[]; serverNow?: number; environmentTime?: number; environmentWalls?: Record<string, number>; materialCoverDestroyed?: string[]; materialCoverHp?: Record<string, number>; floodgateRulesVersion?: number; floodgateBreachAt?: number|null; turrets?: { id: string; ownerId: string; pos: Vec3; yaw: number; expiresAt: number }[]; gravityWells?: { id: string; ownerId: string; ownerTeam: string; pos: Vec3; radius: number; activatesAt: number; expiresAt: number }[]; scavengerDrops?: { id: string; pos: Vec3; expiresAt: number }[]; players: SnapshotPlayer[]; scores: Record<string, number>; teamScores: { red: number; blue: number }; timeLeft: number; elapsedSeconds?: number; wave?: number; enemiesLeft?: number; reinforcements?: number; prepLeft?: number; survivalPlayerRanks?: Record<string, SurvivalUpgradeRanks>; preMatchCountdown?: number; gungameWeapons?: string[]; tags?: KillConfirmedTag[]; tagStats?: Record<string, { confirmations: number; denials: number }>; ctfFlags?: CtfFlags; ctfOvertime?: boolean; ctfBases?: {red:Vec3;blue:Vec3}; ctfRulesVersion?: number; orbitalCharge?: number; orbitalHolders?: string[]; orbitalRulesVersion?: number }
+  | { t: "hit"; attackerId: string; victimId: string; damage: number; headshot: boolean; killed: boolean; weaponId: string; wonderKillEffectId?:string; botDifficulty?: KillDifficulty; defendedFlag?: boolean }
+  | { t: "shieldBashPush"; victimId: string; pos: Vec3 }
   | { t: "kill"; entry: KillFeedEntry; botDifficulty?: KillDifficulty }
   | { t: "orbitalReactor"; charge: number }
   | { t: "orbitalAbsorb"; pos: Vec3 }
@@ -1469,8 +1567,10 @@ export type S2C =
   | { t: "loadoutQueued"; loadout: LoadoutWire } // authoritative validated pending loadout
   | { t: "radarPing"; attackerId: string; pos: Vec3; expiresAt: number; durationMs?: number }
   | { t: "protectionEnded"; playerId: string }
-  | { t: "shotFx"; origin: Vec3; dir: Vec3; weaponId: string; attackerId: string; skinId: string; suppressed: boolean }
-  | { t: "matchEnd"; standings: { id: string; name: string; team: string; kills: number; deaths: number; score: number; assists?: number; isBot: boolean }[]; winnerTeam: string | null }
+  | { t: "knifeAmmo"; charges: number; rechargeMs: number }
+  | { t: "burnFx"; victimId: string; durationMs: number } // Immediate Dragon's Breath visuals; snapshots remain authoritative
+  | { t: "shotFx"; origin: Vec3; dir: Vec3; weaponId: string; attackerId: string; skinId: string; suppressed: boolean; coverPower?: number; traceStop?: number }
+  | { t: "matchEnd"; standings: { id: string; name: string; team: string; kills: number; deaths: number; score: number; assists?: number; isBot: boolean }[]; winnerTeam: string | null; teamScores?: { red: number; blue: number } }
   | { t: "chat"; name: string; text: string; team: string }
   | { t: "error"; message: string }
   | { t: "reloadFx"; playerId: string }
@@ -1478,7 +1578,8 @@ export type S2C =
   | { t: "boltRemoved"; id: string }
   | { t: "boltRecovered"; id: string; ownerId: string }
   | { t: "arcFx"; from: Vec3; to: Vec3 }
-  | { t: "wonderBeam"; from: Vec3; to: Vec3; kind: "smart" | "storm" }
+  | { t: "wonderFrozen"; victimId: string; durationMs: number }
+  | { t: "wonderBeam"; from: Vec3; to: Vec3; kind: "smart" | "storm" | "ripper" | "seismic" | "cryo" }
   | { t: "stormMinePlaced"; id: string; pos: Vec3; expiresAt: number }
   | { t: "stormMineRemoved"; id: string; pos: Vec3; triggered: boolean }
   | { t: "wonderField"; id: string; ownerId: string; ownerTeam: string; weaponId: string; kind: "flame" | "sludge"; pos: Vec3; radius: number; expiresAt: number }
@@ -1603,7 +1704,7 @@ export const GUN_GAME_TYPE_PROGRESSION_FALLBACK: string[] = GUN_GAME_PROGRESSION
 
 // ---- Survival wave configuration ----
 // Endless mode: each wave spawns more / tougher bots. No kill limit, no time limit.
-export const SURVIVAL_PREP_SEC = 8;       // prep time between waves
+export const SURVIVAL_PREP_SEC = 5;       // maximum inter-wave prep (scales from 2s to 5s by wave 10)
 export const SURVIVAL_RESPAWN_MS = 5000;  // respawn delay after death (shared reinforcement pool)
 export function survivalWaveBotCount(wave: number): number {
   // wave 1 → 3 bots, +1 per wave, capped at 12

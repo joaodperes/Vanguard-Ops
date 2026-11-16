@@ -4,7 +4,9 @@ import { careerRequirement, careerXpAfterMatch, restoreCareer } from "../src/lib
 import { calculateMatchRewards, DIFFICULTY_REWARDS } from "../src/lib/match-rewards";
 import { resolveMatchLoadout } from "../src/lib/match-loadout";
 import { PERKS } from "../src/lib/perks";
-import { WEAPONS, DAILY_CHALLENGE_POOL, WEEKLY_CHALLENGE_POOL, promoteChallengeToElite } from "../src/lib/game-data";
+import { autoUnlockedItems, newlyAvailableWeaponsAtLevel } from "../src/lib/player-service";
+import { ownsOperativeSkin } from "../src/lib/collection-ownership";
+import { WEAPONS, PLAYER_SKINS, DAILY_CHALLENGE_POOL, WEEKLY_CHALLENGE_POOL, canPromoteChallengeToElite, promoteChallengeToElite } from "../src/lib/game-data";
 import { achievementTitle, titledDisplayName } from "../src/lib/achievement-titles";
 import type { LoadoutWire } from "../src/lib/game-protocol";
 import type { MatchResultInput } from "../src/lib/player-service";
@@ -47,6 +49,26 @@ describe("multiplayer perk entitlement", () => {
   });
 });
 
+describe("multiplayer level-cap cosmetic entitlement", () => {
+  test("an unearned Ascendant Vanguard packet is rejected but level 40 owners can equip it", () => {
+    const request: LoadoutWire = {
+      weaponId: "rifle_ar", secondaryWeaponId: "pistol_side", perkId: "battle_hardened",
+      weaponSkinId: "default", playerSkinId: "ascendant_vanguard",
+      attachments: { sight: null, barrel: null, grip: null, magazine: null },
+    };
+    const player = {
+      xp: totalXpForLevel(39), weaponUnlocks: [],
+      loadout: { secondaryWeapon: "pistol_side", primaryReticle: "classic",
+        secondaryReticle: "classic", primaryCharm: "none", secondaryCharm: "none",
+        wonderWeaponId: "", equipmentId: "frag", playerSkin: "ascendant_vanguard" },
+    };
+    expect(resolveMatchLoadout(player, request).playerSkinId).toBe("default");
+    expect(resolveMatchLoadout({ ...player, xp: totalXpForLevel(40) }, request).playerSkinId).toBe("ascendant_vanguard");
+    expect(resolveMatchLoadout({ ...player, xp: totalXpForLevel(40), loadout: { ...player.loadout, playerSkin: "default" } }, request).playerSkinId).toBe("default");
+    expect(resolveMatchLoadout({ ...player, xp: totalXpForLevel(40) }, { ...request, playerSkinId: "unlisted_skin" }).playerSkinId).toBe("default");
+  });
+});
+
 describe("credit economy across every match reward path", () => {
   test("a naturally completed 30-kill win pays 151 CR", () => {
     const result = calculateMatchRewards({ ...match, kills: 30, headshots: 10, assists: 6, won: true, completed: true, multikills: 3, killDifficulties: Array(30).fill("normal") });
@@ -76,7 +98,7 @@ describe("credit economy across every match reward path", () => {
     expect(calculateMatchRewards({ ...match, mode: "survival", survivalTier: "nightmare", survivalWaves: 10 }).creditsGained).toBe(160);
   });
   test("elite variants multiply the reduced base quest reward", () => {
-    for (const q of [...DAILY_CHALLENGE_POOL, ...WEEKLY_CHALLENGE_POOL]) {
+    for (const q of [...DAILY_CHALLENGE_POOL, ...WEEKLY_CHALLENGE_POOL].filter(canPromoteChallengeToElite)) {
       expect(promoteChallengeToElite(q).rewardCredits).toBe(q.rewardCredits * 3);
     }
     expect(DAILY_CHALLENGE_POOL.find(q => q.id === "ch_kills_25")!.rewardCredits).toBe(100);
@@ -104,5 +126,35 @@ describe("repeatable Career progression", () => {
   test("earned Career titles resolve on existing match nameplates", () => {
     expect(achievementTitle("career_veteran")).toBe("Veteran Operative");
     expect(titledDisplayName("Recruit", "career_legend")).toBe("Recruit · Vanguard Legend");
+  });
+});
+
+describe("rebalanced level rewards", () => {
+  test("disabled melee is not announced and empty levels have a reward", () => {
+    const active = WEAPONS.filter(w => !w.wonder && !w.disabled);
+    const at = (name: string) => active.find(w => w.name === name)?.unlockLevel;
+    expect(at("Breacher")).toBe(2);
+    expect(at("Sentinel-45")).toBe(33);
+    expect(at("Hydra Twin")).toBe(37);
+    expect(at("Machine Pistol")).toBe(38);
+    expect(at("RL-7 Rocket Launcher")).toBe(39);
+    expect(newlyAvailableWeaponsAtLevel(33).map(w => w.name)).toContain("Sentinel-45");
+    for (const name of ["Shiv", "Throwing Knives", "Breacher Axe"]) {
+      const w = WEAPONS.find(w => w.name === name);
+      expect(w?.disabled).toBe(true);
+      expect(active.some(item => item.id === w?.id)).toBe(false);
+      expect(newlyAvailableWeaponsAtLevel(w!.unlockLevel).map(item => item.id)).not.toContain(w!.id);
+    }
+  });
+  test("level 40 Ascendant Vanguard is earned at cap without purchase", () => {
+    const skin = PLAYER_SKINS.find(s => s.id === "ascendant_vanguard");
+    expect(skin).toBeDefined();
+    expect(skin?.unlockLevel).toBe(MAX_PLAYER_LEVEL);
+    expect(skin?.unlockCost).toBe(0);
+    expect(skin?.levelReward).toBe(true);
+    expect(autoUnlockedItems(39).playerSkins).not.toContain(skin!.id);
+    expect(autoUnlockedItems(40).playerSkins).toContain(skin!.id);
+    expect(ownsOperativeSkin(skin!, 39, ["default"])).toBe(false);
+    expect(ownsOperativeSkin(skin!, 40, ["default"])).toBe(true);
   });
 });

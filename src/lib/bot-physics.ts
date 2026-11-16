@@ -148,10 +148,54 @@ export function botNextFeetY(cover: CoverBox[], pos: Vec3, dt: number): number {
   return support > pos[1] ? support : Math.max(support, pos[1] - 11 * dt);
 }
 
+/** Advance an airborne bot without letting its head penetrate an overhead
+ * platform. Horizontal motion is swept to catch sideways launch pads too.
+ * Grounded stair climbing keeps using its own step-up collision. */
+export function botAirStep(
+  cover:readonly CoverBox[],from:Vec3,dx:number,dy:number,dz:number,
+):{pos:Vec3;hitCeiling:boolean}{
+  // Airborne movement must respect the same swept wall collision as grounded
+  // movement. Previously lateral impulse/launch velocities moved through walls
+  // without ever calling botMoveBlocked (both server and offline paths).
+  const target:Vec3=[from[0]+dx,from[1],from[2]+dz];
+  if(botMoveBlocked(cover as CoverBox[],from,target,from[1])){
+    const alongX:Vec3=[target[0],from[1],from[2]];
+    const alongZ:Vec3=[from[0],from[1],target[2]];
+    if(!botMoveBlocked(cover as CoverBox[],from,alongX,from[1]))target[2]=from[2];
+    else if(!botMoveBlocked(cover as CoverBox[],from,alongZ,from[1]))target[0]=from[0];
+    else {target[0]=from[0];target[2]=from[2];}
+  }
+  const next:Vec3=[target[0],from[1]+dy,target[2]];
+  let hitCeiling=false;
+  for(const c of cover){
+    if(c.kind==="accent")continue;
+    const underside=c.pos[1]-c.size[1],top=c.pos[1]+c.size[1];
+    const minX=c.pos[0]-c.size[0]-PLAYER_RADIUS,maxX=c.pos[0]+c.size[0]+PLAYER_RADIUS;
+    const minZ=c.pos[2]-c.size[2]-PLAYER_RADIUS,maxZ=c.pos[2]+c.size[2]+PLAYER_RADIUS;
+    // Swept contact (not just endpoint) catches sideways jumps at the edge.
+    if(Math.max(from[0],next[0])<=minX||Math.min(from[0],next[0])>=maxX||
+       Math.max(from[2],next[2])<=minZ||Math.min(from[2],next[2])>=maxZ)continue;
+    if(dy>0){
+      // A bot that started just a little embedded in an underside must also be
+      // corrected. The old 'from head already crossed' early-exit let it rise
+      // straight through a castle ceiling once a single frame overlapped.
+      if(from[1]<underside-EPS && next[1]+PLAYER_HEIGHT>underside+EPS){
+        next[1]=Math.min(next[1],underside-PLAYER_HEIGHT-.001);
+        hitCeiling=true;
+      }
+    }else if(dy<0){
+      // Descending bots land on a platform instead of tunnelling through thin
+      // roof slabs on one long gravity step.
+      if(from[1]>=top-EPS && next[1]<top)next[1]=Math.max(next[1],top);
+    }
+  }
+  return {pos:next,hitCeiling};
+}
+
 /** Ordinary tactical jumps must not hit low ceilings or start while airborne. */
 export function botHasJumpClearance(cover:CoverBox[],pos:Vec3):boolean {
   if(Math.abs(botGroundHeight(cover,pos[0],pos[2],pos[1])-pos[1])>.08)return false;
   return !cover.some(c=>c.kind!=="accent"&&Math.abs(pos[0]-c.pos[0])<c.size[0]+PLAYER_RADIUS&&
     Math.abs(pos[2]-c.pos[2])<c.size[2]+PLAYER_RADIUS&&
-    c.pos[1]-c.size[1]>pos[1]+.1&&c.pos[1]-c.size[1]<pos[1]+3.15);
+    c.pos[1]-c.size[1]>pos[1]+.1&&c.pos[1]-c.size[1]<pos[1]+PLAYER_HEIGHT+3.15);
 }

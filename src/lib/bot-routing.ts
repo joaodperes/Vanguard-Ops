@@ -6,11 +6,12 @@
  * increments to prove bots can actually traverse step-by-step geometry.
  * No teleporting, magical climbing or unverified jump links.
  */
-import type { CoverBox, Vec3 } from "./game-protocol";
+import type { CoverBox, EnvironmentObject, Vec3 } from "./game-protocol";
 import { botGroundHeight, botMoveBlocked } from "./bot-physics";
-import { nextRegionPortal, type MapRegion } from "./map-blueprints";
+import { MAP_BLUEPRINTS, nextRegionPortal, type MapRegion } from "./map-blueprints";
 import type {CoverSpatialIndex} from "./cover-spatial-index";
 import {floodgateWaterEffect} from "./map-battle-events";
+import { lavaSurfaceY, overLava, spikesActive, withinEnvironment, withinLava } from "./dynamic-environment";
 
 type Hazard = { type: string; pos: readonly number[]; size: readonly number[] };
 type Node = { x: number; z: number; y: number; g: number; f: number; key: string };
@@ -50,6 +51,19 @@ function hazardAt(x: number, z: number, hazards: readonly Hazard[]): boolean {
     Math.abs(z - h.pos[2]) < h.size[2] + 0.7);
 }
 
+/** The live bot motor checks support so a bridge stays traversable above lava. */
+export function botEntersHazard(cover: CoverBox[], hazards: readonly EnvironmentObject[] | undefined,
+  from: Vec3, to: Vec3, seconds: number): boolean {
+  return hazards?.some(o => {
+    if (o.type === "lava") {
+      return overLava(o, to[0], to[2]) &&
+        botGroundHeight(cover, to[0], to[2], from[1]) <= lavaSurfaceY(o);
+    }
+    return (o.type === "fire" || (o.type === "spikes" && spikesActive(o, seconds))) &&
+      !withinEnvironment(o, from) && withinEnvironment(o, to);
+  }) ?? false;
+}
+
 /**
  * Check each substep against bot collision rules and walkable support.
  * The path may descend a ledge, but never climb more than the same
@@ -71,7 +85,7 @@ export function botTraversableEdge(
     Math.abs(box.pos[0] - centreX) <= box.size[0] + extentX + 0.85 &&
     Math.abs(box.pos[2] - centreZ) <= box.size[2] + extentZ + 0.85);
   const nearbyHazards = hazards.filter(h =>
-    (h.type === "fire" || h.type === "spikes") &&
+    (h.type === "fire" || h.type === "spikes" || h.type === "lava") &&
     Math.abs(h.pos[0] - centreX) <= h.size[0] + extentX + 0.8 &&
     Math.abs(h.pos[2] - centreZ) <= h.size[2] + extentZ + 0.8);
   let previousX = from[0], previousZ = from[2], feet = from[1];
@@ -83,6 +97,7 @@ export function botTraversableEdge(
     const to: Vec3 = [nx, feet, nz];
     if (botMoveBlocked(nearby, origin, to, feet)) return null;
     const support = botGroundHeight(nearby, nx, nz, feet);
+    if (nearbyHazards.some(h => withinLava(h, nx, support, nz))) return null;
     // Small steps are handled by botGroundHeight. Large drops are one-way
     // transitions; keep those modest so falling AI can recover quickly.
     if (feet - support > 2.5) return null;
@@ -124,7 +139,11 @@ export function botNextWaypoint(
     const cur = heap.pop()!;
     if (cur.g > (bestCost.get(cur.key) ?? Infinity) + 1e-6) continue;
     if (cur.f - cur.g < closest.f - closest.g) closest = cur;
-    if (Math.hypot(cur.x - goalX, cur.z - goalZ) <= 1.1 &&
+    // Grid tolerance is intentionally generous for non-start nodes, but the
+    // start node itself must not count as an A* destination: it can be as far
+    // as 2m away or one stair tread below a landing. Returning it as the next
+    // waypoint makes bots stop in place mid-flight.
+    if (cur.key !== startKey && Math.hypot(cur.x - goalX, cur.z - goalZ) <= 1.1 &&
         Math.abs(cur.y - target[1]) < 1.25) {
       destination = cur;
       break;
@@ -220,4 +239,52 @@ export function botHighGroundWaypoint(
     if (value < score) { best = p; score = value; }
   }
   return best;
+}
+
+/** Four surface-to-dungeon flights derived from the authored Emberhold map.
+ * There are no fake AI links: collision verifies every stair tread. */
+const CASTLE_DUNGEON_IDS=new Set(["west-sally-stairs","east-sally-stairs","chapel-stairs","donjon-crypt-stair"]);
+export interface CastleDungeonEntrance {id:string;upper:Vec3;lower:Vec3;}
+export function castleDungeonEntrances():CastleDungeonEntrance[]{
+  return MAP_BLUEPRINTS.maps.emberhold.features.filter(f=>f.kind==="stairs"&&CASTLE_DUNGEON_IDS.has(f.id))
+    .map(f=>{
+      const axis=f.axis??"z",offset=(f.sign??1)*(f.d+1.2),base=f.y??0;
+      return {
+        id:f.id,upper:[f.x,base+f.h,f.z] as Vec3,
+        lower:[f.x+(axis==="x"?offset:0),base,f.z+(axis==="z"?offset:0)] as Vec3,
+      };
+    });
+}
+const castleEntrances=castleDungeonEntrances();
+
+/** Stage cross-floor pursuits/patrols at real entrances. A* and the normal
+ * movement motor still validate each edge; this cannot teleport bots. */
+export function botMapRouteGoal(mapId:string,from:readonly number[],goal:readonly number[]):Vec3{
+  const direct:Vec3=[goal[0],goal[1],goal[2]];
+  if(mapId!=="emberhold")return direct;
+  const down=goal[1]<1.5&&from[1]>=1.5;
+  const up=goal[1]>=4.55&&from[1]<4.55;
+  if((!down&&!up)||!castleEntrances.length)return direct;
+  const dist=(a:readonly number[],b:readonly number[])=>
+    Math.hypot(a[0]-b[0],a[2]-b[2]);
+  // Keep a bot on the same flight while it is on intermediate treads.
+  const inFlight=castleEntrances.filter(e=>{
+    const dx=e.lower[0]-e.upper[0],dz=e.lower[2]-e.upper[2];
+    const t=Math.max(0,Math.min(1,
+      ((from[0]-e.upper[0])*dx+(from[2]-e.upper[2])*dz)/(dx*dx+dz*dz)));
+    return Math.hypot(from[0]-(e.upper[0]+dx*t),from[2]-(e.upper[2]+dz*t))<3.4
+      &&from[1]>1.05&&from[1]<4.7;
+  });
+  const available=inFlight.length?inFlight:castleEntrances;
+  const best=available.reduce((a,b)=>{
+    const score=(e:CastleDungeonEntrance)=>
+      dist(from,down?e.upper:e.lower)+.8*dist(goal,down?e.lower:e.upper);
+    return score(a)<=score(b)?a:b;
+  });
+  if(down){
+    if(from[1]>=best.upper[1]-.7&&dist(from,best.upper)>2.6)return best.upper;
+    return best.lower;
+  }
+  if(from[1]<=best.lower[1]+.7&&dist(from,best.lower)>2.6)return best.lower;
+  return best.upper;
 }

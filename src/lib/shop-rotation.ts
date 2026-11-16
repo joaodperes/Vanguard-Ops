@@ -21,7 +21,7 @@ export function dailyShopRotation(now:Date=new Date()):DailyShopRotation{
   const year=now.getUTCFullYear(),month=now.getUTCMonth(),day=now.getUTCDate();
   const dayNumber=Math.floor(Date.UTC(year,month,day)/86400000);
   const offers:DailyShopOffer[]=[];
-  for(const currency of ["credits","career"] as const){
+  for(const currency of ["credits","career","wonder"] as const){
     for(const section of SHOP_CATEGORIES){
       if(section.id==="all")continue;
       const pool=candidates(currency,section.id);

@@ -1,6 +1,7 @@
 /** Shared, deterministic environmental objects for offline and authoritative rooms. */
 import type { CoverBox, EnvironmentObject, MapDef, Vec3 } from "./game-protocol";
 import {initializeFloodgateFreight} from "./floodgate-topple";
+import {invalidateMapCoverIndex} from "./map-cover-index";
 
 export function environmentPosition(o: EnvironmentObject, seconds: number): Vec3 {
   if (o.type !== "moving_platform") return [...o.pos];
@@ -25,6 +26,27 @@ export function withinEnvironment(o: EnvironmentObject, feet: Vec3, radius = 0.4
   return Math.abs(feet[0] - o.pos[0]) < o.size[0] + radius &&
     Math.abs(feet[2] - o.pos[2]) < o.size[2] + radius &&
     feet[1] >= o.pos[1] - 0.45 && feet[1] <= o.pos[1] + o.size[1] + 0.5;
+}
+
+export const LAVA_DEATH_SOURCE = "env_lava";
+
+type HazardBounds = { type: string; pos: readonly number[]; size: readonly number[] };
+
+export function lavaSurfaceY(o: HazardBounds): number {
+  return o.pos[1] + o.size[1];
+}
+
+export function overLava(o: HazardBounds, x: number, z: number): boolean {
+  return o.type === "lava" && Math.abs(x - o.pos[0]) <= o.size[0] && Math.abs(z - o.pos[2]) <= o.size[2];
+}
+
+/** Test feet against the visible liquid surface, including an overshot landing. */
+export function withinLava(o: HazardBounds, x: number, feetY: number, z: number): boolean {
+  return overLava(o, x, z) && feetY <= lavaSurfaceY(o);
+}
+
+export function lavaAt(objects: readonly EnvironmentObject[] | undefined, feet: Vec3): boolean {
+  return objects?.some(o => withinLava(o, ...feet)) ?? false;
 }
 
 export function environmentCover(o: EnvironmentObject): CoverBox | null {
@@ -52,7 +74,7 @@ export function moveEnvironmentCover(map: MapDef, o: EnvironmentObject, seconds:
 
 export function breakEnvironmentWall(map: MapDef, id: string): void {
   const index = map.cover.findIndex(c => c.environmentId === id);
-  if (index >= 0) map.cover.splice(index, 1);
+  if (index >= 0) { map.cover.splice(index, 1); invalidateMapCoverIndex(map); }
 }
 
 export function closestCoverHit(cover: CoverBox[], origin: Vec3, dir: Vec3, range: number,

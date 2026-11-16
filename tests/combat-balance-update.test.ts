@@ -1,24 +1,61 @@
 import { describe, expect, test } from "bun:test";
 import * as THREE from "three";
 import { weaponById, WEAPONS } from "../src/lib/game-data";
+import { resolveMaterialPenetrationShot, traceCoverPenetration } from "../src/lib/cover-penetration";
+import type { CoverBox } from "../src/lib/game-protocol";
 import { rayCombatantHit } from "../src/lib/combat-hitboxes";
 import { launcherSplashFactor } from "../src/lib/launcher-effects";
-import { automaticBloom, autoSpreadRadians } from "../src/lib/automatic-spread";
+import { automaticBloom } from "../src/lib/automatic-spread";
+import { shotSpread } from "../src/lib/weapon-accuracy";
 import { meleeStyle, meleeSwingPose } from "../src/lib/melee-styles";
 import { buildMeleeWeaponParts } from "../src/lib/melee-model";
 import { chooseQuickMeleeTarget, quickMeleeProfile } from "../src/lib/quick-melee";
+import { THROWING_KNIFE_RANGE,isThrowingKnife } from "../src/lib/throwing-knives";
 describe("secondary balance and projectile identity",()=>{
   test("Sentinel rewards precision more than Machine Pistol",()=>{
     expect(weaponById("pdw_sentinel").stats.headshotMult).toBeGreaterThan(weaponById("pistol_machine").stats.headshotMult);
   });
-  test("Magnum and Bastion no longer one-shot full-health opponents",()=>{
-    for(const id of ["pistol_magnum","pistol_bastion"]){
-      const s=weaponById(id).stats;
-      expect(s.damage).toBeLessThan(60);
-      expect(s.damage*s.headshotMult).toBeLessThan(100);
-      expect(s.range).toBeLessThan(weaponById("pistol_ghost").stats.range);
+  test("Magnum one-shot headshots contrast with Bastion penetration and two-hit kills",()=>{
+    const magnum=weaponById("pistol_magnum").stats;
+    const bastion=weaponById("pistol_bastion").stats;
+    for(const s of [magnum,bastion]){
+      expect(s.damage).toBeGreaterThanOrEqual(50);
+      expect(s.damage).toBeLessThan(100);
     }
+    expect(magnum.headshotMult).toBe(1.8);
+    expect(magnum.damage*magnum.headshotMult).toBeGreaterThanOrEqual(100);
+    expect(bastion.headshotMult).toBe(1.4);
+    expect(bastion.damage*bastion.headshotMult).toBeLessThan(100);
+    expect(bastion.coverPenetration).toBe(2.2);
+    expect(bastion.bodyPenetration?.damageRetention).toBe(0.4);
+    expect(bastion.coverPenetration).toBeGreaterThan(magnum.coverPenetration!);
+    // Bastion's slower, higher-energy .45 rounds now hit harder than Magnum,
+    // rather than being artificially capped below 60 like the old pistol.
+    expect(bastion.damage).toBeGreaterThan(magnum.damage);
+    expect(bastion.fireRate).toBeLessThan(magnum.fireRate);
+    expect(bastion.recoil).toBeGreaterThan(magnum.recoil);
+    expect(magnum.range).toBeLessThan(weaponById("pistol_ghost").stats.range);
+    expect(bastion.range).toBeLessThanOrEqual(weaponById("pistol_ghost").stats.range);
     expect(weaponById("pistol_ghost").stats.reloadTime).toBeLessThan(1.2);
+  });
+  test("Bastion crosses thicker sheet metal and retains 40% damage through another body",()=>{
+    const magnum=weaponById("pistol_magnum").stats,bastion=weaponById("pistol_bastion").stats;
+    const panel:CoverBox={pos:[0,0,4],size:[.5,.8,.7],kind:"cover",material:"sheet_metal"};
+    const origin:[number,number,number]=[0,0,0],dir:[number,number,number]=[0,0,1];
+    const old=traceCoverPenetration([panel],origin,dir,9,1.8);
+    const magnumTrace=traceCoverPenetration([panel],origin,dir,9,magnum.coverPenetration);
+    const bastionTrace=traceCoverPenetration([panel],origin,dir,9,bastion.coverPenetration);
+    expect(old.blockedAt).toBeLessThan(Infinity);
+    expect(magnumTrace.blockedAt).toBeLessThan(Infinity);
+    expect(bastionTrace.blockedAt).toBe(Infinity);
+    expect(bastionTrace.crossings).toHaveLength(1);
+    const aligned=[{target:"front",t:4,head:false},{target:"rear",t:8,head:false}];
+    const hits=resolveMaterialPenetrationShot(aligned,[],origin,dir,20,bastion.bodyPenetration,bastion.coverPenetration).hits;
+    expect(hits.map(h=>h.target)).toEqual(["front","rear"]);
+    expect(hits[0].damageScale).toBe(1);
+    expect(hits[1].damageScale).toBeCloseTo(.4,6);
+    expect(hits[1].damageScale*bastion.damage).toBeCloseTo(28,6);
+    expect(bastion.bodyPenetration!.damageRetention).toBeGreaterThan(magnum.bodyPenetration!.damageRetention);
   });
   test("Swarm has larger group-control footprint and weaker focused impact than RL-7",()=>{
     const swarm=weaponById("launcher_swarm"),rl=weaponById("launcher_rocket");
@@ -58,14 +95,17 @@ describe("sustained automatic fire",()=>{
       expect(next).toBeGreaterThan(bloom);
       bloom=next;
     }
-    expect(autoSpreadRadians(.03,bloom)).toBeGreaterThan(autoSpreadRadians(.03,.2)*3);
+    // Verify the actual shot model, rather than an obsolete spread helper.
+    const rifle=weaponById("rifle_ar");
+    const dispersion=(b:number)=>shotSpread(rifle.stats,rifle.category,false,0,b,false);
+    expect(dispersion(bloom)).toBeGreaterThan(dispersion(.2)*1.5);
     expect(automaticBloom(bloom,14,700)).toBe(0);
   });
 });
 describe("melee identity and identical F profiles",()=>{
   const ids=["knife_tactical","shiv","machete","baton","axe","hammer"];
   test("point-blank stabs, vertical chops, lateral axe, overhead hammer",()=>{
-    expect(ids.map(meleeStyle)).toEqual(["stab","stab","vertical","vertical","horizontal","slam"]);
+    expect(ids.map(meleeStyle)).toEqual(["stab","stab","vertical","throw","horizontal","slam"]);
     expect(meleeSwingPose("knife_tactical",.5).z).toBeLessThan(-.3);
     expect(Math.abs(meleeSwingPose("axe",.5).yaw)).toBeGreaterThan(.4);
     expect(Math.abs(meleeSwingPose("axe",.5).yaw)).toBeLessThan(.9);
@@ -80,17 +120,19 @@ describe("melee identity and identical F profiles",()=>{
     expect(shiv.fireRate).toBeGreaterThan(knife.fireRate);
     expect(machete.range).toBeGreaterThan(knife.range);
     expect(machete.damage*2).toBeGreaterThanOrEqual(100);
-    expect(baton.damage).toBeLessThan(machete.damage);
-    expect(baton.fireRate).toBeLessThan(machete.fireRate);
+    expect(baton.damage).toBeGreaterThanOrEqual(100);
+    expect(baton.range).toBe(THROWING_KNIFE_RANGE);
+    expect(isThrowingKnife("baton")).toBe(true);
     expect(hammer.range).toBeGreaterThan(axe.range);
     expect(hammer.damage).toBeGreaterThan(axe.damage);
     expect(hammer.fireRate).toBeLessThan(axe.fireRate);
-    for(const id of ids)expect(quickMeleeProfile(weaponById(id).stats,id).reach).toBeLessThanOrEqual(1.9);
+    for(const id of ids.filter(id=>!isThrowingKnife(id)))
+      expect(quickMeleeProfile(weaponById(id).stats,id).reach).toBeLessThanOrEqual(1.9);
     const candidates=[{id:"enemy",pos:[0,0,1.3] as const,alive:true}];
     expect(chooseQuickMeleeTarget([0,0,0],0,candidates,()=>true,shiv.range)).toBeNull();
     expect(chooseQuickMeleeTarget([0,0,0],0,candidates,()=>true,machete.range)?.id).toBe("enemy");
     const distant=[{id:"distant",pos:[0,0,2.0] as const,alive:true}];
-    for(const id of ids)
+    for(const id of ids.filter(id=>!isThrowingKnife(id)))
       expect(chooseQuickMeleeTarget([0,0,0],0,distant,()=>true,quickMeleeProfile(weaponById(id).stats).reach)).toBeNull();
     expect(chooseQuickMeleeTarget([0,0,0],0,[{id:"axe-target",pos:[0,0,1.7] as const,alive:true}],()=>true,axe.range)?.id).toBe("axe-target");
     expect(chooseQuickMeleeTarget([0,0,0],0,[{id:"axe-target",pos:[0,0,1.7] as const,alive:true}],()=>true,machete.range)).toBeNull();

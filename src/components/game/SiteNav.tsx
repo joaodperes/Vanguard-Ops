@@ -1,6 +1,7 @@
 "use client";
 import {useGame} from "@/lib/game-store";
 import {Button} from "@/components/ui/button";
+import Image from "next/image";
 import {Crosshair,Sliders,ShoppingBag,Trophy,Play as PlayIcon} from "lucide-react";
 
 /** One navigation bar shared by all menu pages, hidden only during live play. */
@@ -16,9 +17,7 @@ export function SiteNav(){
   return <header className="sticky top-0 z-[60] border-b border-white/10 bg-zinc-950/95 backdrop-blur">
     <nav aria-label="Main navigation" className="max-w-6xl mx-auto px-3 sm:px-6 h-14 flex items-center gap-3">
       <button type="button" onClick={()=>setScreen("menu")} aria-label="Home" className="shrink-0 flex items-center gap-2 hover:opacity-85">
-        <span className="w-8 h-8 rounded-md bg-gradient-to-br from-amber-500 to-rose-600 flex items-center justify-center">
-          <Crosshair className="w-5 h-5 text-white"/>
-        </span>
+        <Image src="/logo.svg" alt="" width={32} height={32} className="w-8 h-8 shrink-0" priority />
         <span className="hidden sm:block text-left">
           <span className="block font-black tracking-[.16em] text-xs leading-none text-white">VANGUARD</span>
           <span className="block text-[10px] tracking-[.3em] text-amber-400 mt-0.5">OPS</span>

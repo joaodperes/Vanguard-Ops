@@ -1,9 +1,11 @@
+import { equipmentAvailable, equipmentById } from "./equipment";
 // ============================================================================
 // VANGUARD OPS — Static game data catalog
 // Shared between API routes, the game server, and the client UI.
 // ============================================================================
 
-import type { WeaponSpecial } from "./weapon-mechanics";
+import type { HeatConfig } from "./weapon-mechanics";
+import { isFanHammer, isAkimboWeapon, FAN_HAMMER_RATE_MULTIPLIER } from "./weapon-mechanics";
 import { perkById, type PerkId } from "./perks";
 // Authoritative static content lives in JSON; keep runtime helpers and public exports here.
 import weaponsData from "../data/catalogs/weapons.json";
@@ -26,13 +28,15 @@ import killstreakCalloutsData from "../data/catalogs/killstreak-callouts.json";
 
 import {ORBITAL_REAPER,ORBITAL_REAPER_ID} from "./orbital-reactor";
 
-export type WeaponCategory = "assault" | "smg" | "shotgun" | "dmr" | "sniper" | "lmg" | "pistol" | "pdw" | "launcher" | "melee";
+// Category values belong to the shared content contract.
+export type WeaponCategory = import("./catalog-contract").CatalogWeaponCategory;;
 
 // Weapon slots are the three loadout positions a player can equip.
 // primary  -> assault / smg / shotgun / dmr / sniper / lmg
 // secondary -> pistol / pdw / launcher
-// melee    -> melee
-export type WeaponSlot = "primary" | "secondary" | "melee";
+// melee    -> ordinary melee gear (Wonders, even melee-themed ones, use slot 4)
+// wonder   -> Prestige Wonder Weapon
+export type WeaponSlot = "primary" | "secondary" | "melee" | "wonder";
 
 // The secondary accepts a second primary only with Well Prepared.
 export function isPrimaryWeaponCategory(category: WeaponCategory): boolean {
@@ -50,54 +54,25 @@ export function weaponSlot(category: WeaponCategory): WeaponSlot {
   }
 }
 
-export interface WeaponStats {
-  damage: number;        // per bullet
-  fireRate: number;      // rounds per second
-  magSize: number;
-  reloadTime: number;    // seconds
-  spread: number;        // base inaccuracy (radians) when hipfiring
-  adsSpread: number;     // inaccuracy when aiming
-  recoil: number;        // vertical kick magnitude
-  range: number;         // effective range (damage falloff beyond)
-  falloffEndMultiplier?: number; // where the last hittable distance ends (default 1.6x)
-  minDamageMultiplier?: number; // damage fraction at the far edge (default 0.4)
-  reloadStyle?: "incremental"; // load one shell/round at a time; can fire to interrupt
-  reloadOnlyWhenEmpty?: boolean; // en-bloc magazine: partial reloads are disallowed
-  reloadPerRound?: number; // seconds per round before attachments/perks
-  adsTime: number;       // seconds to aim down sights
-  moveSpeed: number;     // movement multiplier
-  auto: boolean;         // automatic fire
-  pellets?: number;      // for shotguns
-  burst?: number;        // shots per burst (e.g. 3 = 3-round burst). Default 1 (no burst).
-  headshotMult: number;  // headshot damage multiplier
-}
+export type WeaponStats = import("./catalog-contract").WeaponCatalogDef["stats"];
 
-export interface WeaponDef {
-  special?: WeaponSpecial;
-  /** Unguided impact rocket profile. Applies to all conventional launchers. */
-  explosive?: { radius: number };
-  /** Wonder weapons are purchased with permanent weapon-Prestige tokens. */
-  disabled?: boolean;
-  wonder?: { kind: "singularity" | "corrosion" | "turret" | "smart" | "flame" | "storm" | "sludge" | "cluster" | "shield"; maxCharges: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8; rechargeMs: number; killBonusMs: number; radius: number };
-  id: string;
-  name: string;
-  category: WeaponCategory;
-  unlockLevel: number;
-  unlockCost: number;    // credits
-  stats: WeaponStats;
-  description: string;
-  // Optional list of attachment slots this weapon supports. If undefined, all 4
-  // slots (sight/barrel/grip/magazine) are available. Use [] for weapons that
-  // don't take attachments (e.g. the knife).
-  attachments?: AttachmentSlot[];
-  // The sight type used when NO sight attachment is equipped. Defaults to
-  // "iron". Snipers set this to "sniper_scope" so they have a proper 6x scope
-  // out of the box (the user can still override by equipping a different sight
-  // attachment, but the default is no longer iron sight).
-  baseSightType?: SightType;
-}
+export type WeaponDef = import("./catalog-contract").WeaponCatalogDef;
 
 export const WEAPONS: WeaponDef[] = weaponsData as unknown as WeaponDef[];
+
+/** Melee is a combat category, not an entitlement: seismic and other melee Wonders use slot 4. */
+export function isStandardMeleeWeapon(weapon: WeaponDef): boolean {
+  return weapon.category === "melee" && !weapon.disabled && !weapon.wonder;
+}
+/** Invalid, disabled or Wonder-only melee choices safely fall back to the standard knife. */
+export function activeMeleeWeaponId(id: string | null | undefined): string {
+  return WEAPONS.find(w => w.id === id && isStandardMeleeWeapon(w))?.id ?? "knife_tactical";
+}
+/** Mounting charms is only supported for ordinary ranged firearms.
+ * Wonders have no charm slot, including their controller and melee variants. */
+export function weaponSupportsCharm(weapon: Pick<WeaponDef, "wonder" | "category">): boolean {
+  return !weapon.wonder && weapon.category !== "melee";
+}
 /** Shield Wonders use a normal P-9 magazine; ownership is still Wonder-only. */
 export function usesWonderCharges(weapon: WeaponDef): boolean { return !!weapon.wonder && weapon.wonder.kind !== "shield"; }
 
@@ -106,7 +81,7 @@ export function projectileSplashRadius(weapon: WeaponDef): number {
   return weapon.explosive?.radius ?? weapon.wonder?.radius ?? 8;
 }
 
-export type AttachmentSlot = "sight" | "barrel" | "grip" | "magazine";
+export type AttachmentSlot = import("./catalog-contract").CatalogAttachmentSlot;;
 
 // All 4 attachment slots, in canonical display order.
 export const ALL_ATTACHMENT_SLOTS: AttachmentSlot[] = ["sight", "barrel", "grip", "magazine"];
@@ -125,9 +100,20 @@ export const CATEGORY_ATTACHMENT_CHOICES: Partial<Record<WeaponCategory, Partial
 export function compatibleAttachments(weaponId: string, slot: AttachmentSlot): string[] {
   const weapon = weaponById(weaponId);
   if (!weaponAttachmentSlots(weapon).includes(slot)) return [];
+  // Heat weapons share a reusable pool of cooling, venting and emitter hardware.
+  // Explicit weapon overrides take precedence; conventional magazines never apply.
+  const heatOptions: Partial<Record<AttachmentSlot, string[]>> = {
+    barrel: ["barrel_heat_sink", "barrel_heat_focus", "barrel_heat_compact", "barrel_heat_insulated"],
+    magazine: ["mag_heat_reservoir", "mag_heat_quickvent", "mag_heat_coolant", "mag_heat_lightweight"],
+  };
   const allowed = WEAPON_ATTACHMENT_COMPAT[weaponId]?.[slot] ??
-    CATEGORY_ATTACHMENT_CHOICES[weapon.category]?.[slot] ?? [];
-  return allowed.filter(id => ATTACHMENTS.some(a => a.id === id && a.slot === slot));
+    (weapon.special?.kind === "heat" && heatOptions[slot]
+      ? heatOptions[slot] : CATEGORY_ATTACHMENT_CHOICES[weapon.category]?.[slot]) ?? [];
+  return allowed.filter(id => ATTACHMENTS.some(a =>
+    a.id === id && a.slot === slot &&
+    (!a.exclusiveWeaponIds || a.exclusiveWeaponIds.includes(weaponId)) &&
+    (!a.heatOnly || weapon.special?.kind === "heat")
+  ));
 }
 
 // Helper: list the attachment slots a weapon supports. Defaults to all 4.
@@ -139,30 +125,9 @@ export function weaponAttachmentSlots(weapon: WeaponDef): AttachmentSlot[] {
 // Sight attachments reference a SightType, which carries the optic's zoom level,
 // reticle style, and any ADS visual overlay (thermal/NVG tint, laser beam, etc.).
 // "iron" is the default sight used when no sight attachment is equipped.
-export type SightType =
-  | "iron"
-  | "red_dot"
-  | "holo"
-  | "acog"
-  | "hunter"
-  | "thermal"
-  | "nvg"
-  | "laser"
-  | "sniper_scope";
+export type SightType = import("./catalog-contract").CatalogSightType;
 
-export interface SightDef {
-  type: SightType;
-  name: string;
-  zoom: number;          // 1.0 = no magnification, 4.0 = 4x scope
-  reticle: "iron" | "dot" | "holo" | "chevron" | "mildot" | "thermal" | "nvg" | "laser";
-  // FOV reduction (degrees) when fully ADS — replaces the engine's old hardcoded 25°
-  adsFovReduction: number;
-  // Visual overlay rendered on the HUD when ADS with this sight
-  overlay?: "thermal" | "nvg" | "laser";
-  // Sensitivity multiplier applied while ADS (lower = steadier high-zoom scopes)
-  adsSensMul: number;
-  description: string;
-}
+export type SightDef = import("./catalog-contract").SightCatalogDef;
 
 export const SIGHT_DEFS: Record<SightType, SightDef> = sightDefinitionsData as unknown as Record<SightType, SightDef>;
 
@@ -207,70 +172,40 @@ export function hasMountedSight(weapon: WeaponDef, atts: Partial<Record<Attachme
   return mountedAttachment || factoryScope;
 }
 
-export interface AttachmentDef {
-  id: string;
-  name: string;
-  slot: AttachmentSlot;
-  unlockLevel: number;
-  unlockCost: number;
-  description: string;
-  // For sight attachments: which SightType this attachment installs. Non-sight
-  // attachments leave this undefined.
-  sightType?: SightType;
-  // Weapon categories this attachment is compatible with. USED FOR FILTERING:
-  // the customizer only shows attachments whose `weaponCategories` includes the
-  // current weapon's category. Leave undefined to mean "all weapons". This is
-  // the canonical filter field — `compatibleAttachments()` reads it directly.
-  // Examples: suppressors don't fit launchers; scopes don't fit shotguns.
-  weaponCategories?: WeaponCategory[];
-  exclusiveWeaponIds?: string[];
-  // Legacy alias for `weaponCategories` (kept for backward-compat with any
-  // catalog entries that still use the old name). When both are set, they
-  // should be the same list — `weaponCategories` is canonical.
-  recommendedFor?: WeaponCategory[];
-  /** Only effective for shotguns; changes pellet count, spread and status effects. */
-  shotgunAmmo?: "slug" | "pellets" | "dragons_breath" | "beanbag";
-  effects: {
-    damage?: number;       // additive percent e.g. 10 => +10%
-    recoil?: number;       // additive percent (negative reduces)
-    spread?: number;       // additive percent — affects HIPFIRE spread
-    adsSpread?: number;    // additive percent — affects ADS spread (defaults to spread if unset)
-    adsTime?: number;      // additive percent
-    magSize?: number;      // additive rounds
-    reloadTime?: number;   // additive percent
-    moveSpeed?: number;    // additive percent
-    range?: number;        // additive percent
-  };
-}
+export type AttachmentDef = import("./catalog-contract").AttachmentCatalogDef;
 
 export const ATTACHMENTS: AttachmentDef[] = attachmentsData as unknown as AttachmentDef[];
 
-export interface WeaponSkinDef {
-  id: string;
-  name: string;
-  unlockLevel: number;
-  unlockCost: number;
-  rarity: "common" | "rare" | "epic" | "legendary" | "prestige";
-  // Skin tier controls how the skin unlocks:
-  //  - "standard"  : basic color variants (default, arctic, desert, etc.) — available
-  //                  on ALL weapons. One unlock (SkinUnlock with weaponId="*") applies globally.
-  //  - "rare"      : per-weapon challenge-earned skin (future).
-  //  - "legendary" : per-weapon special-event skin (future).
-  // Currently every skin is "standard" — non-standard tiers will be added later.
-  tier: "standard" | "rare" | "legendary";
-  /** Player-facing visual art brief. */
-  artBrief: string;
-  // Visual properties for the engine
-  color: string;        // base hex
-  metalness: number;    // 0..1
-  roughness: number;    // 0..1
-  emissive?: string;    // glow color
-  emissiveIntensity?: number;
-  /** Awarded free to a weapon after completing every standard skin challenge. */
-  prestige?: "cosmic" | "toxic";
-  /** Cosmetics bought through the Shop, not earned from standard skin challenges. */
-  shopCurrency?: "credits" | "career";
+export function attachmentEffectsForWeapon(att: AttachmentDef, weapon: WeaponDef): AttachmentDef["effects"] {
+  return { ...att.effects, ...(att.categoryEffects?.[weapon.category] ?? {}), ...(att.weaponEffects?.[weapon.id] ?? {}) };
 }
+
+/** Heat upgrades are defined by mechanic rather than weapon ID, so subsequent
+ * heat weapons inherit the same cooling hardware and authoritative handling. */
+export function effectiveHeatConfig(weapon: WeaponDef, atts: Partial<Record<AttachmentSlot,string|null>>): HeatConfig | null {
+  const special = weapon.special;
+  if (special?.kind !== "heat") return null;
+  const mods: Record<string, number> = {};
+  for (const slot of ALL_ATTACHMENT_SLOTS) {
+    const id = atts[slot];
+    if (!id || !compatibleAttachments(weapon.id,slot).includes(id)) continue;
+    const attachment = attachmentById(id);
+    for (const [key,value] of Object.entries(attachment?.heatEffects ?? {}))
+      mods[key] = (mods[key] ?? 0) + value;
+  }
+  const scaled = (key: keyof HeatConfig, base: number) => base * (1 + (mods[key] ?? 0)/100);
+  const overheatAt = Math.max(10,scaled("overheatAt",special.overheatAt));
+  return { ...special,
+    heatPerShot: Math.max(.1,scaled("heatPerShot",special.heatPerShot)),
+    coolPerSecond: Math.max(.1,scaled("coolPerSecond",special.coolPerSecond)),
+    coolDelayMs: Math.max(0,scaled("coolDelayMs",special.coolDelayMs)),
+    ventSeconds: Math.max(.2,scaled("ventSeconds",special.ventSeconds)),
+    overheatAt,
+    resumeAt: Math.min(overheatAt - 1,Math.max(0,scaled("resumeAt",special.resumeAt))),
+  };
+}
+
+export type WeaponSkinDef = import("./catalog-contract").WeaponSkinCatalogDef;
 
 // Wildcard weaponId used in SkinUnlock rows for standard-tier skins. A skin
 // unlocked with weaponId="*" is available on every weapon (one unlock grants
@@ -285,17 +220,7 @@ export function isStandardSkin(skin: WeaponSkinDef): boolean {
 
 export const WEAPON_SKINS: WeaponSkinDef[] = weaponSkinsData as unknown as WeaponSkinDef[];
 
-export interface PlayerSkinDef {
-  id: string;
-  shopCurrency?: "credits" | "career";
-  name: string;
-  unlockLevel: number;
-  unlockCost: number;
-  rarity: "common" | "rare" | "epic" | "legendary";
-  color: string;
-  accent: string;
-  emissive?: string;
-}
+export type PlayerSkinDef = import("./catalog-contract").OperatorSkinCatalogDef;
 
 export const PLAYER_SKINS: PlayerSkinDef[] = operatorSkinsData as unknown as PlayerSkinDef[];
 
@@ -307,24 +232,10 @@ export const PLAYER_SKINS: PlayerSkinDef[] = operatorSkinsData as unknown as Pla
 // match-completion flow auto-grants the skin when a challenge is cleared.
 // ============================================================================
 // Persistent per-elimination conditions shared by gameplay and progression.
-export type WeaponConditionMetric =
-  | "bare_kills" | "fully_equipped_kills" | "ads_kills"
-  | "hipfire_kills" | "airborne_kills" | "close_range_kills"
-  | "long_range_kills" | "multikill_kills"
-  | "suppressed_kills" | "critical_health_kills" | "comeback_kills";
-export type WeaponChallengeMetric = "kills" | "headshots" | WeaponConditionMetric;
+export type WeaponConditionMetric = import("./catalog-contract").CatalogWeaponConditionMetric;
+export type WeaponChallengeMetric = import("./catalog-contract").CatalogWeaponChallengeMetric;
 
-export interface WeaponChallengeDef {
-  id: string;
-  weaponId: string;
-  skinId: string;
-  goal: number;
-  metric: WeaponChallengeMetric;
-  // Optional AND-based mastery steps. All steps must be completed.
-  requirements?: { metric: WeaponChallengeMetric; goal: number }[];
-  title: string;
-  description: string;
-}
+export type WeaponChallengeDef = import("./catalog-contract").WeaponChallengeCatalogDef;
 
 export const WEAPON_CHALLENGES: WeaponChallengeDef[] = weaponChallengesData as unknown as WeaponChallengeDef[];
 
@@ -351,7 +262,12 @@ export const weaponSkinById = (id: string) => WEAPON_SKINS.find((s) => s.id === 
 export const playerSkinById = (id: string) => PLAYER_SKINS.find((s) => s.id === id) ?? PLAYER_SKINS[0];
 
 export interface ResolvedLoadout {
+  equipmentId: import("./equipment").EquipmentId;
   perkId: PerkId;
+  wonderWeaponId: string;
+  wonderModuleId?: string;
+  wonderSkinId?: string;
+  wonderKillEffectId?: string;
   weapon: WeaponDef;
   secondary: WeaponDef;
   melee: WeaponDef;
@@ -373,9 +289,13 @@ export interface ResolvedLoadout {
 
 export function resolveLoadout(input: {
   perkId?: string;
+  wonderWeaponId?: string;
   primaryWeapon: string;
   secondaryWeapon?: string;
   meleeWeapon?: string;
+  equipmentId?: string;
+  /** Account level for live loadout entitlement validation. Omit for previews. */
+  level?: number;
   weaponSkin: string;
   // Per-weapon skins for the secondary + melee slots.
   secondaryWeaponSkin?: string;
@@ -406,23 +326,27 @@ export function resolveLoadout(input: {
     };
   };
   const requestedPrimary = weaponById(input.primaryWeapon);
-  const weapon = requestedPrimary.disabled ? weaponById("rifle_ar") : requestedPrimary;
+  const weapon = requestedPrimary.disabled || requestedPrimary.wonder ? weaponById("rifle_ar") : requestedPrimary;
   const requestedSecondary = weaponById(input.secondaryWeapon ?? "pistol_side");
   const secondary = requestedSecondary.disabled || requestedSecondary.wonder ? weaponById("pistol_side") : requestedSecondary;
+  const meleeId = activeMeleeWeaponId(input.meleeWeapon);
+  const replacedMelee = meleeId !== (input.meleeWeapon ?? "knife_tactical");
   // Validate each slot's skin is unlocked for that slot's weapon. If not,
   // fall back to the default skin (which is always available).
   const validateSkin = (skinId: string, unlocked: string[] | undefined): WeaponSkinDef => {
     if (unlocked && !unlocked.includes(skinId)) return weaponSkinById("default");
     return weaponSkinById(skinId);
   };
-  const skinId = requestedPrimary.disabled ? weaponSkinById("default") : validateSkin(input.weaponSkin, input.unlockedSkinsForWeapon);
+  const skinId = requestedPrimary.disabled || requestedPrimary.wonder ? weaponSkinById("default") : validateSkin(input.weaponSkin, input.unlockedSkinsForWeapon);
   const secondarySkin = validateSkin(input.secondaryWeaponSkin ?? "default", input.unlockedSkinsForSecondary);
-  const meleeSkin = validateSkin(input.meleeWeaponSkin ?? "default", input.unlockedSkinsForMelee);
+  const meleeSkin = replacedMelee ? weaponSkinById("default") : validateSkin(input.meleeWeaponSkin ?? "default", input.unlockedSkinsForMelee);
   return {
     perkId: perkById(input.perkId).id,
+    wonderWeaponId: input.wonderWeaponId ?? "",
+    equipmentId: input.level === undefined ? equipmentById(input.equipmentId).id : equipmentAvailable(input.equipmentId, input.level),
     weapon,
     secondary,
-    melee: weaponById(input.meleeWeapon ?? "knife_tactical"),
+    melee: weaponById(meleeId),
     weaponSkin: skinId,
     secondaryWeaponSkin: secondarySkin,
     meleeWeaponSkin: meleeSkin,
@@ -431,7 +355,7 @@ export function resolveLoadout(input: {
     primaryCharm: input.primaryCharm ?? "none", secondaryCharm: input.secondaryCharm ?? "none",
     attachments: requestedPrimary.disabled ? parseAtts(undefined) : parseAtts(input.attachments),
     secondaryAttachments: requestedSecondary.disabled ? parseAtts(undefined) : parseAtts(input.secondaryAttachments),
-    meleeAttachments: parseAtts(input.meleeAttachments),
+    meleeAttachments: replacedMelee ? parseAtts(undefined) : parseAtts(input.meleeAttachments),
   };
 }
 
@@ -449,16 +373,19 @@ export function damageAtRange(baseDamage: number, distance: number, range: numbe
 }
 
 // Compute effective stats after applying attachment effects.
-// `spread` (hipfire) and `adsSpread` (ADS) are tracked separately so attachments
-// can tune one without the other (e.g. laser sight only buffs hipfire; red dot
-// only buffs ADS). If an attachment sets only `spread`, the same modifier is
-// applied to ADS too (backward-compat with attachments authored before the
-// decoupling).
+// Hipfire and ADS dispersion are independent; hipfire lasers never buff ADS.
 export interface EffectiveStats extends WeaponStats {
   shotgunAmmo?: "slug" | "pellets" | "dragons_breath" | "beanbag";
   magSize: number;
   // The resolved sight type for this loadout (engine reads this for zoom/reticle).
   sightType: SightType;
+}
+
+/** Burst magazines must contain whole trigger pulls even after modifiers. */
+export function burstAlignedMagSize(capacity: number, burst: number | undefined): number {
+  const rounds = Math.max(1, Math.round(capacity));
+  const group = Math.max(1, Math.floor(burst ?? 1));
+  return group === 1 ? rounds : Math.max(group, Math.round(rounds / group) * group);
 }
 
 export function computeEffectiveStats(weapon: WeaponDef, atts: Record<AttachmentSlot, string | null>): EffectiveStats {
@@ -468,42 +395,81 @@ export function computeEffectiveStats(weapon: WeaponDef, atts: Record<Attachment
     const id = atts[slot];
     if (!id) continue;
     const def = attachmentById(id);
-    if (!def) continue;
-    for (const [k, v] of Object.entries(def.effects)) {
+    if (!def || !compatibleAttachments(weapon.id,slot).includes(id)) continue;
+    for (const [k, v] of Object.entries(attachmentEffectsForWeapon(def, weapon))) {
       acc[k] = (acc[k] ?? 0) + (v as number);
     }
   }
   const pct = (val: number, key: string) => base[key as keyof WeaponStats] as number * (1 + (acc[key] ?? 0) / 100);
+  // This attachment changes the firing action. Enforce the exact allowlist
+  // so illegal/forged secondary attachments cannot activate fanning.
+  const fanHammer = isFanHammer(weapon.id, atts.grip) &&
+    compatibleAttachments(weapon.id,"grip").includes("grip_fan_hammer");
+  const akimbo = isAkimboWeapon(weapon.id,atts.grip) &&
+    compatibleAttachments(weapon.id,"grip").includes("grip_akimbo");
   // Shell choice is a magazine attachment but alters projectile behavior. All
   // these values go through EffectiveStats so offline and server agree.
   const ammoAttachment = attachmentById(atts.magazine ?? "");
-  const shell = weapon.category === "shotgun" ? ammoAttachment?.shotgunAmmo : undefined;
-  const shellTuning = shell === "slug" ? { pellets: 1, damageMul: 3.0, spreadMul: .18, rangeMul: 3.2, rateMul: .8 } :
-    shell === "dragons_breath" ? { pellets: 1, damageMul: 1.9, spreadMul: .24, rangeMul: 2.2, rateMul: .85 } :
-    shell === "pellets" ? { pellets: Math.round((base.pellets ?? 8) * 1.75), damageMul: .63, spreadMul: 1.8, rangeMul: .87, rateMul: 1 } :
-    shell === "beanbag" ? { pellets: 4, damageMul: .65, spreadMul: .66, rangeMul: 1.08, rateMul: 1.35 } :
+  // Magazine ammo effects are opt-in and must be legal for this exact weapon.
+  const barrelAttachment = attachmentById(atts.barrel ?? "");
+  const piercingAmmo = [ammoAttachment,barrelAttachment].find(a =>
+    a?.bodyPenetration && compatibleAttachments(weapon.id,a.slot).includes(a.id))?.bodyPenetration;
+  const bodyPenetration = !piercingAmmo ? base.bodyPenetration
+    : base.bodyPenetration
+      ? {
+          maxTargets: Math.min(3, Math.max(base.bodyPenetration.maxTargets, piercingAmmo.maxTargets)),
+          damageRetention: Math.min(0.85, Math.max(
+            base.bodyPenetration.damageRetention + (piercingAmmo.retentionBonus ?? 0),
+            piercingAmmo.damageRetention,
+          )),
+        }
+      : { maxTargets: piercingAmmo.maxTargets, damageRetention: piercingAmmo.damageRetention };
+  // This energy rating now governs both body and material penetration. Keep
+  // the intrinsic rating distinct from direct-hit damage and TTK.
+  const shell = weapon.category === "shotgun" && ammoAttachment &&
+    compatibleAttachments(weapon.id,"magazine").includes(ammoAttachment.id) ? ammoAttachment.shotgunAmmo : undefined;
+  // A slug is a single dense projectile, not a spray of low-energy pellets.
+  const coverPenetration = Math.min(6,(base.coverPenetration ?? 0) +
+    (piercingAmmo && ammoAttachment?.id === "mag_penetrator" ? .6 : 0) + (shell === "slug" ? .9 : 0));
+  const shellTuning = shell === "slug" ? { pellets: 1, damageMul: 3.3, spreadMul: .18, rangeMul: 2.2, rateMul: .8 } :
+    shell === "dragons_breath" ? { pellets: 6, damageMul: .75, spreadMul: 1.25, rangeMul: .95, rateMul: .9 } :
+    shell === "pellets" ? { pellets: Math.round((base.pellets ?? 8) * 1.75), damageMul: .70, spreadMul: 1.8, rangeMul: .75, rateMul: 1 } :
+    shell === "beanbag" ? { pellets: 5, damageMul: .85, spreadMul: .72, rangeMul: .9, rateMul: 1.35 } :
     null;
     const magBonus = acc.magSize ?? 0;
+  // Each magazine / tube retains its own rounded attachment capacity. Round
+  // per hand BEFORE doubling so odd combined totals cannot lose a cartridge.
+  const akimboCapacity = akimbo ? 2*Math.max(1,Math.round(base.magSize*(1+(magBonus-100)/100))) : 0;
   // Resolve sight type from the equipped sight attachment (iron if none).
   const sightDef = sightDefForAttachments(atts, weapon.baseSightType);
+  // Percentage-only ADS spread penalties have no effect on zero-spread snipers.
+  // Low-magnification optics can enforce a small absolute precision penalty.
+  // Ignore floors from sights that aren't compatible with this weapon.
+  const sightSpreadFloor = !atts.sight || compatibleAttachments(weapon.id, "sight").includes(atts.sight)
+    ? (sightDef.adsSpreadFloor ?? 0) : 0;
+  const aimedSpreadBase = Math.max(base.adsSpread, sightSpreadFloor);
   return {
     ...base,
+    bodyPenetration,
+    coverPenetration: coverPenetration > 0 ? coverPenetration : undefined,
     shotgunAmmo: shell,
-    auto: weapon.id === "crossbow_reclaimer" && atts.magazine === "mag_bolt_quiver" ? true : base.auto,
+    auto: fanHammer || (weapon.id === "crossbow_reclaimer" && atts.magazine === "mag_bolt_quiver" &&
+      compatibleAttachments(weapon.id,"magazine").includes("mag_bolt_quiver")) ? true : base.auto,
     pellets: shellTuning?.pellets ?? base.pellets,
-    fireRate: pct(base.fireRate, "fireRate") * (shellTuning?.rateMul ?? 1),
+    fireRate: pct(base.fireRate, "fireRate") * (shellTuning?.rateMul ?? 1) * (fanHammer ? FAN_HAMMER_RATE_MULTIPLIER : 1),
     damage: Math.round(pct(base.damage, "damage") * (shellTuning?.damageMul ?? 1)),
     recoil: Math.max(0.05, base.recoil * (1 + (acc.recoil ?? 0) / 100)),
     // Hipfire spread: clamp so an attachment can't make it negative.
     spread: Math.max(0.0005, base.spread * (1 + (acc.spread ?? 0) / 100) * (shellTuning?.spreadMul ?? 1)),
-    // ADS spread: uses adsSpread modifier if set, else falls back to spread modifier.
-    adsSpread: Math.max(0.0, base.adsSpread * (1 + ((acc.adsSpread ?? acc.spread) ?? 0) / 100) * (shellTuning?.spreadMul ?? 1)),
+    // An explicit ADS effect is required to influence ADS accuracy.
+    adsSpread: Math.max(0.0, aimedSpreadBase * (1 + (acc.adsSpread ?? 0) / 100) * (shellTuning?.spreadMul ?? 1)),
     adsTime: Math.max(0.05, base.adsTime * (1 + (acc.adsTime ?? 0) / 100)),
     reloadTime: Math.max(0.4, base.reloadTime * (1 + (acc.reloadTime ?? 0) / 100)),
     moveSpeed: Math.max(0.4, base.moveSpeed * (1 + (acc.moveSpeed ?? 0) / 100) * (weapon.category === "melee" ? 1.19 : 1)),
     range: Math.max(8, base.range * (1 + (acc.range ?? 0) / 100) * (shellTuning?.rangeMul ?? 1)),
     // A single-chamber bolt-action rifle cannot gain extra chambered rounds from old attachments.
-    magSize: weapon.id === "sniper_heavy" ? 1 : Math.max(1, Math.round(base.magSize * (1 + magBonus / 100))),
+    magSize: weapon.id === "sniper_heavy" ? 1 : akimbo ? akimboCapacity :
+      burstAlignedMagSize(base.magSize * (1 + magBonus / 100), base.burst),
     sightType: sightDef.type,
   };
 }
@@ -519,13 +485,7 @@ export const RARITY_COLORS: Record<string, string> = {
 // ============================================================================
 // RANKS — tier system based on level. Purely cosmetic title shown in UI.
 // ============================================================================
-export interface RankDef {
-  level: number;       // minimum level to achieve
-  name: string;        // display name
-  shortName: string;   // short code for badges
-  color: string;       // accent color
-  insignia: string;    // emoji-like glyph used in SVG-free badges
-}
+export type RankDef = import("./catalog-contract").RankCatalogDef;
 
 export const RANKS: RankDef[] = ranksData as unknown as RankDef[];
 
@@ -543,95 +503,61 @@ export function nextRank(level: number): RankDef | null {
 // DAILY CHALLENGES — 3 rotating objectives. The current set is determined by
 // the day-of-year so all players share the same set on a given day.
 // ============================================================================
-export type ChallengeMetric =
-  | "kills"
-  | "headshots"
-  | "wins"
-  | "matches"
-  | "tdm_kills"
-  | "ffa_kills"
-  | "kills_with_shotgun"
-  | "kills_with_sniper"
-  // Task 18-c+d: secondary (sidearm) + melee kill metrics for the new
-  // Sidearm Slinger / Blade Master daily challenges and Pistolero / Edgewalker
-  // weekly challenges. metricDelta in player-service.ts is updated separately
-  // by the main agent to handle these.
-  | "kills_with_secondary"
-  | "kills_with_melee"
-  | "multikills" // double-kill or better
-  | "survival_kills"
-  | "survival_waves"
-  | "gungame_kills"
-  | "kill_confirmations"
-  | "kill_denials"
-  | "level";   // elite quests: lifetime player level
+export type ChallengeMetric = import("./catalog-contract").CatalogChallengeMetric;
 
-export interface ChallengeDef {
-  id: string;
-  metric: ChallengeMetric;
-  goal: number;
-  rewardXp: number;
-  rewardCredits: number;
-  title: string;
-  description: string;
-  icon: string; // lucide icon name (string -> client maps)
-  // Category distinguishes rotating daily/weekly challenges from lifetime
-  // "elite" quests. Defaults to "daily" for existing entries.
-  category?: "daily" | "weekly" | "elite";
-}
+export type ChallengeDef = import("./catalog-contract").RotatingChallengeCatalogDef;
 
 export const DAILY_CHALLENGE_POOL: ChallengeDef[] = dailyChallengesData as unknown as ChallengeDef[];
 
-// Deterministic daily rotation: 3 challenges per day, rotating through the pool.
+// Each day combines a general objective, an arsenal quest and a map/mode quest.
+// Independent buckets avoid assigning three restrictive maps or attachments.
+export const CHALLENGE_FOCUSES = ["general", "arsenal", "operations"] as const;
 export function dailyChallengeSet(date = new Date()): ChallengeDef[] {
-  const start = new Date(date.getFullYear(), 0, 0);
-  const diff = date.getTime() - start.getTime();
-  const dayOfYear = Math.floor(diff / 86400000);
-  const pool = DAILY_CHALLENGE_POOL;
-  const n = pool.length;
-  // 3 challenges with offset based on day
-  const indices = [0, 1, 2].map((i) => (dayOfYear * 3 + i) % n);
-  // de-dupe just in case pool < 3
-  const unique = Array.from(new Set(indices));
-  while (unique.length < 3) {
-    for (let i = 0; i < n && unique.length < 3; i++) if (!unique.includes(i)) unique.push(i);
-  }
-  return unique.slice(0, 3).map((i) => pool[i]);
+  const utcDate = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+  const year = date.getUTCFullYear();
+  const dayOfYear = Math.floor((utcDate - Date.UTC(year, 0, 1)) / 86400000);
+  return CHALLENGE_FOCUSES.map(focus => {
+    const candidates = DAILY_CHALLENGE_POOL.filter(c => c.focus === focus);
+    if (!candidates.length) throw new Error(`No daily challenges for focus ${focus}`);
+    const offset = Math.floor(hashToUnitInterval(`daily|${year}|${focus}`) * candidates.length);
+    return candidates[(offset + dayOfYear) % candidates.length];
+  });
 }
 
 // ============================================================================
-// WEEKLY CHALLENGES — 2 harder objectives rotating weekly (ISO week). Larger
+// WEEKLY CHALLENGES — 3 varied objectives rotating weekly (ISO week). Larger
 // goals + bigger rewards than daily challenges. All players share the same
 // weekly set, so it's a global "this week's challenge" for everyone.
 // ============================================================================
 export const WEEKLY_CHALLENGE_POOL: ChallengeDef[] = weeklyChallengesData as unknown as ChallengeDef[];
 
-// Deterministic weekly rotation: 2 challenges per ISO week, picked from the
-// pool using the week number so every player sees the same pair that week.
-export function weeklyChallengeSet(date = new Date()): ChallengeDef[] {
-  const start = new Date(date.getFullYear(), 0, 0);
-  const diff = date.getTime() - start.getTime();
-  const dayOfYear = Math.floor(diff / 86400000);
-  // ISO-ish week number: floor((dayOfYear + 6) / 7). 1-based.
-  const week = Math.floor((dayOfYear + 6) / 7);
-  const pool = WEEKLY_CHALLENGE_POOL;
-  const n = pool.length;
-  const indices = [0, 1].map((i) => (week * 2 + i) % n);
-  const unique = Array.from(new Set(indices));
-  while (unique.length < 2) {
-    for (let i = 0; i < n && unique.length < 2; i++) if (!unique.includes(i)) unique.push(i);
-  }
-  return unique.slice(0, 2).map((i) => pool[i]);
+// ISO weeks start on Monday; use the UTC ISO week-year, including year boundaries.
+function isoWeekParts(date: Date): { year: number; week: number } {
+  const thursday = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const day = thursday.getUTCDay() || 7;
+  thursday.setUTCDate(thursday.getUTCDate() + 4 - day);
+  const year = thursday.getUTCFullYear();
+  const yearStart = Date.UTC(year, 0, 1);
+  const week = Math.ceil(((thursday.getTime() - yearStart) / 86400000 + 1) / 7);
+  return { year, week };
 }
 
-// Stable week key (YYYY-Www) used as the "period key" for weekly challenge
-// progress rows in the DB. Same string for all players in the same week.
+// One general, one arsenal and one operations quest per ISO week.
+// Independent round-robin cycles guarantee that every authored quest eventually appears.
+export function weeklyChallengeSet(date = new Date()): ChallengeDef[] {
+  const { year, week } = isoWeekParts(date);
+  return CHALLENGE_FOCUSES.map(focus => {
+    const candidates = WEEKLY_CHALLENGE_POOL.filter(c => c.focus === focus);
+    if (!candidates.length) throw new Error(`No weekly challenges for focus ${focus}`);
+    const offset = Math.floor(hashToUnitInterval(`weekly|${year}|${focus}`) * candidates.length);
+    return candidates[(offset + week - 1) % candidates.length];
+  });
+}
+
+// The same ISO week-year is used for rotation and persisted progress.
 export function weeklyChallengeKey(date = new Date()): string {
-  const start = new Date(date.getFullYear(), 0, 0);
-  const diff = date.getTime() - start.getTime();
-  const dayOfYear = Math.floor(diff / 86400000);
-  const week = Math.floor((dayOfYear + 6) / 7);
-  return `${date.getFullYear()}-W${String(week).padStart(2, "0")}`;
+  const { year, week } = isoWeekParts(date);
+  return `${year}-W${String(week).padStart(2, "0")}`;
 }
 
 // ============================================================================
@@ -646,6 +572,11 @@ export const DAILY_ELITE_CHANCE = 0.15;
 export const WEEKLY_ELITE_CHANCE = 0.25;
 export const ELITE_GOAL_MULTIPLIER = 3;
 export const ELITE_REWARD_MULTIPLIER = 3;
+
+// Grind-only or opponent-dependent quests can explicitly opt out of promotion.
+export function canPromoteChallengeToElite(challenge: ChallengeDef): boolean {
+  return challenge.eliteEligible !== false;
+}
 
 // Stable 0..1 hash from an arbitrary string (FNV-1a 32-bit, normalized).
 // Deterministic — same input always returns same output. Used to decide
@@ -676,17 +607,52 @@ export function shouldPromoteToElite(
 // scaled by ELITE_GOAL_MULTIPLIER / ELITE_REWARD_MULTIPLIER. The category is
 // preserved (daily/weekly) — elite is just a flag on top.
 export function promoteChallengeToElite(base: ChallengeDef): ChallengeDef {
+  if (!canPromoteChallengeToElite(base)) throw new Error(`Elite promotion disabled for ${base.id}`);
+  const goal = base.eliteGoal ?? base.goal * ELITE_GOAL_MULTIPLIER;
+  // Keep the objective description accurate when its Elite target is curated.
+  const description = base.description.replace(new RegExp(`\\b${base.goal}\\b`), String(goal));
   return {
     ...base,
     id: `${base.id}_elite`,
-    goal: base.goal * ELITE_GOAL_MULTIPLIER,
+    goal,
     rewardXp: base.rewardXp * ELITE_REWARD_MULTIPLIER,
     rewardCredits: base.rewardCredits * ELITE_REWARD_MULTIPLIER,
-    // Title/description get an "Elite" prefix so the UI can show it distinctly
-    // even without reading the separate isElite flag.
     title: `Elite ${base.title}`,
-    description: `ELITE — ${base.description} (3× goal, 3× reward)`,
+    description: `${description} · Elite rewards (3× XP and credits)`,
   };
+}
+
+/** Restrict map, Survival tier and equipped-attachment quests using match telemetry.
+ * Missing telemetry must never be interpreted as qualifying for a filtered quest.
+ */
+export function contextualChallengeDelta(
+  challenge: Pick<ChallengeDef, "metric" | "mapId" | "attachmentId" | "survivalTier">,
+  match: { mapId?: string; survivalTier?: string; mode: string; kills: number; perAttachmentKills?: Record<string, number> },
+  baseDelta: number,
+): number {
+  if (challenge.mapId && challenge.mapId !== match.mapId) return 0;
+  if (challenge.survivalTier && (match.mode !== "survival" || challenge.survivalTier !== match.survivalTier)) return 0;
+  if (challenge.attachmentId) {
+    if (challenge.metric !== "kills") return 0;
+    const hits = match.perAttachmentKills?.[challenge.attachmentId] ?? 0;
+    return Math.min(Math.max(0, match.kills), Math.max(0, hits));
+  }
+  return baseDelta;
+}
+
+// "In one run" Survival wave challenges track the best run within the period,
+// not the sum of waves from multiple matches. Other metrics stay cumulative.
+export function nextChallengeProgress(
+  challenge: Pick<ChallengeDef, "metric" | "goal">,
+  existingProgress: number,
+  matchDelta: number,
+): number {
+  const previous = Math.max(0, existingProgress);
+  const contribution = Math.max(0, matchDelta);
+  return Math.min(challenge.goal,
+    challenge.metric === "survival_waves"
+      ? Math.max(previous, contribution)
+      : previous + contribution);
 }
 
 // ============================================================================
@@ -704,54 +670,7 @@ export const ELITE_QUESTS: ChallengeDef[] = eliteQuestsData as unknown as Challe
 // ============================================================================
 // ACHIEVEMENTS — one-time lifetime accomplishments.
 // ============================================================================
-export interface AchievementDef {
-  id: string;
-  title: string;
-  description: string;
-  icon: string;
-  // The metric checked against player lifetime stats
-  metric:
-    | "kills"
-    | "headshots"
-    | "wins"
-    | "matches"
-    | "level"
-    | "credits_earned_total"
-    | "survival_waves"
-    | "survival_default_wins"
-    | "survival_hard_waves"
-    | "survival_elite_waves"
-    | "survival_nightmare_waves"
-    // 17-C: quest-completion lifetime counters (Player model columns)
-    | "daily_challenges_completed"
-    | "weekly_challenges_completed"
-    | "elite_challenges_completed"
-    | "total_challenges_completed"
-    // 19a+19b: Lifetime best kill streak (Player.bestKillstreak). Distinct
-    // from the "multikills" ChallengeMetric which counts the NUMBER of
-    // double-kill-or-better streaks; this tracks the highest streak length
-    // achieved across all matches. Drives the Triple Threat / Killstreak King /
-    // Untouchable Force tiered achievements.
-    | "best_killstreak"
-    | "ctf_captures"
-    | "ctf_wins"
-    | "mastery_recruits"
-    | "mastery_specialists"
-    | "mastery_elites"
-    | "collection_percent";
-  goal: number;
-  tier: "bronze" | "silver" | "gold" | "platinum";
-  rewardXp: number;
-  rewardCredits: number;
-  // PvP = non-Survival combat (all regular modes); PvE = Survival.
-  // Career and mastery can advance in any game mode.
-  category: "pvp" | "pve" | "career" | "mastery";
-  /** Stable achievement chain and its ordered tier, independent of display color. */
-  series: string;
-  seriesTier: number;
-  /** Nameplate reward for the final tier of this series only. */
-  rewardTitle?: string;
-}
+export type AchievementDef = import("./catalog-contract").AchievementCatalogDef;
 
 export const ACHIEVEMENTS: AchievementDef[] = achievementsData as unknown as AchievementDef[];
 

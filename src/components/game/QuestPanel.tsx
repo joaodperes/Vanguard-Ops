@@ -142,7 +142,7 @@ export function QuestSections({ daily, weekly }: { daily: ChallengeView[]; weekl
           </div>
         )}
 
-        {/* weekly challenges — 2 rotating objectives with bigger rewards + elite variants */}
+        {/* weekly challenges — 3 rotating objectives (general, arsenal, operations) */}
         {weekly.length > 0 && (
           <div className="rounded-2xl border border-purple-500/20 bg-gradient-to-br from-zinc-900/60 to-black/40 p-5 mb-6">
             <div className="flex items-center justify-between mb-3">
@@ -157,7 +157,7 @@ export function QuestSections({ daily, weekly }: { daily: ChallengeView[]; weekl
                 </Badge>
               )}
             </div>
-            <div className="grid sm:grid-cols-2 gap-3">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {weekly.map((c) => {
                 const pct = Math.min(100, (c.progress / c.goal) * 100);
                 const elite = c.isElite === true;

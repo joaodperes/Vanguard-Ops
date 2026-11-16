@@ -9,6 +9,28 @@ export function buildMeleeWeaponParts(
   const box=(w:number,h:number,d:number,mat:THREE.Material,x:number,y:number,z:number)=>{
     place(new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat),x,y,z);
   };
+  if(id==="wonder_seismic"){
+    // Two-handed impact lance: long connected shaft, narrow penetrator and
+    // stabilising vanes. The point is driven into the ground on activation.
+    const energy=new THREE.MeshBasicMaterial({color:0xffb76d});
+    const shaft=new THREE.Mesh(new THREE.CylinderGeometry(.037,.049,1.05,12),grip);
+    shaft.rotation.x=Math.PI/2;place(shaft,0,-.04,-.39);
+    const spine=new THREE.Mesh(new THREE.CylinderGeometry(.025,.027,.70,10),metal);
+    spine.rotation.x=Math.PI/2;place(spine,0,-.04,-.67);
+    const collar=new THREE.Mesh(new THREE.CylinderGeometry(.092,.09,.10,12),metal);
+    collar.rotation.x=Math.PI/2;place(collar,0,-.04,-.82);
+    for(const side of [-1,1]){
+      const vane=new THREE.Mesh(new THREE.BoxGeometry(.18,.038,.22),metal);
+      vane.rotation.y=side*.28;place(vane,side*.13,-.04,-.84);
+      const rail=new THREE.Mesh(new THREE.BoxGeometry(.014,.021,.53),energy);
+      place(rail,side*.04,-.015,-.52);
+    }
+    const tip=new THREE.Mesh(new THREE.ConeGeometry(.12,.45,6),metal);
+    tip.rotation.x=-Math.PI/2;place(tip,0,-.04,-1.06);
+    const core=new THREE.Mesh(new THREE.IcosahedronGeometry(.065,1),energy);
+    place(core,0,-.04,-.84);
+    return -1.28;
+  }
   if(id==="orbital_reaper"){
     // Curved plasma reaper: its crescent is a luminous cutting arc, never a
     // cross-shaped guard. Shared first/third-person profile.
@@ -66,14 +88,37 @@ export function buildMeleeWeaponParts(
     return -.55;
   }
   if(id==="baton"){
-    const shaft=new THREE.Mesh(new THREE.CylinderGeometry(.027,.026,.63,12),metal);
-    shaft.rotation.x=Math.PI/2;place(shaft,0,-.05,-.16);
-    box(.10,.04,.045,grip,0,-.05,.08);
-    return -.47;
+    // Two compact knives with narrow blades and tapered points, not a baton.
+    for(const x of [-.055,.055]){
+      box(.035,.03,.18,grip,x,-.05,.07);
+      // The bolster must overlap BOTH the grip and the cone, not merely
+      // meet at two almost-coplanar end faces (which leaves a visible seam).
+      box(.045,.018,.085,metal,x,-.05,-.044);
+      const blade=new THREE.Mesh(new THREE.ConeGeometry(.04,.3,4),metal);
+      blade.rotation.x=-Math.PI/2;place(blade,x,-.05,-.22);
+    }
+    return -.37;
   }
   const isShiv=id==="shiv",isMachete=id==="machete";
-  box(isShiv?.035:.04,isShiv?.035:.04,isShiv?.08:.10,grip,0,-.05,.08);
+  const handleWidth=isShiv?.035:.04;
+  const handleHeight=isShiv?.035:.04;
+  const handleDepth=isShiv?.08:.10;
+  box(handleWidth,handleHeight,handleDepth,grip,0,-.05,.08);
+
+  // Previously the blade ended BEFORE the grip began: a 6 cm gap on the shiv,
+  // 5 cm on the tactical knife, and 2.5 cm on the machete. In the upright
+  // first-person pose those gaps are magnified by perspective and make the
+  // blade appear to float above the hilt. Keep the same tip/reach, but extend
+  // each blade's tang INTO its handle instead of placing disconnected boxes.
+  const tipZ=isShiv?-.24:isMachete?-.445:-.34;
+  const tangZ=isShiv?.065:.06;
+  const bladeDepth=tangZ-tipZ;
   box(isShiv?.02:isMachete?.03:.025,isShiv?.035:isMachete?.06:.05,
-    isShiv?.22:isMachete?.45:.32,metal,0,-.05,isShiv?-.13:isMachete?-.22:-.18);
+    bladeDepth,metal,0,-.05,(tipZ+tangZ)/2);
+  if(!isShiv){
+    // A dark bolster masks the overlapping tang at the hilt, while itself
+    // intersecting both blade and handle. The improvised shiv has no guard.
+    box(isMachete?.075:.072,isMachete?.075:.066,.055,grip,0,-.05,.035);
+  }
   return isShiv?-.25:isMachete?-.45:-.35;
 }

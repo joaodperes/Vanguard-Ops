@@ -2,6 +2,11 @@
 export const SURVIVAL_TIERS = ["default", "hard", "elite", "nightmare"] as const;
 export type SurvivalTier = typeof SURVIVAL_TIERS[number];
 export const DEFAULT_SURVIVAL_GOAL = 30;
+/** Early waves move quickly; preparation increases to five seconds after wave 10.
+ * Reward selection happens within the same break, with a first-choice fallback. */
+export function survivalPrepSeconds(completedWave:number):number {
+  return Math.min(5,2+Math.max(0,completedWave-1)/3);
+}
 /** The Survival tier is the ONLY difficulty control. Standard ramps much more
  * gradually, rather than reaching veteran aim accuracy on wave 10. */
 export function survivalBotDifficulty(tier: SurvivalTier, wave: number): "easy" | "normal" | "hard" | "veteran" {

@@ -9,8 +9,8 @@
     "wonder": {
       "kind": "singularity",
       "maxCharges": 1,
-      "rechargeMs": 44000,
-      "killBonusMs": 2400,
+      "rechargeMs": 80000,
+      "killBonusMs": 1600,
       "radius": 9.5
     },
     "attachments": [],
@@ -35,12 +35,12 @@
     "category": "shotgun",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Corrosive bolt poisons enemies close to its impact (3.5m splash), then damages them over time. Three regenerating charges; ordinary kills accelerate recharge.",
+    "description": "Corrosive bolt poisons enemies close to its impact (3.5m splash), then deals poison damage for 5 seconds. Three regenerating charges; ordinary kills accelerate recharge.",
     "wonder": {
       "kind": "corrosion",
       "maxCharges": 3,
-      "rechargeMs": 38000,
-      "killBonusMs": 8500,
+      "rechargeMs": 70000,
+      "killBonusMs": 4500,
       "radius": 3.5
     },
     "attachments": [],
@@ -65,17 +65,17 @@
     "category": "lmg",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Deploys an automated turret with a 140° firing arc and full vertical tracking. Lasts 45 seconds; reinforced against gunfire, but explosive or melee strikes destroy it immediately.",
+    "description": "Deploys an automated turret with a 140° firing arc and full vertical tracking. Lasts 25 seconds; reinforced against gunfire, but explosive or melee strikes destroy it immediately.",
     "wonder": {
       "kind": "turret",
       "maxCharges": 1,
-      "rechargeMs": 55000,
-      "killBonusMs": 2000,
+      "rechargeMs": 105000,
+      "killBonusMs": 1500,
       "radius": 0
     },
     "attachments": [],
     "stats": {
-      "damage": 38,
+      "damage": 26,
       "fireRate": 2.8,
       "magSize": 1,
       "reloadTime": 0,
@@ -106,7 +106,7 @@
       "ventSeconds": 0.85
     },
     "stats": {
-      "damage": 24,
+      "damage": 27,
       "fireRate": 9,
       "magSize": 100,
       "reloadTime": 1.25,
@@ -134,10 +134,10 @@
     "category": "dmr",
     "unlockLevel": 19,
     "unlockCost": 1600,
-    "description": "Recover standard bolts for quicker reloads.",
+    "description": "Single-bolt precision crossbow. Lethal headshots, quicker cocking, and faster follow-up shots by reclaiming fired bolts.",
     "special": {
       "kind": "bolt",
-      "pickupRadius": 2,
+      "pickupRadius": 3,
       "lifetimeMs": 18000,
       "quickReloadSeconds": 0.65
     },
@@ -145,7 +145,7 @@
       "damage": 57,
       "fireRate": 0.65,
       "magSize": 1,
-      "reloadTime": 2.1,
+      "reloadTime": 1.65,
       "spread": 0.009,
       "adsSpread": 0.001,
       "recoil": 0.35,
@@ -153,7 +153,7 @@
       "adsTime": 0.28,
       "moveSpeed": 0.94,
       "auto": false,
-      "headshotMult": 1.6,
+      "headshotMult": 1.85,
       "falloffEndMultiplier": 1.45,
       "minDamageMultiplier": 0.46
     },
@@ -179,7 +179,7 @@
     },
     "stats": {
       "damage": 35,
-      "fireRate": 3.2,
+      "fireRate": 4,
       "magSize": 10,
       "reloadTime": 1.9,
       "spread": 0.013,
@@ -221,16 +221,17 @@
       "auto": false,
       "headshotMult": 1.65,
       "falloffEndMultiplier": 1.55,
-      "minDamageMultiplier": 0.3
+      "minDamageMultiplier": 0.3,
+      "coverPenetration": 1.25
     }
   },
   {
     "id": "rifle_hydra",
     "name": "Hydra Twin",
     "category": "assault",
-    "unlockLevel": 34,
+    "unlockLevel": 37,
     "unlockCost": 2600,
-    "description": "Fast two-round bursts. Strong opening damage but demanding burst discipline.",
+    "description": "Fast two-round bursts. Rounds can pass through two aligned enemies with reduced damage; demanding burst discipline.",
     "stats": {
       "damage": 29,
       "fireRate": 11,
@@ -244,9 +245,14 @@
       "adsTime": 0.24,
       "moveSpeed": 0.94,
       "auto": false,
+      "bodyPenetration": {
+        "maxTargets": 2,
+        "damageRetention": 0.3
+      },
       "headshotMult": 1.45,
       "falloffEndMultiplier": 1.55,
-      "minDamageMultiplier": 0.3
+      "minDamageMultiplier": 0.3,
+      "coverPenetration": 1.3
     }
   },
   {
@@ -257,8 +263,8 @@
     "unlockCost": 1900,
     "description": "Two-shot burst marksman rifle for fast follow-up hits at medium-long range.",
     "stats": {
-      "damage": 39,
-      "fireRate": 9,
+      "damage": 36,
+      "fireRate": 8,
       "burst": 2,
       "magSize": 20,
       "reloadTime": 2.6,
@@ -269,9 +275,10 @@
       "adsTime": 0.33,
       "moveSpeed": 0.86,
       "auto": false,
-      "headshotMult": 1.75,
+      "headshotMult": 1.5,
       "falloffEndMultiplier": 1.72,
-      "minDamageMultiplier": 0.46
+      "minDamageMultiplier": 0.46,
+      "coverPenetration": 1.3
     }
   },
   {
@@ -284,7 +291,7 @@
     "stats": {
       "damage": 62,
       "fireRate": 3.1,
-      "magSize": 14,
+      "magSize": 12,
       "reloadTime": 2,
       "spread": 0.003,
       "adsSpread": 0.0006,
@@ -295,34 +302,42 @@
       "auto": false,
       "headshotMult": 1.4,
       "falloffEndMultiplier": 1.72,
-      "minDamageMultiplier": 0.46
+      "minDamageMultiplier": 0.46,
+      "coverPenetration": 1.8
     }
   },
   {
     "id": "baton",
-    "name": "Shock Baton",
+    "disabled": true,
+    "name": "Throwing Knives",
     "category": "melee",
     "unlockLevel": 16,
     "unlockCost": 900,
-    "description": "Measured vertical strikes. Weaker and slower than a machete, but interrupts an enemy caught reloading.",
+    "description": "One silent, lethal throwing knife with 5.5m reach. Replenish only on death; in Gun Game, recover one every five seconds.",
+    "special": {
+      "kind": "throwing_knife"
+    },
     "stats": {
-      "damage": 41,
-      "fireRate": 1.32,
+      "damage": 105,
+      "fireRate": 1.5,
       "magSize": 1,
       "reloadTime": 0,
       "spread": 0,
       "adsSpread": 0,
       "recoil": 0,
-      "range": 1.5,
+      "range": 5.5,
+      "falloffEndMultiplier": 1,
+      "minDamageMultiplier": 1,
       "adsTime": 0,
-      "moveSpeed": 1.13,
+      "moveSpeed": 1.08,
       "auto": false,
-      "headshotMult": 1.5
+      "headshotMult": 1.25
     },
     "attachments": []
   },
   {
     "id": "axe",
+    "disabled": true,
     "name": "Breacher Axe",
     "category": "melee",
     "unlockLevel": 33,
@@ -354,7 +369,7 @@
     "stats": {
       "damage": 35,
       "fireRate": 9,
-      "magSize": 30,
+      "magSize": 24,
       "reloadTime": 2.2,
       "spread": 0.012,
       "adsSpread": 0.003,
@@ -365,7 +380,8 @@
       "auto": true,
       "headshotMult": 1.5,
       "falloffEndMultiplier": 1.55,
-      "minDamageMultiplier": 0.3
+      "minDamageMultiplier": 0.3,
+      "coverPenetration": 1
     }
   },
   {
@@ -389,14 +405,15 @@
       "auto": true,
       "headshotMult": 1.4,
       "falloffEndMultiplier": 1.4,
-      "minDamageMultiplier": 0.22
+      "minDamageMultiplier": 0.22,
+      "coverPenetration": 0.55
     }
   },
   {
     "id": "shotgun_br",
     "name": "Breacher",
     "category": "shotgun",
-    "unlockLevel": 4,
+    "unlockLevel": 2,
     "unlockCost": 500,
     "description": "Pump shotgun. Devastating up close, 8 pellets per shell.",
     "stats": {
@@ -407,16 +424,17 @@
       "spread": 0.075,
       "adsSpread": 0.05,
       "recoil": 1.6,
-      "range": 17.3,
+      "range": 10,
       "adsTime": 0.3,
       "moveSpeed": 0.92,
       "auto": false,
       "pellets": 8,
       "headshotMult": 1.3,
-      "falloffEndMultiplier": 1.3,
-      "minDamageMultiplier": 0.12,
+      "falloffEndMultiplier": 1.85,
+      "minDamageMultiplier": 0.1,
       "reloadStyle": "incremental",
-      "reloadPerRound": 0.96
+      "reloadPerRound": 0.96,
+      "coverPenetration": 0.32
     },
     "attachments": [
       "sight",
@@ -446,7 +464,8 @@
       "auto": false,
       "headshotMult": 1.8,
       "falloffEndMultiplier": 1.72,
-      "minDamageMultiplier": 0.46
+      "minDamageMultiplier": 0.46,
+      "coverPenetration": 2
     }
   },
   {
@@ -468,9 +487,14 @@
       "adsTime": 0.6,
       "moveSpeed": 0.7,
       "auto": false,
+      "bodyPenetration": {
+        "maxTargets": 2,
+        "damageRetention": 0.55
+      },
       "headshotMult": 2,
       "falloffEndMultiplier": 1.85,
-      "minDamageMultiplier": 0.6
+      "minDamageMultiplier": 0.6,
+      "coverPenetration": 2.8
     },
     "attachments": [
       "sight",
@@ -486,22 +510,27 @@
     "category": "lmg",
     "unlockLevel": 24,
     "unlockCost": 800,
-    "description": "Heavy machine gun. 75-round belt, suppressive monster.",
+    "description": "75-round machine gun. Sustained suppressive fire, with limited penetration through aligned enemies.",
     "stats": {
       "damage": 30,
       "fireRate": 10,
       "magSize": 75,
       "reloadTime": 4,
-      "spread": 0.018,
-      "adsSpread": 0.005,
-      "recoil": 1.15,
+      "spread": 0.021,
+      "adsSpread": 0.0058,
+      "recoil": 1.36,
       "range": 54,
       "adsTime": 0.4,
       "moveSpeed": 0.75,
       "auto": true,
+      "bodyPenetration": {
+        "maxTargets": 2,
+        "damageRetention": 0.25
+      },
       "headshotMult": 1.4,
       "falloffEndMultiplier": 1.5,
-      "minDamageMultiplier": 0.28
+      "minDamageMultiplier": 0.28,
+      "coverPenetration": 2
     }
   },
   {
@@ -510,7 +539,7 @@
     "category": "pistol",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Standard issue sidearm. Always equipped as backup.",
+    "description": "Standard issue sidearm.",
     "stats": {
       "damage": 41,
       "fireRate": 5,
@@ -525,7 +554,8 @@
       "auto": false,
       "headshotMult": 1.5,
       "falloffEndMultiplier": 1.55,
-      "minDamageMultiplier": 0.32
+      "minDamageMultiplier": 0.32,
+      "coverPenetration": 0.42
     },
     "attachments": [
       "sight",
@@ -542,7 +572,7 @@
     "unlockCost": 1200,
     "description": "Compact PDW with blistering fire rate. Shreds at point-blank.",
     "stats": {
-      "damage": 16,
+      "damage": 21,
       "fireRate": 16,
       "magSize": 40,
       "reloadTime": 2.1,
@@ -555,7 +585,8 @@
       "auto": true,
       "headshotMult": 1.35,
       "falloffEndMultiplier": 1.4,
-      "minDamageMultiplier": 0.22
+      "minDamageMultiplier": 0.22,
+      "coverPenetration": 0.48
     }
   },
   {
@@ -573,16 +604,17 @@
       "spread": 0.08,
       "adsSpread": 0.055,
       "recoil": 1.4,
-      "range": 15.8,
+      "range": 9.5,
       "adsTime": 0.3,
       "moveSpeed": 0.9,
       "auto": true,
       "pellets": 8,
       "headshotMult": 1.3,
-      "falloffEndMultiplier": 1.3,
-      "minDamageMultiplier": 0.12,
+      "falloffEndMultiplier": 1.7,
+      "minDamageMultiplier": 0.1,
       "reloadStyle": "incremental",
-      "reloadPerRound": 1.02
+      "reloadPerRound": 1.02,
+      "coverPenetration": 0.32
     }
   },
   {
@@ -591,22 +623,27 @@
     "category": "pistol",
     "unlockLevel": 23,
     "unlockCost": 1500,
-    "description": "Heavy revolver with strong recoil, short pistol-effective range and deliberate follow-up shots. Precise hits reward aim without instant eliminations.",
+    "description": "Precision revolver with punishing recoil and deliberate follow-up shots. A clean headshot can eliminate a full-health target within its short full-damage range.",
     "stats": {
-      "damage": 48,
-      "fireRate": 1.5,
+      "damage": 56,
+      "fireRate": 2.3,
       "magSize": 6,
       "reloadTime": 2.4,
-      "spread": 0.01,
-      "adsSpread": 0.003,
-      "recoil": 2.1,
+      "spread": 0.014,
+      "adsSpread": 0.0034,
+      "recoil": 2.35,
       "range": 31,
       "adsTime": 0.25,
       "moveSpeed": 0.98,
       "auto": false,
-      "headshotMult": 1.75,
+      "bodyPenetration": {
+        "maxTargets": 2,
+        "damageRetention": 0.3
+      },
+      "headshotMult": 1.8,
       "falloffEndMultiplier": 2,
-      "minDamageMultiplier": 0.62
+      "minDamageMultiplier": 0.62,
+      "coverPenetration": 1.5
     }
   },
   {
@@ -615,11 +652,11 @@
     "category": "dmr",
     "unlockLevel": 7,
     "unlockCost": 500,
-    "description": "Lightweight DMR. Faster handling than the Marksman, softer punch.",
+    "description": "Mobile semi-auto DMR with fast handling and follow-up shots. Three body hits to down a healthy target; rewarded for precise headshots.",
     "stats": {
-      "damage": 51,
+      "damage": 49,
       "fireRate": 6,
-      "magSize": 24,
+      "magSize": 14,
       "reloadTime": 2.2,
       "spread": 0.006,
       "adsSpread": 0.002,
@@ -630,7 +667,8 @@
       "auto": false,
       "headshotMult": 1.7,
       "falloffEndMultiplier": 1.72,
-      "minDamageMultiplier": 0.46
+      "minDamageMultiplier": 0.46,
+      "coverPenetration": 1.6
     }
   },
   {
@@ -658,6 +696,7 @@
   },
   {
     "id": "shiv",
+    "disabled": true,
     "name": "Shiv",
     "category": "melee",
     "unlockLevel": 2,
@@ -733,9 +772,9 @@
     "unlockCost": 800,
     "description": "Three-round burst sidearm. High burst DPS at mid range.",
     "stats": {
-      "damage": 24,
+      "damage": 35,
       "fireRate": 4,
-      "magSize": 21,
+      "magSize": 18,
       "reloadTime": 2,
       "spread": 0.012,
       "adsSpread": 0.004,
@@ -747,7 +786,8 @@
       "burst": 3,
       "headshotMult": 1.5,
       "falloffEndMultiplier": 1.55,
-      "minDamageMultiplier": 0.32
+      "minDamageMultiplier": 0.32,
+      "coverPenetration": 0.42
     },
     "attachments": [
       "sight",
@@ -760,12 +800,12 @@
     "id": "pistol_machine",
     "name": "Machine Pistol",
     "category": "pdw",
-    "unlockLevel": 30,
+    "unlockLevel": 38,
     "unlockCost": 2000,
     "description": "Full-auto machine pistol. Mag-dump to win at point-blank.",
     "stats": {
-      "damage": 19,
-      "fireRate": 11,
+      "damage": 22,
+      "fireRate": 13,
       "magSize": 25,
       "reloadTime": 1.8,
       "spread": 0.025,
@@ -777,7 +817,8 @@
       "auto": true,
       "headshotMult": 1.35,
       "falloffEndMultiplier": 1.3,
-      "minDamageMultiplier": 0.12
+      "minDamageMultiplier": 0.12,
+      "coverPenetration": 0.55
     },
     "attachments": [
       "sight",
@@ -790,7 +831,7 @@
     "id": "launcher_rocket",
     "name": "RL-7 Rocket Launcher",
     "category": "launcher",
-    "unlockLevel": 36,
+    "unlockLevel": 39,
     "unlockCost": 4000,
     "description": "High direct-hit damage, very tight 1.9m impact blast. Precision beats crowd clearing.",
     "stats": {
@@ -839,9 +880,14 @@
       "adsTime": 0.45,
       "moveSpeed": 0.82,
       "auto": false,
+      "bodyPenetration": {
+        "maxTargets": 2,
+        "damageRetention": 0.45
+      },
       "headshotMult": 2,
       "falloffEndMultiplier": 1.85,
-      "minDamageMultiplier": 0.6
+      "minDamageMultiplier": 0.6,
+      "coverPenetration": 2.6
     },
     "attachments": [
       "sight",
@@ -857,7 +903,7 @@
     "category": "assault",
     "unlockLevel": 11,
     "unlockCost": 800,
-    "description": "Burst-fire assault rifle. Three rounds per trigger pull — deadly at mid range.",
+    "description": "Precision-focused three-round burst assault rifle. One headshot plus two body hits can eliminate a full-health target inside its effective range.",
     "stats": {
       "damage": 28,
       "fireRate": 9,
@@ -871,9 +917,10 @@
       "moveSpeed": 0.92,
       "auto": false,
       "burst": 3,
-      "headshotMult": 1.5,
+      "headshotMult": 1.7,
       "falloffEndMultiplier": 1.55,
-      "minDamageMultiplier": 0.3
+      "minDamageMultiplier": 0.3,
+      "coverPenetration": 1.1
     }
   },
   {
@@ -886,7 +933,7 @@
     "stats": {
       "damage": 48,
       "fireRate": 6,
-      "magSize": 20,
+      "magSize": 24,
       "reloadTime": 2.8,
       "spread": 0.01,
       "adsSpread": 0.003,
@@ -897,7 +944,8 @@
       "auto": false,
       "headshotMult": 1.6,
       "falloffEndMultiplier": 1.55,
-      "minDamageMultiplier": 0.3
+      "minDamageMultiplier": 0.3,
+      "coverPenetration": 1.7
     }
   },
   {
@@ -908,7 +956,7 @@
     "unlockCost": 500,
     "description": "Ultra-compact budget SMG. Fast handling, low damage — a starter run-and-gun.",
     "stats": {
-      "damage": 20,
+      "damage": 26,
       "fireRate": 12,
       "magSize": 24,
       "reloadTime": 1.7,
@@ -921,7 +969,8 @@
       "auto": true,
       "headshotMult": 1.3,
       "falloffEndMultiplier": 1.4,
-      "minDamageMultiplier": 0.22
+      "minDamageMultiplier": 0.22,
+      "coverPenetration": 0.48
     }
   },
   {
@@ -932,23 +981,24 @@
     "unlockCost": 800,
     "description": "Semi-auto combat shotgun. Faster fire rate than the Breacher, tighter spread.",
     "stats": {
-      "damage": 16,
+      "damage": 15,
       "fireRate": 2,
       "magSize": 8,
       "reloadTime": 2.8,
-      "spread": 0.042,
-      "adsSpread": 0.025,
+      "spread": 0.062,
+      "adsSpread": 0.042,
       "recoil": 1.3,
-      "range": 26,
+      "range": 12.5,
       "adsTime": 0.25,
       "moveSpeed": 0.93,
       "auto": false,
       "pellets": 8,
       "headshotMult": 1.3,
-      "falloffEndMultiplier": 2,
-      "minDamageMultiplier": 0.34,
+      "falloffEndMultiplier": 1.65,
+      "minDamageMultiplier": 0.15,
       "reloadStyle": "incremental",
-      "reloadPerRound": 0.94
+      "reloadPerRound": 0.94,
+      "coverPenetration": 0.32
     },
     "attachments": [
       "sight",
@@ -966,7 +1016,7 @@
     "description": "Heavy 8-round en-bloc DMR. Devastating at range; the clip can only be reloaded when empty.",
     "stats": {
       "damage": 85,
-      "fireRate": 2.3,
+      "fireRate": 2.8,
       "magSize": 8,
       "reloadOnlyWhenEmpty": true,
       "reloadTime": 2.8,
@@ -977,9 +1027,14 @@
       "adsTime": 0.4,
       "moveSpeed": 0.82,
       "auto": false,
+      "bodyPenetration": {
+        "maxTargets": 2,
+        "damageRetention": 0.4
+      },
       "headshotMult": 1.8,
       "falloffEndMultiplier": 1.72,
-      "minDamageMultiplier": 0.46
+      "minDamageMultiplier": 0.46,
+      "coverPenetration": 2.6
     }
   },
   {
@@ -994,16 +1049,17 @@
       "fireRate": 11,
       "magSize": 50,
       "reloadTime": 3.2,
-      "spread": 0.015,
-      "adsSpread": 0.004,
-      "recoil": 1,
+      "spread": 0.0175,
+      "adsSpread": 0.0048,
+      "recoil": 1.16,
       "range": 48,
       "adsTime": 0.35,
       "moveSpeed": 0.82,
       "auto": true,
       "headshotMult": 1.4,
       "falloffEndMultiplier": 1.5,
-      "minDamageMultiplier": 0.28
+      "minDamageMultiplier": 0.28,
+      "coverPenetration": 1.6
     }
   },
   {
@@ -1012,7 +1068,7 @@
     "category": "sniper",
     "unlockLevel": 28,
     "unlockCost": 1200,
-    "description": "Heavy anti-material sniper. Devastating one-shot body kills, but glacial fire rate and massive recoil.",
+    "description": "Heavy anti-material sniper. Devastating one-shot body kills; penetrates up to three aligned enemies with damage loss. Glacial fire rate and massive recoil.",
     "stats": {
       "damage": 170,
       "fireRate": 0.6,
@@ -1025,11 +1081,16 @@
       "adsTime": 0.75,
       "moveSpeed": 0.65,
       "auto": false,
+      "bodyPenetration": {
+        "maxTargets": 3,
+        "damageRetention": 0.65
+      },
       "headshotMult": 2,
       "falloffEndMultiplier": 1.85,
       "minDamageMultiplier": 0.6,
       "reloadStyle": "incremental",
-      "reloadPerRound": 1.55
+      "reloadPerRound": 1.55,
+      "coverPenetration": 4
     },
     "attachments": [
       "sight",
@@ -1047,20 +1108,21 @@
     "unlockCost": 1200,
     "description": "Heavy machine gun. 100-round belt, devastating suppressive fire, but sluggish handling.",
     "stats": {
-      "damage": 34,
+      "damage": 35,
       "fireRate": 8,
       "magSize": 100,
       "reloadTime": 5,
-      "spread": 0.02,
-      "adsSpread": 0.006,
-      "recoil": 1.38,
+      "spread": 0.024,
+      "adsSpread": 0.0072,
+      "recoil": 1.64,
       "range": 57,
       "adsTime": 0.5,
       "moveSpeed": 0.68,
       "auto": true,
       "headshotMult": 1.4,
       "falloffEndMultiplier": 1.5,
-      "minDamageMultiplier": 0.28
+      "minDamageMultiplier": 0.28,
+      "coverPenetration": 2.8
     }
   },
   {
@@ -1069,12 +1131,12 @@
     "category": "dmr",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Aim down sights for 250ms to tag up to three visible enemies. Tagged targets glow and stay marked for 6s; even hipfire smart bullets seek one tagged enemy per shot if still exposed.",
+    "description": "Aim down sights for 250ms to tag up to three visible enemies. Tagged targets glow and stay marked for 6s; one shot hits up to three exposed tagged enemies.",
     "wonder": {
       "kind": "smart",
       "maxCharges": 2,
-      "rechargeMs": 26000,
-      "killBonusMs": 1600,
+      "rechargeMs": 50000,
+      "killBonusMs": 1000,
       "radius": 0
     },
     "attachments": [],
@@ -1103,8 +1165,8 @@
     "wonder": {
       "kind": "flame",
       "maxCharges": 8,
-      "rechargeMs": 6500,
-      "killBonusMs": 1700,
+      "rechargeMs": 12000,
+      "killBonusMs": 1000,
       "radius": 0
     },
     "attachments": [],
@@ -1129,12 +1191,12 @@
     "category": "shotgun",
     "unlockLevel": 1,
     "unlockCost": 0,
-    "description": "Shotgun-style blast of seven tightly grouped electric pellets. Impacts chain lightning to two nearby enemies; misses become energy mines that arm briefly and zap nearby enemies. Mines last 5 seconds.",
+    "description": "Shotgun-style blast of seven tightly grouped electric pellets. Impacts chain lightning to two nearby enemies; misses become energy mines that arm briefly and zap nearby enemies. Mines last 6.5 seconds.",
     "wonder": {
       "kind": "storm",
       "maxCharges": 2,
-      "rechargeMs": 31000,
-      "killBonusMs": 1800,
+      "rechargeMs": 60000,
+      "killBonusMs": 1000,
       "radius": 9
     },
     "attachments": [],
@@ -1193,7 +1255,7 @@
     "unlockCost": 500,
     "description": "Fast-reloading eighteen-round sidearm with precise sights, brisk handling and surprising pistol-range accuracy.",
     "stats": {
-      "damage": 30,
+      "damage": 35,
       "fireRate": 6,
       "magSize": 18,
       "reloadTime": 1.1,
@@ -1206,7 +1268,8 @@
       "auto": false,
       "headshotMult": 1.5,
       "falloffEndMultiplier": 1.48,
-      "minDamageMultiplier": 0.26
+      "minDamageMultiplier": 0.26,
+      "coverPenetration": 0.42
     },
     "attachments": [
       "sight",
@@ -1221,22 +1284,27 @@
     "category": "pistol",
     "unlockLevel": 18,
     "unlockCost": 1100,
-    "description": "Heavy-duty .45 backup; controlled two-to-three-shot engagements with more kick and less range than a rifle.",
+    "description": "Heavy-frame six-shot .45 revolver specializing in penetrating light cover and aligned enemies. Punishing recoil and slow hammer-cocking cadence; fan the hammer for inaccurate rapid shots.",
     "stats": {
-      "damage": 43,
-      "fireRate": 2.5,
-      "magSize": 8,
-      "reloadTime": 2,
-      "spread": 0.012,
-      "adsSpread": 0.0036,
-      "recoil": 1.35,
-      "range": 30,
-      "adsTime": 0.22,
-      "moveSpeed": 0.99,
+      "damage": 70,
+      "fireRate": 1.55,
+      "magSize": 6,
+      "reloadTime": 2.75,
+      "spread": 0.02,
+      "adsSpread": 0.0038,
+      "recoil": 3.2,
+      "range": 35,
+      "adsTime": 0.27,
+      "moveSpeed": 0.97,
       "auto": false,
-      "headshotMult": 1.7,
-      "falloffEndMultiplier": 1.65,
-      "minDamageMultiplier": 0.38
+      "bodyPenetration": {
+        "maxTargets": 2,
+        "damageRetention": 0.4
+      },
+      "headshotMult": 1.4,
+      "falloffEndMultiplier": 1.9,
+      "minDamageMultiplier": 0.55,
+      "coverPenetration": 2.2
     },
     "attachments": [
       "sight",
@@ -1253,7 +1321,7 @@
     "unlockCost": 650,
     "description": "Rapid machine pistol that dominates close quarters but sheds damage quickly.",
     "stats": {
-      "damage": 16,
+      "damage": 19,
       "fireRate": 14,
       "magSize": 24,
       "reloadTime": 2.05,
@@ -1266,7 +1334,8 @@
       "auto": true,
       "headshotMult": 1.3,
       "falloffEndMultiplier": 1.28,
-      "minDamageMultiplier": 0.12
+      "minDamageMultiplier": 0.12,
+      "coverPenetration": 0.55
     },
     "attachments": [
       "sight",
@@ -1279,11 +1348,11 @@
     "id": "pdw_sentinel",
     "name": "Sentinel-45",
     "category": "pdw",
-    "unlockLevel": 25,
-    "unlockCost": 1400,
+    "unlockLevel": 33,
+    "unlockCost": 2300,
     "description": "Compact automatic with a small magazine but high headshot reward for controlled accurate fire.",
     "stats": {
-      "damage": 27,
+      "damage": 35,
       "fireRate": 7.5,
       "magSize": 18,
       "reloadTime": 2.2,
@@ -1296,7 +1365,8 @@
       "auto": true,
       "headshotMult": 1.6,
       "falloffEndMultiplier": 1.4,
-      "minDamageMultiplier": 0.23
+      "minDamageMultiplier": 0.23,
+      "coverPenetration": 0.7
     },
     "attachments": [
       "sight",
@@ -1396,8 +1466,8 @@
     "wonder": {
       "kind": "cluster",
       "maxCharges": 2,
-      "rechargeMs": 32000,
-      "killBonusMs": 1600,
+      "rechargeMs": 60000,
+      "killBonusMs": 1100,
       "radius": 7
     },
     "explosive": {
@@ -1411,7 +1481,7 @@
     "unlockLevel": 1,
     "unlockCost": 0,
     "attachments": [],
-    "description": "250 HP riot shield and P-9 in one Wonder. Shield guards left-front at hip; ADS braces full frontal cover and lowers the P-9. ",
+    "description": "250 HP riot shield and P-9 in one Wonder. Shield guards left-front at hip; ADS braces frontal cover and lowers the P-9. Quick melee bash deals 50 damage while the shield is intact. ",
     "stats": {
       "damage": 41,
       "fireRate": 5,
@@ -1431,9 +1501,248 @@
     "wonder": {
       "kind": "shield",
       "maxCharges": 1,
-      "rechargeMs": 27000,
-      "killBonusMs": 3000,
+      "rechargeMs": 55000,
+      "killBonusMs": 2000,
       "radius": 0
     }
+  },
+  {
+    "id": "wonder_phasebreaker",
+    "name": "Phasebreaker",
+    "category": "sniper",
+    "unlockLevel": 40,
+    "unlockCost": 0,
+    "description": "Hold to charge an ultra-penetrating rail shot. Pierces concrete, but not reinforced structures; confirmed headshots refund the spent charge.",
+    "wonder": {
+      "kind": "rail",
+      "maxCharges": 2,
+      "rechargeMs": 74000,
+      "killBonusMs": 2200,
+      "radius": 0
+    },
+    "stats": {
+      "damage": 112,
+      "fireRate": 0.65,
+      "magSize": 2,
+      "reloadTime": 0,
+      "spread": 0.0008,
+      "adsSpread": 0.00015,
+      "recoil": 2.4,
+      "range": 145,
+      "adsTime": 0.52,
+      "moveSpeed": 0.74,
+      "auto": false,
+      "headshotMult": 1.25,
+      "coverPenetration": 18,
+      "bodyPenetration": {
+        "maxTargets": 3,
+        "damageRetention": 0.65
+      }
+    },
+    "baseSightType": "sniper_scope"
+  },
+  {
+    "id": "wonder_chrono",
+    "name": "Chrono Anchor",
+    "category": "pistol",
+    "unlockLevel": 40,
+    "unlockCost": 0,
+    "description": "Plant a temporal recall anchor, then reactivate to return to it without restoring health or ammunition.",
+    "wonder": {
+      "kind": "chrono",
+      "maxCharges": 1,
+      "rechargeMs": 100000,
+      "killBonusMs": 1600,
+      "radius": 0
+    },
+    "stats": {
+      "damage": 0,
+      "fireRate": 0.85,
+      "magSize": 1,
+      "reloadTime": 0,
+      "spread": 0,
+      "adsSpread": 0,
+      "recoil": 0.1,
+      "range": 15,
+      "adsTime": 0.2,
+      "moveSpeed": 0.99,
+      "auto": false,
+      "headshotMult": 1
+    }
+  },
+  {
+    "id": "wonder_seismic",
+    "name": "Seismic Lance",
+    "category": "melee",
+    "unlockLevel": 40,
+    "unlockCost": 0,
+    "description": "Drive a heavy seismic lance into the ground to unleash a radial shockwave. Pushes nearby enemies away, damaging them even behind you.",
+    "wonder": {
+      "kind": "seismic",
+      "maxCharges": 2,
+      "rechargeMs": 68000,
+      "killBonusMs": 1800,
+      "radius": 8
+    },
+    "stats": {
+      "damage": 42,
+      "fireRate": 1.15,
+      "magSize": 2,
+      "reloadTime": 0,
+      "spread": 0,
+      "adsSpread": 0,
+      "recoil": 1.6,
+      "range": 8,
+      "adsTime": 0.18,
+      "moveSpeed": 0.9,
+      "auto": false,
+      "headshotMult": 1
+    }
+  },
+  {
+    "id": "wonder_phantom",
+    "name": "Phantom Protocol",
+    "category": "pistol",
+    "unlockLevel": 40,
+    "unlockCost": 0,
+    "description": "Deploys a solid-looking armed operative decoy that moves, aims and fires convincing harmless shots to distract enemies.",
+    "wonder": {
+      "kind": "decoy",
+      "maxCharges": 2,
+      "rechargeMs": 80000,
+      "killBonusMs": 1700,
+      "radius": 0
+    },
+    "stats": {
+      "damage": 0,
+      "fireRate": 1.2,
+      "magSize": 2,
+      "reloadTime": 0,
+      "spread": 0,
+      "adsSpread": 0,
+      "recoil": 0,
+      "range": 28,
+      "adsTime": 0.22,
+      "moveSpeed": 0.95,
+      "auto": false,
+      "headshotMult": 1
+    }
+  },
+  {
+    "id": "wonder_whiteout",
+    "name": "Whiteout",
+    "category": "dmr",
+    "unlockLevel": 40,
+    "unlockCost": 0,
+    "description": "A cryogenic precision DMR. Each focused pulse coats exposed enemies in frost and slows them briefly.",
+    "wonder": {
+      "kind": "cryo",
+      "maxCharges": 8,
+      "rechargeMs": 9000,
+      "killBonusMs": 1100,
+      "radius": 5
+    },
+    "stats": {
+      "damage": 22,
+      "fireRate": 3,
+      "magSize": 8,
+      "reloadTime": 0,
+      "spread": 0.014,
+      "adsSpread": 0.006,
+      "recoil": 1.05,
+      "range": 43,
+      "adsTime": 0.31,
+      "moveSpeed": 0.91,
+      "auto": false,
+      "headshotMult": 1
+    }
+  },
+  {
+    "id": "wonder_ripper",
+    "name": "Ripper",
+    "category": "launcher",
+    "unlockLevel": 40,
+    "unlockCost": 0,
+    "description": "Launch a spinning ricochet disc that rebounds off walls, striking targets on successive passes.",
+    "wonder": {
+      "kind": "ricochet",
+      "maxCharges": 3,
+      "rechargeMs": 63000,
+      "killBonusMs": 1200,
+      "radius": 0
+    },
+    "stats": {
+      "damage": 72,
+      "fireRate": 1.3,
+      "magSize": 3,
+      "reloadTime": 0,
+      "spread": 0.002,
+      "adsSpread": 0.001,
+      "recoil": 1.4,
+      "range": 55,
+      "adsTime": 0.3,
+      "moveSpeed": 0.9,
+      "auto": false,
+      "headshotMult": 1
+    }
+  },
+  {
+    "id": "wonder_juggernaut",
+    "name": "Juggernaut Mk I",
+    "category": "lmg",
+    "unlockLevel": 40,
+    "unlockCost": 0,
+    "description": "Use a handheld deployment tablet to call a drop pod. Enter the armored Juggernaut to operate its left minigun and right shotgun (or Swarm-3 module).",
+    "wonder": {
+      "kind": "mech",
+      "maxCharges": 1,
+      "rechargeMs": 180000,
+      "killBonusMs": 2600,
+      "radius": 3
+    },
+    "stats": {
+      "damage": 0,
+      "fireRate": 0.6,
+      "magSize": 1,
+      "reloadTime": 0,
+      "spread": 0,
+      "adsSpread": 0,
+      "recoil": 0,
+      "range": 15,
+      "adsTime": 0.4,
+      "moveSpeed": 0.7,
+      "auto": false,
+      "headshotMult": 1
+    }
+  },
+  {
+    "id": "wonder_harbinger",
+    "name": "Harbinger",
+    "category": "pdw",
+    "unlockLevel": 40,
+    "unlockCost": 0,
+    "description": "Fires a reconnaissance dart to deploy a hovering armed scout drone. Scans exposed enemies within 20m, marks contacts for its owner, and fires restrained supporting bursts. ADS with its controller designates priority targets. One drone at a time; enemies can shoot it down.",
+    "wonder": {
+      "kind": "drone",
+      "maxCharges": 1,
+      "rechargeMs": 95000,
+      "killBonusMs": 1600,
+      "radius": 20
+    },
+    "stats": {
+      "damage": 12,
+      "fireRate": 3,
+      "magSize": 1,
+      "reloadTime": 0,
+      "spread": 0,
+      "adsSpread": 0,
+      "recoil": 0,
+      "range": 20,
+      "adsTime": 0.2,
+      "moveSpeed": 0.93,
+      "auto": false,
+      "headshotMult": 1
+    },
+    "disabled": false
   }
 ]

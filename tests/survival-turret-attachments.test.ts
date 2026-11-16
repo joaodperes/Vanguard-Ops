@@ -44,8 +44,8 @@ describe("Bullet Spitter turret", () => {
   });
   test("140-degree forward sweep with unlimited elevation", () => {
     expect(TURRET_ARC_DEG).toBe(140);
-    expect(TURRET_RANGE).toBe(54);
-    expect(TURRET_LIFETIME_MS).toBe(45000);
+    expect(TURRET_RANGE).toBe(42);
+    expect(TURRET_LIFETIME_MS).toBe(25000);
     const origin = [0,0,0] as const;
     expect(turretCanTrack(origin,0,[0,25,15])).toBe(true);
     expect(turretCanTrack(origin,0,[9,12,2])).toBe(false);

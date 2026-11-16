@@ -14,14 +14,15 @@ describe("bot archetypes",()=>{
      for(let i=0;i<8;i++)
        expect(WEAPONS.some(w=>w.id===botArchetypeWeapon(role,i))).toBe(true);
  });
- test("all and only supported conventional ranged weapons have bot access",()=>{
-   const allowed=WEAPONS.filter(w=>!w.disabled&&!w.wonder&&!w.special&&w.category!=="launcher"&&w.category!=="melee");
+ test("all supported ranged weapons including launchers have bot access",()=>{
+   const allowed=WEAPONS.filter(w=>!w.disabled&&!w.wonder&&!w.special&&w.category!=="melee");
    expect(BOT_ELIGIBLE_WEAPONS.map(w=>w.id).sort()).toEqual(allowed.map(w=>w.id).sort());
-   expect(allowed.length).toBe(30);
+   expect(allowed.length).toBe(33);
    const used=new Set(["rusher","rifleman","marksman","support"].flatMap(
      role=>botArchetypeWeapons(role as "rusher"|"rifleman"|"marksman"|"support")));
    expect([...used].sort()).toEqual(allowed.map(w=>w.id).sort());
-   for(const id of ["rifle_electron","pistol_arc","crossbow_reclaimer","launcher_rocket","wonder_turret"]){
+   expect(used.has("launcher_rocket")).toBe(true);
+   for(const id of ["rifle_electron","pistol_arc","crossbow_reclaimer","knife_tactical","wonder_turret"]){
      expect(used.has(id)).toBe(false);
    }
  });

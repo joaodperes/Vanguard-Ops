@@ -8,7 +8,10 @@ import { db } from "@/lib/db";
 import { unlockedAchievementTitles, masteryAchievementStats } from "./achievement-titles";
 import { collectorProgress, collectorSkinEntitlements } from "./collector";
 import { cosmeticShopOwnership, parseEquippedCharms, cosmeticById } from "./cosmetics";
-import { prestigeEligible, prestigeTokens, tokenEligiblePrestiges, PRESTIGE_CAMO_IDS } from "./weapon-prestige";
+import { prestigeEligible, tokenEligiblePrestiges, PRESTIGE_CAMO_IDS } from "./weapon-prestige";
+import { calculateWonderWallet } from "./wonder-economy";
+import { parseWeaponSetups } from "./weapon-setups";
+import { wonderFinishById, wonderKillEffectById, validWonderModule } from "./wonder-expansion";
 import { PERKS } from "./perks";
 import { normalizeSurvivalTier, survivalRecordMode, type SurvivalTier, type SurvivalProgress } from "./survival";
 import { sanitizeOwnedAttachments } from "./loadout-security";
@@ -31,7 +34,10 @@ import {
   DAILY_ELITE_CHANCE,
   WEEKLY_ELITE_CHANCE,
   shouldPromoteToElite,
+  canPromoteChallengeToElite,
   promoteChallengeToElite,
+  nextChallengeProgress,
+  contextualChallengeDelta,
   type ChallengeMetric,
   type ChallengeDef,
   type WeaponChallengeMetric,
@@ -85,9 +91,30 @@ export interface MatchResultInput {
   // Optional — non-gungame callers omit it (kills default to `weaponId`).
   perWeaponKills?: Record<string, { kills: number; headshots: number }>;
   perWeaponActions?: Record<string, Partial<WeaponConditionStats>>;
+  mapId?: string;
+  perAttachmentKills?: Record<string, number>;
+}
+
+/** Older hosted SQLite files predate the dedicated Wonder slot.
+ * Add this single, non-destructive column before Prisma selects Loadout rows.
+ * A shared promise ensures concurrent auth/profile requests never race ALTER TABLE.
+ * No owned weapons, named presets or progression rows are dropped here.
+ */
+let wonderSlotSchemaReady:Promise<void>|null=null;
+export function ensureWonderSlotColumn():Promise<void>{
+  if(!wonderSlotSchemaReady){
+    wonderSlotSchemaReady=(async()=>{
+      const columns=await db.$queryRawUnsafe<Array<{name:string}>>('PRAGMA table_info("Loadout")');
+      if(columns.length && !columns.some(column=>column.name==="wonderWeaponId")){
+        await db.$executeRawUnsafe('ALTER TABLE "Loadout" ADD COLUMN "wonderWeaponId" TEXT NOT NULL DEFAULT \'\'');
+      }
+    })().catch(error=>{wonderSlotSchemaReady=null;throw error});
+  }
+  return wonderSlotSchemaReady;
 }
 
 export async function getOrCreatePlayer(playerKey: string, name?: string) {
+  await ensureWonderSlotColumn();
   let player = await db.player.findUnique({
     where: { playerKey },
     include: {
@@ -138,6 +165,23 @@ export async function getOrCreatePlayer(playerKey: string, name?: string) {
       }
     }
   }
+  // Upgrade a legacy equipped primary Wonder to the independent fourth slot.
+  if(player?.loadout?.primaryWeapon.startsWith("wonder_")){
+    const existing=player.loadout;
+    const upgraded={primaryWeapon:"rifle_ar",wonderWeaponId:existing.primaryWeapon,
+      perkId:"wonder_weapon",weaponSkin:"default",attachments:"{}"};
+    await db.loadout.update({where:{playerId:player.id},data:upgraded});
+    player.loadout={...existing,...upgraded};
+  }
+  // Persistently discard legacy presets with a Wonder occupying primary.
+  // Permanent Wonder unlock ownership is stored separately and never deleted.
+  if(player?.loadout){
+    const clean=JSON.stringify(parseSavedLoadouts(player.loadout.savedLoadouts));
+    if(clean!==player.loadout.savedLoadouts){
+      await db.loadout.update({where:{playerId:player.id},data:{savedLoadouts:clean}});
+      player.loadout={...player.loadout,savedLoadouts:clean};
+    }
+  }
   // At this point `player` is non-null in practice — either it existed, we
   // just created it, or we re-fetched after a P2002 race. The non-null assertion
   // lets downstream code use `player.id` etc. without per-call null checks.
@@ -148,9 +192,10 @@ export async function getOrCreatePlayer(playerKey: string, name?: string) {
  * Each (player, weapon) row is unique; token balance derives from award rows.
  */
 export async function grantWeaponPrestiges(playerId: string): Promise<string[]> {
-  const [progress, skins, claimed] = await Promise.all([
+  const [progress, skins, attachments, claimed] = await Promise.all([
     db.weaponProgress.findMany({ where: { playerId } }),
     db.skinUnlock.findMany({ where: { playerId } }),
+    db.attachmentUnlock.findMany({ where: { playerId } }),
     db.weaponPrestige.findMany({ where: { playerId } }),
   ]);
   const byWeapon = new Map(progress.map(p => [p.weaponId, p]));
@@ -160,13 +205,18 @@ export async function grantWeaponPrestiges(playerId: string): Promise<string[]> 
     if (!owned.has(s.weaponId)) owned.set(s.weaponId, new Set());
     owned.get(s.weaponId)!.add(s.skinId);
   }
+  const ownedAttachments = new Map<string, Set<string>>();
+  for (const a of attachments) {
+    if (!ownedAttachments.has(a.weaponId)) ownedAttachments.set(a.weaponId, new Set());
+    ownedAttachments.get(a.weaponId)!.add(a.attachmentId);
+  }
   const already = new Set(claimed.map(p => p.weaponId));
   const eligible = WEAPONS.filter(w => !w.wonder && !already.has(w.id)).filter(w => {
     const p = byWeapon.get(w.id);
     return prestigeEligible(w.id, {
       kills: p?.kills ?? 0, headshots: p?.headshots ?? 0,
       conditionStats: parseWeaponConditionStats(p?.conditionStats),
-    }, owned.get(w.id));
+    }, owned.get(w.id), ownedAttachments.get(w.id));
   });
   if (!eligible.length) return [];
   const earned: string[] = [];
@@ -337,7 +387,8 @@ export interface PlayerProfileView {
   weaponProgress: Record<string, { kills: number; headshots: number; conditionStats: WeaponConditionStats }>;
   operatorContracts: ArmoryChallengeView[];
   career: Awaited<ReturnType<typeof careerContractsView>>;
-  prestige: { tokens: number; masteredWeapons: string[]; tokenReadyWeapons: string[]; wonderWeapons: string[]; legacyCredits: number };
+  prestige: { tokens: number; masteredWeapons: string[]; tokenReadyWeapons: string[]; wonderWeapons: string[]; legacyCredits: number;
+    wonderPurchases:string[]; wonderSetups:Record<string,{moduleId:string;skinId:string;killEffectId:string}> };
 }
 
 export async function buildProfileView(playerKey: string): Promise<PlayerProfileView | null> {
@@ -433,9 +484,12 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
   const unlockedSkinsForMelee = skinsByWeapon[meleeId] ?? ["default"];
   const loadout = resolveLoadout({
     perkId: p.loadout?.perkId ?? "battle_hardened",
+    wonderWeaponId: p.loadout?.wonderWeaponId ?? "",
     primaryWeapon: primaryId,
     secondaryWeapon: secondaryId,
     meleeWeapon: meleeId,
+    equipmentId: p.loadout?.equipmentId ?? "frag",
+    level,
     weaponSkin: p.loadout?.weaponSkin ?? "default",
     secondaryWeaponSkin: p.loadout?.secondaryWeaponSkin ?? "default",
     meleeWeaponSkin: p.loadout?.meleeWeaponSkin ?? "default",
@@ -473,8 +527,25 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
   // Retired intermediate-tier titles must not remain on nameplates or leave
   // the selector pointing at an option that no longer exists. Awards stay intact.
   const selectedTitle = unlockedTitles.some(t => t.id === p.selectedTitle) ? p.selectedTitle : "";
-  const purchases=await db.careerShopPurchase.findMany({where:{playerId:p.id},select:{itemKey:true}});
-  const ownedCosmetics=cosmeticShopOwnership(purchases.map(x=>x.itemKey));
+  const purchases=await db.careerShopPurchase.findMany({where:{playerId:p.id},select:{itemKey:true,currency:true,cost:true}});
+  const purchaseKeys=purchases.map(x=>x.itemKey);
+  const wonderPurchases=purchases.filter(x=>x.currency==="wonder").map(x=>x.itemKey);
+  const ownedCosmetics=cosmeticShopOwnership(purchaseKeys);
+  const wonderSetups:Record<string,{moduleId:string;skinId:string;killEffectId:string}>={};
+  for(const [wonderId,setup] of Object.entries(parseWeaponSetups(p.loadout?.weaponSetups))){
+    if(!wonderWeapons.includes(wonderId))continue;
+    wonderSetups[wonderId]={
+      moduleId:validWonderModule(wonderId,setup.moduleId??"")&&
+        wonderPurchases.includes("module_"+setup.moduleId)?setup.moduleId??"":"",
+      skinId:wonderFinishById(setup.skin)?wonderPurchases.includes(setup.skin+"_"+wonderId)?setup.skin:"":"",
+      killEffectId:wonderKillEffectById(setup.killEffectId??"")&&
+        wonderPurchases.includes(setup.killEffectId+"_"+wonderId)?setup.killEffectId??"":"",
+    };
+  }
+  const activeWonder=loadout.wonderWeaponId;
+  loadout.wonderModuleId=wonderSetups[activeWonder]?.moduleId??"";
+  loadout.wonderSkinId=wonderSetups[activeWonder]?.skinId??"";
+  loadout.wonderKillEffectId=wonderSetups[activeWonder]?.killEffectId??"";
   const selectedNameplate=ownedCosmetics.includes(p.selectedNameplate)?p.selectedNameplate:"standard";
   // Account ownership gates persisted cosmetic choices even for old backup data.
   loadout.primaryReticle=ownedCosmetics.includes(loadout.primaryReticle)?loadout.primaryReticle:"classic";
@@ -504,7 +575,7 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
     unlocks: {
       weapons: [...p.weaponUnlocks.map((u) => u.weaponId), ...wonderWeapons],
       weaponSkins: flatSkins,
-      playerSkins: Array.from(new Set(["default", p.selectedSkin, ...p.playerSkinUnlocks.map(u => u.skinId)])),
+      playerSkins: Array.from(new Set(["default", p.selectedSkin, ...p.playerSkinUnlocks.map(u => u.skinId), ...autoUnlockedItems(level).playerSkins])),
       attachments: flatAttachments,
       attachmentsByWeapon,
       skinsByWeapon,
@@ -514,8 +585,14 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
     weaponProgress,
     operatorContracts,
     career: await careerContractsView(p),
-    prestige: { tokens: prestigeTokens(tokenReadyWeapons.length + wonderLedger.legacyCredits, wonderWeapons.length), masteredWeapons, tokenReadyWeapons, wonderWeapons, legacyCredits: wonderLedger.legacyCredits },
+    prestige: { tokens: calculateWonderWallet(tokenReadyWeapons.length,wonderLedger.legacyCredits,wonderWeapons.length,purchases).available,
+      masteredWeapons, tokenReadyWeapons, wonderWeapons, legacyCredits: wonderLedger.legacyCredits,wonderPurchases,wonderSetups },
   };
+}
+
+/** Only currently playable weapons are announced when a level gate opens. */
+export function newlyAvailableWeaponsAtLevel(level: number) {
+  return WEAPONS.filter(w => !w.wonder && !w.disabled && w.unlockLevel === level);
 }
 
 // Determine which items a player has unlocked by virtue of level (auto-unlocked, free).
@@ -525,7 +602,7 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
 // in the return shape for backward-compat with consumers that read these fields.
 export function autoUnlockedItems(level: number) {
   return {
-    weapons: WEAPONS.filter((w) => !w.wonder && w.unlockLevel <= level && w.unlockCost === 0).map((w) => w.id),
+    weapons: WEAPONS.filter((w) => !w.wonder && !w.disabled && w.unlockLevel <= level && w.unlockCost === 0).map((w) => w.id),
     attachments: [] as string[],
     weaponSkins: [] as string[],
     playerSkins: PLAYER_SKINS.filter((s) => !s.shopCurrency && s.unlockLevel <= level && s.unlockCost === 0).map((s) => s.id),
@@ -566,6 +643,10 @@ export interface AwardResult {
 function metricDelta(metric: ChallengeMetric, m: MatchResultInput): number {
   switch (metric) {
     case "kills": return m.kills;
+    case "assists": return m.assists ?? 0;
+    case "ctf_captures": return m.mode === "ctf" ? m.score : 0;
+    case "ctf_flag_returns": return m.mode === "ctf" ? (m.flagReturns ?? 0) : 0;
+    case "ctf_defense_kills": return m.mode === "ctf" ? (m.defenseKills ?? 0) : 0;
     case "headshots": return m.headshots;
     case "wins": return m.won ? 1 : 0;
     case "matches": return 1;
@@ -697,13 +778,13 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   const challengeAwards: { challengeId: string; title: string; rewardXp: number; rewardCredits: number }[] = [];
   const challengeProgress: AwardResult["challengeProgress"] = [];
   for (const ch of todaysChallenges) {
-    const delta = metricDelta(ch.metric, input);
+    const delta = contextualChallengeDelta(ch, input, metricDelta(ch.metric, input));
     if (delta <= 0) continue;
     const isElite = ch.id.endsWith("_elite");
     const existing = await db.dailyChallenge.findUnique({
       where: { playerId_challengeId_dayKey: { playerId: player.id, challengeId: ch.id, dayKey } },
     });
-    const newProgress = Math.min(ch.goal, (existing?.progress ?? 0) + delta);
+    const newProgress = nextChallengeProgress(ch, existing?.progress ?? 0, delta);
     const justCompleted = !existing?.completed && newProgress >= ch.goal;
     if (newProgress > (existing?.progress ?? 0)) challengeProgress.push({
       id: ch.id, kind: isElite ? "elite" : "daily", title: ch.title, description: ch.description,
@@ -737,17 +818,17 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
     }
   }
 
-  // --- Weekly challenges progress (2 rotating objectives, ISO week, with elite promotion) ---
+  // --- Weekly challenges progress (3 focused objectives, ISO week, with elite promotion) ---
   const weekKey = weeklyChallengeKey();
   const thisWeeksChallenges = effectiveWeeklyChallenges(player.playerKey, weekKey);
   for (const ch of thisWeeksChallenges) {
-    const delta = metricDelta(ch.metric, input);
+    const delta = contextualChallengeDelta(ch, input, metricDelta(ch.metric, input));
     if (delta <= 0) continue;
     const isElite = ch.id.endsWith("_elite");
     const existing = await db.dailyChallenge.findUnique({
       where: { playerId_challengeId_dayKey: { playerId: player.id, challengeId: ch.id, dayKey: weekKey } },
     });
-    const newProgress = Math.min(ch.goal, (existing?.progress ?? 0) + delta);
+    const newProgress = nextChallengeProgress(ch, existing?.progress ?? 0, delta);
     const justCompleted = !existing?.completed && newProgress >= ch.goal;
     if (newProgress > (existing?.progress ?? 0)) challengeProgress.push({
       id: ch.id, kind: isElite ? "elite" : "weekly", title: ch.title, description: ch.description,
@@ -897,13 +978,12 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
   const newUnlocks = { weapons: [] as string[], purchasableWeapons: [] as string[], perks: [] as string[], weaponSkins: [] as string[], playerSkins: [] as string[], attachments: [] as string[] };
   if (leveledUp) {
     for (let lvl = oldLevel + 1; lvl <= newLevel; lvl++) {
-      for (const w of WEAPONS) {
-        if (w.wonder || w.unlockLevel !== lvl) continue;
+      for (const w of newlyAvailableWeaponsAtLevel(lvl)) {
         if (w.unlockCost === 0 && !player.weaponUnlocks.find((u) => u.weaponId === w.id)) newUnlocks.weapons.push(w.id);
         else if (w.unlockCost > 0) newUnlocks.purchasableWeapons.push(w.id);
       }
       for (const perk of PERKS) if (perk.unlockLevel === lvl) newUnlocks.perks.push(perk.id);
-      for (const s of PLAYER_SKINS) if (s.unlockLevel === lvl && s.unlockCost === 0) newUnlocks.playerSkins.push(s.id);
+      for (const s of PLAYER_SKINS) if (s.levelReward && s.unlockLevel === lvl) newUnlocks.playerSkins.push(s.id);
     }
   }
 
@@ -1191,7 +1271,7 @@ export interface WeeklyChallengeView {
 function effectiveDailyChallenges(playerKey: string, dayKey: string): ChallengeDef[] {
   const base = dailyChallengeSet();
   return base.map((c) =>
-    shouldPromoteToElite(playerKey, dayKey, c.id, DAILY_ELITE_CHANCE)
+    canPromoteChallengeToElite(c) && shouldPromoteToElite(playerKey, dayKey, c.id, DAILY_ELITE_CHANCE)
       ? promoteChallengeToElite(c)
       : c,
   );
@@ -1202,7 +1282,7 @@ function effectiveDailyChallenges(playerKey: string, dayKey: string): ChallengeD
 function effectiveWeeklyChallenges(playerKey: string, weekKey: string): ChallengeDef[] {
   const base = weeklyChallengeSet();
   return base.map((c) =>
-    shouldPromoteToElite(playerKey, weekKey, c.id, WEEKLY_ELITE_CHANCE)
+    canPromoteChallengeToElite(c) && shouldPromoteToElite(playerKey, weekKey, c.id, WEEKLY_ELITE_CHANCE)
       ? promoteChallengeToElite(c)
       : c,
   );

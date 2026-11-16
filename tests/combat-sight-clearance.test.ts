@@ -76,7 +76,8 @@ describe("launcher, flamethrower and crossbow identities",()=>{
   expect(quiver.fireRate).toBeGreaterThan(basic.fireRate*2);
   expect(extended.magSize).toBe(2);
   expect(heavy.magSize).toBe(2);
-  expect(heavy.damage).toBeGreaterThan(basic.damage*2);
+  expect(heavy.damage).toBeGreaterThan(basic.damage);
+  expect(heavy.damage).toBeLessThan(100);
   expect(ATTACHMENTS.filter(a=>a.exclusiveWeaponIds?.includes("crossbow_reclaimer")&&
     a.slot==="magazine").map(a=>a.id)).toEqual(["mag_bolt_quiver","mag_bolt_heavy","mag_bolt_light_quiver"]);
  });

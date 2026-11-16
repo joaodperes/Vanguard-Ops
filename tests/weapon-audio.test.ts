@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { resolveShotAcoustics } from "../src/lib/weapon-audio";
+import { resolveShotAcoustics, weaponAcousticSpace, recordedFamilyFor, resolveRecordedMix } from "../src/lib/weapon-audio";
 import weapons from "../src/data/catalogs/weapons.json";
 
 describe("Weapon audio — gunshot dynamics", () => {
@@ -106,4 +106,135 @@ describe("Weapon audio — gunshot dynamics", () => {
       .toBeLessThan(open.crackLevel * .5);
   });
 
+  test("conventional guns have independent midrange report and action layers", () => {
+    for (const cat of ["assault", "smg", "shotgun", "dmr", "sniper", "lmg", "pistol", "pdw"] as const) {
+      const shot = resolveShotAcoustics(cat);
+      expect(shot.reportLevel).toBeGreaterThan(.4);
+      expect(shot.mechanicalLevel).toBeGreaterThan(.1);
+      expect(shot.reportSeconds).toBeGreaterThan(shot.crackSeconds);
+    }
+  });
+
+  test("real suppressors attenuate report and tail but retain audible action", () => {
+    const bare = resolveShotAcoustics("assault");
+    const quiet = resolveShotAcoustics("assault", { suppressed: true });
+    expect(quiet.reportLevel).toBeLessThan(bare.reportLevel * .03);
+    expect(quiet.tailLevel).toBeLessThan(bare.tailLevel * .10);
+    expect(quiet.mechanicalLevel / quiet.level).toBeGreaterThan(bare.mechanicalLevel / bare.level);
+  });
+
+  test("map environments select distinct delayed tails", () => {
+    expect(weaponAcousticSpace("bunker")).toBe("indoor");
+    expect(weaponAcousticSpace("floodgate")).toBe("urban");
+    expect(weaponAcousticSpace("forest_warfare")).toBe("outdoor");
+    const indoor = resolveShotAcoustics("sniper", { environment: "indoor" });
+    const urban = resolveShotAcoustics("sniper", { environment: "urban" });
+    const open = resolveShotAcoustics("sniper", { environment: "outdoor" });
+    expect(indoor.tailLevel).toBeGreaterThan(urban.tailLevel);
+    expect(urban.tailLevel).toBeGreaterThan(open.tailLevel);
+    expect(indoor.tailDelay).toBeLessThan(open.tailDelay);
+    expect(open.tailSeconds).toBeGreaterThan(indoor.tailSeconds);
+  });
+
+  test("experimental weapons retain special quiet and electronic identities", () => {
+    for (const [cat, id] of [["assault", "rifle_electron"], ["pistol", "pistol_arc"], ["lmg", "wonder_hellfire"]] as const) {
+      const shot = resolveShotAcoustics(cat, { weaponId: id });
+      expect(shot.reportLevel).toBe(0);
+      expect(shot.mechanicalLevel).toBe(0);
+      expect(shot.tailLevel).toBe(0);
+    }
+    expect(resolveShotAcoustics("dmr", { weaponId: "crossbow_reclaimer" }).mechanicalLevel).toBeGreaterThan(0);
+  });
+  test("recorded CC0 takes cover three ballistic weapon families without replacing Wonder Weapons", () => {
+    expect(recordedFamilyFor("pistol", "pistol_side")).toBe("p226");
+    expect(recordedFamilyFor("smg", "smg_kp")).toBe("mp5");
+    expect(recordedFamilyFor("pdw", "pdw_raptor")).toBe("mp5");
+    expect(recordedFamilyFor("shotgun", "shotgun_br")).toBe("sg");
+    expect(recordedFamilyFor("shotgun", "shotgun_combat")).toBe("sg");
+    expect(recordedFamilyFor("assault", "rifle_ar")).toBe("rifle556");
+    expect(recordedFamilyFor("assault", "rifle_falcon")).toBe("rifle762");
+    expect(recordedFamilyFor("dmr", "rifle_dm")).toBe("rifle762");
+    expect(recordedFamilyFor("sniper", "sniper_lr")).toBe("rifle762");
+    expect(recordedFamilyFor("lmg", "lmg_hv")).toBe("rifle556");
+    expect(recordedFamilyFor("pistol", "pistol_arc")).toBeNull();
+    expect(recordedFamilyFor("dmr", "crossbow_reclaimer")).toBeNull();
+    expect(recordedFamilyFor("lmg", "wonder_hellfire")).toBeNull();
+    expect(recordedFamilyFor("melee", "knife_tactical")).toBeNull();
+  });
+
+  test("snipers and DMRs have single-report excerpts instead of rifle burst loops", () => {
+    const annihilator = resolveRecordedMix("sniper", "sniper_heavy");
+    const longshot = resolveRecordedMix("sniper", "sniper_lr");
+    const executioner = resolveRecordedMix("dmr", "dmr_heavy");
+    expect(annihilator.family).toBe("rifle762");
+    expect(annihilator.duration).toBeLessThan(.11);
+    expect(longshot.duration).toBeLessThan(.11);
+    expect(executioner.duration).toBeLessThan(.10);
+    // Playback speed must remain natural, regardless of fire rate.
+    expect(annihilator.rate).toBe(1);
+    expect(executioner.rate).toBe(1);
+    expect(annihilator.body).toBeGreaterThan(longshot.body);
+    const heavy = resolveShotAcoustics("sniper", { weaponId: "sniper_heavy" });
+    const normal = resolveShotAcoustics("sniper", { weaponId: "sniper_lr" });
+    expect(heavy.punchHz).toBeLessThan(normal.punchHz);
+    expect(heavy.punchSeconds).toBeGreaterThan(normal.punchSeconds);
+  });
+
+  test("standard pistols, revolver and Magnum use distinct sampled and synthesized identities", () => {
+    const p9 = resolveRecordedMix("pistol", "pistol_side");
+    const revolver = resolveRecordedMix("pistol", "pistol_bastion");
+    const magnum = resolveRecordedMix("pistol", "pistol_magnum");
+    expect(p9.family).toBe("p226");
+    expect(revolver.family).toBe("p226");
+    expect(magnum.family).toBe("rifle762");
+    expect(revolver.rate).toBeLessThan(p9.rate);
+    expect(magnum.duration).toBeLessThan(p9.duration);
+    expect(revolver.synthetic).toBeGreaterThan(p9.synthetic);
+    const regular = resolveShotAcoustics("pistol", { weaponId: "pistol_side" });
+    const rev = resolveShotAcoustics("pistol", { weaponId: "pistol_bastion" });
+    const fifty = resolveShotAcoustics("pistol", { weaponId: "pistol_magnum" });
+    expect(rev.mechanicalHz).toBeLessThan(regular.mechanicalHz);
+    expect(rev.mechanicalDelay).toBeGreaterThan(regular.mechanicalDelay);
+    expect(fifty.punchHz).toBeLessThan(rev.punchHz);
+    expect(fifty.punchLevel).toBeGreaterThan(rev.punchLevel);
+    expect(fifty.crackLevel).toBeGreaterThan(regular.crackLevel);
+  });
+
+  test("LMGs do not fast-forward or stack rifle samples for every automatic shot", () => {
+    const hailstorm = resolveRecordedMix("lmg", "lmg_hv");
+    const leviathan = resolveRecordedMix("lmg", "lmg_heavy");
+    const vk12 = resolveRecordedMix("assault", "rifle_ar");
+    expect(hailstorm.family).toBe("rifle556");
+    expect(hailstorm.rate).toBe(1);
+    expect(leviathan.rate).toBe(1);
+    expect(hailstorm.duration).toBeLessThan(.06);
+    expect(hailstorm.duration).toBeLessThan(vk12.duration);
+    expect(leviathan.duration).toBeLessThan(.06);
+    const heavy = resolveShotAcoustics("lmg", { weaponId: "lmg_heavy" });
+    expect(heavy.punchLevel).toBeGreaterThan(0);
+  });
+
+  test("shotguns retain extra broad blast and pressure layers under the real sample", () => {
+    const breacher = resolveRecordedMix("shotgun", "shotgun_br");
+    const mauler = resolveRecordedMix("shotgun", "shotgun_combat");
+    const rifle = resolveRecordedMix("assault", "rifle_ar");
+    expect(breacher.synthetic).toBeGreaterThan(rifle.synthetic);
+    expect(breacher.body).toBeGreaterThan(rifle.body);
+    expect(mauler.synthetic).toBeGreaterThan(rifle.synthetic);
+    const shot = resolveShotAcoustics("shotgun", { weaponId: "shotgun_br" });
+    const smg = resolveShotAcoustics("smg", { weaponId: "smg_kp" });
+    expect(shot.blastHighpassHz).toBeLessThan(200);
+    expect(shot.punchLevel).toBeGreaterThan(smg.punchLevel * 2);
+  });
+
+  test("Bullet Spitter has its own unsampled servo-gun report", () => {
+    const turret = resolveShotAcoustics("lmg", { weaponId: "wonder_turret" });
+    const flame = resolveShotAcoustics("lmg", { weaponId: "wonder_hellfire" });
+    expect(recordedFamilyFor("lmg", "wonder_turret")).toBeNull();
+    expect(turret.crackLevel).toBeGreaterThan(.3);
+    expect(turret.reportLevel).toBeGreaterThan(.1);
+    expect(turret.mechanicalLevel).toBeGreaterThan(.2);
+    expect(turret.mechanicalDelay).toBeLessThan(.020);
+    expect(flame.reportLevel).toBe(0);
+  });
 });

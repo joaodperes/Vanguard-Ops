@@ -5,7 +5,7 @@ import {
 } from "../src/lib/game-data";
 import {
   attachmentChallenge, operatorContract, OPERATOR_CONTRACTS, skinChallengesForWeaponAndSkin,
-  armoryChallengeProgress, WEAPON_MASTERY_TIERS, weaponMasteryProgress,
+  armoryChallengeProgress, WEAPON_MASTERY_TIERS, weaponMasteryProgress, weaponMasteryTiers,
   WEAPON_CONDITION_METRICS, parseWeaponConditionStats, weaponChallengeProgress,
 } from "../src/lib/armory-challenges";
 
@@ -53,7 +53,7 @@ describe("permanent challenge-based Armory eligibility", () => {
   });
 
   test("each nonstandard operator appearance has a separate contract", () => {
-    const skins = PLAYER_SKINS.filter(s => s.id !== "default" && !s.shopCurrency);
+    const skins = PLAYER_SKINS.filter(s => s.id !== "default" && !s.shopCurrency && !s.levelReward);
     expect(OPERATOR_CONTRACTS).toHaveLength(skins.length);
     expect(new Set(OPERATOR_CONTRACTS.map(ch => ch.rewardId)).size).toBe(skins.length);
     for (const skin of skins) {
@@ -64,6 +64,7 @@ describe("permanent challenge-based Armory eligibility", () => {
       expect(skin.unlockCost).toBeGreaterThan(0);
     }
     expect(operatorContract("default")).toBeNull();
+    expect(operatorContract("ascendant_vanguard")).toBeNull(); // Level-cap reward needs no contract.
   });
 
   test("every paid weapon skin has a weapon-specific challenge", () => {
@@ -146,4 +147,145 @@ describe("permanent challenge-based Armory eligibility", () => {
     }
     expect(weaponMasteryProgress(5000, 1000).next).toBeNull();
   });
+
+  test("every precision rifle trial stays compatible with accurate long-range play", () => {
+    const unsuited = ["hipfire_kills", "close_range_kills", "airborne_kills", "multikill_kills"];
+    for (const weapon of WEAPONS.filter(w => w.category === "sniper" || w.category === "dmr")) {
+      for (const slot of weaponAttachmentSlots(weapon)) {
+        for (const id of compatibleAttachments(weapon.id, slot)) {
+          expect(unsuited).not.toContain(attachmentChallenge(weapon.id, id)?.metric);
+        }
+      }
+      for (const skin of WEAPON_SKINS.filter(s => s.id !== "default" && !s.prestige && !s.shopCurrency)) {
+        for (const trial of skinChallengesForWeaponAndSkin(weapon.id, skin.id)) {
+          for (const metric of trial.requirements?.map(r => r.metric) ?? [trial.metric]) {
+            expect(unsuited).not.toContain(metric);
+          }
+        }
+      }
+    }
+  });
+
+  test("close-combat, launchers, and LMGs never require impossible precision or jump trials", () => {
+    for (const weapon of WEAPONS.filter(w => ["shotgun", "launcher", "melee", "lmg"].includes(w.category))) {
+      const skinMetrics = WEAPON_SKINS.filter(s => s.id !== "default" && !s.prestige && !s.shopCurrency)
+        .flatMap(s => skinChallengesForWeaponAndSkin(weapon.id, s.id))
+        .flatMap(ch => ch.requirements?.map(r => r.metric) ?? [ch.metric]);
+      if (["melee", "shotgun", "launcher"].includes(weapon.category)) {
+        expect(skinMetrics).not.toContain("headshots");
+      }
+      if (weapon.category === "launcher") {
+        expect(skinMetrics).not.toContain("airborne_kills");
+        expect(skinMetrics).not.toContain("close_range_kills");
+      }
+      if (weapon.category === "lmg") expect(skinMetrics).not.toContain("airborne_kills");
+      for (const slot of weaponAttachmentSlots(weapon)) {
+        for (const id of compatibleAttachments(weapon.id, slot)) {
+          const metric = attachmentChallenge(weapon.id, id)?.metric;
+          if (weapon.category === "launcher") expect(["headshots", "airborne_kills", "close_range_kills"]).not.toContain(metric);
+          if (weapon.category === "lmg") expect(metric).not.toBe("airborne_kills");
+        }
+      }
+    }
+  });
+
+  test("all Gold trials remain three-part and achievable without a forbidden mechanic", () => {
+    for (const weapon of WEAPONS.filter(w => !w.wonder)) {
+      const challenge = skinChallengesForWeaponAndSkin(weapon.id, "gold")[0];
+      expect(challenge.requirements?.length).toBe(3);
+      const metrics = challenge.requirements!.map(r => r.metric);
+      expect(new Set(metrics).size).toBe(3);
+      expect(challenge.requirements!.every(r => r.goal > 0)).toBe(true);
+      if (weapon.category === "melee") {
+        expect(metrics).toEqual(["close_range_kills", "comeback_kills", "multikill_kills"]);
+      }
+      if (weapon.category === "launcher") {
+        expect(metrics).toEqual(["multikill_kills", "bare_kills", "ads_kills"]);
+      }
+      const stats = parseWeaponConditionStats(Object.fromEntries(metrics.map(m => [m, 100000])));
+      expect(weaponChallengeProgress(challenge, { kills: 100000, headshots: 100000, conditionStats: stats }).completed).toBe(true);
+    }
+  });
+
+  test("class-specific mastery removes impossible headshot gates without diluting precision rifles", () => {
+    const expected: Record<string, number> = {
+      assault: 170, smg: 110, shotgun: 0, dmr: 330, sniper: 330,
+      lmg: 120, pistol: 175, pdw: 100, launcher: 0, melee: 0,
+    };
+    for (const weapon of WEAPONS.filter(w => !w.wonder)) {
+      const tiers = weaponMasteryTiers(weapon.id);
+      expect(tiers.map(t => t.kills)).toEqual([20, 60, 150, 300, 600]);
+      expect(tiers[4].headshots).toBe(expected[weapon.category]);
+      expect(tiers.every((tier, i) => i === 0 || tier.headshots >= tiers[i - 1].headshots)).toBe(true);
+      expect(weaponMasteryProgress(600, expected[weapon.category], weapon.id).rank).toBe(5);
+      if (["melee", "shotgun", "launcher"].includes(weapon.category)) {
+        expect(weaponMasteryProgress(600, 0, weapon.id).rank).toBe(5);
+      }
+    }
+  });
+
+  test("attachment trials diversify weapon-wide, with meaningful repeat tiers", () => {
+    const situational = new Set(["airborne_kills", "multikill_kills", "comeback_kills"]);
+    let weaponCount = 0;
+    let attachmentCount = 0;
+    for (const weapon of WEAPONS.filter(w => !w.wonder)) {
+      const trials = weaponAttachmentSlots(weapon).flatMap(slot =>
+        compatibleAttachments(weapon.id, slot).map(id => attachmentChallenge(weapon.id, id)!));
+      if (!trials.length) continue;
+      weaponCount++;
+      attachmentCount += trials.length;
+      const metrics = new Set(trials.map(ch => ch.metric));
+      expect(metrics.size).toBeGreaterThanOrEqual(Math.min(4, trials.length));
+      for (const metric of metrics) {
+        const goals = trials.filter(ch => ch.metric === metric).map(ch => ch.goal).sort((a, b) => a - b);
+        for (let index = 1; index < goals.length; index++) {
+          // Two unlocks requiring the same action should not differ by
+          // only a kill or two (the previous generator could do exactly that).
+          expect(goals[index] - goals[index - 1]).toBeGreaterThanOrEqual(situational.has(metric) ? 4 : 9);
+        }
+      }
+      for (const trial of trials) {
+        // Anything requiring unusual circumstances must remain reasonable even
+        // when the attachment is expensive or sits late in a slot's list.
+        if (situational.has(trial.metric)) expect(trial.goal).toBeLessThanOrEqual(25);
+        if (trial.metric === "long_range_kills") expect(trial.goal).toBeLessThanOrEqual(50);
+        if (weapon.category === "sniper" || weapon.category === "dmr") {
+          expect(["hipfire_kills", "close_range_kills", "airborne_kills", "multikill_kills"]).not.toContain(trial.metric);
+        }
+        if (weapon.category === "shotgun") {
+          expect(["headshots", "long_range_kills"]).not.toContain(trial.metric);
+        }
+        if (weapon.category === "launcher") {
+          expect(["headshots", "close_range_kills", "airborne_kills", "long_range_kills"]).not.toContain(trial.metric);
+        }
+        expect(trial.description).toContain(String(trial.goal));
+      }
+    }
+    expect(weaponCount).toBeGreaterThan(20);
+    expect(attachmentCount).toBeGreaterThan(500);
+  });
+
+  test("signature attachment unlocks keep challenges relevant to their function", () => {
+    const signatures = {
+      sight_laser: "hipfire_kills",
+      grip_akimbo: "hipfire_kills",
+      mag_quickdraw: "ads_kills",
+      mag_slug: "ads_kills",
+      mag_pellets: "hipfire_kills",
+      barrel_launcher_blast: "multikill_kills",
+    } as const;
+    let verified = 0;
+    for (const weapon of WEAPONS.filter(w => !w.wonder)) {
+      for (const slot of weaponAttachmentSlots(weapon)) {
+        for (const id of compatibleAttachments(weapon.id, slot)) {
+          const expected = signatures[id as keyof typeof signatures];
+          if (!expected) continue;
+          expect(attachmentChallenge(weapon.id, id)?.metric).toBe(expected);
+          verified++;
+        }
+      }
+    }
+    expect(verified).toBeGreaterThan(15);
+  });
+
 });

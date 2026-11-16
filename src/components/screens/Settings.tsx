@@ -81,8 +81,9 @@ export function Settings({ embedded = false }: { embedded?: boolean }) {
                 <span className="tabular-nums text-amber-300 font-semibold">{settings.fov}°</span>
               </div>
               <Slider value={[settings.fov]} min={70} max={110} step={1} onValueChange={(v) => update({ fov: v[0] })} />
-              <div className="flex justify-between text-[10px] text-white/30 mt-1">
+              <div className="flex justify-between items-center text-[10px] text-white/30 mt-1">
                 <span>Narrow (zoom)</span>
+                <span className="text-white/50">90° (default)</span>
                 <span>Wide (peripheral)</span>
               </div>
             </div>
@@ -91,6 +92,25 @@ export function Settings({ embedded = false }: { embedded?: boolean }) {
               <div className="rounded-full border border-amber-400/60" style={{ width: `${50 + (settings.fov - 70) * 1.0}%`, height: `${50 + (settings.fov - 70) * 1.0}%` }} />
             </div>
           </div>
+        </Section>
+
+        <Section icon={<Eye className="w-4 h-4" />} title="Render Quality" desc="Resolution, shadows and distant detail; applies to the next match.">
+          <div className="grid grid-cols-3 gap-2">
+            {(["performance","balanced","quality"] as const).map(mode=>(
+              <button key={mode} type="button"
+                onClick={()=>update({renderQuality:mode})}
+                aria-pressed={settings.renderQuality===mode}
+                className={`rounded-lg border px-2 py-3 text-xs font-semibold capitalize transition-colors ${settings.renderQuality===mode
+                  ? "border-amber-500/50 bg-amber-500/15 text-amber-200"
+                  : "border-white/10 bg-black/30 text-white/60 hover:bg-white/5"}`}>
+                {mode}
+              </button>
+            ))}
+          </div>
+          <p className="text-white/40 text-xs mt-3">
+            Performance gives the biggest frame-rate boost. Balanced automatically scales resolution.
+            Shooting distance, bot AI, collision and player visibility are unchanged.
+          </p>
         </Section>
 
         {/* Sensitivity */}
@@ -139,18 +159,17 @@ export function Settings({ embedded = false }: { embedded?: boolean }) {
               onChange={(v) => update({ scopeOverlay: v })}
             />
           </div>
-          <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-200/80 leading-relaxed">
-            <span className="font-semibold text-amber-300">ADS trade-offs:</span> Aiming tightens bullet spread (uses the weapon&rsquo;s ADS-spread stat), halves recoil kick, zooms the view, and slows your movement. Higher-zoom sights (ACOG 4x, Hunter 6x) reduce mouse sensitivity for steadier aiming. Hipfire is faster but less accurate — especially while moving. Pick the rhythm that suits your weapon.
-          </div>
         </Section>
 
-        {/* Master scales footsteps and sound effects independently. */}
-        <Section icon={<Volume2 className="w-4 h-4" />} title="Audio Mixer" desc="Louder baseline with peak protection. Master scales footsteps and combat effects together.">
+        {/* Independent channels; master is applied once over all sounds. */}
+        <Section icon={<Volume2 className="w-4 h-4" />} title="Audio Mixer" desc="Balance sound types independently. Master controls every channel.">
           <div className="space-y-5">
             {([
               { key: "masterVolume", label: "Master Volume", help: "Overall game volume" },
-              { key: "footstepVolume", label: "Footsteps", help: "Your footsteps and nearby players" },
-              { key: "fxVolume", label: "Sound Effects", help: "Gunfire, explosions, hits and UI sounds" },
+              { key: "weaponVolume", label: "Weapons", help: "Gunfire, reloads, melee and weapon handling" },
+              { key: "footstepVolume", label: "Footsteps", help: "Your footsteps and other players" },
+              { key: "combatVolume", label: "Combat Feedback", help: "Hit markers, eliminations, damage and deaths" },
+              { key: "uiVolume", label: "UI & Announcements", help: "Countdown, match and objective cues" },
             ] as const).map(({ key, label, help }) => (
               <div key={key}>
                 <div className="flex justify-between gap-3 text-xs mb-1">

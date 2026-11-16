@@ -2,10 +2,11 @@
 import { useRef, useState, useEffect } from "react";
 import type { FPSEngine } from "@/lib/fps-engine";
 import { shouldTouchAutoSprint } from "@/lib/movement-rules";
-import { Crosshair, ZoomIn, RefreshCw, ArrowUp, PocketKnife } from "lucide-react";
+import { Crosshair, ZoomIn, RefreshCw, ArrowUp, PocketKnife, Bomb } from "lucide-react";
 
 interface Props {
   engine: FPSEngine | null;
+  akimbo?: boolean;
 }
 
 // On-screen controls for touch devices.
@@ -20,7 +21,7 @@ interface Props {
 //
 // The joystick knob glows cyan when auto-sprint is engaged so the player has
 // clear feedback that pushing harder = sprinting.
-export function TouchControls({ engine }: Props) {
+export function TouchControls({ engine, akimbo = false }: Props) {
   // ---- Movement joystick (left half, floating) ----
   const joyBaseRef = useRef<{ x: number; y: number } | null>(null);
   const joyTouchId = useRef<number | null>(null);
@@ -175,6 +176,7 @@ export function TouchControls({ engine }: Props) {
           <SwapBtn label="1" onDown={() => engine?.touchSwap("primary")} color="border-emerald-500/50 bg-emerald-500/15 text-emerald-300" />
           <SwapBtn label="2" onDown={() => engine?.touchSwap("secondary")} color="border-amber-500/50 bg-amber-500/15 text-amber-300" />
           <SwapBtn label="3" icon={<PocketKnife className="w-3.5 h-3.5" />} onDown={() => engine?.touchSwap("melee")} color="border-rose-500/50 bg-rose-500/15 text-rose-300" />
+          {engine?.hasWonderSlot() && <SwapBtn label="4" onDown={() => engine?.touchSwap("wonder")} color="border-violet-500/50 bg-violet-500/15 text-violet-300" />}
         </div>
         {/* Jump — prominent cyan button at the bottom-left */}
         <ActionBtn
@@ -191,8 +193,11 @@ export function TouchControls({ engine }: Props) {
           Reload is a small button to the LEFT of Fire so it's reachable with
           the same thumb without overlapping the look-drag area. */}
       <div className="absolute bottom-8 right-6 flex items-end gap-3" style={{ touchAction: "none" }}>
-        {/* Reload and quick melee share one thumb column to avoid overflowing smaller phones. */}
-        <div className="flex flex-col gap-3 items-center mb-1">
+        {/* Tactical, quick melee and reload share a thumb column. */}
+        <div className="flex flex-col gap-2 items-center mb-1">
+          <ActionBtn label="Tactical" icon={<Bomb className="w-5 h-5" />}
+            onDown={() => engine?.touchUseEquipment()}
+            color="border-cyan-500/50 bg-cyan-600/20 text-cyan-200" />
           <ActionBtn label="Melee" icon={<PocketKnife className="w-5 h-5" />}
             onDown={() => engine?.touchQuickMelee()}
             color="border-amber-500/60 bg-amber-600/25 text-amber-100" />
@@ -205,15 +210,22 @@ export function TouchControls({ engine }: Props) {
         </div>
         {/* Fire + ADS stacked vertically (ADS on top, Fire below) */}
         <div className="flex flex-col gap-3 items-end">
+          {akimbo ? (
+            <HoldBtn label="Right Gun" icon={<Crosshair className="w-6 h-6" />}
+              onDown={() => engine?.setTouchAkimboRight(true)}
+              onUp={() => engine?.setTouchAkimboRight(false)}
+              color="border-amber-500/50 bg-amber-600/25 text-amber-100" />
+          ) : (
+            <HoldBtn
+              label="ADS"
+              icon={<ZoomIn className="w-6 h-6" />}
+              onDown={() => engine?.setTouchADS(true)}
+              onUp={() => engine?.setTouchADS(false)}
+              color="border-white/30 bg-white/10 text-white"
+            />
+          )}
           <HoldBtn
-            label="ADS"
-            icon={<ZoomIn className="w-6 h-6" />}
-            onDown={() => engine?.setTouchADS(true)}
-            onUp={() => engine?.setTouchADS(false)}
-            color="border-white/30 bg-white/10 text-white"
-          />
-          <HoldBtn
-            label="Fire"
+            label={akimbo ? "Left Gun" : "Fire"}
             icon={<Crosshair className="w-7 h-7" />}
             onDown={() => engine?.setTouchFire(true)}
             onUp={() => engine?.setTouchFire(false)}

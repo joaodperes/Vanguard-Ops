@@ -4,19 +4,20 @@ Implementation: directly on `dev`.
 
 ## Unlock cadence
 
-There is a perk choice at level 1 and a new perk every three levels
+There are two perk choices at level 1 (Battle-Hardened equipped by default, Wonder Weapon selectable if an owned Wonder is available) and another perk every three levels
 thereafter. The perk menu is sorted in unlock order and shows locked levels.
 
 | Level | Perk | Effect |
 |---:|---|---|
-| 1 | Battle-Hardened | Starter; health regeneration begins sooner |
+| 1 | Battle-Hardened | Default; health regeneration begins sooner |
+| 1 | Wonder Weapon | Trade the passive perk for an owned Wonder Weapon in slot 4 |
 | 4 | Field Loader | Reload/vent heat while sprinting |
 | 7 | Recon Visor | Increased radar gunfire tracking |
 | 10 | Quickdraw | Faster swap/reloads |
 | 13 | Lightweight | Increased movement and jump |
 | 16 | Steady | Recoil/sway reduction |
 | 19 | Athlete | Increased stamina |
-| 22 | Scavenger | Collect dropped ammunition |
+| 22 | Scavenger | Elimination drops fully reload only the currently equipped conventional firearm |
 | 25 | Explonando | Drop a timed explosive upon death |
 | 28 | Well Prepared | Swap sidearm for a distinct, purchased, non-Wonder primary |
 | 31 | Silent Steps | Suppress your footstep sounds; gunfire and other actions remain audible |
@@ -45,7 +46,7 @@ reveals purchasable weapons or perks.
 At every legitimate death with Explonando active, one orange charge appears
 at the death location, then explodes **2 seconds** later.
 
-- Radius: **5 m**; up to **90 damage** at the center with distance falloff
+- Radius: **6.5 m**; up to **110 damage** at the center with distance falloff
 - Cover blocks the blast; spawn protection still applies
 - Does not damage its owner or teammates in team-based matches
 - The multiplayer server creates the charge, broadcasts its fuse/FX,

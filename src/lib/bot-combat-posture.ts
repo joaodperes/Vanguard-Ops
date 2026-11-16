@@ -1,5 +1,6 @@
 import { botTactics, type BotTier } from "./bot-difficulty";
 import type { WeaponCategory, WeaponStats } from "./game-data";
+import { shotSpread } from "./weapon-accuracy";
 import { botArchetypeDistanceScale, botPersonality, type BotArchetype } from "./bot-archetypes";
 
 /** Shared distance-aware AI stance. These choices are identical in the offline
@@ -70,6 +71,12 @@ export function botPatrolSprint(distanceToWaypoint: number, tier:BotTier="normal
 
 /** ADS only changes the weapon's mechanical spread. Per-bot reaction time,
  * drift, distance penalty and deliberate miss chance remain separate. */
-export function botShotSpread(stats: Pick<WeaponStats, "spread" | "adsSpread">, aiming: boolean): number {
+export function botShotSpread(
+  stats: Pick<WeaponStats, "spread" | "adsSpread">, aiming: boolean, category?: WeaponCategory,
+): number {
+  // Bots must respect the same catastrophic unscoped accuracy penalty as human
+  // snipers. Keep normal bot mechanical spread unchanged for every other class,
+  // and do not alter scoped accuracy or legacy two-argument callers.
+  if (!aiming && category === "sniper") return shotSpread(stats, category, false, 0, 0, false);
   return aiming ? stats.adsSpread : stats.spread;
 }

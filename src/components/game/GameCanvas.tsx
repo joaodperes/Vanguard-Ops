@@ -1,18 +1,20 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { FPSEngine, type HudState, type MatchEndResult, type LobbyState } from "@/lib/fps-engine";
-import type { LoadoutWire, GameMode, MapId, MapDef, BotDifficulty } from "@/lib/game-protocol";
+import { teamSizeAllowed, type LoadoutWire, type GameMode, type MapId, type MapDef, type BotDifficulty } from "@/lib/game-protocol";
 import type { RoomConnect } from "@/lib/game-store";
 import type { SurvivalTier } from "@/lib/survival";
+import { SURVIVAL_UPGRADES, survivalUpgradeValueText, type SurvivalUpgradeId } from "@/lib/survival-upgrades";
 import type { PracticeSample } from "@/lib/tutorial";
 import { Hud } from "./Hud";
 import { displayMapLabel } from "@/lib/display-labels";
 import { TouchControls } from "./TouchControls";
 import { useSettings } from "@/lib/settings-store";
-import { useGame } from "@/lib/game-store";
+import type { PlayerProfileView } from "@/lib/player-service";
 import { RoomLobby } from "./RoomLobby";
 import { Button } from "@/components/ui/button";
 import { InGameMenu, type InGameMenuPage } from "./InGameMenu";
+import { escapeMenuAction, ignorePointerLockRelease, initialPointerLockMenuState, pointerLockMenuTransition } from "@/lib/in-game-menu-controls";
 import { isPrimaryWeaponCategory } from "@/lib/game-data";
 
 interface Props {
@@ -47,13 +49,13 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
   const [touchStarted, setTouchStarted] = useState(false);
   const [isTouch, setIsTouch] = useState(false);
   const [lobby, setLobby] = useState<LobbyState | null>(null);
-  const [matchOutro, setMatchOutro] = useState<MatchEndResult | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPage, setMenuPage] = useState<InGameMenuPage>("main");
+  const [queuedPresetId, setQueuedPresetId] = useState<string | null>(null);
   const menuOpenRef = useRef(false);
+  const upgradePendingRef = useRef(false);
   const menuPageRef = useRef<InGameMenuPage>("main");
-  const everPointerLockedRef = useRef(false);
-  const outroTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pointerLockMenuStateRef = useRef(initialPointerLockMenuState);
   const [socketConnected, setSocketConnected] = useState(false);  // Round 20a: track socket state for lobby UI
   const endedRef = useRef(false);
   const settings = useSettings((s) => s.settings);
@@ -63,6 +65,10 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
 
   useEffect(() => {
     if (!containerRef.current) return;
+    // The settings load effect runs first, but this effect's React closure can
+    // still hold DEFAULTS from the render before localStorage was hydrated.
+    // Capture the current store snapshot when creating the WebGL camera.
+    const initialSettings = useSettings.getState().settings;
     let disposed = false;
     let engine: FPSEngine;
     try {
@@ -71,15 +77,18 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
       mapId,
       gungamePreset: roomConnect?.config?.gungamePreset,
       gungameMultiplier: roomConnect?.config?.gungameMultiplier,
-      sensitivity: settings.sensitivity,
-      fov: settings.fov,
-      autoAdsOnFire: settings.autoAdsOnFire,
-      invertY: settings.invertY,
+      sensitivity: initialSettings.sensitivity,
+      fov: initialSettings.fov,
+      renderQuality: initialSettings.renderQuality,
+      autoAdsOnFire: initialSettings.autoAdsOnFire,
+      invertY: initialSettings.invertY,
       botDifficulty,
       survivalTier,
-      masterVolume: settings.masterVolume,
-      footstepVolume: settings.footstepVolume,
-      fxVolume: settings.fxVolume,
+      masterVolume: initialSettings.masterVolume,
+      footstepVolume: initialSettings.footstepVolume,
+      weaponVolume: initialSettings.weaponVolume,
+      combatVolume: initialSettings.combatVolume,
+      uiVolume: initialSettings.uiVolume,
       scoreLimit,
       timeLimitSec: timeLimitMin * 60,
       roomConnect: roomConnect ?? undefined,
@@ -89,6 +98,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
         if (firingRange && h.radar) practiceObserver.current?.({
           x: h.radar.playerX, z: h.radar.playerZ, aiming: h.aiming,
           kills: h.kills, ammo: h.ammo, reloading: h.reloading, weaponId: h.weaponId,
+          equipmentCharges: h.equipmentCharges,
         });
       },
       onKillFeed: () => {},
@@ -96,16 +106,19 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
         if (firingRange) return; // No match-complete API / credits / progression for trials.
         if (endedRef.current) return;
         endedRef.current = true;
-        if (mode === "gungame") {
-          // Leave the arena visible for a brief match-complete sequence instead
-          // of immediately tearing down the canvas for the results screen.
-          setMatchOutro(r);
-          outroTimer.current = setTimeout(() => onMatchEnd(r), 2500);
-        } else onMatchEnd(r);
+        // All game modes share the engine's single cinematic finish timer.
+        onMatchEnd(r);
       },
       onRoomError: (message) => {
-        // Server rejected the create/join (wrong password, full room, etc.).
-        import("sonner").then(({ toast }) => toast.error(`Could not join room: ${message}`));
+        // A rejection for an otherwise valid room-size indicates that socket.io
+        // may still be running an older set of map limits than the refreshed UI.
+        const config = roomConnect?.kind === "create" ? roomConnect.config : undefined;
+        const outdatedServer = message === "Choose a player count supported by this map and mode."
+          && !!config && teamSizeAllowed(config.mapId, config.teamSize, config.mode);
+        const reason = outdatedServer
+          ? "The multiplayer server is using outdated room-size rules. Restart or redeploy the game server and retry."
+          : message;
+        import("sonner").then(({ toast }) => toast.error(`Could not join room: ${reason}`));
         onExit();
       },
       onSocketError: () => {
@@ -145,7 +158,6 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
     return () => {
       disposed = true;
       clearInterval(socketPoll);
-      if (outroTimer.current) clearTimeout(outroTimer.current);
       engine.dispose();
       engineRef.current = null;
     };
@@ -164,35 +176,72 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
 
   const showStartOverlay = ready && isTouch && !touchStarted;
   const lobbyActive = !!lobby?.active;
-
+  const upgradePending=mode==="survival" && !!hud?.survivalUpgradeOffer &&
+    !lobbyActive && !menuOpen && !hud?.matchEnding;
+  const upgradeWaiting=mode==="survival" && !hud?.survivalUpgradeOffer &&
+    !!hud?.survivalPaused && (hud?.survivalUpgradePendingCount??0)>0 &&
+    !lobbyActive && !menuOpen && !hud?.matchEnding;
+  upgradePendingRef.current=upgradePending||upgradeWaiting;
+  const wasUpgradeOverlayRef=useRef(false);
+  useEffect(()=>{
+    const showUpgradeOverlay=upgradePending||upgradeWaiting;
+    if(showUpgradeOverlay){
+      pointerLockMenuStateRef.current=ignorePointerLockRelease(pointerLockMenuStateRef.current);
+      engineRef.current?.setInputSuspended(true);
+    }else if(!menuOpenRef.current){
+      engineRef.current?.setInputSuspended(false);
+      if(wasUpgradeOverlayRef.current)engineRef.current?.resumePointerLock();
+    }
+    wasUpgradeOverlayRef.current=showUpgradeOverlay;
+  },[upgradePending,upgradeWaiting]);
+  const takeSurvivalUpgrade=(id:SurvivalUpgradeId)=>{
+    engineRef.current?.chooseSurvivalUpgrade(id);
+    // Co-op stays frozen until the other player chooses or times out.
+    if(!online){
+      engineRef.current?.setInputSuspended(false);
+      engineRef.current?.resumePointerLock();
+    }
+  };
   const openMenu = () => {
-    if (firingRange || tutorial || lobbyActive || matchOutro || !ready) return;
+    if (firingRange || tutorial || lobbyActive || hud?.matchEnding || !ready || upgradePendingRef.current) return;
+    // The pointer-lock release caused by opening this menu is intentional.
+    // Its async event must not be allowed to reopen the menu after a quick Escape.
+    pointerLockMenuStateRef.current = ignorePointerLockRelease(pointerLockMenuStateRef.current);
     menuOpenRef.current = true;
     menuPageRef.current = "main";
     setMenuPage("main");
     setMenuOpen(true);
     engineRef.current?.setInputSuspended(true);
+    if(mode==="survival")engineRef.current?.setSurvivalMenuPaused(true);
   };
-  const resumeGame = () => {
+  const resumeGame = (restorePointerLock = true) => {
     menuOpenRef.current = false;
     menuPageRef.current = "main";
     setMenuPage("main");
     setMenuOpen(false);
     engineRef.current?.setInputSuspended(false);
-    // Triggered directly from the Resume button / Escape key, a user gesture.
-    engineRef.current?.resumePointerLock();
+    if(mode==="survival")engineRef.current?.setSurvivalMenuPaused(false);
+    // Pointer lock can be requested directly by the Resume button's click.
+    // Escape is the browser's own unlock key: requesting a new lock during its
+    // keydown can immediately release it again (and reopen the menu).
+    // On Escape, close cleanly; the next canvas click re-enters pointer lock.
+    if (restorePointerLock) engineRef.current?.resumePointerLock();
   };
-  const queueSavedLoadout = () => {
-    const profile = useGame.getState().profile;
-    const saved = profile?.loadout;
-    if (!saved || !profile) return;
+  const queueSavedLoadout = (profile: PlayerProfileView, presetId: string) => {
+    const saved = profile.loadout;
+    if (!saved) return;
     const wire: LoadoutWire = {
       ...loadout,
       perkId: saved.perkId,
+      wonderWeaponId: saved.perkId === "wonder_weapon" ? saved.wonderWeaponId : undefined,
+      wonderModuleId: saved.wonderModuleId,
+      wonderSkinId: saved.wonderSkinId,
+      wonderKillEffectId: saved.wonderKillEffectId,
       weaponId: saved.weapon.id,
       secondaryWeaponId: saved.perkId === "well_prepared" || !isPrimaryWeaponCategory(saved.secondary.category)
         ? saved.secondary.id : "pistol_side",
       meleeWeaponId: saved.melee.id,
+      equipmentId: saved.equipmentId,
       weaponSkinId: saved.weaponSkin.id,
       secondaryWeaponSkinId: saved.secondaryWeaponSkin?.id ?? "default",
       meleeWeaponSkinId: saved.meleeWeaponSkin?.id ?? "default",
@@ -207,6 +256,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
       meleeAttachments: { ...saved.meleeAttachments },
     };
     engineRef.current?.queueLoadout(wire);
+    setQueuedPresetId(presetId);
   };
   const changeMenuPage = (page: InGameMenuPage) => {
     menuPageRef.current = page;
@@ -214,22 +264,24 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
   };
 
   useEffect(() => {
-    if (firingRange || tutorial || lobbyActive || matchOutro || !ready) return;
+    if (firingRange || tutorial || lobbyActive || hud?.matchEnding || !ready) return;
     const onEscape = (event: KeyboardEvent) => {
       if (event.code !== "Escape" || event.repeat) return;
+      if (upgradePendingRef.current) { event.preventDefault(); return; }
       event.preventDefault();
       event.stopImmediatePropagation();
-      if (menuOpenRef.current) {
-        if (menuPageRef.current !== "main") changeMenuPage("main");
-        else resumeGame();
-      } else openMenu();
+      const action = escapeMenuAction(menuOpenRef.current, menuPageRef.current);
+      if (action === "back") changeMenuPage("main");
+      else if (action === "resume") resumeGame(false);
+      else openMenu();
     };
     const onLockChange = () => {
-      const locked = !!document.pointerLockElement;
-      if (locked) everPointerLockedRef.current = true;
-      // Some browsers consume Escape in Pointer Lock before the keydown handler.
-      // Opening on lock release ensures Escape still opens the in-game menu.
-      if (!locked && everPointerLockedRef.current && !menuOpenRef.current) openMenu();
+      const locked = !!document.pointerLockElement && !!containerRef.current?.contains(document.pointerLockElement);
+      // Some browsers consume Escape before keydown fires, so a genuine loss
+      // of pointer lock still opens the menu. Ignore stale/intentional unlocks.
+      const transition = pointerLockMenuTransition(pointerLockMenuStateRef.current, locked, menuOpenRef.current);
+      pointerLockMenuStateRef.current = transition.state;
+      if (transition.openMenu && !upgradePendingRef.current) openMenu();
     };
     window.addEventListener("keydown", onEscape, true);
     document.addEventListener("pointerlockchange", onLockChange);
@@ -237,7 +289,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
       window.removeEventListener("keydown", onEscape, true);
       document.removeEventListener("pointerlockchange", onLockChange);
     };
-  }, [ready, lobbyActive, matchOutro, firingRange, tutorial]);
+  }, [ready, lobbyActive, hud?.matchEnding, firingRange, tutorial]);
 
   // Centralized exit handler: if the user leaves mid-match (not from the lobby),
   // capture the live match stats and forward them via onExitWithStats so the
@@ -286,22 +338,22 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
           </div>
         </div>
       )}
-      {hud && !lobbyActive && <Hud hud={hud} onExit={openMenu} mode={mode} crosshairColor={settings.crosshairColor} crosshairSize={settings.crosshairSize} reticleStyle={hud.weaponSlot==="secondary" ? loadout.secondaryReticleId??"classic" : loadout.primaryReticleId??"classic"} showPing={settings.showPing} isTouch={isTouch && touchStarted} scopeOverlay={settings.scopeOverlay} />}
+      {hud && !lobbyActive && <Hud hud={hud} onExit={openMenu} onExitMech={()=>engineInstance?.exitMech()} mode={mode} crosshairColor={settings.crosshairColor} crosshairSize={settings.crosshairSize} reticleStyle={hud.weaponSlot==="secondary" ? loadout.secondaryReticleId??"classic" : loadout.primaryReticleId??"classic"} showPing={settings.showPing} isTouch={isTouch && touchStarted} scopeOverlay={settings.scopeOverlay} />}
       {/* Mobile touch controls (hidden while in lobby) */}
-      {isTouch && touchStarted && !lobbyActive && !menuOpen && <TouchControls engine={engineInstance} />}
+      {isTouch && touchStarted && !lobbyActive && !menuOpen && !upgradePending && !upgradeWaiting && !hud?.matchEnding && <TouchControls engine={engineInstance} akimbo={!!hud?.akimbo} />}
       {/* Desktop "click to play" (pointer lock) — hidden while lobby overlay is up */}
-      {ready && !isTouch && !hud?.pointerLocked && !lobbyActive && !menuOpen && (
+      {ready && !isTouch && !hud?.pointerLocked && !lobbyActive && !menuOpen && !upgradePending && !upgradeWaiting && !hud?.matchEnding && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="bg-black/70 backdrop-blur-sm border border-white/10 rounded-xl px-8 py-6 text-center pointer-events-none">
             <div className="text-2xl font-bold tracking-widest text-white mb-1">{tutorial ? "FIELD TRAINING · CLICK TO START" : firingRange ? "FIRING RANGE · CLICK TO TEST" : "CLICK TO PLAY"}</div>
-            <div className="text-sm text-white/60">WASD move · Mouse aim · L-Click fire · R-Click ADS · R reload · Shift sprint · Space jump</div>
-            <div className="text-xs text-white/50 mt-2">1/2/3 swap weapon · F quick melee · Q quick-swap · Tab scoreboard · Esc menu</div>
+            <div className="text-sm text-white/60">{hud?.akimbo ? "Akimbo: L-Click left · R-Click right · Both together fire simultaneously · No ADS" : "WASD move · Mouse aim · L-Click fire · R-Click ADS"} · R reload · Shift sprint · Space jump</div>
+            <div className="text-xs text-white/50 mt-2">1/2/3 swap weapon · F quick melee · G tactical · Q quick-swap · Tab scoreboard · Esc menu</div>
             <div className="text-xs text-amber-300/70 mt-2">{tutorial ? "Press Escape to use the tutorial controls" : firingRange ? "Press Escape to reopen the trial loadout menu" : "A 5-second countdown will start once you enter the match."}</div>
           </div>
         </div>
       )}
       {/* Mobile "tap to play" — hidden while lobby overlay is up */}
-      {showStartOverlay && !lobbyActive && !menuOpen && (
+      {showStartOverlay && !lobbyActive && !menuOpen && !upgradePending && (
         <button
           className="absolute inset-0 flex items-center justify-center z-50 bg-black/60"
           onClick={() => setTouchStarted(true)}
@@ -313,6 +365,63 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
             <div className="text-xs text-white/40 mt-2">{mode === "survival" ? "Survival" : mode === "ctf" ? "Capture the Flag" : mode === "tdm" ? "Team Deathmatch" : mode === "killconfirmed" ? "Kill Confirmed" : mode === "gungame" ? "Gun Game" : "Free-For-All"} · {hud?.mapName ? displayMapLabel(hud.mapName) : ""}</div>
           </div>
         </button>
+      )}
+      {upgradePending && hud?.survivalUpgradeOffer && (
+        <div className="absolute inset-0 z-[65] flex items-center justify-center overflow-y-auto bg-black/75 px-4 py-6 backdrop-blur-md">
+          <section role="dialog" aria-modal="true" aria-label="Survival upgrade selection"
+            className="pointer-events-auto w-full max-w-4xl rounded-2xl border border-amber-400/30 bg-zinc-950/95 p-5 shadow-2xl sm:p-8">
+            <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="mb-1 text-xs font-bold uppercase tracking-[.3em] text-amber-400">Survival · Wave {hud.survivalUpgradeOffer.wave} cleared</div>
+                <h2 className="text-2xl font-bold text-white sm:text-3xl">Choose your upgrade</h2>
+                <p className="mt-2 text-sm text-zinc-400">One pick per operative. Upgrades last for this run; Self-Revive can only be picked once.</p>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-zinc-300">
+                <strong className="text-amber-300">{hud.survivalUpgradeSecondsLeft!==undefined
+                  ? `${hud.survivalUpgradeSecondsLeft}s left`
+                  : "Game paused"}</strong>
+              </div>
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              {hud.survivalUpgradeOffer.choices.map(id=>{
+                const upgrade=SURVIVAL_UPGRADES.find(u=>u.id===id)!;
+                const rank=(hud.survivalUpgradeRanks?.[id]??0)+1;
+                return (
+                  <button key={id} type="button" onClick={()=>takeSurvivalUpgrade(id)}
+                    className="group flex min-h-48 flex-col rounded-xl border border-white/15 bg-zinc-900/90 p-5 text-left transition-all hover:border-amber-400 hover:bg-amber-400/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300">
+                    <span className="text-xs font-bold uppercase tracking-widest text-amber-400/80">{upgrade.rarity} · {upgrade.category}</span>
+                    <span className="mt-4 text-xl font-bold text-white group-hover:text-amber-200">{upgrade.name}</span>
+                    <span className="mt-2 flex-1 text-sm leading-relaxed text-zinc-400">{upgrade.description}</span>
+                    <span className="mt-3 rounded-md border border-cyan-500/25 bg-cyan-500/10 px-3 py-2 text-xs font-semibold leading-relaxed text-cyan-200">
+                      {survivalUpgradeValueText(id,hud.survivalUpgradeRanks??{})}
+                    </span>
+                    {id==="self_revive" && <span className="mt-2 text-[10px] font-bold uppercase tracking-wider text-purple-300">Boss exclusive · one-time pick</span>}
+                    <span className="mt-4 text-xs font-semibold text-amber-300">Select rank {rank}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-5 flex items-center justify-between gap-3 text-sm text-zinc-400">
+              <span>{online ? "After one player chooses, the other has 10 seconds; otherwise their first option is assigned." : "The next wave waits until you choose."}</span>
+              <button type="button" disabled={hud.survivalUpgradeOffer.rerollsRemaining<=0}
+                onClick={()=>engineRef.current?.rerollSurvivalUpgrade()}
+                className="shrink-0 rounded-lg border border-white/20 px-4 py-2 font-semibold text-white transition-colors hover:border-amber-400 disabled:cursor-not-allowed disabled:opacity-40">
+                Reroll ({hud.survivalUpgradeOffer.rerollsRemaining})
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+      {upgradeWaiting && (
+        <div className="absolute inset-0 z-[65] flex items-center justify-center bg-black/75 backdrop-blur-md">
+          <div className="rounded-2xl border border-amber-500/30 bg-zinc-950 p-8 text-center">
+            <h2 className="text-2xl font-bold text-white">Upgrade selected</h2>
+            <p className="mt-2 text-zinc-300">Waiting for your teammate to choose…</p>
+            {hud?.survivalUpgradeSecondsLeft!==undefined && (
+              <p className="mt-4 text-3xl font-black tabular-nums text-amber-300">{hud.survivalUpgradeSecondsLeft}s</p>
+            )}
+          </div>
+        </div>
       )}
       {/* Room lobby overlay (pre-match). Shown when the engine reports the room
           is in the "lobby" state. The host sees a "Start Match" button; everyone
@@ -326,16 +435,9 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, survivalTie
           socketConnected={socketConnected}
         />
       )}
-      {menuOpen && !lobbyActive && !matchOutro && (
+      {menuOpen && !lobbyActive && !hud?.matchEnding && (
         <InGameMenu page={menuPage} onPageChange={changeMenuPage} onResume={resumeGame}
-          onQuit={handleExit} onLoadoutSaved={queueSavedLoadout} online={online} mode={mode} />
-      )}
-      {matchOutro && (
-        <div className="absolute inset-0 z-[70] bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center text-white pointer-events-auto">
-          <div className="text-4xl font-black tracking-widest text-amber-300">{matchOutro.won ? "VICTORY" : "MATCH COMPLETE"}</div>
-          <p className="mt-3 text-white/80 uppercase tracking-widest">Gun Game · {matchOutro.kills} kills</p>
-          <p className="mt-4 text-sm text-white/50 animate-pulse">Finalizing results…</p>
-        </div>
+          onQuit={handleExit} onLoadoutSaved={queueSavedLoadout} queuedPresetId={queuedPresetId} online={online} mode={mode} />
       )}
       {/* Failsafe exit button while lobby overlay is somehow missing but the
           engine is still in lobby (e.g. before the first lobbySnapshot arrives). */}

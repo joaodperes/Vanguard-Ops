@@ -11,13 +11,14 @@ export function botArchetypeForSlot(teamSlot: number): BotArchetype {
   return LINEUP[Math.max(0, Math.floor(teamSlot)) % LINEUP.length];
 }
 
-/** Standard ranged weapons supported by the shared hitscan/pellet bot AI.
- * Wonder weapons, launchers, melee and bespoke mechanics (heat, bolt, arc)
- * are intentionally excluded until bot-specific attack logic exists.
+/** Conventional weapons shared by both bot engines. Rockets use the
+ * same cover-aware splash/owner-damage rules as player launchers.
+ * Wonders remain in a separate slot and are selected by their perk.
+ * Melee and bespoke primary mechanics (heat/bolt/arc) remain excluded.
  */
 export const BOT_ELIGIBLE_WEAPONS = WEAPONS.filter(weapon =>
   !weapon.disabled && !weapon.wonder && !weapon.special &&
-  weapon.category !== "launcher" && weapon.category !== "melee"
+  weapon.category !== "melee"
 );
 
 /** Weighted archetype pool. Every conventional ranged weapon appears in at
@@ -29,7 +30,7 @@ const poolFor = (archetype: BotArchetype): readonly string[] => {
     case "rusher": return [...byCategory("smg"),...byCategory("shotgun"),...byCategory("pdw"),...byCategory("smg")];
     case "rifleman": return [...byCategory("assault"),...byCategory("assault"),...byCategory("pistol")];
     case "marksman": return [...byCategory("dmr"),...byCategory("sniper")];
-    case "support": return [...byCategory("lmg"),...byCategory("lmg"),...byCategory("assault")];
+    case "support": return [...byCategory("lmg"),...byCategory("lmg"),...byCategory("assault"),...byCategory("launcher")];
   }
 };
 
@@ -41,7 +42,7 @@ export function botArchetypeWeapons(archetype: BotArchetype): readonly string[] 
 export function botArchetypeForCategory(category: WeaponCategory): BotArchetype {
   if (category === "smg" || category === "shotgun" || category === "pdw" || category === "melee") return "rusher";
   if (category === "sniper" || category === "dmr") return "marksman";
-  if (category === "lmg") return "support";
+  if (category === "lmg" || category === "launcher") return "support";
   return "rifleman";
 }
 

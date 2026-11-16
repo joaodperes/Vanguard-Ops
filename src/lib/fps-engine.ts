@@ -1,6 +1,21 @@
+import { blastCanDamage, blastDistance, blastExposureDistance, blastUnobstructed } from "./explosion-damage-rules";
+import {wonderModuleEffects,wonderFinishById} from "./wonder-expansion";
+import {createWonderFinishTexture,updateWonderFinishTexture,createWonderKillVisual,type WonderKillVisual} from "./wonder-cosmetic-visuals";
+import {wonderMechModel,wonderAircraftModel,wonderHologramModel,wonderDroneModel,type WonderWorldVisual,JUGGERNAUT_VISUAL_PALETTE} from "./wonder-models";
+import {harbingerTuning,harbingerTargets,harbingerPlacement,HARBINGER_INTERVAL_MS,HARBINGER_SCAN_INTERVAL_MS} from "./harbinger-drone";
+import {wonderConeHit,seismicPulseHit,seismicPushPosition,ripperSegments,juggernautDropPoint,crushesAtLanding,mechTuning,phantomSpawnPosition,phantomTravelPosition,CHRONO_ANCHOR_MS,PHANTOM_DURATION_MS,CRYO_SLOW_MS,CRYO_SLOW_FACTOR,JUGGERNAUT_DROP_MS,JUGGERNAUT_ACTIVE_MS,JUGGERNAUT_MINIGUN_RATE,JUGGERNAUT_SHOTGUN_RATE,JUGGERNAUT_SWARM_RATE} from "./wonder-abilities";
+import { syncFirstPersonCameraFov } from "./camera-projection";
+import { NvgScopePass, nvgScopeBlend } from "./nvg-scope-pass";
+import { coverPanels, coverPlacement, coverIdForBox, coverNextHp, coverExplosionDamage, coverBlastContact, DEPLOY_COVER_HP, DEPLOY_COVER_LIFETIME_MS, DEPLOY_COVER_PREFIX, type DeployedCover } from "./deployable-cover";
+import { rechargeTactical, spendTactical } from "./perks";
+import { SURVIVAL_BOT_WEAPONS, botPerkForMode, botPrimaryForMode, botWonderForMode, botSecondaryPrimary, botMovementPerkMultiplier, botAwarenessPerkMultiplier, botAttachmentsForMode, botActiveAttachments, botMagazineCapacity, emptyBotAttachments, type BotAttachmentMap } from "./bot-loadouts";
+import {addOperativeSkinDetails} from "./operative-appearance";
+import { captureThirdPersonDeathPose, applyThirdPersonDeathPose, resetThirdPersonDeathPose, type ThirdPersonDeathPoseStart } from "./third-person-death-pose";
+import { MATCH_FINALE_DURATION_MS, MATCH_FINALE_RECENT_DEATH_MS, MATCH_FINALE_PLAYBACK_RATE, finaleDeathProgress, finalTeamScores } from "./match-finale";
+import {reactorObjective,teamObjective,objectiveDistance} from "./map-objectives";
 import {chooseSpawn} from "./spawn-selection";
-import {botOperativeSkinId, BOT_OPERATIVE_SKINS, SURVIVAL_BOSS_SKIN_ID, bossShockwaveCharge, isSurvivalBoss} from "./bot-appearances";
-import {addSurvivalBossArmor, updateSurvivalBossArmor, type SurvivalBossVisual} from "./survival-boss-visuals";
+import {botOperativeSkinId, BOT_OPERATIVE_SKINS, SURVIVAL_BOSS_SKIN_ID, bossShockwaveCharge, isSurvivalBoss, isSurvivalElite} from "./bot-appearances";
+import {addSurvivalBossArmor, addSurvivalEliteArmor, updateSurvivalBossArmor, type SurvivalBossVisual} from "./survival-boss-visuals";
 import {FLOODGATE_CORE_ID,floodgateBreached,floodgateBreachTargets,floodgateDamageTarget,floodgateWaterEffect,floodgateRouteNeedsDetour,whiteoutIntensity,whiteoutVisibility,whiteoutExposure} from "./map-battle-events";
 import {buildWhiteoutSnow,updateWhiteoutSnow} from "./whiteout-weather";
 // ============================================================================
@@ -9,14 +24,16 @@ import {buildWhiteoutSnow,updateWhiteoutSnow} from "./whiteout-weather";
 // server-authoritative) modes. Renders arena, weapons, other players, HUD data.
 // ============================================================================
 import { clusterShots, clusterPositionAt, clusterDamage, clusterLifetime, CLUSTER_ID, CLUSTER_MAX_DAMAGE, type ClusterVolley } from "./cluster-grenades";
-import { RIOT_SHIELD_ID, RIOT_SHIELD_HP, rayRiotShield, damageRiotShield, shieldBlocksFire, hitRiotShield, tickRiotShield, accelerateRiotShield, riotShieldCooldownMs } from "./riot-shield";
+import { RIOT_SHIELD_ID, RIOT_SHIELD_HP, RIOT_SHIELD_RECHARGE_MS, rayRiotShield, damageRiotShield, shieldBlocksFire, hitRiotShield, tickRiotShield, accelerateRiotShield, riotShieldCooldownMs, riotBashProfile, RIOT_BASH_KNOCKBACK } from "./riot-shield";
 import { usesWonderCharges } from "./game-data";
 import { createRiotShieldModel, applyRiotShieldDamageVisual } from "./riot-shield-model";
 import { shieldPanel } from "./riot-shield";
 import * as THREE from "three";
 import { ExplosionEffects } from "./explosion-effects";
 import { regionRectangles } from "./map-blueprints";
-import { cityInteriorFixtures, CITY_USE_FACADE_COLORS, CITY_FACADE_TINTS } from "./map-visuals";
+import { cityInteriorFixtures, cityFixtureMaterial, cityFixtureBallisticId, CITY_USE_FACADE_COLORS, CITY_FACADE_TINTS, mapPropBallisticId } from "./map-visuals";
+import {isCastlePropKind,castleFixtureBoxes} from "./castle-scenery";
+import {buildCastleScenery} from "./castle-prop-model";
 import { containerSideStripes } from "./container-details";
 import {buildFactoryMachinery,isFactoryMachineKind} from "./factory-machinery";
 import {buildSteamVent,updateSteamVent} from "./steam-vent-visuals";
@@ -27,79 +44,106 @@ import {buildFloodgateColorDressing} from "./floodgate-color-dressing";
 import {buildFloodgateFreight,updateFloodgateFreight,setFloodgateFreightStage,floodgatePathHazards} from "./floodgate-topple";
 import {buildFloodgateDamCracks,updateFloodgateDamCracks} from "./floodgate-dam-cracks";
 import { createMapSurfaceMaterials, createPatternedMaterial, mapBoxUV, mapFloorUV, type MapSurfaceMaterials } from "./map-materials";
-import { coolHeat, addHeat, freshHeat, nextArcTarget, type HeatState, type ArcCandidate } from "@/lib/weapon-mechanics";
+import { coolHeat, addHeat, freshHeat, nextArcTarget, burstShotIntervalMs, type HeatState, type ArcCandidate } from "@/lib/weapon-mechanics";
 import { io as ioClient } from "socket.io-client";
 import { resolveGameServerConnection } from "@/lib/game-network";
-import { equipmentById } from "@/lib/equipment"; // legacy equipment models remain unused
+import { equipmentById, type EquipmentId } from "@/lib/equipment";
+import { equipmentSoundFor, equipmentSoundVolume, type EquipmentAudioPhase } from "@/lib/equipment-audio";
+import { tacticalProjectileVisual } from "@/lib/tactical-projectile-visuals";
+import { TASER_ADS_BLOCK_MS, TASER_HIPFIRE_SPREAD_MULTIPLIER, isTaserAdsBlocked, taserMovementJitter, flashFacingExposure, MINE_TRIGGER_RADIUS, MINE_SPLASH_RADIUS, groundMineImpact, mineContactPoint, closestShotMine, mineOwnerActive, fragDamage, flashDurationMs, flashAudioGain, mineSplashDamage, tacticalDirectDamage, survivalNonLethalTaserDamage } from "./tactical-balance";
+import { botTacticalForArchetype, survivalBotTactical, botTacticalCanUse, planBotTacticalThrow } from "@/lib/bot-tactical";
+import { tacticalGrenadePath } from "@/lib/tactical-grenades";
+import { projectilePositionAt, type TimedProjectilePath } from "@/lib/bouncing-projectile";
 import { friendlyOnRadar, canHearGunshot, shouldRevealGunshot, radarExpiresAt, radarDurationMs, radarToPercent, trackedRadarPosition } from "@/lib/radar";
 import { quickSwapTarget } from "./quick-swap";
-import { explonandoDamage, explonandoCanHit, EXPLO_FUSE_MS } from "./explonando";
+import { explonandoDamage, explonandoCanHit, EXPLO_FUSE_MS, EXPLO_RADIUS, EXPLO_DAMAGE } from "./explonando";
 import { canCollectScavengerDrop, shouldCreateScavengerDrop } from "./scavenger-pickups";
 import { chooseQuickMeleeTarget, quickMeleeProfile } from "./quick-melee";
+import { THROWING_KNIFE_RANGE, THROWING_KNIFE_SPEED, fullThrowingKnives, isThrowingKnife, spendThrowingKnife, tickThrowingKnives, throwingKnifeRemainingMs, type ThrowingKnifeCharges } from "./throwing-knives";
 import { rayCombatantHit } from "./combat-hitboxes";
-import { launcherSplashFactor } from "./launcher-effects";
+import { selectBodyPenetrationHits, type BodyRayContact } from "./body-penetration";
+import { resolveMaterialPenetrationShot, traceCoverPenetration } from "./cover-penetration";
+import { authoredBallisticCover, applyConfirmedCoverImpact, coverMaxIntegrity, damageBallisticCoverOnShot, damageBallisticCoverFromExplosion, reconcileBallisticCover } from "./material-cover-damage";
+import type { MaterialCoverImpact } from "./game-protocol";
+import { launcherSplashFactor, launcherBlastVisibilityOrigin, launcherSplashContact } from "./launcher-effects";
 import { meleeSwingPose } from "./melee-styles";
 import { adsClearance } from "./viewmodel-clearance";
 import { buildMeleeWeaponParts } from "./melee-model";
 import { automaticBloom } from "./automatic-spread";
-import { fullWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, wonderCooldownMs, type WonderChargeState } from "./wonder-charge";
+import { fullWonderCharges, drainedWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, refundWonderCharge, wonderCooldownMs, type WonderChargeRules, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, HELLFIRE_RANGE, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
 import { botTactics, botDetectionRange, botWantsCombatJump, botCornerScan } from "./bot-difficulty";
-import { botHasJumpClearance } from "./bot-physics";
+import { botAirStep, botHasJumpClearance } from "./bot-physics";
 import { botMoveMultiplier, botDecisionDelay, botReactionDelay, botTurnLerp, botAimDriftMultiplier } from "./bot-difficulty";
 import { perkById, reloadDurationMultiplier, regenDelayMs, sprintDrainMultiplier, recoilMultiplier, swayMultiplier, scavengerAmmoAmount, SCAVENGER_PICKUP_RADIUS, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER_PICKUP_ARM_MS } from "@/lib/perks";
 import { calculateThrowPath, type ThrowPath } from "@/lib/throw-trajectory";
-import { sampleReloadMotion, sampleDeployMotion, reloadMotionFor, equipmentMotionFor, deployDurationMs, type DeployMotion, type ReloadMotion, type ActionPose } from "@/lib/first-person-animation";
-import { buildGunGameWeapons, canCompleteGunGame } from "@/lib/gun-game";
-import { chooseBotPatrolPoint } from "@/lib/bot-patrol";
-import { botNextWaypoint, botHighGroundWaypoint } from "@/lib/bot-routing";
+import { weaponLaserRay } from "./weapon-laser";
+import { sampleReloadMotion, sampleDeployMotion, sampleWeaponSwapMotion, sampleRiotShieldSwapMotion, WEAPON_SWAP_VISUAL_MS, WEAPON_SWAP_HANDOFF, reloadMotionFor, equipmentMotionFor, deployDurationMs, supportHandRestMode, supportActionWeight, usesCompactSupportArm, supportElbowPosition, animatedSupportArm, calibratedSupportArm, visualReloadRecoveryActive, supportArmFraming, usesLongSupportArm, SUPPORT_LONG_UPPER_ARM_LENGTH, SUPPORT_LONG_FOREARM_LENGTH, SUPPORT_UPPER_ARM_LENGTH, SUPPORT_FOREARM_LENGTH, SUPPORT_SIDEARM_UPPER_LENGTH, SUPPORT_SIDEARM_FOREARM_LENGTH, type DeployMotion, type ReloadMotion, type ActionPose, type ShellReloadSequence } from "@/lib/first-person-animation";
+import { buildGunGameWeapons, canCompleteGunGame, gunGameMeleeShortcutWeapon } from "@/lib/gun-game";
+import { chooseBotPatrolPoint, botPatrolDistance } from "@/lib/bot-patrol";
+import { botNextWaypoint, botHighGroundWaypoint, botEntersHazard, botMapRouteGoal } from "@/lib/bot-routing";
+import { BotRouteBudget, botRouteJitter } from "./bot-performance-budget";
+import { botAnimationIntervalMs, cityDetailDistance, partitionCoverIntoRenderCells, pixelRatioCap, type RenderQuality } from "./render-performance";
+import { batchStaticPropMeshes, batchStaticMapMeshes } from "./static-prop-batching";
 import { CoverSpatialIndex } from "@/lib/cover-spatial-index";
+import { mapCoverIndex, invalidateMapCoverIndex } from "./map-cover-index";
+import { ActorSpatialIndex } from "./actor-spatial-index";
+import { MovementSendBudget } from "./movement-send-budget";
+import { PerformanceSamples } from "./performance-samples";
+import { WorldLightBudget } from "./world-light-budget";
 import {cityHighGroundGoals,chooseCityHighGroundGoal,cityHighGroundStep,type HighGroundGoal} from "@/lib/city-high-ground";
 import { cityCoverKey, hiddenCityColliderKeys } from "./city-render-colliders";
 import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, TURRET_INTERVAL_MS, TURRET_LIFETIME_MS, TURRET_MUZZLE_HEIGHT, TURRET_HP } from "./turret-rules";
 import { buildBulletSpitterModel } from "./bullet-spitter-model";
-import { createFiringRangeMap, RANGE_TARGETS, RANGE_MOVING_TARGETS, movingRangeTargetPosition } from "./firing-range";
+import { createFiringRangeMap, RANGE_TARGETS, RANGE_MOVING_TARGETS, RANGE_MATERIAL_STATIONS, RANGE_MATERIAL_SHOOT_Z, movingRangeTargetPosition } from "./firing-range";
 import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityImpact, gravityTargetDistance, gravityClientTime, GRAVITY_WELL_DURATION_MS, GRAVITY_WELL_RADIUS } from "./gravity-well";
+import { dragonBreathIgnition,dragonBreathVisualUntil } from "./incendiary-status";
 import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
 import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineInReach, stormEnemy, stormTargetPoint, nextStormChainTarget, STORM_MINE_ARM_MS, STORM_MINE_LIFETIME_MS, STORM_MAX_MINES_PER_OWNER, STORM_MINE_TARGET_COOLDOWN_MS, STORM_MAX_DIRECT_HITS_PER_TARGET, STORM_DIRECT_DAMAGE, STORM_MINE_DAMAGE, STORM_CHAIN_JUMPS, STORM_MINE_JUMPS, STORM_CHAIN_DECAY, STORM_MINE_CHAIN_RADIUS, type StormVictim } from "./stormweaver";
 import { advanceKillChain, type KillChainState } from "./kill-chain";
 import { isFlagDefenseKill, largestScoreDeficit } from "./match-bonus-tracking";
 import { advanceIncrementalReload } from "./incremental-reload";
-import { shotSpread, shotBloomIncrease, recoilKickRadians } from "./weapon-accuracy";
-import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty, type SurvivalTier } from "./survival";
+import { shotSpread, shotBloomIncrease, recoilKickRadians, sustainedRecoilMultiplier, firingMotionFactor, spreadShotDirection } from "./weapon-accuracy";
+import { shotgunPelletDirection, shotgunConeRadians } from "./shotgun-pattern";
+import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty, survivalPrepSeconds, type SurvivalTier } from "./survival";
+import { chooseSurvivalUpgrade, generateSurvivalUpgradeChoices, survivalUpgradeDue, survivalOutgoingMultiplier, survivalIncomingMultiplier, survivalKillReward, survivalWaveHealing, survivalRegenDelayMultiplier, survivalRegenRateMultiplier, survivalMovementMultiplier, survivalReloadMultiplier, canUseSelfRevive, SURVIVAL_SELF_REVIVE_MS, SURVIVAL_SELF_REVIVE_HP, type SurvivalUpgradeId, type SurvivalUpgradeOffer, type SurvivalUpgradeRanks } from "./survival-upgrades";
 import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-posture";
 import { botRememberSighting, botInvestigation, botCanHearNoise, botRememberNoise, botRememberHit, botAlertInvestigation, type BotNoise, type BotAlert, type BotSighting } from "./bot-awareness";
 import { botArchetypeForSlot, botArchetypeForCategory, botArchetypeWeapon, botArchetypeWeapons, BOT_ELIGIBLE_WEAPONS, botPersonality, botArchetypeHighGroundChance, type BotArchetype } from "./bot-archetypes";
-import { MOVEMENT, allowsAdsWhileSprinting, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity } from "@/lib/movement-rules";
-import { FOREST_OBJECTS, FOREST_PERIMETER, FOREST_BASE_COVER, FOREST_TREE_PARAPETS } from "./forest-warfare";
+import { MOVEMENT, SPRINT_STAMINA, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity, sprintRecoverySpreadMultiplier, sprintRecoveryAdsRate } from "@/lib/movement-rules";
+import { FOREST_OBJECTS, FOREST_PERIMETER, FOREST_BASE_COVER, FOREST_TREE_PARAPETS, forestLogCoverId } from "./forest-warfare";
 import { advanceMatchElapsed } from "./match-clock";
-import {ORBITAL_REAPER_ID,ORBITAL_KILLS_REQUIRED,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,orbitalServerWarning,orbitalPulseTargets,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,ORBITAL_REAPER_SPEED_MULTIPLIER,ORBITAL_REAPER_STAMINA_DRAIN_MULTIPLIER,ORBITAL_REAPER_JUMP_MOMENTUM_MULTIPLIER,orbitalReaperEquipped} from "./orbital-reactor";
+import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,orbitalServerWarning,orbitalPulseTargets,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,ORBITAL_REAPER_SPEED_MULTIPLIER,ORBITAL_REAPER_STAMINA_DRAIN_MULTIPLIER,ORBITAL_REAPER_JUMP_MOMENTUM_MULTIPLIER,orbitalReaperEquipped} from "./orbital-reactor";
 import { CTF_SPEED_MULTIPLIER, ctfCarrierWeaponSpeed, createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotIntent, ctfStairWaypoint, ctfDefenderScanYaw, ctfEngageThreat, ctfResetMs, ctfBase, ctfHome, ctfWithin, flagAtHome, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
 import {
   getMap, MAP_LIST, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS,
-  SURVIVAL_PREP_SEC, SURVIVAL_RESPAWN_MS, survivalWaveBotCount, survivalWaveHealthMul, survivalWaveDamageMul,
+  SURVIVAL_RESPAWN_MS, survivalWaveBotCount, survivalWaveHealthMul, survivalWaveDamageMul,
   GUN_GAME_PROGRESSION, GUN_GAME_TYPE_PROGRESSION, KC_TAG_LIFETIME_MS, KC_PICKUP_RADIUS, killConfirmedPickupPoints,
-  type Vec3, type LoadoutWire, type GameMode, type MapId, type MapDef, type SnapshotPlayer, type S2C, type KillFeedEntry, type CoverBox, type BotDifficulty, type KillDifficulty, type KillConfirmedTag,
+  type C2S, type Vec3, type LoadoutWire, type GameMode, type MapId, type MapDef, type SnapshotPlayer, type S2C, type KillFeedEntry, type CoverBox, type BotDifficulty, type KillDifficulty, type KillConfirmedTag,
 } from "@/lib/game-protocol";
 import {
-  weaponById, weaponSkinById, playerSkinById, computeEffectiveStats, damageAtRange, maxWeaponHitRange, projectileSplashRadius,
-  SIGHT_DEFS, sightDefForType, hasMountedSight, adsFieldOfView, weaponSlot, WEAPONS, weaponAttachmentSlots,
+  weaponById, weaponSkinById, playerSkinById, computeEffectiveStats, effectiveHeatConfig, damageAtRange, maxWeaponHitRange, projectileSplashRadius,
+  SIGHT_DEFS, sightDefForType, hasMountedSight, weaponSlot, WEAPONS, weaponAttachmentSlots, weaponSupportsCharm,
   type AttachmentSlot, type EffectiveStats, type SightType, type SightDef,
   type WeaponSlot, type WeaponDef, type WeaponCategory, type WeaponConditionMetric,
 } from "@/lib/game-data";
 import { SoundManager } from "@/lib/sound";
 import { ctfFeedback, type CtfAction } from "./ctf-feedback";
-import { WeaponAudio, type WeaponSoundCategory } from "@/lib/weapon-audio";
+import { WeaponAudio, weaponAcousticSpace, type WeaponSoundCategory } from "@/lib/weapon-audio";
 import { audioGainLevels, DEFAULT_AUDIO_MIX } from "./audio-mix";
-import { buildFirstPersonWeapon, weaponHoldPoints, WEAPON_VISUALS } from "@/lib/weapon-models";
+import { buildFirstPersonWeapon, buildBastionIronSights, weaponHoldPoints, firstPersonSupportGrip, firstPersonShellContacts, WEAPON_VISUALS, firstPersonPresentationScale, firstPersonHipPull, FIRST_PERSON_COMPACT_SCALE, WORLD_WEAPON_VISUAL_SCALE } from "@/lib/weapon-models";
+import { hideFirstPersonRigOnDeath, syncFirstPersonSupportArmVisibility } from "./first-person-rig-visibility";
+import { BASTION_CARTRIDGE_SEATED_Z, BASTION_CARTRIDGE_TRAVEL_Z, BASTION_CYLINDER_OPEN_X, BASTION_REAR_SIGHT, BASTION_FRONT_SIGHT_Y, bastionReloadFrame } from "@/lib/bastion-revolver-rig";
+import { placeFirstPersonActionTarget } from "./first-person-action-target";
 import { createWeaponCharm, swingWeaponCharm, weaponCharmMountPoint } from "@/lib/weapon-charms";
-import { canStartWeaponReload } from "@/lib/weapon-mechanics";
+import { canStartWeaponReload, crossbowReloadCycleMs, crossbowReloadControlsCadence, isFanHammer, isAkimboWeapon, akimboHandCapacity, akimboPumpStroke, akimboHandReady, akimboReloadDip, akimboCrossDrawAmount, type AkimboHand } from "@/lib/weapon-mechanics";
 import { cosmeticById } from "@/lib/cosmetics";
 import { coatsAllWeaponParts } from "@/lib/weapon-finish";
 import {
   makeEnvironmentMap, moveEnvironmentCover, breakEnvironmentWall, environmentPosition,
-  withinEnvironment, spikesActive, periodicHazardPhase, closestCoverHit,
+  withinEnvironment, spikesActive, periodicHazardPhase, closestCoverHit, lavaAt, LAVA_DEATH_SOURCE,
 } from "@/lib/dynamic-environment";
+import { buildLavaSurface } from "./lava-surface";
 import {
   BOT_STEP_HEIGHT, botGroundHeight, botMoveBlocked as blocksBotMotion,
   resolveBotOverlap, botNextFeetY,
@@ -146,9 +190,12 @@ export interface EngineOptions {
   invertY?: boolean;           // invert vertical look (default false)
   survivalTier?: SurvivalTier;
   botDifficulty?: BotDifficulty;  // scales bot skill ("mixed" rolls per bot), default "normal"
+  renderQuality?: RenderQuality; // presentation only; never alters simulation or collision
   masterVolume?: number;       // 0..100, default 80. Scales every audio bus.
   footstepVolume?: number;     // 0..100, relative to master
-  fxVolume?: number;           // 0..100, relative to master (including WeaponAudio)
+  weaponVolume?: number;       // 0..100, gunfire, reloads, weapon handling
+  combatVolume?: number;       // 0..100, hits, eliminations and damage
+  uiVolume?: number;           // 0..100, countdown and match/objective alerts
   // Room lobby: when set, the engine sends createRoom/joinRoom instead of joinMatch.
   roomConnect?: {
     kind: "create" | "join";
@@ -165,10 +212,16 @@ export interface HudState {
   maxHealth: number;
   ammo: number;
   magSize: number;
+  akimbo?: boolean;
+  akimboLeftAmmo?: number;
+  akimboRightAmmo?: number;
+  akimboHandMagSize?: number;
   reloading: boolean;
   heat?: number;
   overheated?: boolean;
   boltCharges?: number;
+  knifeRechargeMs?: number;
+  meleeKnifeCharges?: number;
   perkName?: string;
   scavengerFeedbackAt?: number;
   scavengerAmmoGained?: number;
@@ -177,7 +230,9 @@ export interface HudState {
   quickMeleeAt?: number;
   equipmentName?: string;
   equipmentCharges?: number;
+  equipmentRechargeMs?: number;
   flashRemainingMs?: number;
+  taserRemainingMs?: number;
   weaponName: string;
   weaponId: string;
   alive: boolean;
@@ -189,6 +244,7 @@ export interface HudState {
   playerTeam?: string; // authoritative viewer team, also available before scoreboard synchronization
   ctfFlags?: CtfFlags;
   orbitalCharge?: number;
+  orbitalKillsRequired?:number;
   orbitalReaper?: boolean;
   orbitalWarning?: string;
   mapEvent?: MapEventStatus;
@@ -235,7 +291,7 @@ export interface HudState {
   scoped: boolean;
   // Round 20h: Local player spawn protection (for first-person shield overlay).
   selfSpawnProtected?: boolean;
-  radar?: { size: number; playerX: number; playerZ: number; yaw: number; regions?: { x: number; z: number; w: number; h: number }[]; cover: { x: number; z: number; w: number; h: number }[]; markers: { id: string; x: number; z: number; kind: "ally" | "fire" }[] };
+  radar?: { size: number; playerX: number; playerZ: number; yaw: number; regions?: { x: number; z: number; w: number; h: number }[]; lava?: { x: number; z: number; w: number; h: number }[]; cover: { x: number; z: number; w: number; h: number }[]; markers: { id: string; x: number; z: number; kind: "ally" | "fire" }[] };
   // Dynamic crosshair spread: 0 = tight, 1 = max bloom. Driven by movement,
   // sprinting, jumping, firing — the HUD uses this to size the crosshair gap.
   spreadFactor: number;
@@ -257,10 +313,27 @@ export interface HudState {
   primaryName: string;
   secondaryName: string;
   meleeName: string;
+  wonderName?: string;
   // Per-slot weapon IDs (so the HUD can show a category-color dot per slot).
   primaryWeaponId: string;
   secondaryWeaponId: string;
   meleeWeaponId: string;
+  wonderWeaponId?: string;
+  wonderCharges?: number;
+  wonderChargeMax?: number;
+  wonderSlotCooldownMs?: number;
+  wonderSlotChargeTotalMs?: number;
+  sightAttachmentId?: string | null;
+  wonderShieldHp?: number;
+  wonderShieldRechargeMs?: number;
+  mechArmor?:number;
+  mechArmorMax?:number;
+  mechMinigunAmmo?:number;
+  mechSecondaryAmmo?:number;
+  mechSecondaryName?:string;
+  mechEnterAvailable?:boolean;
+  railChargePercent?:number;
+  chronoRecallMs?:number;
   riotShieldHp?: number;
   riotShieldRaised?: boolean;
   riotShieldRechargeMs?: number;
@@ -270,12 +343,20 @@ export interface HudState {
   // survival mode info (undefined for FFA/TDM)
   survivalWave?: number;
   survivalTier?: SurvivalTier;
+  survivalUpgradeOffer?: SurvivalUpgradeOffer;
+  survivalPaused?: boolean;
+  survivalUpgradePendingCount?: number;
+  survivalUpgradeSecondsLeft?: number;
+  survivalUpgradeRanks?: SurvivalUpgradeRanks;
+  survivalPlayerRanks?: Record<string,SurvivalUpgradeRanks>;
+  survivalDownedLeft?: number;
   survivalModifierNames?: string[];
   survivalBossWave?: boolean;
   survivalEnemiesLeft?: number;
   survivalReinforcements?: number;
   survivalMaxReinforcements?: number;
   survivalDowned?: boolean;
+  survivalWaitingForWave?: boolean;
   survivalPrepLeft?: number;
   survivalWaveActive?: boolean;
   // Round 18-b: wave banner — timestamp (ms) when the current wave started.
@@ -333,6 +414,8 @@ export interface MatchEndResult {
   // attributing all kills to `weaponId`.
   perWeaponKills?: Record<string, { kills: number; headshots: number }>;
   perWeaponActions?: Record<string, Partial<Record<WeaponConditionMetric, number>>>;
+  mapId?: string;
+  perAttachmentKills?: Record<string, number>;
   confirmations?: number;
   denials?: number;
 }
@@ -348,12 +431,15 @@ interface BotAI {
   nextShotAt: number;
   nextDecisionAt: number;
   ammoInMag: number;
+  knifeNextAt?: number;
   reloadingUntil: number;
   strafeDir: number;
   moveSpeed: number;
   sprinting?: boolean;
   aiming?: boolean;
   attachments: Record<AttachmentSlot, string | null>;
+  primaryAttachments?: BotAttachmentMap;
+  secondaryAttachments?: BotAttachmentMap;
   // vertical navigation: try to climb to high ground when target is above
   wantsHighGround: boolean;
   highGroundPatrol?:HighGroundGoal|null;
@@ -384,6 +470,12 @@ interface BotAI {
   // spawn time into one of easy/normal/hard/veteran). Used for rewards scaling.
   difficulty: Exclude<BotDifficulty, "mixed">;
   archetype: BotArchetype;
+  secondaryWeaponId?:string;
+  primaryWeaponId?:string;
+  secondaryAmmoInMag?:number;
+  nextWeaponSwitchAt?:number;
+  wonderEquippedUntil?:number;
+  wonderReturnWeaponId?:string;
   ctfGuarding?: boolean;
   idleLookYaw?: number;
   // ---- Stuck detection / recovery ----
@@ -412,6 +504,7 @@ interface Combatant {
   isBot: boolean;
   isSelf: boolean;
   perkId?: string;
+  botWonderId?: string;
   pos: Vec3;
   yaw: number;
   pitch: number;
@@ -420,6 +513,9 @@ interface Combatant {
   weaponId: string;
   weaponSkinId: string;
   playerSkinId: string;
+  akimbo?: boolean;
+  akimboSightId?: string;
+  akimboBarrelId?: string;
   charmId?: string;
   nameplateId?: string;
   kills: number;
@@ -432,10 +528,13 @@ interface Combatant {
   healthBar?: THREE.Mesh;
   healthBarBg?: THREE.Mesh;
   bossMaxHealth?: number;
+  eliteMaxHealth?: number;
   bossCharge?: number;
   bossVisual?: SurvivalBossVisual;
+  downed?:boolean;
   skinMaterial?: THREE.MeshStandardMaterial;
   thermalOverlays?: THREE.Mesh[];
+  remoteWeaponDetails?: THREE.Object3D[];
   // humanoid animation parts
   parts?: HumanoidParts;
   walkPhase?: number;
@@ -449,6 +548,7 @@ interface Combatant {
   // while the fall animation plays out). 0 = not dead / no anim playing.
   deathAnimAt?: number;
   deathAnimDur?: number;   // total duration of the fall animation (ms)
+  deathPoseStart?: ThirdPersonDeathPoseStart; // held weapon/arm pose captured at the instant of death
   // Gun Game progression (offline gungame only) — 0-based tier index into
   // GUN_GAME_PROGRESSION. Undefined for non-gungame matches.
   gungameIndex?: number;
@@ -490,7 +590,7 @@ interface HumanoidParts {
 // the handgun grip and the rear handguards of even the longest weapons.
 const BOT_UPPER_ARM_LENGTH = 0.42;
 const BOT_FOREARM_LENGTH = 0.42;
-const BOT_WEAPON_VISUAL_SCALE = 0.72;
+const BOT_WEAPON_VISUAL_SCALE = WORLD_WEAPON_VISUAL_SCALE;
 
 /**
  * Solve a two-segment arm in character-local space. The shoulder pivot has
@@ -553,10 +653,14 @@ function groundHeightAt(cover: CoverBox[], x: number, z: number, feetY: number, 
   return ground;
 }
 
+type OfflineProximityMine = { pos: Vec3; mesh: THREE.Group; ownerId: string; ownerTeam: string };
+
 export class FPSEngine {
   private container: HTMLElement;
   private opts: EngineOptions;
   private renderer!: THREE.WebGLRenderer;
+  // Lazy NVG lens pass; no extra allocations for normal gameplay.
+  private nvgScopePass: NvgScopePass | null = null;
   private scene!: THREE.Scene;
   private camera!: THREE.PerspectiveCamera;
   // Timer replaces deprecated THREE.Clock. Advance it once per animation frame.
@@ -566,34 +670,55 @@ export class FPSEngine {
 
   // current map
   private map: MapDef;
-  private staticCoverIndex: {source:CoverBox[];index:CoverSpatialIndex}|null=null;
+  private actorIndex = new ActorSpatialIndex<Combatant>();
+  private movementSendBudget = new MovementSendBudget();
+  private movementPackets = 0;
+  private frameSamples = new PerformanceSamples();
+  private updateSamples = new PerformanceSamples();
+  private renderSamples = new PerformanceSamples();
+  private worldLightBudget: WorldLightBudget | null = null;
   private highGroundCache:{source:MapDef["props"];goals:HighGroundGoal[]}|null=null;
+  // Only expensive A* searches are budgeted. Every bot still moves and collides each frame.
+  private botRouteBudget = new BotRouteBudget();
+  private botEnemySearchCache = new Map<string,{nextAt:number;targetId:string|null}>();
+  private botAnimationAt = new Map<string,number>();
   // Decorative interior detail is distance-culled; collision never is.
   private cityInteriorDetailGroups:{node:THREE.Group;x:number;z:number}[]=[];
   private nextCityDetailUpdate=0;
-  private cityFrameMs=16.7;
-  private nextCityQualityCheck=0;
-  private cityResolutionScale=1.35;
-  private updateCityRenderBudget(now:number,elapsedMs:number){
-    if(this.map.biome!=="city"&&this.map.biome!=="city_day")return;
-    // Exclude parked tabs and abnormal tab-switch catch-up times.
-    if(elapsedMs<=0||elapsedMs>=120)return;
-    this.cityFrameMs=this.cityFrameMs*.94+elapsedMs*.06;
-    if(now<this.nextCityQualityCheck)return;
-    this.nextCityQualityCheck=now+1800;
-    const next=this.cityFrameMs>28?Math.max(.75,this.cityResolutionScale-.15):
-      this.cityFrameMs<18?Math.min(1.35,this.cityResolutionScale+.10):this.cityResolutionScale;
-    if(Math.abs(next-this.cityResolutionScale)>.005){
-      this.cityResolutionScale=next;
-      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio,next));
+  private renderFrameMs=16.7;
+  private nextRenderQualityCheck=0;
+  private renderResolutionScale=1;
+  private renderMode():RenderQuality { return this.opts.renderQuality??"balanced"; }
+  private isCityMap():boolean { return this.map.biome==="city"||this.map.biome==="city_day"; }
+  private renderCap():number {
+    return Math.min(window.devicePixelRatio,
+      pixelRatioCap(this.renderMode(),this.isCityMap(),
+        Math.max(this.opts.botCount,this.combatants.size)>=16));
+  }
+  private updateRenderBudget(now:number,elapsedMs:number){
+    // The last requestAnimationFrame interval includes both CPU and GPU stalls.
+    // Ignore background-tab catchup and adapt on all maps, not only the city.
+    if(document.hidden||elapsedMs<=0||elapsedMs>=1000)return;
+    this.renderFrameMs=this.renderFrameMs*.94+elapsedMs*.06;
+    if(now<this.nextRenderQualityCheck)return;
+    this.nextRenderQualityCheck=now+1800;
+    const cap=this.renderCap();
+    const floor=Math.min(cap,Math.max(.7,cap*.65));
+    const next=this.renderFrameMs>28?Math.max(floor,this.renderResolutionScale-.12):
+      this.renderFrameMs<18?Math.min(cap,this.renderResolutionScale+.08):
+      Math.min(cap,this.renderResolutionScale);
+    if(Math.abs(next-this.renderResolutionScale)>.005){
+      this.renderResolutionScale=next;
+      this.renderer.setPixelRatio(next);
     }
   }
   private updateCityDetailVisibility(now:number){
     if(now<this.nextCityDetailUpdate)return;
     this.nextCityDetailUpdate=now+350;
     const x=this.camera.position.x,z=this.camera.position.z;
+    const distance=cityDetailDistance(this.renderMode());
     for(const item of this.cityInteriorDetailGroups)
-      item.node.visible=Math.abs(item.x-x)<52&&Math.abs(item.z-z)<52;
+      item.node.visible=Math.abs(item.x-x)<distance&&Math.abs(item.z-z)<distance;
   }
   private highGroundGoals():HighGroundGoal[]{
     if(this.map.biome!=="city"&&this.map.biome!=="city_day")return [];
@@ -601,18 +726,28 @@ export class FPSEngine {
       this.highGroundCache={source:this.map.props,goals:cityHighGroundGoals(this.map.props??[])};
     return this.highGroundCache!.goals;
   }
-  /** Reuse immutable broadphase for city movement and AI, never for dynamic cover. */
-  private coverIndex():CoverSpatialIndex|null{
-    if(this.map.biome!=="city"&&this.map.biome!=="city_day")return null;
-    if(this.staticCoverIndex?.source!==this.map.cover)
-      this.staticCoverIndex={source:this.map.cover,index:new CoverSpatialIndex(this.map.cover)};
-    return this.staticCoverIndex!.index;
-  }
+  /** Shared static broadphase with a live dynamic-overlay query on every map. */
+  private coverIndex():CoverSpatialIndex { return mapCoverIndex(this.map); }
   private coverNear(x:number,z:number,pad=3):CoverBox[]{
     return this.coverIndex()?.near(x,z,pad)??this.map.cover;
   }
   private coverAlong(a:Vec3,b:Vec3,pad=2):CoverBox[]{
     return this.coverIndex()?.along(a[0],a[2],b[0],b[2],pad)??this.map.cover;
+  }
+  private coverForRay(origin:Vec3,dir:Vec3,range:number):CoverBox[]{
+    if(!Number.isFinite(range)||range<0||!origin.every(Number.isFinite)||!dir.every(Number.isFinite))return this.map.cover;
+    return this.coverAlong(origin,[origin[0]+dir[0]*range,origin[1]+dir[1]*range,origin[2]+dir[2]*range],.001);
+  }
+
+  /** Read-only developer diagnostics; render time is CPU submission time,
+   * while frame intervals include observed GPU/browser stalls. */
+  getPerformanceStats() {
+    const info=this.renderer.info;
+    return { mapId:this.map.id, actors:this.combatants.size, pixelRatio:this.renderer.getPixelRatio(),
+      frameMs:this.frameSamples.summary(), updateMs:this.updateSamples.summary(),
+      renderMs:this.renderSamples.summary(), drawCalls:info.render.calls, triangles:info.render.triangles,
+      geometries:info.memory.geometries, textures:info.memory.textures,
+      shaderPrograms:info.programs?.length??0, movementPackets:this.movementPackets };
   }
   private surfaceMaterials: MapSurfaceMaterials | null = null;
   private gardenMaterial: THREE.MeshStandardMaterial | null = null;
@@ -623,6 +758,7 @@ export class FPSEngine {
   private floodgateBreachAt:number|null=null;
   private whiteoutSnow:THREE.Points|null=null;
   private environmentMeshes = new Map<string, THREE.Group>();
+  private lavaTime = { value: 0 };
   private environmentCooldown = new Map<string, number>();
 
 
@@ -653,7 +789,50 @@ export class FPSEngine {
   // of THAT slot, or on respawn.
   private primaryAmmoInMag = 30;
   private secondaryAmmoInMag = 12;
+  // Akimbo may be equipped in BOTH the primary shotgun and secondary pistol
+  // slots. Preserve each gun's independent magazines and fire clocks on swaps.
+  private akimboAmmoBySlot:Record<"primary"|"secondary",Record<AkimboHand,number>>={
+    primary:{left:6,right:6},secondary:{left:6,right:6},
+  };
+  private akimboLastHandShotBySlot:Record<"primary"|"secondary",Record<AkimboHand,number>>={
+    primary:{left:-Infinity,right:-Infinity},secondary:{left:-Infinity,right:-Infinity},
+  };
+  private akimboAmmo:Record<AkimboHand,number>=this.akimboAmmoBySlot.primary;
+  private akimboLastHandShot:Record<AkimboHand,number>=this.akimboLastHandShotBySlot.primary;
+  private akimboPending:Record<AkimboHand,number>={left:-Infinity,right:-Infinity};
+  private akimboRightDown=false;
+  private akimboRightPressedThisFrame=false;
+  private touchAkimboRight=false;
+  private touchAkimboRightPressedThisFrame=false;
+  private akimboKick:Record<AkimboHand,number>={left:0,right:0};
+  private useAkimboSlot(slot:WeaponSlot){
+    const key=slot==="secondary"?"secondary":"primary";
+    this.akimboAmmo=this.akimboAmmoBySlot[key];
+    this.akimboLastHandShot=this.akimboLastHandShotBySlot[key];
+    this.akimboPending.left=this.akimboPending.right=-Infinity;
+  }
+  private resetAkimboAmmo(){
+    for(const slot of ["primary","secondary"] as const){
+      const capacity=akimboHandCapacity(slot==="primary"
+        ?this.primaryEff.magSize:this.secondaryEff.magSize);
+      this.akimboAmmoBySlot[slot]={left:capacity,right:capacity};
+      this.akimboLastHandShotBySlot[slot]={left:-Infinity,right:-Infinity};
+    }
+    this.useAkimboSlot(this.currentSlot);
+  }
+  private refillCurrentAkimboAmmo(){
+    const capacity=akimboHandCapacity(this.eff.magSize);
+    this.akimboAmmo.left=capacity;this.akimboAmmo.right=capacity;
+    this.akimboPending.left=this.akimboPending.right=-Infinity;
+  }
+  private isAkimboActive():boolean{
+    return isAkimboWeapon(this.weaponId,this.getCurrentAttachments().grip);
+  }
   private meleeAmmoInMag = 1;
+  private throwingKnifeState: ThrowingKnifeCharges = fullThrowingKnives();
+  private lastThrowingKnifeAt = -10000;
+  // Bulwark's built-in P-9 has its own magazine, even when holstered.
+  private wonderAmmoInMag = 12;
   private riotShieldHp=RIOT_SHIELD_HP;
   private riotShieldReadyAt=0;
   private riotShieldHitFlashAt=0;
@@ -672,9 +851,16 @@ export class FPSEngine {
   private reloadEndsAt = 0;
   private reloadStartedAt = 0;
   private reloadDurationMs = 0;
+  // The last shell is ready before its visual return stroke ends. This keeps
+  // the final glove/elbow/upper-arm motion smooth without delaying firing.
+  private fpReloadRecoveryUntil=0;
+  private fpReloadRecoveryWeaponId="";
   // One credit per insert animation. Retained rounds survive sprint, swap and
   // firing interruptions; cancelling mid-cycle cannot undo prior inserts.
   private reloadRoundInserted = false;
+  /** The reload timeline can repeat shells without returning the offhand to
+   * the gun after each individual insertion. Reset only for a new reload. */
+  private reloadShellCycleIndex = 0;
   // Equipment commits when the hand releases the device, not on key-down.
   // The server remains authoritative for damage, charges and cooldowns.
   private equipmentAction: { id: string; startedAt: number; kind: DeployMotion; duration: number; committed: boolean } | null = null;
@@ -684,7 +870,7 @@ export class FPSEngine {
   private boltPickups = new Map<string, { mesh: THREE.Object3D; ownerId: string; pos: Vec3; expiresAt: number; retryAt: number }>();
   private localBoltSequence = 0;
   private boltFlights = new Map<string, { start: THREE.Vector3; end: THREE.Vector3; born: number; duration: number }>();
-  private poisonByVictim = new Map<string, { expiresAt: number; tickAt: number; weaponId: string; damagePerTick?: number }>();
+  private poisonByVictim = new Map<string, { expiresAt: number; tickAt: number; weaponId: string; damagePerTick?: number; ownerId?:string }>();
   private onlinePoisoned = new Map<string, number>();
   private poisonBubbles = new Map<string, THREE.Group>();
   private wonderFields = new Map<string, { mesh: THREE.Mesh; offline: boolean; ownerId: string; ownerTeam: string; weaponId: string; kind: "flame" | "sludge"; pos: Vec3; radius: number; expiresAt: number; tickAt: number }>();
@@ -720,6 +906,13 @@ export class FPSEngine {
   private muzzleFlash!: THREE.Mesh;
   private muzzleLight!: THREE.PointLight;
   private muzzleFlashUntil = 0;
+  private akimboLeftFlash:THREE.Mesh|null=null;
+  private akimboLeftLight:THREE.PointLight|null=null;
+  private akimboLeftFlashUntil=0;
+  private viewmodelAkimbo=false;
+  private readonly akimboPoseQuat=new THREE.Quaternion();
+  private readonly akimboPoseEuler=new THREE.Euler();
+  private readonly akimboPosePivot=new THREE.Vector3();
   private sightMesh: THREE.Object3D | null = null;
   // The viewmodel's local offset (hip/ADS position) in camera space. Synced to the
   // camera's world transform each frame to position the weapon in front of the camera.
@@ -736,8 +929,25 @@ export class FPSEngine {
     baseQuat: THREE.Quaternion;
     baseScale: THREE.Vector3;
   }[] = [];
-  private vmScale = 1.20;
+  private vmScale = FIRST_PERSON_COMPACT_SCALE;
+  // Visual model can lag the active gameplay weapon until the holster handoff.
+  private viewmodelWeaponId = "";
+  private swapViewmodelPending = false;
+  // Camera-local rest grip: the same contact point and rigid weapon transform
+  // used by every mesh in vmParts. Reused each frame without allocations.
+  private fpSupportGrip = new THREE.Vector3();
+  private fpRestHand = new THREE.Vector3();
+  private fpShellContacts:ReturnType<typeof firstPersonShellContacts>|null=null;
   private fpActionHand: THREE.Group | null = null;
+  private fpSupportArm: { root: THREE.Group; upper: THREE.Mesh; forearm: THREE.Mesh; elbow: THREE.Mesh; shoulder: THREE.Mesh } | null = null;
+  // The shoulder stays under the viewmodel, independent of the gun.
+  // Its elbow is allowed to drop below the camera edge, as natural FPS arms do.
+  private readonly fpShoulder = new THREE.Vector3(-.30, -.45, -.25);
+  private readonly fpWrist = new THREE.Vector3();
+  private readonly fpRestWrist = new THREE.Vector3();
+  private readonly fpElbow = new THREE.Vector3();
+  private readonly fpArmDirection = new THREE.Vector3();
+  private readonly fpArmUp = new THREE.Vector3(0, 1, 0);
   private fpActionProp: THREE.Group | null = null;
   private fpActionPropId = "";
   private fpHandMat = new THREE.MeshBasicMaterial({color:0x384c58});
@@ -746,6 +956,7 @@ export class FPSEngine {
   // (avoids allocating new Quaternion/Euler objects every frame for every part).
   private _vmTotalQuat = new THREE.Quaternion();
   private _vmTotalEuler = new THREE.Euler();
+  private _vmRevolverSide = new THREE.Vector3();
 
   // ---- Sight system ----
   // Effective sight for the player's loadout (iron if no sight equipped).
@@ -753,6 +964,11 @@ export class FPSEngine {
   // Visible laser beam (THREE.Line) — shown when a laser sight is equipped.
   private laserBeam: THREE.Line | null = null;
   private laserDot: THREE.Mesh | null = null;
+  // The active projector is a child of its animated weapon (right pistol for Akimbo).
+  private laserEmitter: THREE.Object3D | null = null;
+  private akimboLeftLaserEmitter: THREE.Object3D | null = null;
+  private akimboLeftLaserBeam:THREE.Line|null=null;
+  private akimboLeftLaserDot:THREE.Mesh|null=null;
   // Thermal/NVG overlay: brighten the scene lights when ADS with NVG, dim for thermal contrast.
   private hemiLight!: THREE.HemisphereLight;
   private dirLight!: THREE.DirectionalLight;
@@ -760,6 +976,32 @@ export class FPSEngine {
   // input
   private keys: Record<string, boolean> = {};
   private mouseDown = false;
+  private mechRightDown=false;
+  private mechRightPressed=false;
+  private lastMechPrimaryAt=0;
+  private lastMechSecondaryAt=0;
+  private mechSpinAt=0;
+  private railChargeAt=0;
+  private railRefundShotAt=-1;
+  private railShotLocked=false;
+  private mechActive:{id:string;moduleId:string;armor:number;minigunAmmo:number;secondaryAmmo:number;enteredAt:number;expiresAt:number}|null=null;
+  private mechDrops=new Map<string,{ownerId:string;pos:Vec3;landAt:number;expiresAt:number;moduleId:string;landed:boolean;enteredBy?:string;mech:WonderWorldVisual;aircraft:WonderWorldVisual}>();
+  private phantomDecoys=new Map<string,{pos:Vec3;spawnPos:Vec3;yaw:number;createdAt:number;expiresAt:number;count:number;visual:WonderWorldVisual}>();
+  private harbingerDrones=new Map<string,{ownerId:string;ownerTeam:string;pos:Vec3;expiresAt:number;hp:number;moduleId:string;nextShotAt:number;nextScanAt:number;priorityId?:string;offline:boolean;visual:WonderWorldVisual}>();
+  private lastHarbingerAimAt=0;
+  private chronoAnchor:{pos:Vec3;expiresAt:number}|null=null;
+  private chronoMarker:THREE.Mesh|null=null;
+  private localCryoSlowUntil=0;
+  private botCryoSlowUntil=new Map<string,number>();
+  private frozenUntil=new Map<string,number>();
+  private frozenFx=new Map<string,THREE.Group>();
+  private ripperFlights:{group:THREE.Group;start:THREE.Vector3;end:THREE.Vector3;born:number;life:number}[]=[];
+  private radialShockwaves:{mesh:THREE.Mesh;born:number;life:number;radius:number}[]=[];
+  private mechCockpit:THREE.Group|null=null;
+  private mechMuzzles:{minigun:THREE.Mesh;secondary:THREE.Mesh}|null=null;
+  private mechMuzzleUntil:{minigun:number;secondary:number}={minigun:0,secondary:0};
+  private mechRotary:THREE.Group|null=null;
+  private wonderVisualFx:(WonderKillVisual&{born:number})[]=[];
   private mousePressedThisFrame = false;  // for semi-auto / burst: fires only on the press edge
   private pointerLocked = false;
   private inputSuspended = false;
@@ -801,14 +1043,22 @@ export class FPSEngine {
 
   // tracers
   private tracers: { line: THREE.Line; born: number; life: number }[] = [];
+  private ballisticOriginals = new Map<string,CoverBox>();
+  private ballisticMeshes = new Map<string,THREE.Object3D>();
+  private ballisticDetailMeshes = new Map<string,THREE.Object3D[]>();
+  private ballisticDecals = new Map<string,THREE.Object3D[]>();
+  private ballisticHp = new Map<string,number>();
+  private ballisticDestroyed = new Set<string>();
+  private ballisticParticles: {mesh:THREE.Mesh; velocity:THREE.Vector3; born:number; life:number}[] = [];
+  private thrownKnives: { mesh: THREE.Group; start: THREE.Vector3; dir: THREE.Vector3; distance: number; born: number; travelMs: number; rotation: THREE.Quaternion }[] = [];
   // Rocket projectiles (visual only — damage is hitscan). Each entry tracks the
   // mesh, its start position, end position (impact point), birth time, and travel
   // duration. The projectile animates from start to end over `travelMs`, then
   // spawns an explosion at the impact point.
-  private projectiles: { mesh: THREE.Object3D; start: THREE.Vector3; end: THREE.Vector3; born: number; travelMs: number; damage: number; splashRadius: number; weaponId: string; applyLocalSplash: boolean }[] = [];
+  private projectiles: { mesh: THREE.Object3D; start: THREE.Vector3; end: THREE.Vector3; born: number; travelMs: number; damage: number; splashRadius: number; weaponId: string; applyLocalSplash: boolean; ownerId?:string; ownerTeam?:string; mineTarget?:OfflineProximityMine }[] = [];
   // Explosion effects: expanding sphere + point light flash at an impact point.
   private explosionEffects!: ExplosionEffects;
-  private deathBombs = new Map<string, { pos: Vec3; explodesAt: number; mesh: THREE.Group; local: boolean }>();
+  private deathBombs = new Map<string, { pos: Vec3; explodesAt: number; mesh: THREE.Group; local: boolean; ownerId:string; ownerTeam:string }>();
   private gravityWells = new Map<string, { pos: Vec3; ownerId: string; ownerTeam: string; weaponId: string; radius: number; activatesAt: number; expiresAt: number; offline: boolean; mesh: THREE.Group; light: THREE.PointLight }>();
   private bulletSpitters = new Map<string, { ownerId: string; pos: Vec3; yaw: number; expiresAt: number; nextShotAt: number; lastFiredAt: number; hp: number; mesh: THREE.Group; yawPivot: THREE.Group; barrelPivot: THREE.Group; offline: boolean }>();
 
@@ -832,6 +1082,9 @@ export class FPSEngine {
   private elapsedSeconds = 0;
   private matchEnded = false;
   private matchFinishingLabel: string | null = null;
+  private finaleStartedAt = 0;
+  private finaleDeathAges = new Map<string, number>();
+  private finaleTimer: ReturnType<typeof setTimeout> | null = null;
   private quickMeleeLastAt = -10000;
   private quickMeleeFeedbackAt = 0;
   private quickMeleeModel: THREE.Group | null = null;
@@ -881,12 +1134,8 @@ export class FPSEngine {
 
   // Sprint stamina: drains while sprinting, regens after a short delay when not.
   // At 0 stamina, sprint is blocked until stamina regens above the resume threshold.
-  private stamina = 100;            // 0..100
+  private stamina: number = SPRINT_STAMINA.maximum;
   private lastSprintAt = 0;         // performance.now() of last sprint frame
-  private static readonly STAMINA_DRAIN = 22;    // per second while sprinting (full bar drains in ~4.5s)
-  private static readonly STAMINA_REGEN = 35;    // per second when not sprinting (full regen in ~3s)
-  private static readonly STAMINA_DELAY = 1200;  // ms after stopping sprint before regen begins
-  private static readonly STAMINA_RESUME = 25;   // must regen above this to resume sprint after exhaustion
 
   // ---- Weapon slot system (primary / secondary / melee) ----
   // The local player's currently equipped slot. weaponId always reflects the
@@ -894,24 +1143,39 @@ export class FPSEngine {
   private currentSlot: WeaponSlot = "primary";
   private equipmentCharges = 0;
   private equipmentLastAt = -10000;
+  private equipmentNextRechargeAt = 0;
+  private deployedCovers = new Map<string,{cover:DeployedCover;mesh:THREE.Group}>();
   private equipmentFlashUntil = 0;
+  private equipmentFlashAudioUntil = 0;
   private equipmentPreviewLine: THREE.Line | null = null;
   private touchEquipmentAiming = false;
-  private equipmentStunUntil = 0;
-  private offlineMines: { pos: Vec3; expiresAt: number; mesh: THREE.Group }[] = [];
+  private equipmentAdsBlockedUntil = 0; // Taser: ADS-only; movement and hip-fire work
+  private offlineMines: OfflineProximityMine[] = [];
+  private botTacticalState = new Map<string,{ id:EquipmentId;charges:number;nextAt:number;rechargeAt?:number }>();
+  private botWonderCharges = new Map<string,WonderChargeState>();
+  private botFlashUntil = new Map<string,number>(); // Sensory blindness only, never immobilization
+  private botTacticalAdsBlockedUntil = new Map<string,number>(); // Taser only
+  /** Arc/flash status visuals on affected opponents, disposed on expiry. */
+  private tacticalStatusVisuals = new Map<string,{group:THREE.Group;expiresAt:number;effect:"stun"|"flash"}>();
+  private tacticalBlastRings: {mesh:THREE.Mesh;born:number;duration:number;radius:number}[] = [];
   private remoteEquipmentMines = new Map<string, THREE.Group>();
   private primaryWeaponId: string;
   private secondaryWeaponId: string;
   private meleeWeaponId: string;
+  private wonderWeaponId: string;
+  private wonderModuleId="";
+  private wonderSkinId="";
+  private wonderKillEffectId="";
   // Per-slot effective stats (precomputed on swap to avoid recompute each shot).
   private primaryEff: EffectiveStats;
   private secondaryEff: EffectiveStats;
   private meleeEff: EffectiveStats;
+  private wonderEff: EffectiveStats;
   private primarySight: SightDef;
   private secondarySight: SightDef;
   private meleeSight: SightDef;
-  // Swap animation: timestamp the player last swapped weapons. The viewmodel
-  // dips down + back up over ~250ms for a visible swap.
+  private wonderSight: SightDef;
+  // Cosmetic swap timestamp; does not affect readiness, ammo, or network timing.
   private swapAnimAt = 0;
   // Last slot before switching (for quick-swap with Q)
   private lastSlot: WeaponSlot = "secondary"; // Q works on first press: primary -> secondary
@@ -959,6 +1223,8 @@ export class FPSEngine {
   private sound: SoundManager;
   // Engine-owned weapon audio: one sound per confirmed shot, including opponents.
   private weaponAudio: WeaponAudio;
+  private audioMix = { ...DEFAULT_AUDIO_MIX };
+  private flashAudioFactor = 1;
   private lastHitSoundAt = 0;    // throttle hit-marker SFX
 
   // ---- Death animation ----
@@ -971,6 +1237,19 @@ export class FPSEngine {
   // survival mode (offline)
   private survivalWave = 0;
   private survivalTier: SurvivalTier = "default";
+  private survivalUpgradeRanks:SurvivalUpgradeRanks={};
+  private survivalPlayerRanks:Record<string,SurvivalUpgradeRanks>={};
+  private survivalSelfReviveUsedWave=-1;
+  private survivalDownedUntil=0;
+  private survivalUpgradeOffer:SurvivalUpgradeOffer|undefined;
+  private survivalServerPaused=false;
+  private survivalMenuPaused=false;
+  private survivalPauseStartedAt=0;
+  private survivalUpgradePendingCount=0;
+  private survivalUpgradeSecondsLeft:number|undefined;
+  private survivalRerolls=1;
+  private survivalLastKillAt=-Infinity;
+  private survivalLastHeadshotKillAt=-Infinity;
   private survivalBossTimers = new Map<string,{phase:number;nextPhaseAt:number;nextSkillAt:number}>();
   private getSurvivalClearedWaves() { return survivalWavesCleared(this.survivalWave,this.survivalWaveActive); }
   private survivalEnemiesLeft = 0;
@@ -1018,6 +1297,7 @@ export class FPSEngine {
   // read the map/mode, and prepare before the action starts.
   private preMatchCountdown = 0;
   private rangeTimeSec = 0;
+  private rangeSignMeshes: THREE.Mesh[] = [];
   private static readonly PRE_MATCH_COUNTDOWN_SEC = 5;
 
   // ---- Per-kill difficulty tracking (for rewards scaling) ----
@@ -1033,6 +1313,7 @@ export class FPSEngine {
   // attributing all kills to the match-start weapon. Sent in MatchEndResult.
   private perWeaponKills: Map<string, { kills: number; headshots: number }> = new Map();
   private perWeaponActions: Map<string, Partial<Record<WeaponConditionMetric, number>>> = new Map();
+  private perAttachmentKills: Map<string, number> = new Map();
 
   // ---- Gun Game progression (gungame mode only) ----
   // The local player's current tier index. Set to 0 at match start; advanced by
@@ -1074,8 +1355,9 @@ export class FPSEngine {
     this.container = container;
     this.opts = opts;
     this.map = makeEnvironmentMap(opts.firingRange ? createFiringRangeMap() : !opts.online && opts.previewMap ? opts.previewMap : getMap(opts.mapId,opts.mode));
-    this.ctfFlags = createCtfFlags(this.map.id);
-    this.ctfBases = {red:ctfBase("red",this.map.id),blue:ctfBase("blue",this.map.id)};
+    this.trackBallisticCover();
+    this.ctfFlags = createCtfFlags(this.map);
+    this.ctfBases = {red:ctfBase("red",this.map),blue:ctfBase("blue",this.map)};
     for (const o of this.map.environment ?? []) {
       if (o.type === "destructible_wall") this.environmentWalls.set(o.id, o.hp);
     }
@@ -1085,6 +1367,10 @@ export class FPSEngine {
     this.secondaryWeaponId = weaponById(opts.loadout.secondaryWeaponId ?? "pistol_side").disabled
       ? "pistol_side" : (opts.loadout.secondaryWeaponId ?? "pistol_side");
     this.meleeWeaponId = opts.loadout.meleeWeaponId ?? "knife_tactical";
+    this.wonderModuleId=opts.loadout.wonderModuleId??"";
+    this.wonderSkinId=opts.loadout.wonderSkinId??"";
+    this.wonderKillEffectId=opts.loadout.wonderKillEffectId??"";
+    this.wonderWeaponId = opts.mode !== "gungame" && opts.loadout.perkId === "wonder_weapon" && !!WEAPONS.find(w=>w.id===opts.loadout.wonderWeaponId && w.wonder&&!w.disabled) ? opts.loadout.wonderWeaponId! : "";
     this.weaponId = this.primaryWeaponId;
     // Gun Game: the local player starts on the FIRST progression weapon,
     // regardless of their equipped loadout. Effective stats + viewmodel are
@@ -1119,9 +1405,12 @@ export class FPSEngine {
       : emptyAtts;
     this.secondaryEff = computeEffectiveStats(secW, secAtts);
     this.meleeEff = computeEffectiveStats(melW, emptyAtts);
+    this.wonderEff = this.adjustWonderStats(computeEffectiveStats(weaponById(this.wonderWeaponId || "rifle_ar"), emptyAtts));
     this.primarySight = sightDefForType(this.primaryEff.sightType);
     this.secondarySight = sightDefForType(this.secondaryEff.sightType);
     this.meleeSight = sightDefForType(this.meleeEff.sightType);
+    this.wonderSight=sightDefForType(this.wonderEff.sightType);
+    this.wonderSight = sightDefForType(this.wonderEff.sightType);
     this.equipmentCharges = equipmentById(opts.loadout.equipmentId).charges;
     // Active slot = primary by default (gun game overrides weaponId but keeps slot=primary).
     if (opts.mode === "gungame") {
@@ -1137,10 +1426,23 @@ export class FPSEngine {
     // New offline matches are protected after the pre-match countdown completes.
     // The authoritative online server supplies its own timestamp.
     // Initialize per-slot ammo (Round 19o: per-slot ammo tracking).
-    if (usesWonderCharges(primW) && primW.wonder) this.wonderStates.set(primW.id, fullWonderCharges(primW.wonder));
-    this.primaryAmmoInMag = usesWonderCharges(primW) ? this.wonderStates.get(primW.id)!.charges : this.primaryEff.magSize;
+    const initialWonder=WEAPONS.find(w=>w.id===this.wonderWeaponId);
+    if(initialWonder?.wonder){
+      const now=performance.now();
+      if(usesWonderCharges(initialWonder))
+        this.wonderStates.set(initialWonder.id,this.opts.firingRange
+          ? fullWonderCharges(initialWonder.wonder)
+          : drainedWonderCharges(initialWonder.wonder,now));
+      if(initialWonder.id===RIOT_SHIELD_ID && !this.opts.firingRange){
+        this.riotShieldHp=0;
+        this.riotShieldReadyAt=now+RIOT_SHIELD_RECHARGE_MS;
+      }
+    }
+    this.primaryAmmoInMag = this.primaryEff.magSize;
     this.secondaryAmmoInMag = this.secondaryEff.magSize;
+    this.resetAkimboAmmo();
     this.meleeAmmoInMag = this.meleeEff.magSize;
+    this.wonderAmmoInMag = this.wonderEff.magSize;
     if (this.weaponId === this.primaryWeaponId) this.ammoInMag = this.primaryAmmoInMag;
     // ---- Sound manager ----
     this.sound = new SoundManager();
@@ -1148,7 +1450,9 @@ export class FPSEngine {
     this.setAudioMix({
       masterVolume: opts.masterVolume ?? DEFAULT_AUDIO_MIX.masterVolume,
       footstepVolume: opts.footstepVolume ?? DEFAULT_AUDIO_MIX.footstepVolume,
-      fxVolume: opts.fxVolume ?? DEFAULT_AUDIO_MIX.fxVolume,
+      weaponVolume: opts.weaponVolume ?? DEFAULT_AUDIO_MIX.weaponVolume,
+      combatVolume: opts.combatVolume ?? DEFAULT_AUDIO_MIX.combatVolume,
+      uiVolume: opts.uiVolume ?? DEFAULT_AUDIO_MIX.uiVolume,
     });
     this.sensitivityMul = opts.sensitivity && opts.sensitivity > 0 ? opts.sensitivity : 1.0;
     this.baseFov = opts.fov ? Math.max(60, Math.min(110, opts.fov)) : 75;
@@ -1187,6 +1491,8 @@ export class FPSEngine {
     this.buildMapProps();
     if (this.opts.mode === "ctf") this.buildCtfFlagModels();
     this.buildEnvironment();
+    this.worldLightBudget=new WorldLightBudget(this.scene,
+      this.renderMode()==="performance"?6:this.renderMode()==="quality"?20:10);
     this.buildViewmodel();
     this.createQuickMeleeModel();
     this.setupInput();
@@ -1234,12 +1540,15 @@ export class FPSEngine {
   // ---- Three.js setup ----
   private initThree() {
     this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "default" });
-    // Dense city maps need a stable pixel budget; never render them at 2x DPI.
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.map.biome==="city"||this.map.biome==="city_day"?1.35:2));
+    // Count all scene/shadow/NVG passes once per logical frame.
+    this.renderer.info.autoReset=false;
+    // Cap pixel fill rate on large maps and adjust it down on slow frames.
+    this.renderResolutionScale=this.renderCap();
+    this.renderer.setPixelRatio(this.renderResolutionScale);
     this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
     // Thousands of city interior and stair boxes would otherwise issue an
     // additional expensive shadow pass every frame. Keep shadows elsewhere.
-    this.renderer.shadowMap.enabled = this.map.biome!=="city"&&this.map.biome!=="city_day";
+    this.renderer.shadowMap.enabled = !this.isCityMap()&&this.renderMode()!=="performance";
     // Nearest comparison avoids implementation-defined LINEAR depth texture
     // filtering in WebGL browsers (and the resulting console warnings).
     this.renderer.shadowMap.type = THREE.BasicShadowMap;
@@ -1263,11 +1572,13 @@ export class FPSEngine {
     this.dirLight = dir;
     dir.position.set(30, 50, 20);
     dir.castShadow = true;
-    dir.shadow.mapSize.set(2048, 2048);
+    const shadowSize=this.renderMode()==="quality"?2048:1024;
+    dir.shadow.mapSize.set(shadowSize, shadowSize);
     const shadowExtent = Math.min(230, Math.max(65, this.map.size));
     dir.shadow.camera.left = -shadowExtent; dir.shadow.camera.right = shadowExtent;
     dir.shadow.camera.top = shadowExtent; dir.shadow.camera.bottom = -shadowExtent;
     dir.shadow.camera.far = 120;
+    if (this.map.biome === "volcanic_castle") dir.shadow.bias = -.00035;
     this.scene.add(dir);
     const fill = new THREE.DirectionalLight(cityDay ? 0xaad9ee : 0x4a6080, cityDay ? 0.65 : 0.4);
     fill.position.set(-20, 20, -20);
@@ -1362,10 +1673,23 @@ export class FPSEngine {
 
     // cover / platforms / stairs
     const accentMat = new THREE.MeshStandardMaterial({ color: theme.coverAccent, roughness: 0.5, metalness: 0.3, emissive: theme.coverAccent, emissiveIntensity: 0.25 });
+    // Render explicit ballistic cover differently, without changing its collider geometry.
+    const ballisticMats:Record<string,THREE.MeshStandardMaterial>={
+      thin_wood:new THREE.MeshStandardMaterial({color:0x997351,roughness:.94}),
+      sheet_metal:new THREE.MeshStandardMaterial({color:0x879ba8,metalness:.65,roughness:.48}),
+      glass:new THREE.MeshStandardMaterial({color:0x6bb5c3,transparent:true,opacity:.72,metalness:.15,roughness:.2,depthWrite:false}),
+      light_cover:new THREE.MeshStandardMaterial({color:0xa0906a,roughness:.85}),
+    };
     // The city once submitted one Mesh + draw call for EVERY wall section,
     // furniture AABB and step, and then rendered them a second time for
     // shadows. Instance equal-material solids; physics still reads every
     // individual CoverBox from this.map.cover unchanged.
+    // Castle furniture uses detailed, collision-matched Three.js models.
+    // Retain cover boxes for bullets/AI, but don't draw the old opaque stone
+    // proxy over each bunk, anvil, trough, shelf or treatment bed.
+    const detailedCastleFixtures=new Set((this.map.props??[])
+      .filter(p=>p.kind==="castle_building")
+      .flatMap(p=>castleFixtureBoxes(p).map(b=>JSON.stringify(b))));
     const cityBatch=this.map.biome==="city"||this.map.biome==="city_day";
     if(cityBatch){
       // Keep all physics colliders, but don't ALSO draw a coplanar proxy for
@@ -1373,37 +1697,54 @@ export class FPSEngine {
       const hiddenCityBoxes = hiddenCityColliderKeys(this.map.props ?? []);
       const materials:Record<string,THREE.Material>={
         accent:accentMat,solid:wallMat,stair:stairMat,platform:platformMat,cover:coverMat,
+        ...Object.fromEntries(Object.entries(ballisticMats).map(([name,mat])=>["ballistic:"+name,mat])),
       };
       const buckets=new Map<string,typeof this.map.cover>();
       for(const c of this.map.cover){
         if(c.environmentId || hiddenCityBoxes.has(cityCoverKey(c)))continue;
+        if(c.ballisticId && c.material && ballisticMats[c.material]){
+          const m=new THREE.Mesh(new THREE.BoxGeometry(c.size[0]*2,c.size[1]*2,c.size[2]*2),ballisticMats[c.material]);
+          m.position.set(...c.pos);m.receiveShadow=true;this.scene.add(m);
+          this.ballisticMeshes.set(c.ballisticId,m);
+          continue;
+        }
         const kind=c.kind??"cover";
-        const key=kind in materials?kind:"cover";
+        const key=kind==="cover"&&c.material&&ballisticMats[c.material]
+          ?"ballistic:"+c.material:kind in materials?kind:"cover";
         const list=buckets.get(key)??[];
         list.push(c);buckets.set(key,list);
       }
       const transform=new THREE.Object3D();
       const unit=new THREE.BoxGeometry(1,1,1);
       for(const [kind,boxes] of buckets){
-        if(!boxes.length)continue;
-        const instanced=new THREE.InstancedMesh(unit,materials[kind],boxes.length);
-        instanced.frustumCulled=false; // instance bounding volume spans the whole map
-        instanced.castShadow=false;instanced.receiveShadow=true;
-        for(let i=0;i<boxes.length;i++){
-          const c=boxes[i];
-          transform.position.set(c.pos[0],c.pos[1],c.pos[2]);
-          transform.scale.set(c.size[0]*2,c.size[1]*2,c.size[2]*2);
-          transform.updateMatrix();
-          instanced.setMatrixAt(i,transform.matrix);
+        // Map-wide batches always render whenever one wall is in view. Spatial
+        // batches let Three.js reject entire unseen city blocks.
+        for(const cell of partitionCoverIntoRenderCells(boxes,64)){
+          const instanced=new THREE.InstancedMesh(unit,materials[kind],cell.length);
+          instanced.castShadow=false;instanced.receiveShadow=true;
+          for(let i=0;i<cell.length;i++){
+            const c=cell[i];
+            transform.position.set(c.pos[0],c.pos[1],c.pos[2]);
+            transform.scale.set(c.size[0]*2,c.size[1]*2,c.size[2]*2);
+            transform.updateMatrix();
+            instanced.setMatrixAt(i,transform.matrix);
+          }
+          instanced.instanceMatrix.needsUpdate=true;
+          // Bounding sphere covers the actual geometry, including scaled boxes
+          // crossing partition boundaries. Never hide legitimate nearby cover.
+          instanced.computeBoundingSphere();
+          instanced.frustumCulled=true;
+          this.scene.add(instanced);
         }
-        instanced.instanceMatrix.needsUpdate=true;
-        this.scene.add(instanced);
       }
-    }else for(const c of this.map.cover) {
-      if (c.environmentId) continue;
+    }else {
+    const staticMeshes:THREE.Mesh[]=[];
+    for(const c of this.map.cover) {
+      if (c.environmentId || detailedCastleFixtures.has(JSON.stringify(c))) continue;
       const kind = c.kind ?? "cover";
       if (this.map.id === "forest_warfare" && kind !== "stair") continue;
-      const mat = kind === "accent" ? accentMat : kind === "solid" ? wallMat : kind === "stair" ? stairMat : kind === "platform" ? platformMat : coverMat;
+      const mat = kind==="cover"&&c.material&&ballisticMats[c.material] ? ballisticMats[c.material]
+        : kind === "accent" ? accentMat : kind === "solid" ? wallMat : kind === "stair" ? stairMat : kind === "platform" ? platformMat : coverMat;
       const geo = new THREE.BoxGeometry(c.size[0] * 2, c.size[1] * 2, c.size[2] * 2);
       if(kind !== "accent"){
         const slot=kind==="solid"?"wall":kind==="stair"?"stair":kind==="platform"?"platform":"cover";
@@ -1413,12 +1754,17 @@ export class FPSEngine {
       m.position.set(c.pos[0], c.pos[1], c.pos[2]);
       m.castShadow = true; m.receiveShadow = true;
       this.scene.add(m);
+      if(c.ballisticId)this.ballisticMeshes.set(c.ballisticId,m);
+      else staticMeshes.push(m);
       if (kind === "platform" && c.size[1] >= 1.5) {
         const stripeGeo = new THREE.BoxGeometry(c.size[0] * 2 + 0.05, 0.08, c.size[2] * 2 + 0.05);
         const stripe = new THREE.Mesh(stripeGeo, accentMat);
         stripe.position.set(c.pos[0], c.pos[1] + c.size[1], c.pos[2]);
         this.scene.add(stripe);
+        if(!c.ballisticId)staticMeshes.push(stripe);
       }
+    }
+    batchStaticMapMeshes(this.scene,staticMeshes);
     }
 
     // ---- Spawn points: NO visible markers (players complained about colored
@@ -1484,6 +1830,7 @@ export class FPSEngine {
     for (const cover of FOREST_TREE_PARAPETS) {
       const rail=new THREE.Mesh(new THREE.BoxGeometry(cover.size[0]*2,cover.size[1]*2,cover.size[2]*2),barkLight);
       place(rail,...cover.pos);
+      if(cover.ballisticId)this.ballisticMeshes.set(cover.ballisticId,rail);
     }
     for (const prop of FOREST_OBJECTS) {
       const {x,z,w,d,h,kind}=prop;
@@ -1507,6 +1854,7 @@ export class FPSEngine {
         log.rotation.z=Math.PI/2;place(log,x,.95,z);
         const ring=new THREE.Mesh(new THREE.CylinderGeometry(.90,.90,.13,10),bark);
         ring.rotation.z=Math.PI/2;place(ring,x+w,.95,z);
+        this.ballisticDetailMeshes.set(forestLogCoverId(prop),[log,ring]);
       }
     }
     // Landmark trees are intentionally MUCH taller and broader than ordinary
@@ -1540,19 +1888,6 @@ export class FPSEngine {
       }
       const crown=new THREE.Mesh(new THREE.ConeGeometry(9.4,9,11),leafC);
       place(crown,x,28.5,0);
-      if(this.opts.mode!=="ctf")continue;
-      // Nonblocking colored base objective ring; wide approaches from both
-      // directions give the return carrier a clear, recognizable destination.
-      const base=ctfBase(team,this.map.id);
-      const marker=new THREE.Mesh(new THREE.RingGeometry(3.0,4.25,40),
-        new THREE.MeshBasicMaterial({
-          color:team==="red"?0xff5959:0x55c8ff,
-          side:THREE.DoubleSide,transparent:true,opacity:.8,depthTest:true,
-        }));
-      marker.rotation.x=-Math.PI/2;
-      marker.position.set(base[0],.07,base[2]);
-      this.scene.add(marker);
-      this.ctfMarkers[team] = marker;
     }
   }
 
@@ -1562,6 +1897,7 @@ export class FPSEngine {
     const luminous=(color:number,opacity=1)=>new THREE.MeshBasicMaterial({
       color,transparent:opacity<1,opacity,depthWrite:false,side:THREE.DoubleSide,
     });
+    if(this.map.id==="orbital_nexus"){
     // Gas giant looming behind the station and a deterministic star field.
     const planet=new THREE.Mesh(new THREE.SphereGeometry(57,36,24),
       new THREE.MeshBasicMaterial({color:0x59418e,fog:false}));
@@ -1574,37 +1910,28 @@ export class FPSEngine {
     const sky=new THREE.BufferGeometry();
     sky.setAttribute("position",new THREE.Float32BufferAttribute(vertices,3));
     this.scene.add(new THREE.Points(sky,new THREE.PointsMaterial({color:0xc6ddff,size:.85,fog:false})));
+    }
+    const reactor=reactorObjective(this.map);if(!reactor)return;
+    const [rx,ry,rz]=reactor.pos;
     // Containment rings float safely above the open command deck.
     const coreMat=new THREE.MeshStandardMaterial({
       color:0x7859cd,emissive:0x9654e9,emissiveIntensity:1.2,metalness:.45,roughness:.24,
     });
     const core=new THREE.Mesh(new THREE.IcosahedronGeometry(3.4,2),coreMat);
-    core.position.set(0,11,0);this.scene.add(core);this.orbitalCore=core;
+    core.position.set(rx,ry+7.8,rz);this.scene.add(core);this.orbitalCore=core;
     for(const [radius,height,rotation,color] of [
       [6,11,.27,0x61e7ff],[8,11,1.13,0xd484ff],[5,13,.72,0x4ee9e5]
     ] as const){
       const ring=new THREE.Mesh(new THREE.TorusGeometry(radius,.17,10,64),luminous(color,.9));
-      ring.position.y=height;ring.rotation.set(rotation,.45,rotation*.5);this.scene.add(ring);this.orbitalRings.push(ring);
+      ring.position.set(rx,ry+height-3.2,rz);ring.rotation.set(rotation,.45,rotation*.5);this.scene.add(ring);this.orbitalRings.push(ring);
     }
     const beam=new THREE.Mesh(new THREE.CylinderGeometry(.35,.85,10,14),luminous(0x5ac5ff,.22));
-    beam.position.y=8;this.scene.add(beam);
-    for(const team of ["red","blue"] as const){
-      const sign=team==="red"?-1:1,color=team==="red"?0xff5479:0x52ddff;
-      if(this.opts.mode!=="ctf")continue;
-      const base=ctfBase(team,this.map.id);
-      const marker=new THREE.Mesh(new THREE.RingGeometry(3,4.2,48),luminous(color,.9));
-      marker.rotation.x=-Math.PI/2;marker.position.set(base[0],.07,base[2]);
-      this.scene.add(marker);this.ctfMarkers[team]=marker;
-      const vaultHalo=new THREE.Mesh(new THREE.TorusGeometry(3.2,.15,8,40),luminous(color,.72));
-      vaultHalo.position.set(sign*76,4,0);vaultHalo.rotation.x=Math.PI/2;this.scene.add(vaultHalo);
-      const beacon=new THREE.Mesh(new THREE.CylinderGeometry(.11,.18,5,8),luminous(color,.68));
-      beacon.position.set(sign*76,6.6,0);this.scene.add(beacon);
-    }
+    beam.position.set(rx,ry+4.8,rz);this.scene.add(beam);
   }
 
 
   private spawnOrbitalMote(pos:Vec3) {
-    if(this.map.id!=="orbital_nexus"||this.orbitalMotes.length>=12)return;
+    if(!reactorObjective(this.map)||this.orbitalMotes.length>=12)return;
     const mesh=new THREE.Mesh(new THREE.IcosahedronGeometry(.32,1),
       new THREE.MeshBasicMaterial({color:0x93e7ff,transparent:true,opacity:.92,
         blending:THREE.AdditiveBlending,depthWrite:false}));
@@ -1613,7 +1940,7 @@ export class FPSEngine {
     this.orbitalMotes.push({mesh,origin:[...pos],start:performance.now()});
   }
   private showOrbitalPulse(pos:Vec3) {
-    if(this.map.id!=="orbital_nexus")return;
+    if(!reactorObjective(this.map))return;
     const ring=new THREE.Mesh(new THREE.RingGeometry(.45,1,56),
       new THREE.MeshBasicMaterial({color:0xb26bff,transparent:true,opacity:.92,
         blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));
@@ -1623,7 +1950,7 @@ export class FPSEngine {
     this.orbitalPulseRings.push({mesh:ring,at:performance.now()});
   }
   private animateOrbitalReactor(now:number) {
-    if(this.map.id!=="orbital_nexus"||!this.orbitalCore)return;
+    if(!reactorObjective(this.map)||!this.orbitalCore)return;
     this.orbitalPulseRings=this.orbitalPulseRings.filter(p=>{
       const t=(now-p.at)/580;
       if(t>=1){
@@ -1642,15 +1969,16 @@ export class FPSEngine {
         return false;
       }
       const eased=t*t*(3-2*t),inv=1-eased;
-      m.mesh.position.set(m.origin[0]*inv,
-        (m.origin[1]+1.1)*inv+11*eased+Math.sin(t*Math.PI)*2,
-        m.origin[2]*inv);
+      const target=this.orbitalCore!.position;
+      m.mesh.position.set(m.origin[0]*inv+target.x*eased,
+        (m.origin[1]+1.1)*inv+target.y*eased+Math.sin(t*Math.PI)*2,
+        m.origin[2]*inv+target.z*eased);
       m.mesh.scale.setScalar(.5+(1-t)*.9);
       (m.mesh.material as THREE.MeshBasicMaterial).opacity=.92*(1-t);
       return true;
     });
-    const progress=this.orbitalCharge/ORBITAL_KILLS_REQUIRED;
-    const ready=this.orbitalCharge>=ORBITAL_KILLS_REQUIRED;
+    const progress=this.orbitalCharge/(reactorObjective(this.map)?.killsRequired??10);
+    const ready=this.orbitalCharge>=(reactorObjective(this.map)?.killsRequired??Infinity);
     const color=new THREE.Color(0x53dbff).lerp(new THREE.Color(0xa247ff),progress);
     const material=this.orbitalCore.material as THREE.MeshStandardMaterial;
     material.color.copy(color);material.emissive.copy(color);material.emissiveIntensity=.85+progress*.95;
@@ -1670,7 +1998,7 @@ export class FPSEngine {
     this.meleeEff=computeEffectiveStats(weaponById(this.meleeWeaponId),
       {sight:null,barrel:null,grip:null,magazine:null});
     this.meleeSight=sightDefForType(this.meleeEff.sightType);
-    this.meleeAmmoInMag=this.meleeEff.magSize;
+    this.meleeAmmoInMag=isThrowingKnife(this.meleeWeaponId)?this.throwingKnifeState.charges:this.meleeEff.magSize;
     if(this.currentSlot==="melee"){
       this.weaponId=this.meleeWeaponId;
       this.eff=this.meleeEff;
@@ -1698,9 +2026,9 @@ export class FPSEngine {
    * zone rule. Always pass the actual attacker position for credited kills.
    */
   private recordOrbitalKill(victimPos:Vec3,killerPos?:Vec3){
-    if(this.opts.online||this.map.id!=="orbital_nexus")return;
+    if(this.opts.online||!reactorObjective(this.map))return;
     const prev=this.orbitalCharge;
-    this.orbitalCharge=orbitalRecordKill(prev,victimPos,this.map.id,killerPos);
+    this.orbitalCharge=orbitalRecordKill(prev,victimPos,this.map,killerPos);
     if(this.orbitalCharge===prev)return;
     this.spawnOrbitalMote(victimPos);
     // Reactor progression is visible in the HUD; no charged/claim banners.
@@ -1731,6 +2059,7 @@ export class FPSEngine {
     victim.health-=damage;
     if(victim.health>0)return;
     victim.alive=false;victim.deaths++;
+    victim.deathAnimAt=performance.now();victim.deathAnimDur=900;
     attacker.kills++;
     this.recordOrbitalKill(victim.pos,attacker.pos);
     this.releaseOrbitalBotWeapon(victim);
@@ -1751,12 +2080,12 @@ export class FPSEngine {
     this.showOrbitalPulse(origin);
     const candidates=[...this.combatants.values()].map(c=>({
       id:c.id,pos:c.pos as readonly number[],alive:c.alive,
-      protected:(c.spawnProtectedUntil??0)>Date.now(),friendly:c.team===team,
+      protected:(c.spawnProtectedUntil??0)>Date.now(),friendly:this.opts.mode!=="ffa"&&this.opts.mode!=="gungame"&&c.team===team,
     }));
     if(attacker)candidates.push({
       id:this.selfId,pos:[this.pos.x,this.pos.y,this.pos.z],
       alive:this.alive,protected:this.selfSpawnProtectedUntil>Date.now(),
-      friendly:this.opts.team===team,
+      friendly:this.opts.mode!=="ffa"&&this.opts.mode!=="gungame"&&this.opts.team===team,
     });
     const targets=orbitalPulseTargets(origin,candidates,pos=>{
       const dist=Math.hypot(pos[0]-origin[0],pos[2]-origin[2]);
@@ -1804,10 +2133,6 @@ export class FPSEngine {
     const victim=this.combatants.get(target.id);
     if(!victim||!victim.alive)return;
     victim.health-=profile.damage;
-    if(weaponId==="baton"&&victim.ai&&victim.ai.reloadingUntil>performance.now()){
-      victim.ai.reloadingUntil=performance.now()+1100;
-      victim.ai.nextShotAt=Math.max(victim.ai.nextShotAt,victim.ai.reloadingUntil);
-    }
     if(victim.health>0)return;
     const recent=this.offlineAssistDamage.get(victim.id);
     if(attacker.team===this.opts.team&&victim.team!==this.opts.team&&
@@ -1815,6 +2140,7 @@ export class FPSEngine {
       recent&&recent.damage>=15&&performance.now()-recent.at<=10000)this.assists++;
     this.offlineAssistDamage.delete(victim.id);
     victim.alive=false;victim.deaths+=1;
+    victim.deathAnimAt=performance.now();victim.deathAnimDur=900;
     if(attacker.team!==victim.team)this.recordOrbitalKill(victim.pos,attacker.pos);
     this.releaseOrbitalBotWeapon(victim);
     if(this.opts.mode==="ctf")this.dropOfflineCtfCarrier(victim.id,[...victim.pos] as Vec3);
@@ -1837,10 +2163,10 @@ export class FPSEngine {
   private offlineOrbitalBotSwing(attacker:Combatant){
     const candidates=[...this.combatants.values()].filter(c=>c.id!==attacker.id)
       .map(c=>({id:c.id,pos:c.pos,alive:c.alive,
-        protected:(c.spawnProtectedUntil??0)>Date.now(),friendly:c.team===attacker.team}));
+        protected:(c.spawnProtectedUntil??0)>Date.now(),friendly:this.opts.mode!=="ffa"&&this.opts.mode!=="gungame"&&c.team===attacker.team}));
     candidates.push({id:this.selfId,
       pos:[this.pos.x,this.pos.y,this.pos.z],alive:this.alive,
-      protected:this.selfSpawnProtectedUntil>Date.now(),friendly:this.opts.team===attacker.team});
+      protected:this.selfSpawnProtectedUntil>Date.now(),friendly:this.opts.mode!=="ffa"&&this.opts.mode!=="gungame"&&this.opts.team===attacker.team});
     const profile=quickMeleeProfile(weaponById(ORBITAL_REAPER_ID).stats,ORBITAL_REAPER_ID);
     const target=chooseQuickMeleeTarget(attacker.pos,attacker.yaw,candidates,
       (candidate,dist)=>{
@@ -1883,19 +2209,19 @@ export class FPSEngine {
   }
   private tickOrbitalPickup(){
     if(this.opts.online||this.preMatchCountdown>0||
-      this.orbitalCharge<ORBITAL_KILLS_REQUIRED||this.map.id!=="orbital_nexus")return;
+      this.orbitalCharge<(reactorObjective(this.map)?.killsRequired??Infinity)||!reactorObjective(this.map))return;
     const contenders:{id:string;pos:Vec3;self:boolean;bot?:Combatant}[]=[];
     if(!this.orbitalWeaponActive&&this.alive){
       const pos:Vec3=[this.pos.x,this.pos.y,this.pos.z];
-      if(orbitalCanClaim(this.orbitalCharge,pos,this.map.id,true))
+      if(orbitalCanClaim(this.orbitalCharge,pos,this.map,true))
         contenders.push({id:this.selfId,pos,self:true});
     }
     for(const bot of this.combatants.values()){
       if(!bot.ai||this.orbitalBotHolders.has(bot.id)||!orbitalCanClaim(
-        this.orbitalCharge,bot.pos,this.map.id,bot.alive))continue;
+        this.orbitalCharge,bot.pos,this.map,bot.alive))continue;
       contenders.push({id:bot.id,pos:bot.pos,self:false,bot});
     }
-    contenders.sort((a,b)=>Math.hypot(a.pos[0],a.pos[2])-Math.hypot(b.pos[0],b.pos[2])||
+    contenders.sort((a,b)=>objectiveDistance(this.map,a.pos)-objectiveDistance(this.map,b.pos)||
       a.id.localeCompare(b.id));
     const winner=contenders[0];if(!winner)return;
     this.orbitalCharge=0;
@@ -1932,7 +2258,7 @@ export class FPSEngine {
     // still need a visible delivery destination at the shared scoring position.
     for(const team of ["red","blue"] as const){
       if(this.ctfMarkers[team])continue;
-      const marker=ctfDeliveryMarker(team,ctfBase(team,this.map.id));
+      const marker=ctfDeliveryMarker(team,ctfBase(team,this.map));
       this.scene.add(marker);this.ctfMarkers[team]=marker;
     }
   }
@@ -1967,6 +2293,16 @@ export class FPSEngine {
     });
   }
 
+  /** Play the sudden-death cue exactly once when overtime first begins.
+   * Online clients detect the authoritative snapshot transition; offline
+   * matches enter here when their local regulation timer expires in a tie. */
+  private beginCtfOvertime(): void {
+    if (this.ctfOvertime || this.matchEnded) return;
+    this.ctfOvertime = true;
+    this.ctfNotice = { label: "OVERTIME — NEXT CAPTURE WINS", at: performance.now() };
+    this.sound.play("overtime_start", { volume: .9 });
+  }
+
   private dropOfflineCtfCarrier(id: string, pos: Vec3): void {
     const flag = ctfDrop(this.ctfFlags, id, pos);
     if (flag) this.announceCtfEvent("drop", flag, id);
@@ -1974,7 +2310,7 @@ export class FPSEngine {
 
   private tickOfflineCtf() {
     if (this.opts.mode!=="ctf"||this.matchEnded)return;
-    for (const flag of ctfReturnExpired(this.ctfFlags, Date.now(), this.ctfResetDurationMs, this.map.id))
+    for (const flag of ctfReturnExpired(this.ctfFlags, Date.now(), this.ctfResetDurationMs, this.map))
       this.announceCtfEvent("auto_return", flag, "server");
     const actors:{id:string;team:FlagTeam;pos:Vec3;self:boolean;bot?:Combatant}[]=[];
     if(this.alive && (this.opts.team==="red"||this.opts.team==="blue"))
@@ -1983,7 +2319,7 @@ export class FPSEngine {
       if(bot.alive&&(bot.team==="red"||bot.team==="blue"))
         actors.push({id:bot.id,team:bot.team,pos:bot.pos,self:false,bot});
     for(const actor of actors){
-      const event=ctfTouch(this.ctfFlags,actor,this.map.id);
+      const event=ctfTouch(this.ctfFlags,actor,this.map);
       if(!event)continue;
       this.announceCtfEvent(event.kind, event.flag, actor.id);
       if(event.kind==="return" && actor.self)this.flagReturns++;
@@ -1998,10 +2334,31 @@ export class FPSEngine {
     }
   }
 
+  private buildObjectiveMarkers(){
+    if(this.opts.mode!=="ctf")return;
+    for(const team of ["red","blue"] as const){
+      const zone=teamObjective(this.map,"capture_zone",team);if(!zone)continue;
+      const marker=new THREE.Mesh(new THREE.RingGeometry(zone.radius*.65,zone.radius,48),
+        new THREE.MeshBasicMaterial({color:team==="red"?0xff5959:0x55c8ff,side:THREE.DoubleSide,transparent:true,opacity:.8}));
+      marker.rotation.x=-Math.PI/2;marker.position.set(zone.pos[0],zone.pos[1]+.07,zone.pos[2]);
+      this.scene.add(marker);this.ctfMarkers[team]=marker;
+      const flag=teamObjective(this.map,"flag",team);
+      if(this.map.biome==="orbital"&&flag){
+        const color=team==="red"?0xff5479:0x52ddff;
+        const halo=new THREE.Mesh(new THREE.TorusGeometry(3.2,.15,8,40),
+          new THREE.MeshBasicMaterial({color,transparent:true,opacity:.72,depthWrite:false,side:THREE.DoubleSide}));
+        halo.position.set(flag.pos[0],flag.pos[1]+3.8,flag.pos[2]);halo.rotation.x=Math.PI/2;this.scene.add(halo);
+        const beacon=new THREE.Mesh(new THREE.CylinderGeometry(.11,.18,5,8),
+          new THREE.MeshBasicMaterial({color,transparent:true,opacity:.68,depthWrite:false}));
+        beacon.position.set(flag.pos[0],flag.pos[1]+6.4,flag.pos[2]);this.scene.add(beacon);
+      }
+    }
+  }
   private buildMapProps() {
+    this.buildObjectiveMarkers();
+    if(this.map.id==="orbital_nexus"||reactorObjective(this.map))this.buildOrbitalScenery();
     this.cityInteriorDetailGroups=[];
     if(this.map.id==="forest_warfare"){this.buildForestWarfare();return;}
-    if(this.map.id==="orbital_nexus")this.buildOrbitalScenery();
     if(this.map.id==="floodgate"){
       this.floodgateBackdrop=buildFloodgateBackdrop(this.scene);
       this.floodgateFreight=buildFloodgateFreight(this.scene);
@@ -2060,9 +2417,17 @@ export class FPSEngine {
       const worldW=p.w??8,worldD=p.d??7;
       const h=p.h??(p.kind==="shop"?8:4);
       const w=quarter%2?worldD:worldW,d=quarter%2?worldW:worldD;
-      if(isFactoryMachineKind(p.kind)){
-        // Machine meshes dress pre-existing blueprint solids; collision remains
-        // authoritative in those features instead of being duplicated here.
+      if(isCastlePropKind(p.kind)){
+        buildCastleScenery(group,p);
+      }else if(isFactoryMachineKind(p.kind)){
+        // Most pallets dress named authored cover; whiteout uses a prop collider.
+        // Both geometry and its visible contents disappear together when broken.
+        if(p.kind==="cargo_pallet"){
+          const matching=this.map.cover.find(c=>c.kind==="cover"&&
+            c.material==="light_cover"&&!!c.ballisticId&&
+            Math.abs(c.pos[0]-p.x)<.1&&Math.abs(c.pos[2]-p.z)<.1);
+          group.userData.ballisticId=matching?.ballisticId??mapPropBallisticId(p);
+        }
         buildFactoryMachinery(group,p.kind,w,d,h,this.map.id==="floodgate"?p.color:undefined);
       }else if(p.kind==="tree"){
         const bole=new THREE.Mesh(new THREE.CylinderGeometry(.45,.55,h*.42,6),trunk);
@@ -2100,6 +2465,7 @@ export class FPSEngine {
           cube(group,stone,0,.11,side*d*.49,w,.22,.45);
         }
       }else if(p.kind==="bench"){
+        group.userData.ballisticId=mapPropBallisticId(p);
         const wood=new THREE.MeshStandardMaterial({color:0xa8835c,roughness:.85});
         cube(group,wood,0,.78,0,2.5,.22,.9);
         cube(group,wood,0,1.3,-.43,2.5,1.1,.18);
@@ -2167,10 +2533,14 @@ export class FPSEngine {
         }
         // All large pieces use the exact collision footprint from map-visuals.
         // The decorative subdivisions remain inside the fixture's AABB.
-        for(const item of cityInteriorFixtures({...p,w,d})){
+        for(const [index,item] of cityInteriorFixtures({...p,w,d}).entries()){
           const {x,z,w:fw,d:fd,h:fh,style}=item;
+          const itemGroup=new THREE.Group();
+          if(cityFixtureMaterial(style)!=="reinforced")
+            itemGroup.userData.ballisticId=cityFixtureBallisticId(p,index);
+          group.add(itemGroup);
           const part=(mat:THREE.Material,px:number,py:number,pz:number,pw:number,ph:number,pd:number)=>
-            cube(group,mat,x+px,py,z+pz,pw,ph,pd);
+            cube(itemGroup,mat,x+px,py,z+pz,pw,ph,pd);
           if(style==="partition"){
             part(wallPaint,0,fh/2,0,fw,fh,fd);
             part(wood,0,.09,0,fw,.16,fd+.09);
@@ -2217,7 +2587,7 @@ export class FPSEngine {
             part(wood,0,.3,0,fw*.65,.60,fd*.65);
             const leaves=new THREE.Mesh(new THREE.IcosahedronGeometry(.52,1),leaf);
             leaves.position.set(x,fh*.71,z);
-            leaves.scale.set(.8,1.1,.8);group.add(leaves);
+            leaves.scale.set(.8,1.1,.8);itemGroup.add(leaves);
           }else if(style==="espresso"){
             part(metal,0,.28,0,fw*.94,.54,fd*.94);
             part(wood,0,.63,0,fw,.14,fd);
@@ -2247,7 +2617,7 @@ export class FPSEngine {
           }else if(style==="sculpture"){
             part(wood,0,.23,0,fw*.92,.44,fd*.92);
             const sculpture=new THREE.Mesh(new THREE.IcosahedronGeometry(Math.min(fw,fd)*.40,1),display);
-            sculpture.scale.set(.9,1.3,.8);sculpture.position.set(x,fh*.60,z);group.add(sculpture);
+            sculpture.scale.set(.9,1.3,.8);sculpture.position.set(x,fh*.60,z);itemGroup.add(sculpture);
           }else if(style==="server_rack"){
             part(asphalt,0,fh*.48,0,fw,fh*.96,fd);
             for(let i=0;i<6;i++){
@@ -2432,6 +2802,30 @@ export class FPSEngine {
       }else if(p.kind==="terminal"){
         cube(group,masonry,0,1.1,0,2,2.2,1.3);
         cube(group,glass,0,1.48,.7,1.5,.75,.08);
+      }else if(p.kind==="sarcophagus"){
+        // Distinct low dungeon furnishings. The rectangular stone body is
+        // collision-matched by propColliders; raised lid stays within its volume.
+        cube(group,stone,0,h*.39,0,w,h*.78,d);
+        cube(group,trim,0,h*.83,0,w,h*.22,d);
+        cube(group,masonry,0,h*.95,0,w*.7,h*.08,d*.73);
+        for(const z of [-d*.31,d*.31]){
+          cube(group,trim,-w*.30,h*.91,z,w*.12,.035,d*.15);
+          cube(group,trim,w*.30,h*.91,z,w*.12,.035,d*.15);
+        }
+      }else if(p.kind==="lamp" && biome==="volcanic_castle"){
+        const height = p.h ?? 3;
+        cube(group, masonry, 0, height * 0.38, 0, .23, height * .76, .23);
+        const bowl = new THREE.Mesh(new THREE.CylinderGeometry(.46, .20, .32, 8), trim);
+        bowl.position.y = height * .76;
+        group.add(bowl);
+        const flame = new THREE.Mesh(new THREE.ConeGeometry(.29, .73, 7),
+          new THREE.MeshBasicMaterial({ color: p.color ?? "#ff943f" }));
+        flame.position.set(.04, bowl.position.y + .43, 0);
+        flame.rotation.z = -.18;
+        group.add(flame);
+        const light = new THREE.PointLight(p.color ?? "#ff943f", 22, 11);
+        light.position.y = flame.position.y + .15;
+        group.add(light);
       }else if(p.kind==="lamp"){
         const postH=p.h??6.4;
         cube(group,masonry,0,postH/2,0,.19,postH,.19);
@@ -2468,7 +2862,22 @@ export class FPSEngine {
           }
         }
       }
-      if(group.children.length)scene.add(group);
+      if(group.children.length){
+        // Reduce hundreds of separate façade draw calls; nested destructible
+        // interior furniture stays independent and collision is unchanged.
+        if(p.kind==="building"||isCastlePropKind(p.kind))batchStaticPropMeshes(group);
+        if(isCastlePropKind(p.kind)||p.kind==="bench"||p.kind==="building"||p.kind==="cargo_pallet"){
+          // Detailed props may render many meshes for one ballistic cover part., slate and furniture models on top of
+          // shared physics boxes. Hide BOTH when the authoritative cover ID breaks.
+          group.traverse(node=>{
+            const id=node.userData.ballisticId;
+            if(typeof id!=="string"||!this.ballisticOriginals.has(id))return;
+            const nodes=this.ballisticDetailMeshes.get(id)??[];
+            nodes.push(node);this.ballisticDetailMeshes.set(id,nodes);
+          });
+        }
+        scene.add(group);
+      }
     }
   }
 
@@ -2478,7 +2887,9 @@ export class FPSEngine {
       const g = new THREE.Group();
       g.position.set(...o.pos);
       g.userData.environmentType = o.type;
-      if (o.type === "fire") {
+      if (o.type === "lava") {
+        g.add(buildLavaSurface(o, this.lavaTime));
+      } else if (o.type === "fire") {
         const floor = new THREE.Mesh(
           new THREE.CylinderGeometry(o.size[0], o.size[0], 0.06, 28),
           new THREE.MeshBasicMaterial({ color: 0xb6300c, transparent: true, opacity: 0.5, depthWrite: false })
@@ -2570,6 +2981,7 @@ export class FPSEngine {
   private updateEnvironment(dt: number): void {
     const previous = this.environmentTime;
     this.environmentTime += dt;
+    this.lavaTime.value = this.environmentTime;
     // The distant spillway and the playable steam grates share the exact same
     // authoritative active window. Decorative water no longer suggests damage
     // while the grates are safe.
@@ -2597,7 +3009,14 @@ export class FPSEngine {
         this.scene.background.set(this.map.theme.sky).lerp(new THREE.Color("#e2edf4"),strength*.48);
       if(this.whiteoutSnow)updateWhiteoutSnow(this.whiteoutSnow,strength,this.environmentTime,this.pos.x,this.pos.y+2,this.pos.z);
     }
-    for (const o of this.map.environment ?? []) {
+    const objects = this.map.environment ?? [];
+    if (!this.opts.online && objects.some(o => o.type === "lava")) {
+      const now = performance.now();
+      for (const bot of this.combatants.values()) {
+        if (bot.isBot && bot.alive && lavaAt(objects, bot.pos)) this.eliminateBotByEnvironment(bot, LAVA_DEATH_SOURCE, now);
+      }
+    }
+    for (const o of objects) {
       const g = this.environmentMeshes.get(o.id);
       if (!g) continue;
       if (o.type === "moving_platform") {
@@ -2704,6 +3123,11 @@ export class FPSEngine {
     if (!this.alive || this.matchEnded) return;
     const now = performance.now();
     const feet: Vec3 = [this.pos.x, this.pos.y, this.pos.z];
+    const objects = this.map.environment ?? [];
+    if (!this.opts.online && lavaAt(objects, feet)) {
+      this.takeDamage(this.health, "Environment", "ffa", false, LAVA_DEATH_SOURCE);
+      return;
+    }
     const floodAge=this.map.id==="floodgate"&&this.floodgateBreachAt!==null
       ?this.environmentTime-this.floodgateBreachAt:null;
     const flood=floodgateWaterEffect(this.pos.x,this.pos.y,this.pos.z,floodAge,this.map.cover);
@@ -2713,7 +3137,7 @@ export class FPSEngine {
       this.takeDamage(28,"Environment","ffa",false,"env_floodgate_surge");
     }
 
-    for (const o of this.map.environment ?? []) {
+    for (const o of objects) {
       if (o.type === "jump_pad" && withinEnvironment(o, feet) && this.onGround && now >= (this.environmentCooldown.get(o.id) ?? 0)) {
         this.environmentCooldown.set(o.id, now + 700);
         this.vel.y = o.launch[1];
@@ -2744,20 +3168,12 @@ export class FPSEngine {
           this.environmentCooldown.set(key,now+900);
           c.health=Math.max(0,c.health-28);
           if(c.health<=0){
-            c.alive=false;c.deaths++;
-            if(this.opts.mode==="ctf")this.dropOfflineCtfCarrier(c.id,[...c.pos] as Vec3);
-            c.deathAnimAt=now;c.deathAnimDur=900;
-            const entry:KillFeedEntry={killer:"Environment",victim:c.name,weapon:"env_floodgate_surge",
-              headshot:false,killerTeam:"ffa",victimTeam:c.team};
-            this.killFeed.unshift(entry);
-            if(this.killFeed.length>6)this.killFeed.pop();
-            this.opts.onKillFeed(entry);
-            if(this.opts.mode!=="survival")this.scheduleRespawn(c);
+            this.eliminateBotByEnvironment(c, "env_floodgate_surge", now);
             continue;
           }
         }
       }
-      for (const o of this.map.environment ?? []) {
+      for (const o of objects) {
         if (o.type === "jump_pad" && c.ai && c.ai.envJumpVelocityY === undefined && withinEnvironment(o, c.pos)) {
           const key = `${c.id}|${o.id}|jump`;
           if (now >= (this.environmentCooldown.get(key) ?? 0)) {
@@ -2778,18 +3194,23 @@ export class FPSEngine {
         this.environmentCooldown.set(key, now + interval);
         c.health -= o.type === "fire" ? o.dps * interval / 1000 : o.damage;
         if (c.health <= 0) {
-          c.alive = false; c.health = 0; c.deaths++;
-          if (this.opts.mode === "ctf") this.dropOfflineCtfCarrier(c.id, [...c.pos] as Vec3);
-          c.deathAnimAt = performance.now(); c.deathAnimDur = 900;
-          const entry: KillFeedEntry = { killer: "Environment", victim: c.name, weapon: o.type, headshot: false, killerTeam: "ffa", victimTeam: c.team };
-          this.killFeed.unshift(entry);
-          if (this.killFeed.length > 6) this.killFeed.pop();
-          this.opts.onKillFeed(entry);
-          if (this.opts.mode !== "survival") this.scheduleRespawn(c);
+          this.eliminateBotByEnvironment(c, o.type, now);
           break;
         }
       }
     }
+  }
+
+  private eliminateBotByEnvironment(bot: Combatant, weapon: string, now: number): void {
+    bot.alive = false; bot.health = 0; bot.deaths++;
+    if (this.opts.mode === "ctf") this.dropOfflineCtfCarrier(bot.id, [...bot.pos]);
+    bot.deathAnimAt = now; bot.deathAnimDur = 900;
+    const entry: KillFeedEntry = { killer: "Environment", victim: bot.name, weapon,
+      headshot: false, killerTeam: "ffa", victimTeam: bot.team };
+    this.killFeed.unshift(entry);
+    if (this.killFeed.length > 6) this.killFeed.pop();
+    this.opts.onKillFeed(entry);
+    if (this.opts.mode !== "survival") this.scheduleRespawn(bot);
   }
 
   /** Animated camo: scrolling procedural starfield or bioluminescent sludge.
@@ -2860,6 +3281,18 @@ export class FPSEngine {
   }
 
   private buildViewmodel() {
+    // Direct rebuilds supersede pending visual handoffs.
+    this.swapViewmodelPending = false;
+    this.viewmodelWeaponId = this.weaponId;
+    this.viewmodelAkimbo=this.isAkimboActive();
+    this.akimboLeftFlash=null;this.akimboLeftLight=null;
+    // Physical presentation: full-size firearms use the same nominal model
+    // dimensions as the 1.8m third-person operatives, instead of rendering
+    // them 67% larger than their world-model counterparts. Compact weapons
+    // keep their familiar viewmodel proportions. No gameplay state changes.
+    this.vmScale = firstPersonPresentationScale(
+      this.weaponId, weaponById(this.weaponId).category,
+    );
     if(this.riotShieldModel){this.disposeRiotModel(this.riotShieldModel);this.riotShieldModel=null;}
     if(this.weaponId===RIOT_SHIELD_ID){this.riotShieldModel=createRiotShieldModel(true);this.camera.add(this.riotShieldModel);}
     // ---- CRITICAL: tear down the previous viewmodel before building a new one ----
@@ -2880,6 +3313,8 @@ export class FPSEngine {
       });
     }
     this.vmParts = [];
+    this.laserEmitter = null;
+    this.akimboLeftLaserEmitter = null;
     this.prestigeTexture?.dispose();
     this.prestigeTexture = null;
     this.sightMesh = null;
@@ -2887,6 +3322,7 @@ export class FPSEngine {
     // camera's local coordinate system and lifetime with the weapon model.
     this.clearFirstPersonRig();
 
+    const selectedWonderFinish=this.currentSlot==="wonder"?wonderFinishById(this.wonderSkinId):undefined;
     const skin = weaponSkinById(this.weaponId==="wonder_turret"?"default":this.getCurrentSkinId());
     // Viewmodel uses MeshBasicMaterial (unlit, always full-bright) so the weapon is
     // guaranteed visible against any background — MeshStandardMaterial rendered too
@@ -2922,6 +3358,7 @@ export class FPSEngine {
         shotgun_combat: 0x1a2a2a, // gunmetal
         pistol_side: 0x2a2a2a,    // dark grey
         pistol_magnum: 0x5a3a1a,  // gold-brown (revolver)
+        pistol_bastion: 0x3a3531, // heavy satin gunmetal: bronze cylinder and grip details stand out
         pistol_burst: 0x1a2a3a,   // blue-grey
         pistol_machine: 0x3a1a1a, // dark red
         dmr_scout: 0x1a3a1a,      // dark green
@@ -2946,7 +3383,8 @@ export class FPSEngine {
         lightCol = new THREE.Color(tint).lerp(new THREE.Color(0xaab4c0), 0.35);
       }
     }
-    const darkCol = skin.id === "gold" ? new THREE.Color(0x3c2c17) : baseCol.clone().lerp(new THREE.Color(0x000000), 0.35);
+    if(selectedWonderFinish)lightCol=new THREE.Color(selectedWonderFinish.color).lerp(new THREE.Color(0xffffff),.16);
+    const darkCol = selectedWonderFinish?new THREE.Color(selectedWonderFinish.color).multiplyScalar(.35):skin.id === "gold" ? new THREE.Color(0x3c2c17) : baseCol.clone().lerp(new THREE.Color(0x000000), 0.35);
     const emissiveCol = skin.emissive ? new THREE.Color(skin.emissive) : null;
     this.weaponMat = new THREE.MeshBasicMaterial({
       color: lightCol,
@@ -2958,7 +3396,7 @@ export class FPSEngine {
       material.color.set(0xffffff);
       material.needsUpdate = true;
     }
-    if (skin.prestige || (["wonder_singularity","wonder_stormweaver"].includes(this.weaponId) && isDefaultSkin)) {
+    if (skin.prestige || (["wonder_singularity","wonder_stormweaver"].includes(this.weaponId) && isDefaultSkin&&!selectedWonderFinish)) {
       // Only explicitly selected Prestige skins override an existing cosmetic.
       // Event Horizon defaults to the Eventide cosmic pattern; explicit skins
       // take precedence. Hellfire stays red/orange instead of toxic green.
@@ -2971,6 +3409,20 @@ export class FPSEngine {
     if (emissiveCol && !skin.prestige) {
       // For glowing skins, tint the basic material toward the emissive colour.
       (this.weaponMat as unknown as THREE.MeshBasicMaterial).color.lerp(emissiveCol, 0.4);
+    }
+    // Wonder-only cosmetics override ordinary camos on the receiver and barrel.
+    // Generate a themed surface pattern ONCE per equip; per-frame animation
+    // only updates its UV transform, avoiding new canvases/texture uploads.
+    if(selectedWonderFinish){
+      const pattern=createWonderFinishTexture(selectedWonderFinish.id);
+      if(pattern){
+        this.prestigeTexture?.dispose();
+        this.prestigeTexture=pattern;
+        const surface=this.weaponMat as unknown as THREE.MeshBasicMaterial;
+        surface.map=pattern;
+        surface.color.set(0xffffff);
+        surface.needsUpdate=true;
+      }
     }
     // Gold retains dark hardware and distinctive inserts; Inferno and animated
     // Prestige finishes deliberately coat the entire model.
@@ -3013,6 +3465,8 @@ export class FPSEngine {
     // (camera-local -Z) — used by the suppressor + muzzle flash blocks below.
     const category: WeaponCategory = weaponById(this.weaponId).category;
     const wid = this.weaponId;
+    // Dual shotguns need more lateral clearance than compact pistols.
+    const akimboOffset=category==="shotgun"?.50:.34;
     let muzzleZ = -0.7;  // default (assault); overridden per-category
 
     if (category === "melee") {
@@ -3021,17 +3475,35 @@ export class FPSEngine {
       // Every ranged weapon is now built from its OWN substantial 3D silhouette,
       // rather than a common category receiver with tiny extra details.
       // The helper returns the actual barrel tip for muzzle-flash attachments.
-      muzzleZ = buildFirstPersonWeapon(wid, this.weaponMat, accentMat, addPart,
-        fullLegendaryFinish ? this.weaponMat : undefined,
-        !isDefaultSkin ? (skin.id === "gold" ? accentMat : this.weaponMat) : undefined);
+      if(this.viewmodelAkimbo){
+        // Duplicate the complete weapon model for both hands.
+        for(const hand of ["left","right"] as const){
+          const sign=hand==="left"?-1:1;
+          const mount:typeof addPart=(obj,x,y,z)=>{
+            obj.userData.akimboHand=hand;
+            addPart(obj,x+sign*akimboOffset/this.vmScale,y-.045/this.vmScale,z);
+          };
+          muzzleZ=buildFirstPersonWeapon(wid,this.weaponMat,accentMat,mount,
+            fullLegendaryFinish?this.weaponMat:undefined,
+            !isDefaultSkin?(skin.id==="gold"?accentMat:this.weaponMat):undefined);
+        }
+      }else{
+        muzzleZ=buildFirstPersonWeapon(wid,this.weaponMat,accentMat,addPart,
+          fullLegendaryFinish?this.weaponMat:undefined,
+          !isDefaultSkin?(skin.id==="gold"?accentMat:this.weaponMat):undefined);
+      }
     }
     // A purchased charm lives on the weapon model rather than the HUD. It
     // inherits all aim, reload, sway and recoil transforms automatically.
     const equippedCharm=this.currentSlot==="secondary"?this.opts.loadout.secondaryCharmId:
       this.currentSlot==="melee"?this.opts.loadout.meleeCharmId:this.opts.loadout.primaryCharmId;
-    if(equippedCharm&&equippedCharm!=="none"&&category!=="melee"){
+    if(equippedCharm&&equippedCharm!=="none"&&weaponSupportsCharm(weaponById(this.weaponId))){
       const charm=createWeaponCharm(equippedCharm,true);
-      if(charm)addPart(charm,...weaponCharmMountPoint(this.weaponId,"firstPerson"));
+      if(charm){
+        const [x,y,z]=weaponCharmMountPoint(this.weaponId,"firstPerson");
+        if(this.viewmodelAkimbo)charm.userData.akimboHand="right";
+        addPart(charm,x+(this.viewmodelAkimbo?akimboOffset/this.vmScale:0),y+(this.viewmodelAkimbo?-.045/this.vmScale:0),z);
+      }
     }
     // ---- Category accent band (Issue c round 2) ----
     // A bright, saturated COLOURED BAND wrapped around the weapon body near the
@@ -3042,7 +3514,9 @@ export class FPSEngine {
     // single most impactful visual cue for weapon identification.
     // The band is ONLY added for ranged weapons (not melee — melee weapons
     // already have distinct shapes: knife/shiv/machete/hammer).
-    if (category !== "melee" && !weaponById(this.weaponId).wonder) {
+    // The Bastion already has a barrel and front blade. Its old bright
+    // category band looked like a solid grey sight block during ADS.
+    if (category !== "melee" && !weaponById(this.weaponId).wonder && this.weaponId !== "pistol_bastion") {
       const categoryAccentColors: Record<string, number> = {
         assault: 0xff3b3b,    // red
         smg: 0xffd93b,        // yellow
@@ -3061,15 +3535,14 @@ export class FPSEngine {
       // The band is a thin box positioned on top of the weapon body, near the
       // front (forward of the magazine). It's small enough to not clutter the
       // model but large enough to be clearly visible at a glance.
-      const band = new THREE.Mesh(
-        new THREE.BoxGeometry(0.105, 0.022, 0.115),
-        bandMat,
-      );
-      // Position the band just above the body center, forward of the sight mount.
-      // For most weapons this puts it on the receiver top, between the sight and
-      // the muzzle — visible from the player's POV.
-      const bandZ = muzzleZ * 0.35;  // ~35% of the way from origin to muzzle
-      addPart(band, 0, 0.045, bandZ);
+      // Akimbo needs two receiver accent bands, not one floating at screen centre.
+      for(const hand of this.viewmodelAkimbo?["left","right"] as const:[null]){
+        const band=new THREE.Mesh(new THREE.BoxGeometry(.105,.022,.115),bandMat);
+        if(hand)band.userData.akimboHand=hand;
+        const bandZ=muzzleZ*.35;
+        addPart(band,hand?(hand==="left"?-akimboOffset:akimboOffset)/this.vmScale:0,
+          hand?-.045/this.vmScale+.045:.045,bandZ);
+      }
     }
     // ---- Sight (per-sight-type scope mesh) ----
     // The shape of the optic on the weapon varies by sight type so the player can
@@ -3084,8 +3557,18 @@ export class FPSEngine {
     const wDef = weaponById(this.weaponId);
     if (category !== "melee" && (hasMountedSight(wDef, currentAtts) ||
         (!wDef.wonder && this.sightDef.type === "iron"))) {
+      // Every visible sight (including laser projector and iron posts) is built
+      // individually for both guns, with the same rigid hand tag as each receiver.
+      for(const hand of this.viewmodelAkimbo ? ["left","right"] as const : [null]){
+      const sightMount:typeof addPart=(obj,x,y,z)=>{
+        if(hand)obj.userData.akimboHand=hand;
+        const sign=hand==="left"?-1:1;
+        addPart(obj,x+(hand?sign*akimboOffset/this.vmScale:0),
+          y+(hand?-.045/this.vmScale:0),z);
+      };
       const scopeGroup = new THREE.Group();
       const st = this.sightDef.type;
+      let bastionFront:THREE.Mesh | null=null;
       if (st === "acog" || st === "hunter" || st === "thermal" || st === "nvg" || st === "sniper_scope") {
         // Magnified tube scope
         const tubeLen = (st === "hunter" || st === "sniper_scope") ? 0.16 : 0.12;
@@ -3134,9 +3617,20 @@ export class FPSEngine {
         emitter.position.set(0, 0, -0.031);
         emitter.rotation.y = Math.PI;
         scopeGroup.add(emitter);
+        // This marker inherits the complete sight/weapon/hand transform.
+        const rayOrigin = new THREE.Object3D();
+        rayOrigin.position.set(0, 0, -0.034);
+        scopeGroup.add(rayOrigin);
+        if(hand==="left")this.akimboLeftLaserEmitter=rayOrigin;
+        else this.laserEmitter=rayOrigin;
+      } else if (st === "iron" && wid === "pistol_bastion") {
+        // Two dark, separated rear ears + low bridge, not an opaque block.
+        // A front post remains visible through their centre in hipfire/ADS.
+        const bastionSights=buildBastionIronSights(accentMat);
+        scopeGroup.add(bastionSights.rear);
+        bastionFront=bastionSights.front;
       } else {
-        // Low-profile rear notch pressed directly onto the existing receiver.
-        // No elevated scope riser, tower, floating aperture or 'ladder'.
+        // Generic low-profile receiver notch for other unscoped weapons.
         for (const side of [-1,1]) {
           const ear = new THREE.Mesh(new THREE.BoxGeometry(.014,.036,.026),accentMat);
           ear.position.set(side*.029,.013,0);
@@ -3149,15 +3643,19 @@ export class FPSEngine {
       const mountHeight = adsClearance(
         wDef, st, WEAPON_VISUALS[this.weaponId]?.receiver?.[1] ?? .18,
       ).sightMountY;
-      // Scope bodies and low rear notches are part of the same rigid gun pose.
-      addPart(scopeGroup, 0, mountHeight, -0.1);
+      const bastionIron=wid==="pistol_bastion" && st==="iron";
+      // This rear U-notch rests directly on the machined topstrap. A .09 Z
+      // offset previously placed it behind the frame, floating in midair.
+      sightMount(scopeGroup,bastionIron?BASTION_REAR_SIGHT.x:0,
+        bastionIron?BASTION_REAR_SIGHT.y:mountHeight,
+        bastionIron?BASTION_REAR_SIGHT.z:-.1);
       if (st === "iron") {
-        // Matching front blade: mounted on the actual barrel toward the muzzle,
-        // not raised on stilts above the player's weapon.
-        const front = new THREE.Mesh(new THREE.BoxGeometry(.012,.038,.023),accentMat);
-        addPart(front, 0, mountHeight+.01, muzzleZ+.08);
+        // Front blade grows from the round barrel shroud's fitted pedestal.
+        const front=bastionFront ?? new THREE.Mesh(new THREE.BoxGeometry(.012,.038,.023),accentMat);
+        sightMount(front,0,bastionFront?BASTION_FRONT_SIGHT_Y:mountHeight+.01,muzzleZ+.08);
       }
-      this.sightMesh = scopeGroup;
+      if(!this.viewmodelAkimbo)this.sightMesh=scopeGroup;
+      }
     }
     // Poison tips are part of the BOLT, not a muzzle suppressor.
     const hasMuzzleAttachment = !!currentAtts.barrel && currentAtts.barrel !== "barrel_poison";
@@ -3169,29 +3667,53 @@ export class FPSEngine {
       tip.rotation.x = -Math.PI / 2;
       addPart(tip, 0, 0.06, muzzleZ - 0.055);
     }
-    if (hasMuzzleAttachment) {
-      const supp = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.2, 12), accentMat);
-      supp.rotation.x = Math.PI / 2;
-      // Suppressor extends 0.2 forward from the bare muzzle tip (muzzleZ). Its
-      // center is therefore at muzzleZ - 0.1.
-      addPart(supp, 0, 0.0, muzzleZ - 0.1);
+    if(hasMuzzleAttachment){
+      for(const hand of this.viewmodelAkimbo?["left","right"] as const:[null]){
+        const supp=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,.2,12),accentMat);
+        supp.rotation.x=Math.PI/2;
+        if(hand)supp.userData.akimboHand=hand;
+        addPart(supp,hand?(hand==="left"?-akimboOffset:akimboOffset)/this.vmScale:0,
+          hand?-.045/this.vmScale:0,muzzleZ-.1);
+      }
     }
     if (currentAtts.grip === "grip_laser") {
-      const laser = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.025, 0.08), glowMat);
-      addPart(laser, 0, -0.09, -0.2);
+      for(const hand of this.viewmodelAkimbo?["left","right"] as const:[null]){
+        const laser = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.025, 0.08), glowMat);
+        if(hand)laser.userData.akimboHand=hand;
+        addPart(laser,hand?(hand==="left"?-akimboOffset:akimboOffset)/this.vmScale:0,
+          -.09+(hand?-.045/this.vmScale:0),-.2);
+        const rayOrigin=new THREE.Object3D();
+        rayOrigin.position.set(0,0,-.041);
+        laser.add(rayOrigin);
+        // A sight laser takes priority over an underbarrel projector on the same gun.
+        if(hand==="left"){
+          if(!this.akimboLeftLaserEmitter)this.akimboLeftLaserEmitter=rayOrigin;
+        }else if(!this.laserEmitter)this.laserEmitter=rayOrigin;
+      }
     }
 
-    // Permanent right-hand contact: the new articulated support hand appears
-    // only while operating equipment/reloading, but the weapon no longer looks
-    // like it is floating during idle, sprint and firing animations.
+    // Permanent right-hand contact at the trigger. The left hand has its own
+    // camera-space rig, so it can leave the handguard during reloads and throws.
     const gloveMaterial = new THREE.MeshBasicMaterial({ color: 0x354652 });
     const cuffMaterial = new THREE.MeshBasicMaterial({ color: 0x1c2832 });
-    const triggerGlove = new THREE.Mesh(new THREE.BoxGeometry(.11,.11,.12), gloveMaterial);
-    triggerGlove.rotation.z = -.15;
-    addPart(triggerGlove, .09, -.15, .15);
-    const wristCuff = new THREE.Mesh(new THREE.CylinderGeometry(.054,.066,.13,9), cuffMaterial);
-    wristCuff.rotation.x = -.55;
-    addPart(wristCuff, .11, -.23, .21);
+    for(const hand of this.viewmodelAkimbo?["left","right"] as const:[null]){
+      const sign=hand==="left"?-1:1;
+      const mount:typeof addPart=(obj,x,y,z)=>{
+        if(hand)obj.userData.akimboHand=hand;
+        addPart(obj,x+(hand?sign*akimboOffset/this.vmScale:0),y+(hand?-.045/this.vmScale:0),z);
+      };
+      const glove=new THREE.Mesh(new THREE.BoxGeometry(.11,.11,.12),gloveMaterial);
+      glove.rotation.z=-sign*.15;
+      mount(glove,sign*.09,-.15,.15);
+      const cuff=new THREE.Mesh(new THREE.CylinderGeometry(.054,.066,.13,9),cuffMaterial);
+      cuff.rotation.x=-.55;cuff.rotation.z=-sign*.15;
+      mount(cuff,sign*.11,-.23,.21);
+      if(hand){
+        const sleeve=new THREE.Mesh(new THREE.CylinderGeometry(.059,.074,.4,9),cuffMaterial);
+        sleeve.rotation.x=-.45;sleeve.rotation.z=-sign*.19;
+        mount(sleeve,sign*.14,-.40,.33);
+      }
+    }
 
     // muzzle flash — sits at the bare muzzle tip (or the suppressor tip if equipped)
     const flashZ = hasMuzzleAttachment ? muzzleZ - 0.2 : muzzleZ;
@@ -3201,9 +3723,24 @@ export class FPSEngine {
       new THREE.SphereGeometry(0.07, 8, 8),
       new THREE.MeshBasicMaterial({ color: flashColor, transparent: true, opacity: 0 })
     );
-    addPart(this.muzzleFlash, 0, 0.0, flashZ);
-    this.muzzleLight = new THREE.PointLight(flashColor, 0, 6);
-    addPart(this.muzzleLight, 0, 0.0, flashZ);
+    if(this.viewmodelAkimbo){
+      this.muzzleFlash.userData.akimboHand="right";
+      addPart(this.muzzleFlash,akimboOffset/this.vmScale,-.045/this.vmScale,flashZ);
+      this.muzzleLight=new THREE.PointLight(flashColor,0,6);
+      this.muzzleLight.userData.akimboHand="right";
+      addPart(this.muzzleLight,akimboOffset/this.vmScale,-.045/this.vmScale,flashZ);
+      this.akimboLeftFlash=new THREE.Mesh(new THREE.SphereGeometry(.07,8,8),
+        new THREE.MeshBasicMaterial({color:flashColor,transparent:true,opacity:0}));
+      this.akimboLeftFlash.userData.akimboHand="left";
+      addPart(this.akimboLeftFlash,-akimboOffset/this.vmScale,-.045/this.vmScale,flashZ);
+      this.akimboLeftLight=new THREE.PointLight(flashColor,0,6);
+      this.akimboLeftLight.userData.akimboHand="left";
+      addPart(this.akimboLeftLight,-akimboOffset/this.vmScale,-.045/this.vmScale,flashZ);
+    }else{
+      addPart(this.muzzleFlash,0,0,flashZ);
+      this.muzzleLight=new THREE.PointLight(flashColor,0,6);
+      addPart(this.muzzleLight,0,0,flashZ);
+    }
 
     // Add the camera to the scene so its children (the viewmodel parts) are in the
     // scene graph and get their world matrices updated each frame.
@@ -3214,21 +3751,54 @@ export class FPSEngine {
     this.rebuildLaserIndicator();
   }
 
-  /** Procedural camera-space glove, forearm and held object. Kept separate from
-   *  vmParts so the support hand can reach down for a magazine or forward for
-   *  a grenade without warping the receiver/barrel meshes. */
+  /** One shared left-hand rig: it holds each firearm during regular gameplay,
+   *  then moves to the reload/equipment pose. It is not duplicated or embedded in
+   *  the rigid weapon meshes, so the magazine can be removed independently. */
   private buildFirstPersonRig() {
+    // Riot shield weapons render a sidearm under the shield. When the shield is
+    // destroyed, the offhand resumes a conventional two-handed pistol grip.
+    const contactId = this.weaponId === RIOT_SHIELD_ID ? "pistol_side" : this.weaponId;
+    this.fpSupportGrip.set(...firstPersonSupportGrip(contactId));
+    this.fpShellContacts=firstPersonShellContacts(contactId,this.vmScale);
+
     const hand = new THREE.Group();
-    const forearm = new THREE.Mesh(new THREE.CylinderGeometry(.049,.065,.35,9), this.fpCuffMat);
-    forearm.rotation.set(.42,0,-.27); forearm.position.set(.12,-.14,.15);
-    hand.add(forearm);
-    const glove = new THREE.Mesh(new THREE.BoxGeometry(.135,.105,.145),this.fpHandMat);
-    glove.position.set(0,0,-.03); hand.add(glove);
-    const knuckles = new THREE.Mesh(new THREE.BoxGeometry(.113,.022,.05),this.fpCuffMat);
-    knuckles.position.set(0,.048,-.08); hand.add(knuckles);
-    const thumb = new THREE.Mesh(new THREE.BoxGeometry(.044,.085,.058),this.fpHandMat);
-    thumb.position.set(-.08,-.027,-.02); thumb.rotation.z=.25; hand.add(thumb);
+    // The glove follows the weapon contact. The arm segments live in a
+    // separate camera-local group: their ends are rebuilt from the fixed
+    // shoulder and the animated glove wrist, so they cannot disconnect when
+    // the weapon is long or the hand moves during a reload.
+    const arm = new THREE.Group();
+    // Two tapered sleeve pieces meet at a small joint. No enormous
+    // spherical/elbow pad geometry that protrudes from the arm silhouette.
+    const upper = new THREE.Mesh(new THREE.CylinderGeometry(.067, .079, 1, 10), this.fpCuffMat);
+    const forearm = new THREE.Mesh(new THREE.CylinderGeometry(.052, .066, 1, 10), this.fpCuffMat);
+    const elbowJoint = new THREE.Mesh(new THREE.SphereGeometry(.066, 10, 8), this.fpCuffMat);
+    const shoulderJoint = new THREE.Mesh(new THREE.SphereGeometry(.080, 10, 8), this.fpCuffMat);
+    shoulderJoint.position.copy(this.fpShoulder);
+    for (const mesh of [upper, forearm, elbowJoint, shoulderJoint]) {
+      mesh.frustumCulled = false;
+      arm.add(mesh);
+    }
+    arm.visible = false;
+    this.fpSupportArm = { root: arm, upper, forearm, elbow: elbowJoint, shoulder: shoulderJoint };
+    this.camera.add(arm);
+
+    const glove = new THREE.Mesh(new THREE.BoxGeometry(.132, .108, .14), this.fpHandMat);
+    glove.position.set(0, -.028, .015);
+    hand.add(glove);
+    const knuckles = new THREE.Mesh(new THREE.BoxGeometry(.112, .023, .052), this.fpCuffMat);
+    knuckles.position.set(0, .029, -.043);
+    hand.add(knuckles);
+    const thumb = new THREE.Mesh(new THREE.BoxGeometry(.042, .077, .065), this.fpHandMat);
+    thumb.position.set(.074, -.034, .017);
+    thumb.rotation.z = -.30;
+    hand.add(thumb);
+    const cuff = new THREE.Mesh(new THREE.CylinderGeometry(.061, .066, .115, 9), this.fpCuffMat);
+    cuff.position.set(-.045, -.117, .10);
+    cuff.rotation.set(-.58, 0, -.32);
+    hand.add(cuff);
+
     hand.visible = false;
+    hand.frustumCulled = false;
     this.fpActionHand = hand;
     this.camera.add(hand);
     this.fpActionProp = new THREE.Group();
@@ -3237,7 +3807,7 @@ export class FPSEngine {
   }
 
   private clearFirstPersonRig() {
-    for (const root of [this.fpActionHand, this.fpActionProp]) {
+    for (const root of [this.fpActionHand, this.fpSupportArm?.root, this.fpActionProp]) {
       if (!root) continue;
       this.camera.remove(root);
       root.traverse(obj => {
@@ -3251,6 +3821,8 @@ export class FPSEngine {
       });
     }
     this.fpActionHand = null;
+    this.fpSupportArm = null;
+    this.fpShellContacts=null;
     this.fpActionProp = null;
     this.fpActionPropId = "";
   }
@@ -3312,6 +3884,13 @@ export class FPSEngine {
     } else if (id === "shell") {
       add(new THREE.CylinderGeometry(.029,.029,.11,10),new THREE.MeshBasicMaterial({color:0xc75d32}),[0,0,0]);
       add(new THREE.CylinderGeometry(.030,.030,.023,10),amber,[0,-.067,0]);
+    } else if (id === "cylinder_speedloader") {
+      // Only the loader collar is a transient offhand prop. The six brass
+      // cartridges are children of the actual swing-out cylinder and travel
+      // axially INTO its six chambers. They remain there when this prop leaves.
+      add(new THREE.CylinderGeometry(.061,.061,.040,12),dark,[0,0,0],Math.PI/2);
+      add(new THREE.CylinderGeometry(.025,.025,.020,10),steel,[0,0,.038],Math.PI/2);
+      add(new THREE.BoxGeometry(.065,.011,.022),amber,[0,0,.046]);
     } else if (id === "cylinder") {
       add(new THREE.CylinderGeometry(.056,.056,.13,9),steel,[0,0,0]);
     } else {
@@ -3328,34 +3907,167 @@ export class FPSEngine {
     for (const m of materials.values()) if (!used.has(m)) m.dispose();
   }
 
-  private renderFirstPersonAction(now: number, visibleWeapon: boolean) {
-    const hand=this.fpActionHand, prop=this.fpActionProp;
-    if (!hand || !prop) return;
+  /** Place the shoulder, elbow, sleeve segments and glove cuff as ONE rig.
+   * During reloads the shoulder subtly follows the moving wrist and the elbow
+   * hint travels with it; this removes the old frozen-upper-arm illusion.
+   * Reuse geometry and vectors; no new meshes are allocated per frame. */
+  private poseFirstPersonArm(restPosition?: THREE.Vector3, restRotation?: THREE.Quaternion, actionWeight=0) {
+    const hand = this.fpActionHand, arm = this.fpSupportArm;
+    if (!hand || !arm) return;
+    arm.root.visible = hand.visible;
+    if (!hand.visible) return;
+
+    const visualWeaponId=this.viewmodelWeaponId||this.weaponId;
+    const shieldEquipped=visualWeaponId===RIOT_SHIELD_ID;
+    const category=weaponById(visualWeaponId).category;
+    // Use the actual model grip at nominal hipfire to calibrate the entire
+    // arsenal. Camera-local shoulder stays stable while ADS/recoil/reload
+    // moves the gun; no arbitrary rifle/DMR/LMG receiver cutoff.
+    const touch=this.touchMode;
+    const nominalWrist:[number,number,number]=[
+      this.fpSupportGrip.x*this.vmScale+(touch?.22:.30)-.045,
+      this.fpSupportGrip.y*this.vmScale+(touch?-.20:-.18)-.125,
+      this.fpSupportGrip.z*this.vmScale+(touch?-.50:-.48)+.10,
+    ];
+    const frame=calibratedSupportArm(
+      category,nominalWrist,this.camera.aspect,
+      shieldEquipped&&!!this.riotShieldModel?.visible,
+    );
+    const {upperLength,forearmLength}=frame;
+
+    // Both targets are the exact cuff offset on the animated/rest hand.
+    this.fpWrist.set(-.045,-.125,.10).applyQuaternion(hand.quaternion).add(hand.position);
+    this.fpRestWrist.set(-.045,-.125,.10).applyQuaternion(restRotation ?? hand.quaternion)
+      .add(restPosition ?? hand.position);
+    const joints = animatedSupportArm(
+      frame,
+      [this.fpRestWrist.x,this.fpRestWrist.y,this.fpRestWrist.z],
+      [this.fpWrist.x,this.fpWrist.y,this.fpWrist.z],
+      actionWeight,upperLength,forearmLength,
+    );
+    this.fpShoulder.set(...joints.shoulder);
+    this.fpElbow.set(...joints.elbow);
+    arm.shoulder.position.copy(this.fpShoulder);
+
+    const alignSleeve = (mesh: THREE.Mesh, from: THREE.Vector3, to: THREE.Vector3) => {
+      this.fpArmDirection.copy(to).sub(from);
+      const length = Math.max(.001, this.fpArmDirection.length());
+      mesh.position.copy(from).addScaledVector(this.fpArmDirection, .5);
+      mesh.quaternion.setFromUnitVectors(this.fpArmUp, this.fpArmDirection.multiplyScalar(1 / length));
+      mesh.scale.set(1, length, 1);
+    };
+    alignSleeve(arm.upper,this.fpShoulder,this.fpElbow);
+    alignSleeve(arm.forearm,this.fpElbow,this.fpWrist);
+    arm.elbow.position.copy(this.fpElbow);
+  }
+
+  private shellSequenceFor(style:ReloadMotion):ShellReloadSequence|undefined {
+    if(style!=="shell"||weaponById(this.weaponId).stats.reloadStyle!=="incremental")return undefined;
+    return {
+      firstCycle:this.reloadShellCycleIndex===0,
+      // The final round counts for gameplay at 70%, but its cosmetic
+      // return-to-grip should finish even after reloading becomes false.
+      finalCycle:!this.reloading||this.ammoInMag>=this.eff.magSize-1,
+    };
+  }
+
+  /** Gameplay reload and the optional post-insertion cosmetic return share
+   * one timeline. New fire/ADS/equipment/swap inputs can cancel the latter. */
+  private visualReloadActive(now:number):boolean {
+    if(this.reloading)return true;
+    return visualReloadRecoveryActive(
+      now,this.fpReloadRecoveryUntil,
+      this.weaponId===this.fpReloadRecoveryWeaponId,
+      !this.alive||!!this.equipmentAction||this.manualAiming||this.aiming||
+        this.mouseDown||this.touchFiring,
+    );
+  }
+
+  private renderFirstPersonAction(now: number, visibleWeapon: boolean, restPosition: THREE.Vector3,
+    offsetX: number, offsetY: number, offsetZ: number) {
+    const hand = this.fpActionHand, prop = this.fpActionProp;
+    if(!hand||!prop)return;
+    if(this.viewmodelAkimbo&&!this.equipmentAction){
+      hand.visible=false;prop.visible=false;
+      if(this.fpSupportArm)this.fpSupportArm.root.visible=false;
+      return;
+    }
+    const visualWeaponId = this.viewmodelWeaponId || this.weaponId;
+    const isShield = visualWeaponId === RIOT_SHIELD_ID;
+    const restMode = supportHandRestMode(
+      weaponById(visualWeaponId).category, isShield, !!this.riotShieldModel?.visible,
+    );
+    let restRotation: THREE.Quaternion = this._vmTotalQuat;
+    if (restMode === "shield" && this.riotShieldModel) {
+      // The raised and side-held Bulwark shield have their own camera-space
+      // poses. Attach the LEFT glove to its inner grip, never to the pistol.
+      const shield = this.riotShieldModel;
+      restPosition.set(-.13, -.24, .115).multiply(shield.scale)
+        .applyQuaternion(shield.quaternion).add(shield.position);
+      restRotation = shield.quaternion;
+    }
+
     let pose: ActionPose | null = null;
     let propId = "";
+    let progress = 0;
     if (this.equipmentAction) {
-      const a=this.equipmentAction;
-      pose=sampleDeployMotion((now-a.startedAt)/a.duration,a.kind);
-      propId=a.id;
-    } else if (this.reloading) {
-      const def=weaponById(this.weaponId);
-      const style=reloadMotionFor(this.weaponId,def.category,def.special?.kind);
-      pose=sampleReloadMotion((now-this.reloadStartedAt)/Math.max(1,this.reloadDurationMs),style);
-      propId=style;
+      const a = this.equipmentAction;
+      progress = (now - a.startedAt) / a.duration;
+      pose = sampleDeployMotion(progress, a.kind);
+      propId = a.id;
+    } else if (this.visualReloadActive(now)) {
+      const def = weaponById(this.weaponId);
+      const style = reloadMotionFor(this.weaponId, def.category, def.special?.kind);
+      progress = (now - this.reloadStartedAt) / Math.max(1, this.reloadDurationMs);
+      pose = sampleReloadMotion(progress, style, this.fpShellContacts ?? undefined,
+        this.shellSequenceFor(style));
+      propId = style;
     }
-    hand.visible=!!pose && this.alive && visibleWeapon;
-    prop.visible=!!pose?.propVisible && this.alive && visibleWeapon;
-    if (!pose || !visibleWeapon) return;
+
+    // The offhand is present every frame for guns and an intact shield.
+    // Melee holds stay one-handed, except during an equipment action.
+    hand.visible = this.alive && visibleWeapon && (restMode !== "none" || !!pose);
+    prop.visible = this.alive && visibleWeapon && !!pose?.propVisible;
+    if (!hand.visible) {
+      this.poseFirstPersonArm(); // hide the entire sleeve too
+      return;
+    }
+    if (!pose) {
+      hand.position.copy(restPosition);
+      hand.quaternion.copy(restRotation);
+      this.poseFirstPersonArm(restPosition,restRotation);
+      return;
+    }
     this.ensureFirstPersonProp(propId);
     if (this.equipmentAction) {
+      // Equipment is a separate object and must never inherit gun sizing.
+      prop.scale.setScalar(1);
       hand.position.set(...pose.hand);
       prop.position.set(...pose.prop);
     } else {
-      hand.position.set(pose.hand[0]+this.vmOffset.x,pose.hand[1]+this.vmOffset.y,pose.hand[2]+this.vmOffset.z);
-      prop.position.set(pose.prop[0]+this.vmOffset.x,pose.prop[1]+this.vmOffset.y,pose.prop[2]+this.vmOffset.z);
+      // Legacy magazine/bolt tracks were authored against a 1.20-scale gun.
+      // They must scale with the new gun body to stay on its action and mag
+      // well; receiver-local shotgun shell contacts are ALREADY scaled.
+      const contactScale=propId==="shell" ? 1
+        : this.vmScale/FIRST_PERSON_COMPACT_SCALE;
+      placeFirstPersonActionTarget(hand.position,pose.hand,this._vmTotalQuat,
+        offsetX,offsetY,offsetZ,contactScale);
+      placeFirstPersonActionTarget(prop.position,pose.prop,this._vmTotalQuat,
+        offsetX,offsetY,offsetZ,contactScale);
+      prop.scale.setScalar(this.vmScale/FIRST_PERSON_COMPACT_SCALE);
     }
-    hand.rotation.set(pose.handRoll*.25,0,pose.handRoll);
-    prop.rotation.set(0,0,pose.handRoll*.6);
+    hand.rotation.set(pose.handRoll * .25, 0, pose.handRoll);
+    prop.rotation.set(0, 0, pose.handRoll * .6);
+    if (this.visualReloadActive(now) && !this.equipmentAction) {
+      hand.quaternion.premultiply(this._vmTotalQuat);
+      prop.quaternion.premultiply(this._vmTotalQuat);
+    }
+    const blend = pose.armWeight ?? supportActionWeight(progress);
+    if (restMode !== "none") {
+      hand.position.lerp(restPosition, 1 - blend);
+      hand.quaternion.slerp(restRotation, 1 - blend);
+    }
+    this.poseFirstPersonArm(restPosition,restRotation,blend);
   }
 
   // ADS fix: when aiming, move viewmodel well below camera centerline and pull closer,
@@ -3364,7 +4076,27 @@ export class FPSEngine {
   // On touch devices, the Fire/ADS buttons cluster in the bottom-right corner, so we
   // shift the hipfire viewmodel toward the bottom-centre/left to stay visible.
   private positionViewmodel() {
-    if (this.prestigeTexture) {
+    // Handoff at the midpoint, with the old weapon already out of view.
+    // Gameplay weaponId/stats/readiness were switched by the caller immediately.
+    if (this.swapViewmodelPending &&
+        performance.now() - this.swapAnimAt >= WEAPON_SWAP_VISUAL_MS * WEAPON_SWAP_HANDOFF) {
+      this.swapViewmodelPending = false;
+      this.buildViewmodel(); // positions the new model and returns here once
+      return;
+    }
+    if(this.currentSlot==="wonder"&&wonderFinishById(this.wonderSkinId)&&this.weaponMat){
+      const t=performance.now()*.001,finish=wonderFinishById(this.wonderSkinId)!;
+      const material=this.weaponMat as unknown as THREE.MeshBasicMaterial;
+      const pulse=.83+Math.sin(t*3.2)*.09+Math.sin(t*.8)*.05;
+      if(this.prestigeTexture){
+        updateWonderFinishTexture(this.prestigeTexture,finish.id,t);
+        material.color.setRGB(pulse,pulse,pulse);
+      }else{
+        // Graceful fallback for browsers without Canvas2D.
+        material.color.set(finish.color).multiplyScalar(pulse);
+      }
+    }
+    if (this.prestigeTexture && !(this.currentSlot==="wonder"&&wonderFinishById(this.wonderSkinId))) {
       const t = performance.now() * .001;
       this.prestigeTexture.offset.set(t * .045 % 1, t * .015 % 1);
     }
@@ -3372,25 +4104,30 @@ export class FPSEngine {
     // like every classic FPS viewmodel. Desktop uses a stronger rightward offset;
     // mobile uses a smaller rightward offset so it doesn't sit under the
     // bottom-right action buttons.
-    const hipTarget = this.touchMode
-      ? { x: 0.22, y: -0.20, z: -0.50 }   // mobile: right side, lower, away from buttons
-      : { x: 0.30, y: -0.18, z: -0.48 };  // desktop: clearly right-offset (CoD-style)
+    // Pull resized long guns closer in hipfire without altering mesh scale.
+    // The shared vmOffset keeps the offhand, reload, recoil and muzzle in sync.
+    const hipPull = firstPersonHipPull(this.vmScale);
+    const hipTarget=this.viewmodelAkimbo?{x:0,y:-.23,z:-.51+hipPull}
+      :this.touchMode?{x:.22,y:-.20,z:-.50+hipPull}
+      :{x:.30,y:-.18,z:-.48+hipPull};
     // The HUD reticle and ballistic aim stay at the exact camera center.
     // Only the viewmodel moves down: receivers, upper rails, carry handles
     // and exposed optic mounts should not obscure targets during ADS.
     // Magnified scopes use a HUD reticle; 1x sights remain part of the gun.
-    const wDef = weaponById(this.weaponId);
+    const visualWeaponId = this.viewmodelWeaponId || this.weaponId;
+    const wDef = weaponById(visualWeaponId);
     const isSniperScoped = wDef.category === "sniper" && this.adsProgress > 0.5;
     const isMagnifiedSight = this.sightDef.type === "acog" || this.sightDef.type === "hunter" ||
       this.sightDef.type === "thermal" || this.sightDef.type === "nvg" || this.sightDef.type === "sniper_scope";
-    const receiverHeight = WEAPON_VISUALS[this.weaponId]?.receiver?.[1] ?? .18;
+    const receiverHeight = (WEAPON_VISUALS[visualWeaponId]?.receiver?.[1] ?? .18)
+      * (this.vmScale/FIRST_PERSON_COMPACT_SCALE);
     const clearance=adsClearance(wDef,this.sightDef.type,receiverHeight);
     const adsTarget = isMagnifiedSight || isSniperScoped
       ? { x: 0, y: Math.min(clearance.bodyY,-.34), z: -.24 }
       : { x: 0, y: clearance.bodyY, z: -.43 };
     // Rigid ADS: the optic has a real mount, not a screen-space sight lift.
     // Sprint pose: weapon lowered + tilted inward (tucked run stance).
-    const sprintTarget = { x: 0.32, y: -0.32, z: -0.40 };
+    const sprintTarget = this.viewmodelAkimbo ? {x:0,y:-.38,z:-.40} : { x: 0.32, y: -0.32, z: -0.40 };
     // Melee is a one-handed upright hold on the right, not a rifle held below
     // the camera. This also exposes the hammer/axe head during idle movement.
     const meleePose = this.touchMode ? { x: 0.25, y: -0.11, z: -0.47 } : { x: 0.35, y: -0.085, z: -0.49 };
@@ -3413,48 +4150,18 @@ export class FPSEngine {
       sprintPitch = -0.25;              // muzzle tips down (running stance)
       sprintRoll = sway * 0.10 * swayMultiplier(this.activePerkId);         // weapon cants with the sway
     }
-    // ---- Weapon-swap dip animation (Issue 3 + 4) ----
-    // A dramatic 450ms 3-phase animation that makes the weapon change obvious:
-    //   Phase 1 (0-160ms): weapon drops DOWN + pitches forward + cants right,
-    //                       sliding out of view (the "holster" motion).
-    //   Phase 2 (160-300ms): weapon is fully lowered (off-screen) — this is the
-    //                       "gap" where the old weapon is gone and the new one
-    //                       is being drawn. ADS is FORCED off during this window.
-    //   Phase 3 (300-450ms): weapon rises back UP into the ready position,
-    //                       pitching back to level (the "draw" motion).
-    // The dip is deep enough (-0.55) that the weapon goes fully below the
-    // camera's view, so the player sees the gun disappear and reappear — a
-    // clear visual cue that the weapon changed. The old 250ms / -0.25 dip was
-    // too subtle (the gun barely moved and the change was easy to miss).
-    let swapDipY = 0, swapPitch = 0, swapRoll = 0;
+    // ---- Holster outgoing weapon, then draw incoming (cosmetic 450ms) ----
+    let swapX = 0, swapY = 0, swapZ = 0, swapPitch = 0, swapRoll = 0;
     let swapActive = false;
     if (this.swapAnimAt) {
       const age = performance.now() - this.swapAnimAt;
-      const dur = 450;
-      if (age < dur) {
+      if (age < WEAPON_SWAP_VISUAL_MS) {
         swapActive = true;
-        const p = age / dur;
-        if (p < 0.35) {
-          // Phase 1: drop down + pitch forward (holster)
-          const t = p / 0.35;
-          swapDipY = -0.55 * t;
-          swapPitch = 0.8 * t;    // muzzle tips down
-          swapRoll = 0.35 * t;    // weapon cants right
-        } else if (p < 0.65) {
-          // Phase 2: fully lowered (off-screen) — hold at the bottom
-          swapDipY = -0.55;
-          swapPitch = 0.8;
-          swapRoll = 0.35;
-        } else {
-          // Phase 3: rise back up (draw) — ease out
-          const t = (p - 0.65) / 0.35;
-          const ease = 1 - Math.pow(1 - t, 3);  // ease-out cubic
-          swapDipY = -0.55 * (1 - ease);
-          swapPitch = 0.8 * (1 - ease);
-          swapRoll = 0.35 * (1 - ease);
-        }
+        const pose = sampleWeaponSwapMotion(age / WEAPON_SWAP_VISUAL_MS);
+        swapX = pose.x; swapY = pose.y; swapZ = pose.z;
+        swapPitch = pose.pitch; swapRoll = pose.roll;
       } else {
-        this.swapAnimAt = 0;  // animation complete
+        this.swapAnimAt = 0;
       }
     }
     // ---- Issue 4: ADS resets during weapon swap ----
@@ -3470,10 +4177,19 @@ export class FPSEngine {
     }
     // Interpolate the camera-local offset. During a swap, use a faster lerp so
     // the weapon snaps down quickly (the dip should feel responsive, not floaty).
-    const lerpRate = swapActive ? 0.4 : 0.25;
-    this.vmOffset.x += (target.x + sprintSwayX - this.vmOffset.x) * lerpRate;
-    this.vmOffset.y += ((target.y + bobY + sprintSwayY + swapDipY) - this.vmOffset.y) * lerpRate;
-    this.vmOffset.z += (target.z - this.vmOffset.z) * lerpRate;
+    // Quick-Ready recovers from the lowered sprint pose faster; other grips
+    // retain the normal viewmodel smoothing and weapon-swap animation.
+    const quickReadyRaise=sprintRecoveryAdsRate(performance.now(),this.lastSprintAt,
+      this.getCurrentAttachments().grip)>12;
+    const lerpRate = swapActive ? 0.4 : quickReadyRaise ? 0.43 : 0.25;
+    const tasered=this.alive && isTaserAdsBlocked(this.equipmentAdsBlockedUntil,performance.now());
+    const twitchTime=performance.now()*0.001;
+    // Subtle high-frequency hand tremor, separate from recoil or sprint motion.
+    const taserSwayX=tasered?0.028*Math.sin(twitchTime*21)+0.014*Math.sin(twitchTime*37):0;
+    const taserSwayY=tasered?0.018*Math.sin(twitchTime*29+1.4):0;
+    this.vmOffset.x += (target.x + sprintSwayX + swapX + taserSwayX - this.vmOffset.x) * lerpRate;
+    this.vmOffset.y += (target.y + bobY + sprintSwayY + swapY + taserSwayY - this.vmOffset.y) * lerpRate;
+    this.vmOffset.z += (target.z + swapZ - this.vmOffset.z) * lerpRate;
 
     // ---- First-person reload and equipment poses (v6) ----
     let reloadDipY=0,reloadPitch=0,reloadRoll=0;
@@ -3483,10 +4199,11 @@ export class FPSEngine {
       const a=this.equipmentAction;
       const pose=sampleDeployMotion((now-a.startedAt)/a.duration,a.kind);
       reloadDipY=pose.dip;reloadPitch=pose.pitch;reloadRoll=pose.roll;
-    } else if (this.reloading) {
+    } else if(this.visualReloadActive(now)&&!this.viewmodelAkimbo){
       const def=weaponById(this.weaponId);
       const style=reloadMotionFor(this.weaponId,def.category,def.special?.kind);
-      const pose=sampleReloadMotion((now-this.reloadStartedAt)/Math.max(1,this.reloadDurationMs),style);
+      const pose=sampleReloadMotion((now-this.reloadStartedAt)/Math.max(1,this.reloadDurationMs),
+        style,this.fpShellContacts??undefined,this.shellSequenceFor(style));
       reloadDipY=pose.dip;reloadPitch=pose.pitch;reloadRoll=pose.roll;
       hideFixedMagazine=pose.hideFixedMagazine;
     }
@@ -3498,9 +4215,16 @@ export class FPSEngine {
     if(this.meleeSwingAt){
       const age=performance.now()-this.meleeSwingAt;
       if(age<this.meleeSwingDur){
-        const pose=meleeSwingPose(this.weaponId,age/this.meleeSwingDur);
-        meleeSwingPitch=pose.pitch;meleeSwingRoll=pose.roll;meleeSwingYaw=pose.yaw;
-        meleeSwingX=pose.x;meleeSwingY=pose.y;meleeSwingZ=pose.z;
+        if(this.weaponId==="wonder_seismic"){
+          const t=age/this.meleeSwingDur,impact=Math.sin(Math.PI*Math.min(1,t/.65));
+          meleeSwingPitch=-.65*impact;
+          meleeSwingY=-.36*impact;
+          meleeSwingZ=-.24*impact;
+        }else{
+          const pose=meleeSwingPose(this.weaponId,age/this.meleeSwingDur);
+          meleeSwingPitch=pose.pitch;meleeSwingRoll=pose.roll;meleeSwingYaw=pose.yaw;
+          meleeSwingX=pose.x;meleeSwingY=pose.y;meleeSwingZ=pose.z;
+        }
       }else this.meleeSwingAt=0;
     }
 
@@ -3525,10 +4249,12 @@ export class FPSEngine {
     // causing the handle to point up instead of the blade. A -π/2 (-90°)
     // pitch rotates the forward-pointing blade to point straight UP, with
     // the handle (at z=+0.08, forward of the grip) pointing DOWN into the fist.
-    const isMeleeWeapon = weaponById(this.weaponId).category === "melee";
+    const isMeleeWeapon = wDef.category === "melee";
     const meleeHoldPitch = isMeleeWeapon ? Math.PI / 2.9 : 0;  // positive X pitch lifts -Z-pointing blades into view
-    const totalRotX = reloadPitch + this.vmRecoilPitch + sprintPitch + meleeSwingPitch + swapPitch + meleeHoldPitch;
-    const totalRotZ = reloadRoll + sprintRoll + meleeSwingRoll + swapRoll;
+    const totalRotX = reloadPitch + this.vmRecoilPitch + sprintPitch + meleeSwingPitch + swapPitch + meleeHoldPitch +
+      (tasered?0.035*Math.sin(twitchTime*24.5):0);
+    const totalRotZ = reloadRoll + sprintRoll + meleeSwingRoll + swapRoll +
+      (tasered?0.045*Math.sin(twitchTime*18.2+0.7):0);
     // Compute ONE quaternion for the complete weapon. The same quaternion must
     // rotate both each part's centre (around the grip) AND its orientation.
     // Euler XYZ composes X*Z; the old hand-written coordinates composed Z*X,
@@ -3554,7 +4280,8 @@ export class FPSEngine {
     const quickMeleeActive = this.updateQuickMeleeModel(now);
     for (const p of this.vmParts) {
       if(p.obj.name==="weapon_charm")swingWeaponCharm(p.obj,now);
-      if (quickMeleeActive || hideEntireViewmodel) {
+      if (quickMeleeActive || hideEntireViewmodel || !!this.mechActive ||
+          (this.viewmodelAkimbo && !!this.equipmentAction && p.obj.userData.akimboHand==="left")) {
         // Scoped ADS: hide everything. The HUD scope overlay handles the visual.
         p.obj.visible = false;
         continue;
@@ -3574,6 +4301,67 @@ export class FPSEngine {
       // Compose the part's resting orientation with EXACTLY the same rotation
       // used for its position. This preserves barrel, optic, and grip alignment.
       p.obj.quaternion.copy(this._vmTotalQuat).multiply(p.baseQuat);
+      if(p.obj.name==="wonder_ripper_carried_saw")p.obj.rotateY(now*.019);
+      const akimboSide=p.obj.userData.akimboHand as AkimboHand|undefined;
+      if(this.viewmodelAkimbo&&akimboSide){
+        const sign=akimboSide==="left"?-1:1;
+        const swapAge=this.swapAnimAt?Math.max(0,Math.min(1,(now-this.swapAnimAt)/WEAPON_SWAP_VISUAL_MS)):1;
+        const cross=this.swapAnimAt&&swapAge<1
+          ?akimboCrossDrawAmount(this.swapViewmodelPending
+            ?Math.min(1,swapAge/WEAPON_SWAP_HANDOFF)
+            :Math.max(0,(swapAge-WEAPON_SWAP_HANDOFF)/(1-WEAPON_SWAP_HANDOFF)),
+            !this.swapViewmodelPending):0;
+        // Opposite-side holsters: left hand crosses right, right hand crosses left.
+        p.obj.position.x-=sign*.54*cross;
+        p.obj.position.y-=.49*cross;
+        p.obj.position.z+=.12*cross;
+        let extraPitch=this.akimboKick[akimboSide]*.22;
+        let extraRoll=-sign*this.akimboKick[akimboSide]*.13;
+        if(this.reloading){
+          // Both guns, gloves, sleeves and mounted attachments drop out of frame
+          // together; they are reloaded offscreen, then raised in unison.
+          const dip=akimboReloadDip((now-this.reloadStartedAt)/Math.max(1,this.reloadDurationMs));
+          p.obj.position.y-=dip*1.18;
+          p.obj.position.z+=dip*.13;
+          extraPitch+=dip*.18;
+          extraRoll+=sign*dip*.055;
+        }
+        this.akimboPoseQuat.setFromEuler(this.akimboPoseEuler.set(extraPitch,0,extraRoll,"XYZ"));
+        this.akimboPosePivot.set(ox+sign*(wDef.category==="shotgun"?.50:.34),oy-.11,oz+.12);
+        p.obj.position.sub(this.akimboPosePivot).applyQuaternion(this.akimboPoseQuat).add(this.akimboPosePivot);
+        p.obj.quaternion.premultiply(this.akimboPoseQuat);
+        if(this.weaponId==="shotgun_br"&&p.obj.name==="weapon_pump_foregrip"){
+          // Independent receiver cycling: each pump follows its own last shot.
+          p.obj.translateZ(akimboPumpStroke(now-this.akimboLastHandShot[akimboSide])*.15*this.vmScale);
+        }
+      }
+      if(p.obj.userData.fpRevolverCylinder && this.weaponId==="pistol_bastion"){
+        const fraction=this.reloading?(now-this.reloadStartedAt)/Math.max(1,this.reloadDurationMs):1;
+        const frame=bastionReloadFrame(this.viewmodelAkimbo ? 0 : fraction);
+        if(this.reloading&&!this.viewmodelAkimbo){
+          // Swing sideways in the weapon's own right/left axis. Never yaw the
+          // cylinder: the chamber bores remain PARALLEL to the barrel.
+          const side=this._vmRevolverSide.set(1,0,0).applyQuaternion(this._vmTotalQuat);
+          p.obj.position.addScaledVector(side,BASTION_CYLINDER_OPEN_X*this.vmScale*frame.open);
+        }
+        for(const component of p.obj.children){
+          const index=component.userData.fpRevolverCartridgeIndex;
+          if(typeof index==="number"){
+            // During a reload, empty chambers become visible first; six rounds
+            // then approach the open breech and seat along Z. Outside a reload,
+            // chambers reflect exactly how many rounds remain.
+            component.visible=this.viewmodelAkimbo&&akimboSide
+              ? index<this.akimboAmmo[akimboSide]
+              : this.reloading ? frame.cartridgesVisible : index<this.ammoInMag;
+            component.position.z=BASTION_CARTRIDGE_SEATED_Z+
+              (this.reloading&&!this.viewmodelAkimbo ? BASTION_CARTRIDGE_TRAVEL_Z*(1-frame.insertion) : 0);
+          } else if(component.userData.fpRevolverYoke){
+            component.visible=this.reloading&&!this.viewmodelAkimbo && frame.open>.01;
+            component.position.x=.085*frame.open;
+            component.scale.x=frame.open;
+          }
+        }
+      }
       p.obj.scale.copy(p.baseScale).multiplyScalar(this.vmScale);
     }
     // Open iron and reflex frames remain physically visible in ADS.
@@ -3581,7 +4369,22 @@ export class FPSEngine {
     if (this.sightMesh) {
       this.sightMesh.visible = !quickMeleeActive && !hideEntireViewmodel && !hideSightDuringADS;
     }
-    this.renderFirstPersonAction(now, !hideEntireViewmodel);
+    // Solve the offhand's grip with the EXACT rigid-body transform that moved
+    // each weapon part (including recoil, sprint, swapping, reload and ADS).
+    // Unlike a screen-space approximation, its palm cannot drift off the gun.
+    this.fpRestHand.copy(this.fpSupportGrip).multiplyScalar(this.vmScale);
+    this.fpRestHand.x -= pivotX;
+    this.fpRestHand.y -= pivotY;
+    this.fpRestHand.z -= pivotZ;
+    this.fpRestHand.applyQuaternion(this._vmTotalQuat);
+    this.fpRestHand.x += pivotX + ox;
+    this.fpRestHand.y += pivotY + oy;
+    this.fpRestHand.z += pivotZ + oz;
+    this.renderFirstPersonAction(now, !hideEntireViewmodel && !quickMeleeActive, this.fpRestHand, ox, oy, oz);
+    // Match-finale rendering does not run the ordinary dead-player early
+    // return; never resurrect the weapon/left sleeve on a fatal final hit.
+    if(!this.alive) hideFirstPersonRigOnDeath(this.vmParts,this.fpActionHand,
+      this.fpActionProp,this.fpSupportArm?.root ?? null);
   }
 
   // ---- Laser indicator ----
@@ -3599,15 +4402,27 @@ export class FPSEngine {
       (this.laserDot.material as THREE.Material).dispose();
       this.laserDot = null;
     }
+    for(const obj of [this.akimboLeftLaserBeam,this.akimboLeftLaserDot]){
+      if(!obj)continue;
+      this.scene.remove(obj);
+      if(obj instanceof THREE.Line){
+        obj.geometry.dispose();
+        (obj.material as THREE.Material).dispose();
+      }else{
+        obj.geometry.dispose();
+        (obj.material as THREE.Material).dispose();
+      }
+    }
+    this.akimboLeftLaserBeam=null;this.akimboLeftLaserDot=null;
     this.buildLaserIndicator();
   }
 
-  // Builds a thin red line + dot mesh that shows where the player is aiming.
+  // Builds a thin red line + dot mesh emitted by the mounted projector.
   // Visible only when a laser sight is equipped (sight slot OR grip slot laser).
   private buildLaserIndicator() {
     const hasLaser = this.sightDef.type === "laser" || this.getCurrentAttachments().grip === "grip_laser";
     if (!hasLaser) return;
-    // The beam: a thin line from the muzzle to the aim point. Updated each frame.
+    // The beam: a thin line starting at each physical projector.
     const geo = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(0, 0, 0),
       new THREE.Vector3(0, 0, -1),
@@ -3623,59 +4438,73 @@ export class FPSEngine {
     );
     this.laserDot.frustumCulled = false;
     this.scene.add(this.laserDot);
+    if(this.viewmodelAkimbo){
+      this.akimboLeftLaserBeam=new THREE.Line(
+        this.laserBeam.geometry.clone(),
+        (this.laserBeam.material as THREE.LineBasicMaterial).clone());
+      this.akimboLeftLaserBeam.frustumCulled=false;
+      this.scene.add(this.akimboLeftLaserBeam);
+      this.akimboLeftLaserDot=new THREE.Mesh(
+        this.laserDot.geometry.clone(),
+        (this.laserDot.material as THREE.MeshBasicMaterial).clone());
+      this.akimboLeftLaserDot.frustumCulled=false;
+      this.scene.add(this.akimboLeftLaserDot);
+    }
   }
 
-  // Each frame, recompute the laser's start (muzzle) and end (impact point) from
-  // the camera's world position + aim direction.
+  // Each laser traces along its own weapon's bore axis. In Akimbo, the two
+  // revolvers rotate/reload independently, so they must NOT share a target.
   private updateLaserIndicator() {
     if (!this.laserBeam || !this.laserDot) return;
-    if (!this.alive) {
-      this.laserBeam.visible = false;
-      this.laserDot.visible = false;
+    this.updateOneLaserIndicator(
+      this.laserBeam, this.laserDot, this.laserEmitter, this.muzzleFlash.visible,
+    );
+    if (this.akimboLeftLaserBeam && this.akimboLeftLaserDot) {
+      this.updateOneLaserIndicator(
+        this.akimboLeftLaserBeam, this.akimboLeftLaserDot,
+        this.akimboLeftLaserEmitter, !!this.akimboLeftFlash?.visible,
+      );
+    }
+  }
+
+  private updateOneLaserIndicator(
+    beam: THREE.Line, dot: THREE.Mesh, emitter: THREE.Object3D | null,
+    weaponVisible: boolean,
+  ) {
+    if (!this.alive || !emitter || !weaponVisible || this.mechActive ||
+        (this.viewmodelAkimbo && this.reloading)) {
+      beam.visible = false;
+      dot.visible = false;
       return;
     }
-    this.laserBeam.visible = true;
-    this.laserDot.visible = true;
-    // Raycast from the *crosshair* to determine the exact aim point. The
-    // visible beam starts at the weapon's muzzle (in camera-local coordinates),
-    // not at the camera eye: eye-origin lines collapse into screen-space streaks.
-    // The visible reticle aims from the rendered (stair-smoothed) camera eye.
-    const origin = this.camera.position.clone();
-    this.camera.updateMatrixWorld();
-    const muzzle = new THREE.Vector3(
-      this.vmOffset.x+0.025, this.vmOffset.y-0.018,
-      this.vmOffset.z-0.48,
-    ).applyMatrix4(this.camera.matrixWorld);
-    // Aim direction: same as aimDir but with zero spread (laser shows where you'd actually hit)
-    const cp = Math.cos(this.pitch);
-    const dir: Vec3 = [Math.sin(this.yaw) * Math.cos(this.pitch), Math.sin(this.pitch), Math.cos(this.yaw) * Math.cos(this.pitch)];
-    // Find impact distance: nearest cover box or weapon range, whichever is closer
+    beam.visible = true;
+    dot.visible = true;
+    // The emitter is parented to the animated optic or underbarrel mount.
+    // Its forward axis inherits ADS, sway, recoil and reload pitch/roll, so
+    // the beam naturally sweeps away from the reticle as the gun moves.
+    const { origin, direction } = weaponLaserRay(emitter);
+    const dir: Vec3 = [direction.x, direction.y, direction.z];
+    // Trace from the projected ray itself, never from the camera crosshair.
     let maxT = this.eff.range;
     for (const cov of this.map.cover) {
       const t = rayBox([origin.x, origin.y, origin.z], dir, cov.pos, cov.size);
-      if (t !== null && t < maxT) maxT = t;
+      if (t !== null && t >= 0 && t < maxT) maxT = t;
     }
-    // Also stop at the first combatant (so the laser dot lands on enemies you're aiming at)
     for (const c of this.combatants.values()) {
       if (!c.alive || c.id === this.selfId) continue;
       if (this.opts.mode !== "ffa" && this.opts.mode !== "gungame" && c.team === this.opts.team) continue;
       const hit = rayCombatantHit([origin.x, origin.y, origin.z], dir, c.pos);
-      if (hit && hit.t < maxT) maxT = hit.t;
+      if (hit && hit.t >= 0 && hit.t < maxT) maxT = hit.t;
     }
-    const endX = origin.x + dir[0] * maxT;
-    const endY = origin.y + dir[1] * maxT;
-    const endZ = origin.z + dir[2] * maxT;
-    // Update beam geometry
-    const posAttr = this.laserBeam.geometry.getAttribute("position") as THREE.BufferAttribute;
-    posAttr.setXYZ(0, muzzle.x, muzzle.y, muzzle.z);
-    posAttr.setXYZ(1, endX, endY, endZ);
-    posAttr.needsUpdate = true;
-    this.laserBeam.geometry.computeBoundingSphere();
-    // Place the dot at the impact point
-    this.laserDot.position.set(endX, endY, endZ);
-    // Pulse the dot opacity slightly for visibility
-    const pulse = 0.7 + 0.3 * Math.sin(performance.now() * 0.012);
-    (this.laserDot.material as THREE.MeshBasicMaterial).opacity = pulse;
+    const endpoint = origin.clone().addScaledVector(direction, maxT);
+    const positions = beam.geometry.getAttribute("position") as THREE.BufferAttribute;
+    positions.setXYZ(0, origin.x, origin.y, origin.z);
+    positions.setXYZ(1, endpoint.x, endpoint.y, endpoint.z);
+    positions.needsUpdate = true;
+    beam.geometry.computeBoundingSphere();
+    dot.position.copy(endpoint);
+    (dot.material as THREE.MeshBasicMaterial).opacity =
+      0.7 + 0.3 * Math.sin(performance.now() * 0.012);
   }
 
   /** Independent first-person quick-melee prop. Does not change the weapon slot,
@@ -3702,13 +4531,14 @@ export class FPSEngine {
     if (!this.quickMeleeModel) return false;
     const progress = (now - this.quickMeleeFeedbackAt) / this.meleeSwingDur;
     const active = this.quickMeleeFeedbackAt > 0 && progress >= 0 && progress < 1;
-    this.quickMeleeModel.visible = active && this.alive;
+    const bash=this.weaponId===RIOT_SHIELD_ID && this.riotShieldHp>0;
+    this.quickMeleeModel.visible = active && this.alive && !bash;
     if (active) {
       const pose=meleeSwingPose(this.meleeWeaponId,progress);
       this.quickMeleeModel.position.set(.37+pose.x,-.3+pose.y,-.56+pose.z);
       this.quickMeleeModel.rotation.set(.95+pose.pitch,pose.yaw,-.55+pose.roll);
     }
-    return active;
+    return active && !bash;
   }
 
   // ---- Input ----
@@ -3747,11 +4577,15 @@ export class FPSEngine {
       if (this.touchMode || this.inputSuspended) return;
       this.unlockAudio();
       if (e.button === 0) { this.mouseDown = true; this.mousePressedThisFrame = true; }
-      if (e.button === 2) this.manualAiming = true;
+      if(e.button===2){
+        if(this.mechActive){this.mechRightDown=true;this.mechRightPressed=true;}
+        else if(this.isAkimboActive()){this.akimboRightDown=true;this.akimboRightPressedThisFrame=true;this.manualAiming=false;}
+        else this.manualAiming=true;
+      }
     });
     document.addEventListener("mouseup", (e) => {
       if (e.button === 0) this.mouseDown = false;
-      if (e.button === 2) this.manualAiming = false;
+      if (e.button === 2) {this.manualAiming = false;this.mechRightDown=false;this.akimboRightDown=false;}
     });
     document.addEventListener("contextmenu", (e) => e.preventDefault());
     window.addEventListener("keydown", (e) => {
@@ -3762,7 +4596,16 @@ export class FPSEngine {
         this.lastJumpPressedAt = performance.now();
       }
       this.keys[e.code] = true;
-      if (e.code === "KeyR") this.startReload();
+      if (e.code === "KeyR" && !this.mechActive) this.startReload();
+      if (e.code === "KeyE" && !e.repeat && (this.pointerLocked||this.touchMode))this.enterNearbyMech();
+      if (e.code === "KeyX" && !e.repeat && (this.pointerLocked||this.touchMode) && this.mechActive) {
+        e.preventDefault();
+        this.exitMech();
+      }
+      if (e.code === "KeyG" && !e.repeat && (this.pointerLocked || this.touchMode)) {
+        e.preventDefault();
+        this.useEquipment();
+      }
       if (e.code === "KeyF" && !e.repeat && (this.pointerLocked || this.touchMode)) {
         e.preventDefault();
         this.unlockAudio();
@@ -3773,6 +4616,7 @@ export class FPSEngine {
       if (e.code === "Digit1") this.swapWeapon("primary");
       if (e.code === "Digit2") this.swapWeapon("secondary");
       if (e.code === "Digit3") this.swapWeapon("melee");
+      if (e.code === "Digit4") this.swapWeapon("wonder");
       if (e.code === "KeyQ" && !e.repeat) {
         e.preventDefault();
         // Q swaps between the last two distinct equipped weapons. With no
@@ -3787,15 +4631,37 @@ export class FPSEngine {
     window.addEventListener("resize", this.onResize);
   }
 
-  /** Apply settings without reconstructing the game/audio contexts.
-   * WeaponAudio has its own Web Audio output, so scale FX by master there too.
+  /** Update all channels without reconstructing either Web Audio context. */
+  setAudioMix(mix: typeof DEFAULT_AUDIO_MIX) {
+    this.audioMix = { ...mix };
+    this.applyAudioLevels();
+  }
+
+  /** Flashbang impairs hearing and visibility only, never movement or weapon controls.
+   * Procedural sounds and weapon audio have separate outputs.
    */
-  setAudioMix(mix: { masterVolume: number; footstepVolume: number; fxVolume: number }) {
-    const levels = audioGainLevels(mix);
-    this.sound.setMasterVolume(levels.master);
+  private applyAudioLevels() {
+    const levels = audioGainLevels(this.audioMix);
+    this.sound.setMasterVolume(levels.master * this.flashAudioFactor);
     this.sound.setFootstepVolume(levels.footsteps);
-    this.sound.setFxVolume(levels.fx);
-    this.weaponAudio.setVolume(levels.weaponOutputPercent);
+    this.sound.setChannelVolumes({ weapons: levels.weapons, combat: levels.combat, ui: levels.ui });
+    this.weaponAudio.setVolume(levels.weaponOutputPercent * this.flashAudioFactor);
+    this.weaponAudio.setFeedbackVolume(levels.combatOutputPercent * this.flashAudioFactor);
+  }
+
+  private updateFlashAudio(now: number) {
+    // Constructor-free engine stubs and early boot have no audio buses yet.
+    if(!this.audioMix || !this.sound || !this.weaponAudio)return;
+    const factor=flashAudioGain(Math.max(0,(this.equipmentFlashAudioUntil??0)-now));
+    if(Math.abs(factor-(this.flashAudioFactor??1))<0.005)return;
+    this.flashAudioFactor=factor;
+    this.applyAudioLevels();
+  }
+
+  /** Wonder-specific module stats are computed once per loadout, never as regular attachments. */
+  private adjustWonderStats(stats:EffectiveStats):EffectiveStats{
+    const m=wonderModuleEffects(this.wonderWeaponId,this.wonderModuleId);
+    return {...stats,damage:stats.damage*m.damageMul,range:stats.range*m.rangeMul,moveSpeed:stats.moveSpeed*m.mobilityMul};
   }
 
   /** Queue a saved preset for the next life. The server validates account inventory
@@ -3816,25 +4682,43 @@ export class FPSEngine {
     this.primaryWeaponId = next.weaponId;
     this.secondaryWeaponId = next.secondaryWeaponId ?? "pistol_side";
     this.meleeWeaponId = next.meleeWeaponId ?? "knife_tactical";
+    this.wonderWeaponId=next.perkId==="wonder_weapon" && !!WEAPONS.find(w=>w.id===next.wonderWeaponId && w.wonder&&!w.disabled) ? next.wonderWeaponId! : "";
+    this.wonderModuleId=next.wonderModuleId??"";
+    this.wonderSkinId=next.wonderSkinId??"";
+    this.wonderKillEffectId=next.wonderKillEffectId??"";
+    this.mechActive=null;this.chronoAnchor=null;this.railChargeAt=0;this.railShotLocked=false;
     const empty = { sight: null, barrel: null, grip: null, magazine: null };
     this.primaryEff = computeEffectiveStats(weaponById(this.primaryWeaponId), next.attachments);
     this.secondaryEff = computeEffectiveStats(weaponById(this.secondaryWeaponId), next.secondaryAttachments ?? empty);
     this.meleeEff = computeEffectiveStats(weaponById(this.meleeWeaponId), empty);
+    this.wonderEff=this.adjustWonderStats(computeEffectiveStats(weaponById(this.wonderWeaponId||"rifle_ar"),empty));
     this.primarySight = sightDefForType(this.primaryEff.sightType);
     this.secondarySight = sightDefForType(this.secondaryEff.sightType);
     this.meleeSight = sightDefForType(this.meleeEff.sightType);
+    this.wonderSight = sightDefForType(this.wonderEff.sightType);
     this.currentSlot = "primary"; this.lastSlot = "secondary";
     this.weaponId = this.primaryWeaponId;
     this.eff = this.primaryEff; this.sightDef = this.primarySight;
-    const primary = weaponById(this.primaryWeaponId);
-    if (usesWonderCharges(primary) && primary.wonder)
-      this.wonderStates.set(primary.id, fullWonderCharges(primary.wonder));
-    this.primaryAmmoInMag = usesWonderCharges(primary) ? (this.wonderStates.get(primary.id)?.charges ?? this.primaryEff.magSize) : this.primaryEff.magSize;
+    // Every loadout change starts its selected Wonder completely drained.
+    this.wonderStates.clear();
+    const selected=WEAPONS.find(w=>w.id===this.wonderWeaponId);
+    if(selected?.wonder && usesWonderCharges(selected))
+      this.wonderStates.set(selected.id,drainedWonderCharges(selected.wonder,performance.now()));
+    if(this.wonderWeaponId===RIOT_SHIELD_ID){
+      this.riotShieldHp=0;this.riotShieldReadyAt=performance.now()+weaponById(RIOT_SHIELD_ID).wonder!.rechargeMs;
+    }
+    this.primaryAmmoInMag = this.primaryEff.magSize;
     this.secondaryAmmoInMag = this.secondaryEff.magSize;
-    this.meleeAmmoInMag = this.meleeEff.magSize;
+    this.resetAkimboAmmo();
+    this.throwingKnifeState=fullThrowingKnives();
+    this.meleeAmmoInMag = isThrowingKnife(this.meleeWeaponId)?this.throwingKnifeState.charges:this.meleeEff.magSize;
+    this.wonderAmmoInMag = this.wonderEff.magSize;
     this.ammoInMag = this.primaryAmmoInMag;
     this.aiming = false; this.adsProgress = 0; this.manualAiming = false;
     this.reloading = false; this.equipmentAction = null;
+    this.equipmentCharges = equipmentById(next.equipmentId).charges;
+    this.equipmentNextRechargeAt=0;
+    this.equipmentLastAt = -10000;
     this.buildViewmodel();
     if (this.quickMeleeModel) {
       this.camera.remove(this.quickMeleeModel);
@@ -3848,6 +4732,35 @@ export class FPSEngine {
     this.createQuickMeleeModel();
   }
 
+  /** The server validates online choices; offline uses the same catalog. */
+  chooseSurvivalUpgrade(upgradeId:SurvivalUpgradeId) {
+    if(this.opts.mode!=="survival"||!this.survivalUpgradeOffer?.choices.includes(upgradeId))return;
+    if(this.opts.online){
+      this.socket?.emit("message",{t:"chooseSurvivalUpgrade",upgradeId});
+    }else{
+      this.survivalUpgradeRanks=chooseSurvivalUpgrade(this.survivalUpgradeRanks,upgradeId);
+    }
+    this.survivalUpgradeOffer=undefined;
+  }
+  rerollSurvivalUpgrade() {
+    const offer=this.survivalUpgradeOffer;
+    if(this.opts.mode!=="survival"||!offer||offer.rerollsRemaining<=0)return;
+    if(this.opts.online){
+      this.socket?.emit("message",{t:"rerollSurvivalUpgrade"});
+    }else{
+      this.survivalRerolls--;
+      this.survivalUpgradeOffer={...offer,
+        choices:generateSurvivalUpgradeChoices(this.survivalUpgradeRanks,Math.random,offer.choices,
+          survivalWaveMutators(this.survivalTier,offer.wave).boss),
+        rerollsRemaining:this.survivalRerolls};
+    }
+  }
+  /** Solo Survival Escape pause is authoritative on the server; offline freezes locally. */
+  setSurvivalMenuPaused(paused:boolean) {
+    if(this.opts.mode!=="survival")return;
+    this.survivalMenuPaused=paused;
+    if(this.opts.online)this.socket?.emit("message",{t:"setSurvivalPause",paused} as C2S);
+  }
   /** In-game menu: suppress controls, even on touch devices, without resetting a match. */
   setInputSuspended(suspended: boolean) {
     this.inputSuspended = suspended;
@@ -3858,8 +4771,13 @@ export class FPSEngine {
     this.touchMoveX = 0;
     this.touchMoveY = 0;
     this.touchFiring = false;
+    this.touchAkimboRight=false;
+    this.akimboRightDown=false;
+    this.akimboPending.left=this.akimboPending.right=-Infinity;
     this.touchAiming = false;
     this.touchPressedThisFrame = false;
+    this.akimboRightPressedThisFrame=false;
+    this.touchAkimboRightPressedThisFrame=false;
     this.touchJumpQueued = false;
     if (suspended && document.pointerLockElement === this.renderer.domElement) document.exitPointerLock();
   }
@@ -3872,9 +4790,17 @@ export class FPSEngine {
   applyDisplayAndControlSettings(settings: { showHealthBars: boolean; sensitivity: number; fov: number; autoAdsOnFire: boolean; invertY: boolean }) {
     this.showHealthBars = settings.showHealthBars;
     this.sensitivityMul = settings.sensitivity;
-    this.baseFov = settings.fov;
+    this.baseFov = Number.isFinite(settings.fov)
+      ? Math.max(60, Math.min(110, settings.fov))
+      : this.baseFov;
     this.autoAdsOnFire = settings.autoAdsOnFire;
     this.invertY = settings.invertY;
+    // applyDisplayAndControlSettings can run while the lobby/countdown is
+    // displayed, before the normal gameplay FOV update ever executes.
+    // Refresh projection immediately so the first live frame does not "zoom"
+    // all camera-mounted weapons when it picks up the saved FOV.
+    syncFirstPersonCameraFov(this.camera, this.baseFov, this.sightDef,
+      this.adsProgress, this.weaponId === RIOT_SHIELD_ID);
     for (const c of this.combatants.values()) {
       if (c.healthBar) c.healthBar.visible = this.showHealthBars && c.alive;
       if (c.healthBarBg) c.healthBarBg.visible = this.showHealthBars && c.alive;
@@ -3907,10 +4833,15 @@ export class FPSEngine {
     if (b && !this.touchFiring) { this.unlockAudio(); this.touchPressedThisFrame = true; }
     this.touchFiring = b;
   }
-  setTouchADS(b: boolean) { this.manualAiming = b; }
+  setTouchADS(b:boolean){this.manualAiming=this.isAkimboActive()?false:b;}
+  setTouchAkimboRight(b:boolean){
+    if(b&&!this.touchAkimboRight){this.unlockAudio();this.touchAkimboRightPressedThisFrame=true;}
+    this.touchAkimboRight=b;
+  }
   setTouchSprint(b: boolean) { this.touchSprint = b; }
   touchReload() { this.startReload(); }
   touchQuickMelee() { this.unlockAudio(); this.quickMelee(); }
+  touchUseEquipment() { this.useEquipment(); }
   setTouchEquipmentAim(held: boolean) {
     if (this.touchEquipmentAiming && !held) this.useEquipment();
     this.touchEquipmentAiming=held;
@@ -3922,9 +4853,26 @@ export class FPSEngine {
 
   // One-button quick melee; never changes the equipped slot or reloads a weapon.
   private quickMelee() {
-    if (!this.alive || this.matchEnded || this.lobbyActive || this.preMatchCountdown > 0 || this.opts.mode === "gungame") return;
+    if (!this.alive || this.matchEnded || this.lobbyActive || this.preMatchCountdown > 0) return;
+    if (this.opts.mode === "gungame") {
+      // Gun Game forbids loadout quick-melee on firearm tiers, but F must still
+      // swing the ACTUAL equipped progression weapon on melee tiers. Route it
+      // through the normal melee shot path: same viewmodel animation, cooldown,
+      // reach, damage and server-authoritative kill/finishing-tier validation as
+      // left click. Do not create the unrelated loadout quick-melee prop.
+      const meleeId = gunGameMeleeShortcutWeapon(
+        this.gungameIndex, this.gungameWeapons, this.weaponId,
+      );
+      if (meleeId) this.fireOneShot(weaponById(meleeId));
+      return;
+    }
     const now = performance.now();
-    const melee=quickMeleeProfile(weaponById(this.meleeWeaponId).stats,this.meleeWeaponId);
+    const shieldBash=this.weaponId===RIOT_SHIELD_ID && this.riotShieldHp>0;
+    if(isThrowingKnife(this.meleeWeaponId)&&!shieldBash){
+      this.throwThrowingKnife(weaponById(this.meleeWeaponId),now,true);
+      return;
+    }
+    const melee=shieldBash?riotBashProfile():quickMeleeProfile(weaponById(this.meleeWeaponId).stats,this.meleeWeaponId);
     if (now - this.quickMeleeLastAt < melee.cooldownMs ||
         (this.weaponId===this.meleeWeaponId && now-this.lastShotAt < melee.cooldownMs)) return;
     this.quickMeleeLastAt = now;
@@ -3934,7 +4882,7 @@ export class FPSEngine {
     this.meleeSwingAt = 0; // quick-melee viewmodel has its own animation
     this.meleeSwingDur = melee.swingMs;
     this.manualAiming = false;
-    this.weaponAudio.play("melee", { weaponId: this.meleeWeaponId, volume: 0.9 });
+    this.weaponAudio.play("melee", { weaponId: shieldBash?RIOT_SHIELD_ID:this.meleeWeaponId, volume: 0.9 });
     if (this.opts.online) {
       this.socket?.emit("message", { t: "quickMelee" });
       return;
@@ -3955,7 +4903,14 @@ export class FPSEngine {
     if(candidate){
       const target=this.combatants.get(candidate.id);
       if(target){
-        this.applyDamageLocal(target,melee.damage,false,this.meleeWeaponId);
+        this.applyDamageLocal(target,melee.damage,false,shieldBash?RIOT_SHIELD_ID:this.meleeWeaponId);
+        if(shieldBash && target.alive){
+          const dx=target.pos[0]-this.pos.x,dz=target.pos[2]-this.pos.z;
+          const distance=Math.hypot(dx,dz)||1;
+          const pushed:Vec3=[target.pos[0]+dx/distance*RIOT_BASH_KNOCKBACK,
+            target.pos[1],target.pos[2]+dz/distance*RIOT_BASH_KNOCKBACK];
+          if(!blocksBotMotion(this.map.cover,target.pos,pushed,target.pos[1])){target.pos=pushed;this.actorIndex?.update(target);}
+        }
         if(this.meleeWeaponId==="baton"&&target.ai&&target.ai.reloadingUntil>now){
           target.ai.reloadingUntil=now+1100;
           target.ai.nextShotAt=Math.max(target.ai.nextShotAt,now+1100);
@@ -3966,12 +4921,112 @@ export class FPSEngine {
     }
   }
 
+
+  /** Physical four-panel barricade. The 1.34–1.72-high firing slit remains clear. */
+  private installDeployCover(cover:DeployedCover):void{
+    const existing=this.deployedCovers.get(cover.id);
+    if(existing){
+      existing.cover.hp=cover.hp;
+      this.paintDeployCover(existing);
+      return;
+    }
+    const group=new THREE.Group();
+    const metal=new THREE.MeshStandardMaterial({color:0x53636a,metalness:.65,roughness:.55});
+    const trim=new THREE.MeshStandardMaterial({color:0xaac5cd,metalness:.8,roughness:.38});
+    for(const [i,panel] of coverPanels(cover).entries()){
+      const block=new THREE.Mesh(new THREE.BoxGeometry(panel.size[0]*2,panel.size[1]*2,panel.size[2]*2),metal.clone());
+      block.position.set(...panel.pos);
+      block.castShadow=true;block.receiveShadow=true;
+      group.add(block);
+      if(i<=1){
+        const alongX=panel.size[0]>panel.size[2];
+        const rim=new THREE.Mesh(new THREE.BoxGeometry(alongX?panel.size[0]*2:.3,.035,alongX?.3:panel.size[2]*2),trim.clone());
+        rim.position.set(panel.pos[0],panel.pos[1]+panel.size[1],panel.pos[2]);
+        group.add(rim);
+      }
+    }
+    metal.dispose();trim.dispose();
+    this.scene.add(group);
+    this.deployedCovers.set(cover.id,{cover:{...cover},mesh:group});
+    this.map.cover=[...this.map.cover,...coverPanels(cover)];
+    invalidateMapCoverIndex(this.map);
+  }
+  private paintDeployCover(item:{cover:DeployedCover;mesh:THREE.Group}):void{
+    const frac=Math.max(0,item.cover.hp/DEPLOY_COVER_HP);
+    item.mesh.traverse(object=>{
+      if(object instanceof THREE.Mesh && object.material instanceof THREE.MeshStandardMaterial
+          && object.material.metalness<.8)
+        object.material.color.setHex(frac<.35?0x794b46:frac<.7?0x6a6860:0x53636a);
+    });
+  }
+  private removeDeployCover(id:string):void{
+    const item=this.deployedCovers.get(id);
+    if(!item)return;
+    this.deployedCovers.delete(id);
+    this.map.cover=this.map.cover.filter(box=>box.environmentId!==DEPLOY_COVER_PREFIX+id);
+    invalidateMapCoverIndex(this.map);
+    this.scene.remove(item.mesh);
+    item.mesh.traverse(object=>{
+      if(object instanceof THREE.Mesh){
+        object.geometry.dispose();
+        const mats=Array.isArray(object.material)?object.material:[object.material];
+        mats.forEach(mat=>mat.dispose());
+      }
+    });
+  }
+  private reconcileDeployCovers(covers:DeployedCover[]):void{
+    const ids=new Set(covers.map(c=>c.id));
+    for(const id of this.deployedCovers.keys())if(!ids.has(id))this.removeDeployCover(id);
+    for(const cover of covers)this.installDeployCover(cover);
+  }
+  private tickDeployCovers():void{
+    if(this.opts.online)return;
+    for(const item of [...this.deployedCovers.values()])
+      if(Date.now()>=item.cover.expiresAt)this.removeDeployCover(item.cover.id);
+  }
+  private damageDeployCoverRay(origin:Vec3,dir:Vec3,range:number,damage:number,stopAt:number):void{
+    if(this.opts.online)return;
+    const hit=closestCoverHit(this.coverForRay(origin,dir,range),origin,dir,range,rayBox);
+    if(!hit || hit.distance>stopAt+.05)return;
+    const id=coverIdForBox(hit.box);
+    if(!id)return;
+    const item=this.deployedCovers.get(id);
+    if(!item)return;
+    item.cover.hp=coverNextHp(item.cover.hp,damage);
+    if(item.cover.hp<=0)this.removeDeployCover(id);else this.paintDeployCover(item);
+  }
+  private damageDeployCoverBlast(pos:Vec3,radius:number,damage:number):void{
+    if(this.opts.online)return;
+    for(const item of [...this.deployedCovers.values()]){
+      const amount=coverExplosionDamage(item.cover,pos,radius,damage);
+      if(amount<=0)continue;
+      const target=coverBlastContact(item.cover,pos);
+      if(!blastUnobstructed(pos,target,this.coverAlong(pos,target,2),
+        DEPLOY_COVER_PREFIX+item.cover.id))continue;
+      item.cover.hp=coverNextHp(item.cover.hp,amount);
+      if(item.cover.hp<=0)this.removeDeployCover(item.cover.id);else this.paintDeployCover(item);
+    }
+  }
+
   // Fourth equipment slot. Offline damage is simulated locally; online usage
   // only sends an intent. The server validates the player's selection, charges,
   // cooldown, victim teams and spawn protection before applying damage.
   private useEquipment(): void {
-    // Equipment actions were retired in v9; keep the input hook a no-op
-    // without unreachable legacy statements in the compiled bundle.
+    const now = performance.now();
+    if (this.disposed || this.inputSuspended || !this.alive || this.survivalDowned ||
+        this.matchEnded || this.lobbyActive || this.preMatchCountdown > 0 ||
+        this.opts.mode === "gungame" || this.equipmentAction ||
+        this.reloading ||
+        (!this.pointerLocked && !this.touchMode) || this.equipmentCharges <= 0 ||
+        (this.opts.online && !this.socket?.connected)) return;
+    const def = equipmentById(this.opts.loadout.equipmentId);
+    if (now - this.equipmentLastAt < def.cooldownMs) return;
+    const kind = equipmentMotionFor(def.id);
+    this.unlockAudio();
+    this.manualAiming = false;
+    this.aiming = false;
+    this.equipmentAction = { id: def.id, startedAt: now, kind,
+      duration: deployDurationMs(kind), committed: false };
   }
 
   private updateEquipmentAction(now: number) {
@@ -3988,12 +5043,14 @@ export class FPSEngine {
     if (now >= action.startedAt + action.duration) this.equipmentAction=null;
   }
 
-  private equipmentTrajectory(id: string): ThrowPath {
+  private equipmentTrajectory(id: string): TimedProjectilePath {
     const cp=Math.cos(this.pitch);
     const dir: Vec3=[Math.sin(this.yaw)*cp,Math.sin(this.pitch),Math.cos(this.yaw)*cp];
     const origin: Vec3=[this.pos.x,this.pos.y+EYE_HEIGHT*.86,this.pos.z];
-    return calculateThrowPath(origin,dir,id as "frag"|"flashbang"|"knives"|"poison_dart"|"taser"|"mine",(at,v,d)=>
-      closestCoverHit(this.map.cover,at,v,d,rayBox)?.distance ?? null, this.pos.y+.12);
+    if (id === "frag" || id === "flashbang")
+      return tacticalGrenadePath(origin,dir,this.map.cover,this.map.id);
+    return calculateThrowPath(origin,dir,id as "knives"|"poison_dart"|"taser"|"mine",(at,v,d)=>
+      closestCoverHit(this.coverForRay(at,v,d),at,v,d,rayBox)?.distance ?? null, this.pos.y+.12);
   }
 
   /** Grenades are aimed with the normal crosshair. No occluding dotted arc. */
@@ -4001,24 +5058,57 @@ export class FPSEngine {
     if (this.equipmentPreviewLine) this.equipmentPreviewLine.visible = false;
   }
 
+  /** Spatial tactical SFX. Online cues are driven by accepted server FX,
+   * while offline players and bots use the exact same lifecycle mapping. */
+  private playEquipmentCue(id: string, phase: EquipmentAudioPhase, at: Vec3): void {
+    const cue = equipmentSoundFor(equipmentById(id).id, phase);
+    if (!cue) return;
+    const distance = Math.hypot(at[0] - this.pos.x, at[1] - (this.pos.y + EYE_HEIGHT), at[2] - this.pos.z);
+    const volume = equipmentSoundVolume(distance);
+    if (volume >= 0.012) this.sound.play(cue, { volume });
+  }
+
   private commitEquipmentUse(id: string): void {
     const def=equipmentById(id), now=performance.now();
-    this.equipmentCharges=Math.max(0,this.equipmentCharges-1);
+    let place:ReturnType<typeof coverPlacement>=null;
+    if(def.type==="cover"&&!this.opts.online){
+      place=coverPlacement([this.pos.x,this.pos.y,this.pos.z],this.yaw,this.map.cover,this.map.size,
+        [...this.combatants.values()].filter(c=>c.alive).map(c=>c.pos));
+      if(!place){void import("sonner").then(({toast})=>toast.error("No space to deploy cover"));return;}
+    }
+    const stock=spendTactical({charges:this.equipmentCharges,nextAt:this.equipmentNextRechargeAt},
+      now,this.activePerkId,def.charges);
+    this.equipmentCharges=stock.charges;
+    this.equipmentNextRechargeAt=stock.nextAt;
     this.equipmentLastAt=now;
     if(this.opts.online){
       this.socket?.emit("message",{t:"useEquipment"});
       return;
     }
-    const path=this.equipmentTrajectory(id);
-    if(def.type==="mine"){
-      this.offlineMines.push({pos:path.impact,expiresAt:now+45000,mesh:this.makeMineMarker(path.impact)});
+    if(def.type==="cover"&&place){
+      for(const item of [...this.deployedCovers.values()])
+        if(item.cover.ownerId===this.selfId)this.removeDeployCover(item.cover.id);
+      this.installDeployCover({id:"offline_cover_"+(++this.localWonderSequence),ownerId:this.selfId,
+        ownerTeam:this.opts.team,pos:place.pos,yaw:place.yaw,hp:DEPLOY_COVER_HP,
+        expiresAt:Date.now()+DEPLOY_COVER_LIFETIME_MS});
+      this.playEquipmentCue("cover","deploy",place.pos);
       return;
     }
+    const path=this.equipmentTrajectory(id);
+    if(def.type==="mine"){
+      const position=groundMineImpact(path.impact,this.pos.y,this.map.cover);
+      this.offlineMines.push({pos:position,mesh:this.makeMineMarker(position),
+        ownerId:this.selfId,ownerTeam:this.opts.team as string});
+      this.playEquipmentCue(id,"placed",position);
+      return;
+    }
+    this.playEquipmentCue(id,"release",path.points[0]);
     this.animateEquipmentPath(path.points,id,path.flightMs,()=>{
       if(this.disposed || this.matchEnded)return;
       const impact=path.impact;
+      this.playEquipmentCue(id,"impact",impact);
       const targets=[...this.combatants.values()].filter(c=>c.alive && c.id!==this.selfId &&
-        (this.opts.mode==="ffa" || c.team!==this.opts.team) &&
+        blastCanDamage(this.selfId,this.opts.team,c.id,c.team,this.opts.mode) &&
         !(c.spawnProtectedUntil && c.spawnProtectedUntil>Date.now()));
       if(def.type==="knife" || def.type==="poison" || def.type==="taser"){
         let first:{c:Combatant;index:number}|null=null;
@@ -4033,33 +5123,56 @@ export class FPSEngine {
           }
         }
         if(first){const hit:Combatant=first.c;
-          this.applyDamageLocal(hit,def.damage,false,`equipment_${id}`);
+          this.applyDamageLocal(hit,def.damage,false,`equipment_${id}`,def.type==="knife");
           if(def.type==="poison" && hit.alive)this.poisonByVictim.set(hit.id,{expiresAt:performance.now()+4500,tickAt:performance.now()+500,weaponId:`equipment_${id}`});
-          if(def.type==="taser" && hit.ai){hit.ai.nextDecisionAt=performance.now()+1700;hit.ai.targetId=null;}
+          if(def.type==="taser" && hit.alive){
+            const until=performance.now()+TASER_ADS_BLOCK_MS;
+            this.botTacticalAdsBlockedUntil.set(hit.id,Math.max(this.botTacticalAdsBlockedUntil.get(hit.id)??0,until));
+            if(hit.ai)hit.ai.aiming=false;
+            this.spawnTacticalStatusVisual(hit.id,"stun",TASER_ADS_BLOCK_MS);
+          }
         }
       } else {
+        if(def.type==="blast"){
+          const center:Vec3=[this.pos.x,this.pos.y+1,this.pos.z];
+          const d=blastExposureDistance(impact,center,def.radius,(_from,to)=>
+            this.hasLineOfSight([impact[0],impact[1]+.3,impact[2]],to));
+          if(d!==null)this.takeDamage(fragDamage(d),this.opts.playerName,this.opts.team,false,"equipment_frag");
+        }
         if(def.type==="flash"){
-          const selfDist=Math.hypot(this.pos.x-impact[0],this.pos.z-impact[2]);
-          if(selfDist<def.radius){const eye: Vec3=[this.pos.x,this.pos.y+EYE_HEIGHT,this.pos.z];
-            const delta: Vec3=[eye[0]-impact[0],eye[1]-impact[1],eye[2]-impact[2]];
-            const len=Math.hypot(...delta)||1;
-            if(!closestCoverHit(this.map.cover,impact,[delta[0]/len,delta[1]/len,delta[2]/len],len,rayBox))
-              this.equipmentFlashUntil=performance.now()+Math.round(1100+1800*(1-selfDist/def.radius));
+          const eye:Vec3=[this.pos.x,this.pos.y+EYE_HEIGHT,this.pos.z];
+          const d=blastExposureDistance(impact,eye,def.radius,(_from,to)=>
+            this.hasLineOfSight([impact[0],impact[1]+.3,impact[2]],to));
+          if(d!==null){
+            const duration=flashDurationMs(d),now=performance.now();
+            this.equipmentFlashAudioUntil=Math.max(this.equipmentFlashAudioUntil,now+duration);
+            const visualMs=Math.round(duration*flashFacingExposure(eye,this.yaw,impact));
+            if(visualMs>0)this.equipmentFlashUntil=Math.max(this.equipmentFlashUntil,now+visualMs);
           }
         }
         for(const c of targets){
-          const dist=Math.hypot(c.pos[0]-impact[0],c.pos[2]-impact[2]);
-          if(dist>def.radius)continue;
-          const delta:Vec3=[c.pos[0]-impact[0],c.pos[1]+1-impact[1],c.pos[2]-impact[2]];
-          const len=Math.hypot(...delta)||1;
-          if(closestCoverHit(this.map.cover,impact,[delta[0]/len,delta[1]/len,delta[2]/len],len,rayBox))continue;
-          if(def.type==="blast")this.applyDamageLocal(c,Math.max(12,def.damage*(1-dist/def.radius)),false,`equipment_${id}`);
-          else if(def.type==="flash" && c.ai){c.ai.nextDecisionAt=performance.now()+2500;c.ai.targetId=null;}
+          const center:Vec3=[c.pos[0],c.pos[1]+1,c.pos[2]];
+          const dist=blastExposureDistance(impact,center,def.radius,(_from,to)=>
+            this.hasLineOfSight([impact[0],impact[1]+.3,impact[2]],to));
+          if(dist===null)continue;
+          if(def.type==="blast")this.applyDamageLocal(c,fragDamage(dist),false,`equipment_${id}`);
+          else if(def.type==="flash" && c.alive){
+            const duration=Math.round(flashDurationMs(dist)*
+              flashFacingExposure([c.pos[0],c.pos[1]+1,c.pos[2]],c.yaw,impact));
+            if(duration>0){
+              this.botFlashUntil.set(c.id,Math.max(this.botFlashUntil.get(c.id)??0,performance.now()+duration));
+              if(c.ai){c.ai.targetId=null;c.ai.lastSighting=null;c.ai.lastAlert=null;c.ai.nextDecisionAt=0;}
+              this.spawnTacticalStatusVisual(c.id,"flash",duration);
+            }
+          }
         }
-        if (def.type === "blast") this.spawnExplosion(new THREE.Vector3(...impact));
-        else if (def.type === "flash") this.spawnEquipmentVisual(impact, 0xffffff);
+        if(def.type==="blast"){
+          this.damageLocalBallisticCoverExplosion(impact,def.radius,def.damage,def.id);
+          this.spawnExplosion(new THREE.Vector3(...impact),undefined,def.radius);
+        } else if(def.type==="flash")this.spawnEquipmentVisual(impact,0xffffff);
+        if(def.type==="blast"||def.type==="flash")this.spawnTacticalBlastRing(impact,def.radius,def.type==="flash");
       }
-    });
+    },path.timesMs);
   }
 
   /** Bullet Spitter is a placed machine, not a projectile. Uses world-space
@@ -4104,8 +5217,17 @@ export class FPSEngine {
         t.barrelPivot.rotation.x *= .9;
       }
       if (!t.offline || now < t.nextShotAt || this.matchEnded) continue;
-      const target = [...this.combatants.values()].filter(c=>
-        c.alive && turretCanAttack(this.opts.mode, this.opts.team, c.team, c.id === t.ownerId) &&
+      const turretOwner=this.combatants.get(t.ownerId);
+      const ownerTeam=turretOwner?.team??(this.opts.team as string);
+      const targets:Combatant[]=[...this.combatants.values()];
+      if(turretOwner&&this.alive)targets.push({
+        id:this.selfId,name:this.opts.playerName,team:this.opts.team as string,isBot:false,isSelf:true,
+        pos:[this.pos.x,this.pos.y,this.pos.z],yaw:this.yaw,pitch:this.pitch,
+        health:this.health,alive:this.alive,weaponId:this.weaponId,weaponSkinId:"default",
+        playerSkinId:"default",kills:this.kills,deaths:this.deaths,score:0,
+      });
+      const target = targets.filter(c=>
+        c.id!==t.ownerId&&c.alive && turretCanAttack(this.opts.mode, ownerTeam, c.team, c.id === t.ownerId) &&
         turretCanTrack(t.pos,t.yaw,c.pos) &&
         this.hasLineOfSight([t.pos[0], t.pos[1]+TURRET_MUZZLE_HEIGHT, t.pos[2]], [c.pos[0], c.pos[1]+1, c.pos[2]])
       ).sort((a,b)=>Math.hypot(a.pos[0]-t.pos[0],a.pos[2]-t.pos[2]) -
@@ -4120,16 +5242,19 @@ export class FPSEngine {
       t.yawPivot.rotation.y = Math.atan2(Math.sin(targetYaw - t.yaw), Math.cos(targetYaw - t.yaw));
       t.barrelPivot.rotation.x=-Math.atan2(delta[1],Math.hypot(delta[0],delta[2]));
       this.spawnTracer(src,[delta[0]/len,delta[1]/len,delta[2]/len],"default");
-      if(rayRiotShield(src,[delta[0]/len,delta[1]/len,delta[2]/len],target)!==null){
+      // Placed Wonder Weapon fires independently of the player's equipped gun.
+      this.playEnemyFireSound(src, "wonder_turret", false);
+      if(target.id!==this.selfId && rayRiotShield(src,[delta[0]/len,delta[1]/len,delta[2]/len],target)!==null){
         const next=hitRiotShield(target.riotShieldHp??RIOT_SHIELD_HP,
           target.riotShieldReadyAt??0,TURRET_DAMAGE,performance.now());
         target.riotShieldHp=next.hp;target.riotShieldReadyAt=next.readyAt;
       }
+      else if(turretOwner)this.damageFromOfflineBotTactical(turretOwner,target,TURRET_DAMAGE,"frag",false,"wonder_turret");
       else this.applyDamageLocal(target,TURRET_DAMAGE,false,"wonder_turret");
     }
   }
 
-  private placeDeathBomb(id: string, pos: Vec3, explodesAt: number, local: boolean) {
+  private placeDeathBomb(id: string, pos: Vec3, explodesAt: number, local: boolean, ownerId=this.selfId,ownerTeam=this.opts.team as string) {
     if (this.deathBombs.has(id) || this.disposed) return;
     const mesh = this.makeMineMarker(pos);
     mesh.scale.setScalar(1.25);
@@ -4138,7 +5263,7 @@ export class FPSEngine {
     if (indicator instanceof THREE.Mesh && indicator.material instanceof THREE.MeshBasicMaterial) {
       indicator.material.color.set(0xff8b20);
     }
-    this.deathBombs.set(id, { pos, explodesAt, mesh, local });
+    this.deathBombs.set(id, { pos, explodesAt, mesh, local, ownerId, ownerTeam });
   }
 
   private removeDeathBomb(id: string) {
@@ -4167,17 +5292,31 @@ export class FPSEngine {
       if (remaining) continue;
       this.removeDeathBomb(id);
       this.spawnExplosion(new THREE.Vector3(...bomb.pos));
+      // Destroy cover after resolving who was protected from the blast.
       for (const target of this.combatants.values()) {
-        if (!target.alive || !explonandoCanHit(this.opts.mode, target.team, this.opts.team as string, target.id, this.selfId)) continue;
-        const distance = Math.hypot(target.pos[0] - bomb.pos[0], target.pos[2] - bomb.pos[2]);
-        const damage = explonandoDamage(distance);
-        if (!damage || target.spawnProtectedUntil && target.spawnProtectedUntil > now) continue;
-        const origin: Vec3 = [bomb.pos[0], bomb.pos[1] + .5, bomb.pos[2]];
-        const delta: Vec3 = [target.pos[0] - origin[0], target.pos[1] + 1 - origin[1], target.pos[2] - origin[2]];
-        const len = Math.hypot(...delta) || 1;
-        if (closestCoverHit(this.map.cover, origin, [delta[0]/len,delta[1]/len,delta[2]/len], len, rayBox)) continue;
-        this.applyDamageLocal(target, damage, false, "perk_explonando");
+        if (!target.alive || !explonandoCanHit(this.opts.mode, target.team, bomb.ownerTeam, target.id, bomb.ownerId)) continue;
+        const origin:Vec3=[bomb.pos[0],bomb.pos[1]+.5,bomb.pos[2]];
+        const center:Vec3=[target.pos[0],target.pos[1]+1,target.pos[2]];
+        const d=blastExposureDistance(origin,center,EXPLO_RADIUS,(from,to)=>this.hasLineOfSight(from,to));
+        if(d===null||target.spawnProtectedUntil&&target.spawnProtectedUntil>now)continue;
+        const damage=explonandoDamage(d);
+        if(!damage)continue;
+        const botOwner=this.combatants.get(bomb.ownerId);
+        if(botOwner)this.damageFromOfflineBotTactical(botOwner,target,damage,"frag",false,"perk_explonando");
+        else this.applyDamageLocal(target,damage,false,"perk_explonando");
       }
+      if(bomb.ownerId!==this.selfId && this.alive &&
+         blastCanDamage(bomb.ownerId,bomb.ownerTeam,this.selfId,this.opts.team as string,this.opts.mode)){
+        const origin:Vec3=[bomb.pos[0],bomb.pos[1]+.5,bomb.pos[2]];
+        const center:Vec3=[this.pos.x,this.pos.y+1,this.pos.z];
+        const d=blastExposureDistance(origin,center,EXPLO_RADIUS,(from,to)=>this.hasLineOfSight(from,to));
+        const damage=d===null?0:explonandoDamage(d);
+        if(damage>0){
+          const owner=this.combatants.get(bomb.ownerId);
+          this.takeDamage(damage,owner?.name??"Bot",bomb.ownerTeam,false,"perk_explonando",owner?.pos);
+        }
+      }
+      this.damageLocalBallisticCoverExplosion(bomb.pos,EXPLO_RADIUS,EXPLO_DAMAGE,"perk_explonando");
     }
   }
 
@@ -4218,44 +5357,100 @@ export class FPSEngine {
     });
   }
 
-  /** Render the *actual* flight path with distinct equipment silhouettes. */
-  private animateEquipmentPath(points: Vec3[], id: string, durationMs: number, onImpact?:()=>void): void {
+  /** Readable, physically sized projectile silhouettes with a small additive
+   * halo and a short velocity-aligned streak. Nothing renders through cover:
+   * depth tests stay enabled and the flight position is still the real physics
+   * path. This is shared by offline and multiplayer tactical throws. */
+  private animateEquipmentPath(points: Vec3[], id: string, durationMs: number, onImpact?:()=>void, timesMs?: number[]): void {
     if(points.length<2){onImpact?.();return;}
-    const root=new THREE.Group();
-    const dark=new THREE.MeshStandardMaterial({color:0x303945,metalness:.55,roughness:.4});
-    const pale=new THREE.MeshStandardMaterial({color:0xe6e7de,metalness:.45});
-    const steel=new THREE.MeshStandardMaterial({color:0xb3c0c8,metalness:.6});
-    const add=(geo:THREE.BufferGeometry,mat:THREE.Material, y=0)=>{const m=new THREE.Mesh(geo,mat);m.position.y=y;root.add(m);};
+    const style=tacticalProjectileVisual(id);
+    const root=new THREE.Group(), model=new THREE.Group();
+    root.add(model);
+    const dark=new THREE.MeshStandardMaterial({color:0x35424a,metalness:.48,roughness:.42});
+    const pale=new THREE.MeshStandardMaterial({color:0xe6e9df,metalness:.34,roughness:.46});
+    const steel=new THREE.MeshStandardMaterial({color:0xc9dae1,metalness:.68,roughness:.29});
+    const accent=new THREE.MeshBasicMaterial({color:style.color});
+    const add=(geo:THREE.BufferGeometry,mat:THREE.Material,y=0)=>{
+      const mesh=new THREE.Mesh(geo,mat);
+      mesh.position.y=y;model.add(mesh);
+      return mesh;
+    };
     if(id==="knives"){
-      add(new THREE.BoxGeometry(.065,.26,.052),dark,-.12);
-      add(new THREE.ConeGeometry(.05,.31,4),steel,.16);
+      add(new THREE.BoxGeometry(.095,.30,.067),dark,-.16);
+      add(new THREE.ConeGeometry(.070,.39,4),steel,.20);
+      add(new THREE.BoxGeometry(.10,.038,.075),accent,-.02);
     }else if(id==="poison_dart"){
-      add(new THREE.CylinderGeometry(.012,.012,.35,8),steel);
-      add(new THREE.ConeGeometry(.04,.09,8),new THREE.MeshBasicMaterial({color:0x72ed5a}),.22);
+      add(new THREE.CylinderGeometry(.024,.024,.41,8),steel);
+      add(new THREE.ConeGeometry(.072,.15,8),accent,.27);
+      add(new THREE.BoxGeometry(.16,.045,.035),pale,-.17);
     }else if(id==="flashbang"){
-      add(new THREE.CylinderGeometry(.095,.095,.27,12),pale);
-      add(new THREE.CylinderGeometry(.1,.1,.025,12),dark,.14);
+      add(new THREE.CylinderGeometry(.13,.13,.32,12),pale);
+      add(new THREE.CylinderGeometry(.135,.135,.038,12),dark,.17);
+      add(new THREE.CylinderGeometry(.14,.14,.04,12),accent,-.08);
     }else if(id==="taser"){
-      add(new THREE.BoxGeometry(.15,.10,.18),dark);
+      add(new THREE.BoxGeometry(.22,.15,.24),dark);
+      add(new THREE.BoxGeometry(.19,.04,.05),accent,.07);
+      const prong=add(new THREE.CylinderGeometry(.026,.026,.14,6),steel,.16);
+      prong.position.x=-.064;
+      const second=add(new THREE.CylinderGeometry(.026,.026,.14,6),steel,.16);
+      second.position.x=.064;
+    }else if(id==="mine"){
+      add(new THREE.CylinderGeometry(.21,.21,.13,12),dark);
+      add(new THREE.TorusGeometry(.19,.032,6,16),accent).rotation.x=Math.PI/2;
     }else{
-      add(new THREE.SphereGeometry(.13,10,10),dark);
+      add(new THREE.SphereGeometry(.17,12,10),dark);
+      add(new THREE.TorusGeometry(.177,.038,6,18),accent).rotation.x=Math.PI/2;
     }
+
+    // A halo outlines small items against both bright concrete and dark rooms.
+    // Additive blending is deliberately restrained: the object remains legible
+    // as a physical projectile, not an oversized magic orb or a wallhack.
+    const halo=new THREE.Mesh(new THREE.SphereGeometry(style.haloRadius,12,8),
+      new THREE.MeshBasicMaterial({color:style.color,transparent:true,opacity:.24,
+        blending:THREE.AdditiveBlending,depthWrite:false,depthTest:true}));
+    root.add(halo);
+    const streak=new THREE.Mesh(new THREE.ConeGeometry(style.trailWidth,1,7),
+      new THREE.MeshBasicMaterial({color:style.color,transparent:true,opacity:.44,
+        blending:THREE.AdditiveBlending,depthWrite:false,depthTest:true,side:THREE.DoubleSide}));
+    streak.visible=false;
+    streak.frustumCulled=false;
+    root.add(streak);
     this.scene.add(root);
+
     const born=performance.now();
+    const last=new THREE.Vector3(...points[0]),movement=new THREE.Vector3();
+    const up=new THREE.Vector3(0,1,0);
+    const flight:TimedProjectilePath={points,impact:points[points.length-1],flightMs:durationMs,timesMs};
+    const dispose=()=>{
+      this.scene.remove(root);
+      const geos=new Set<THREE.BufferGeometry>(),mats=new Set<THREE.Material>();
+      root.traverse(o=>{
+        if(o instanceof THREE.Mesh){
+          geos.add(o.geometry);
+          for(const m of Array.isArray(o.material)?o.material:[o.material])mats.add(m);
+        }
+      });
+      geos.forEach(g=>g.dispose());
+      mats.forEach(m=>m.dispose());
+    };
     const tick=()=>{
-      if(this.disposed){this.scene.remove(root);return;}
-      const t=Math.min(1,(performance.now()-born)/Math.max(1,durationMs));
-      const idx=t*(points.length-1),i=Math.min(points.length-2,Math.floor(idx)),f=idx-i;
-      const a=points[i],b=points[i+1];
-      root.position.set(a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f,a[2]+(b[2]-a[2])*f);
-      root.rotation.z=t*8;
-      if(t<1)requestAnimationFrame(tick);
-      else {
-        this.scene.remove(root);
-        root.traverse(o=>{if(o instanceof THREE.Mesh)o.geometry.dispose();});
-        [dark,pale,steel].forEach(m=>m.dispose());
-        onImpact?.();
-      }
+      if(this.disposed){dispose();return;}
+      const age=Math.min(durationMs,Math.max(0,performance.now()-born));
+      const p=projectilePositionAt(flight,age);
+      root.position.set(p[0],p[1],p[2]);
+      model.rotation.z=(age/Math.max(1,durationMs))*8;
+      const traveled=movement.subVectors(root.position,last).length();
+      if(traveled>.014 && age<durationMs){
+        movement.multiplyScalar(1/traveled);
+        const length=Math.min(style.trailLength,traveled*3);
+        streak.visible=true;
+        streak.scale.set(1,length,1);
+        streak.quaternion.setFromUnitVectors(up,movement);
+        streak.position.copy(movement).multiplyScalar(-length*.5);
+      }else streak.visible=false;
+      last.copy(root.position);
+      if(age<durationMs)requestAnimationFrame(tick);
+      else {dispose();onImpact?.();}
     };
     requestAnimationFrame(tick);
   }
@@ -4266,6 +5461,84 @@ export class FPSEngine {
     mesh.position.set(pos[0],pos[1],pos[2]);
     this.scene.add(mesh);
     setTimeout(() => { this.scene.remove(mesh); mesh.geometry.dispose(); (mesh.material as THREE.Material).dispose(); }, burst ? 500 : 1300);
+  }
+
+
+  /** Short-lived electrical arcs or white disorientation sparks wrapped around
+   * the affected operator, visible to the shooter and everyone else in range.
+   * The local victim also receives a high-contrast HUD effect.
+   */
+  private spawnTacticalStatusVisual(victimId:string,effect:"stun"|"flash",durationMs:number):void {
+    if(victimId===this.selfId||!this.combatants.has(victimId))return;
+    const old=this.tacticalStatusVisuals.get(victimId);
+    if(old?.effect===effect){
+      old.expiresAt=Math.max(old.expiresAt,performance.now()+durationMs);
+      return;
+    }
+    if(old)this.removeTacticalStatusVisual(victimId);
+    const group=new THREE.Group(),color=effect==="stun"?0x42e8ff:0xfff5b0;
+    const halo=new THREE.Mesh(new THREE.TorusGeometry(.55,.04,7,24),
+      new THREE.MeshBasicMaterial({color,transparent:true,opacity:.75,depthWrite:false,side:THREE.DoubleSide}));
+    halo.position.y=.22;halo.rotation.x=Math.PI/2;group.add(halo);
+    for(let k=0;k<5;k++){
+      const points:THREE.Vector3[]=[];
+      for(let i=0;i<7;i++){
+        const angle=k*Math.PI*2/5+Math.sin(i*3+k)*.18;
+        const radius=.4+(i%2)*.17;
+        points.push(new THREE.Vector3(Math.cos(angle)*radius,-.62+i*.22,Math.sin(angle)*radius));
+      }
+      group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),
+        new THREE.LineBasicMaterial({color,transparent:true,opacity:.9,depthWrite:false})));
+    }
+    this.scene.add(group);
+    this.tacticalStatusVisuals.set(victimId,{group,expiresAt:performance.now()+durationMs,effect});
+  }
+  private removeTacticalStatusVisual(victimId:string):void {
+    const fx=this.tacticalStatusVisuals.get(victimId);
+    if(!fx)return;
+    this.scene.remove(fx.group);
+    fx.group.traverse(obj=>{
+      if(obj instanceof THREE.Mesh||obj instanceof THREE.Line){
+        obj.geometry.dispose();
+        for(const mat of Array.isArray(obj.material)?obj.material:[obj.material])mat.dispose();
+      }
+    });
+    this.tacticalStatusVisuals.delete(victimId);
+  }
+  private spawnTacticalBlastRing(position:Vec3,radius:number,flash:boolean):void {
+    const mesh=new THREE.Mesh(new THREE.RingGeometry(.85,1,40),
+      new THREE.MeshBasicMaterial({color:flash?0xffffff:0xffa63a,
+        transparent:true,opacity:flash?.8:.64,depthWrite:false,side:THREE.DoubleSide}));
+    mesh.rotation.x=-Math.PI/2;
+    mesh.position.set(position[0],Math.max(.06,position[1]+.03),position[2]);
+    this.scene.add(mesh);
+    this.tacticalBlastRings.push({mesh,born:performance.now(),duration:flash?480:560,radius});
+  }
+  private updateTacticalVisuals(now:number):void {
+    for(const [id,fx] of this.tacticalStatusVisuals){
+      const target=this.combatants.get(id);
+      if(!target?.alive||now>=fx.expiresAt){this.removeTacticalStatusVisual(id);continue;}
+      fx.group.position.set(target.pos[0],target.pos[1]+1,target.pos[2]);
+      fx.group.rotation.y=now*.003;
+      const pulse=.55+.4*Math.abs(Math.sin(now*.033));
+      for(const child of fx.group.children){
+        if(child instanceof THREE.Mesh || child instanceof THREE.Line){
+          const mat=child.material;
+          if(!Array.isArray(mat) && (mat instanceof THREE.LineBasicMaterial || mat instanceof THREE.MeshBasicMaterial))
+            mat.opacity=pulse;
+        }
+      }
+    }
+    this.tacticalBlastRings=this.tacticalBlastRings.filter(fx=>{
+      const t=(now-fx.born)/fx.duration;
+      if(t>=1||this.disposed){
+        this.scene.remove(fx.mesh);fx.mesh.geometry.dispose();(fx.mesh.material as THREE.Material).dispose();
+        return false;
+      }
+      fx.mesh.scale.setScalar(Math.max(.1,fx.radius*(.12+.88*t)));
+      (fx.mesh.material as THREE.MeshBasicMaterial).opacity=(1-t)*.72;
+      return true;
+    });
   }
 
   private pulseMineBeacons(now: number): void {
@@ -4279,23 +5552,124 @@ export class FPSEngine {
     }
   }
 
-  private tickOfflineMines(now: number): void {
-    if (this.opts.online || !this.offlineMines.length || this.matchEnded) return;
-    this.offlineMines = this.offlineMines.filter(m => {
-      if (now > m.expiresAt) { this.removeMineMarker(m.mesh); return false; }
-      const enemy = [...this.combatants.values()].find(c => c.alive && (this.opts.mode === "ffa" || c.team !== this.opts.team) &&
-        !(c.spawnProtectedUntil && c.spawnProtectedUntil > Date.now()) &&
-        Math.hypot(c.pos[0]-m.pos[0],c.pos[2]-m.pos[2]) < 2.4);
-      if (!enemy) return true;
-      this.removeMineMarker(m.mesh);
-      this.spawnEquipmentVisual(m.pos,0xf59e0b);
-      for (const c of this.combatants.values()) {
-        if (!c.alive || this.opts.mode !== "ffa" && c.team === this.opts.team) continue;
-        const d = Math.hypot(c.pos[0]-m.pos[0],c.pos[2]-m.pos[2]);
-        if (d <= 3.3) this.applyDamageLocal(c,Math.max(15,100*(1-d/3.3)),false,"equipment_mine");
+  /** Remove an offline mine exactly once, including its owned 3D marker. */
+  private removeOfflineMine(mine: OfflineProximityMine): void {
+    const at = this.offlineMines.indexOf(mine);
+    if (at < 0) return;
+    this.offlineMines.splice(at, 1);
+    this.removeMineMarker(mine.mesh);
+  }
+
+  /** Both stepping onto a mine and shooting it run the SAME owner-credited
+   * explosion. Only a proximity intruder receives the guaranteed direct hit. */
+  private detonateOfflineMine(
+    mine: OfflineProximityMine,
+    triggerId?: string,
+  ): void {
+    if (!this.offlineMines.includes(mine)) return;
+    const owner = mine.ownerId === this.selfId ? null : this.combatants.get(mine.ownerId);
+    if (!mineOwnerActive(mine.ownerId === this.selfId ? { alive: this.alive } : owner)) {
+      this.removeOfflineMine(mine);
+      return;
+    }
+    this.removeOfflineMine(mine); // clear before damage can cause more deaths
+    this.playEquipmentCue("mine", "triggered", mine.pos);
+    this.spawnEquipmentVisual(mine.pos, 0xffb448);
+    this.spawnTacticalBlastRing(mine.pos, MINE_SPLASH_RADIUS, false);
+    const origin: Vec3 = [mine.pos[0], mine.pos[1] + .2, mine.pos[2]];
+    const distance = (feet: Vec3) => blastDistance(origin, mineContactPoint(origin, feet));
+    const visible = (feet: Vec3) => this.hasLineOfSight(origin, mineContactPoint(origin, feet));
+    const rivals = [...this.combatants.values()].filter(c => c.alive && c.id !== mine.ownerId &&
+      (this.opts.mode === "ffa" || this.opts.mode === "gungame" || c.team !== mine.ownerTeam) &&
+      !(c.spawnProtectedUntil && c.spawnProtectedUntil > Date.now()));
+    for (const victim of rivals) {
+      const d = distance(victim.pos);
+      if (d > MINE_SPLASH_RADIUS || !visible(victim.pos)) continue;
+      const direct = victim.id === triggerId;
+      const damage = direct ? equipmentById("mine").damage : mineSplashDamage(d);
+      if (damage <= 0) continue;
+      if (owner) this.damageFromOfflineBotTactical(owner, victim, damage, "mine", direct);
+      else this.applyDamageLocal(victim, damage, false, "equipment_mine", direct);
+    }
+    const playerPos: Vec3 = [this.pos.x, this.pos.y, this.pos.z];
+    if (this.alive && distance(playerPos) <= MINE_SPLASH_RADIUS && visible(playerPos) &&
+        this.selfSpawnProtectedUntil <= Date.now()) {
+      if (mine.ownerId === this.selfId) {
+        this.takeDamage(mineSplashDamage(distance(playerPos)), this.opts.playerName,
+          this.opts.team, false, "equipment_mine");
+      } else if (this.opts.mode === "ffa" || this.opts.mode === "gungame" || this.opts.team !== mine.ownerTeam) {
+        const direct = triggerId === this.selfId;
+        const damage = direct
+          ? Math.max(this.health * 8, equipmentById("mine").damage)
+          : mineSplashDamage(distance(playerPos));
+        if (damage > 0) {
+          const deathsBefore = this.deaths;
+          this.takeDamage(damage, owner?.name ?? "Proximity Mine",
+            mine.ownerTeam, false, "equipment_mine", owner?.pos);
+          // Offline bot tactical damage to the local human uses takeDamage,
+          // which records the death but not the attacker's statistics. Credit
+          // the mine-owning bot, NOT whoever happened to shoot its mine.
+          if (owner && this.deaths > deathsBefore) {
+            owner.kills += 1;
+            if (this.opts.mode !== "ctf" && this.opts.mode !== "killconfirmed") owner.score = owner.kills;
+            if (this.opts.mode === "tdm") this.teamScores[owner.team as "red" | "blue"] += 1;
+            if (this.opts.mode === "gungame") {
+              if (this.advanceCombatantGungameTier(owner)) this.finalizeMatchLocal();
+            } else this.checkWin();
+          }
+        }
       }
-      return false;
-    });
+    }
+    if (owner?.alive && distance(owner.pos) <= MINE_SPLASH_RADIUS && visible(owner.pos)) {
+      this.damageFromOfflineBotTactical(owner, owner, mineSplashDamage(distance(owner.pos)),
+        "mine", false, "equipment_mine", true);
+    }
+    this.damageLocalBallisticCoverExplosion(mine.pos, MINE_SPLASH_RADIUS, equipmentById("mine").damage, "mine");
+  }
+
+  /** Local bullets and bot bullets can detonate either team's mines. The
+   * shooter's identity is never passed to explosion damage or kill accounting. */
+  private shootOfflineMine(origin: Vec3, dir: Vec3, maxDistance: number): boolean {
+    if (!this.offlineMines.length || maxDistance <= 0) return false;
+    const hit = closestShotMine(this.offlineMines, origin, dir, maxDistance);
+    if (!hit) return false;
+    this.detonateOfflineMine(hit.mine);
+    return true;
+  }
+
+  private tickOfflineMines(_now: number): void {
+    if (this.opts.online || !this.offlineMines.length) return;
+    // Iterate a snapshot, because explosions and deaths remove mines mid-tick.
+    for (const mine of [...this.offlineMines]) {
+      if (!this.offlineMines.includes(mine)) continue;
+      const owner = mine.ownerId === this.selfId ? { alive: this.alive && !this.survivalDowned } :
+        this.combatants.get(mine.ownerId);
+      if (!mineOwnerActive(owner)) {
+        this.removeOfflineMine(mine);
+        continue;
+      }
+      if (this.matchEnded) continue;
+      const origin: Vec3 = [mine.pos[0], mine.pos[1] + .2, mine.pos[2]];
+      const distance = (feet: Vec3) => blastDistance(origin, mineContactPoint(origin, feet));
+      const visible = (feet: Vec3) => this.hasLineOfSight(origin, mineContactPoint(origin, feet));
+      const rivals = [...this.combatants.values()].filter(c => c.alive && c.id !== mine.ownerId &&
+        (this.opts.mode === "ffa" || this.opts.mode === "gungame" || c.team !== mine.ownerTeam) &&
+        !(c.spawnProtectedUntil && c.spawnProtectedUntil > Date.now()));
+      const playerIsRival = this.alive && mine.ownerId !== this.selfId &&
+        (this.opts.mode === "ffa" || this.opts.mode === "gungame" || this.opts.team !== mine.ownerTeam) &&
+        this.selfSpawnProtectedUntil <= Date.now();
+      const targets = [...rivals.map(c => ({ id: c.id, pos: c.pos })),
+        ...(playerIsRival ? [{ id: this.selfId, pos: [this.pos.x, this.pos.y, this.pos.z] as Vec3 }] : [])];
+      const trigger = targets.filter(target => distance(target.pos) <= MINE_TRIGGER_RADIUS && visible(target.pos))
+        .sort((a, b) => distance(a.pos) - distance(b.pos))[0];
+      if (trigger) this.detonateOfflineMine(mine, trigger.id);
+    }
+  }
+
+  /** Cosmetic transition only. Ready/firing timers stay with the caller. */
+  private startWeaponSwapVisual(elapsedOffsetMs = 0) {
+    this.swapAnimAt = performance.now() - elapsedOffsetMs;
+    this.swapViewmodelPending = true;
   }
 
   // ---- Weapon swap (primary / secondary / melee) ----
@@ -4307,6 +5681,7 @@ export class FPSEngine {
     if (this.equipmentAction || this.survivalDowned) return;
     if (this.opts.mode === "gungame") return;  // gungame auto-advances; no manual swap
     if (this.currentSlot === slot) return;
+    if (slot === "wonder" && !this.wonderWeaponId) return;
     if (!this.alive) return;
     // ---- Round 19o: Save current slot's ammo before swapping ----
     // Previously, swapping reset ammo to full (this.ammoInMag = this.eff.magSize),
@@ -4332,18 +5707,27 @@ export class FPSEngine {
       this.eff = this.secondaryEff;
       this.sightDef = this.secondarySight;
       this.ammoInMag = this.secondaryAmmoInMag;
-    } else {
+    } else if (slot === "melee") {
       this.weaponId = this.meleeWeaponId;
       this.eff = this.meleeEff;
       this.sightDef = this.meleeSight;
-      this.ammoInMag = this.meleeAmmoInMag;
+      this.ammoInMag = isThrowingKnife(this.meleeWeaponId)?this.throwingKnifeState.charges:this.meleeAmmoInMag;
+    } else {
+      this.weaponId=this.wonderWeaponId;
+      this.eff=this.wonderEff;
+      this.sightDef=this.wonderSight;
+      this.ammoInMag=usesWonderCharges(weaponById(this.wonderWeaponId))
+        ? (this.wonderStates.get(this.wonderWeaponId)?.charges ?? 0)
+        : this.wonderAmmoInMag;
     }
     this.reloading = false;
-    this.swapAnimAt = performance.now() - (this.activePerkId === "quickdraw" ? 155 : 0);
+    this.useAkimboSlot(slot);
+    this.akimboRightPressedThisFrame=false;
+    this.touchAkimboRightPressedThisFrame=false;
+    this.startWeaponSwapVisual(this.activePerkId === "quickdraw" ? 155 : 0);
     this.swapReadyAt = performance.now() + (this.activePerkId === "quickdraw" ? 110 : 290);
     this.sound.play("swap", { volume: 0.6 });
-    // Rebuild the viewmodel for the new weapon (different geometry/material).
-    this.buildViewmodel();
+    // The old mesh remains for the holster half; rebuild at the visual handoff.
     // Notify the server (online) so other players see the swap + the server
     // validates shots against the new weapon's stats.
     if (this.opts.online && this.socket?.connected) {
@@ -4353,6 +5737,7 @@ export class FPSEngine {
 
   // Public getter for the current slot (used by the HUD).
   getCurrentSlot(): WeaponSlot { return this.currentSlot; }
+  hasWonderSlot(): boolean { return !!this.wonderWeaponId && this.opts.mode!=="gungame"; }
 
   // Round 20a: Public getter for socket connection state (used by GameCanvas lobby UI).
   getSocketConnected(): boolean { return !!this.socket?.connected; }
@@ -4362,7 +5747,9 @@ export class FPSEngine {
   private saveAmmoToSlot(slot: WeaponSlot) {
     if (slot === "primary") this.primaryAmmoInMag = this.ammoInMag;
     else if (slot === "secondary") this.secondaryAmmoInMag = this.ammoInMag;
-    else this.meleeAmmoInMag = this.ammoInMag;
+    else if (slot === "melee") this.meleeAmmoInMag = isThrowingKnife(this.meleeWeaponId)?this.throwingKnifeState.charges:this.ammoInMag;
+    else if (slot === "wonder" && this.wonderWeaponId === RIOT_SHIELD_ID)
+      this.wonderAmmoInMag = this.ammoInMag;
   }
 
   // ---- Live match stats (for mid-match exit progression saving) ----
@@ -4381,7 +5768,7 @@ export class FPSEngine {
       kills: this.kills, deaths: this.deaths, score: isSurvival ? this.survivalWave : objectiveScore, isBot: false,
     }].map((c) => ({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths,
       assists:c.id===this.selfId?this.assists:0,
-      score:(c.score ?? c.kills)+(c.id===this.selfId?this.assists:0), isBot: c.isBot }))
+      score:(c.score ?? c.kills)+(c.id===this.selfId && this.opts.mode!=="ctf" && this.opts.mode!=="killconfirmed"?this.assists:0), isBot: c.isBot }))
       .sort((a, b) => b.score - a.score || b.kills - a.kills);
     const placement = standings.findIndex((s) => s.id === this.selfId) + 1;
     const durationSec = Math.max(0, Math.round((performance.now() - this.matchStartedAt) / 1000));
@@ -4389,11 +5776,12 @@ export class FPSEngine {
     const won = false;
     return {
       kills: this.kills, deaths: this.deaths, headshots: this.headshots, assists:this.assists, won,
-      score: isSurvival ? this.survivalWave : objectiveScore, mode: this.opts.mode, standings,
+      score: isSurvival ? this.survivalWave : objectiveScore, mode: this.opts.mode, mapId: this.opts.mapId, standings,
       durationSec, completed: false, placement: placement || 1, multikills: this.multikillsCount, bestStreak: this.bestStreak, maxNoDeathStreak: this.maxNoDeathStreak, defenseKills: this.defenseKills, flagReturns: this.flagReturns, maxScoreDeficit: this.maxScoreDeficit, participants: standings.length, weaponId: this.weaponId,
       killDifficulties: this.killDifficulties.slice(),
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
       perWeaponActions: Object.fromEntries(this.perWeaponActions),
+      perAttachmentKills: Object.fromEntries(this.perAttachmentKills),
       confirmations: this.confirmations, denials: this.denials,
       ...(isSurvival ? { survivalWaves: this.getSurvivalClearedWaves(), survivalTier: this.survivalTier } as any : {}),
     };
@@ -4405,7 +5793,7 @@ export class FPSEngine {
   // primary). Gun Game always uses the primary's attachments (progression
   // weapons ignore sidearm attachments).
   private getCurrentAttachments(): Record<AttachmentSlot, string | null> {
-    if (this.opts.mode === "gungame") return { sight: null, barrel: null, grip: null, magazine: null };
+    if (this.opts.mode === "gungame" || this.currentSlot==="wonder") return { sight: null, barrel: null, grip: null, magazine: null };
     if (this.currentSlot === "secondary" && this.opts.loadout.secondaryAttachments) {
       return {
         sight: this.opts.loadout.secondaryAttachments.sight ?? null,
@@ -4431,6 +5819,7 @@ export class FPSEngine {
   // the weapon cycles through a clean progression and ignores Armory skins.
   private getCurrentSkinId(): string {
     if (this.opts.mode === "gungame") return "default";
+    if(this.currentSlot==="wonder")return "default";
     if (this.currentSlot === "secondary") return this.opts.loadout.secondaryWeaponSkinId ?? this.opts.loadout.weaponSkinId;
     if (this.currentSlot === "melee") return this.opts.loadout.meleeWeaponSkinId ?? this.opts.loadout.weaponSkinId;
     return this.opts.loadout.weaponSkinId;
@@ -4448,6 +5837,32 @@ export class FPSEngine {
   /** Range dummies are regular hit-detectable combatants. Only scripted
    * side-to-side targets move; none shoot or award profile progression.
    */
+  /** Range-only billboard signs are visual: never inject collision into the
+   * bullet or player path, and always dispose their canvas textures on exit.
+   */
+  private addRangeStationSign(label:string,detail:string,x:number,y:number,z:number,color:string,width=5.6){
+    const canvas=document.createElement("canvas");
+    canvas.width=768;canvas.height=192;
+    const ctx=canvas.getContext("2d");
+    if(!ctx)return;
+    ctx.fillStyle="#0c1420";ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle=color;ctx.fillRect(0,0,canvas.width,10);
+    ctx.strokeStyle=color;ctx.lineWidth=8;ctx.strokeRect(4,4,canvas.width-8,canvas.height-8);
+    ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillStyle="#f2f7fa";ctx.font="bold 65px sans-serif";
+    ctx.fillText(label,canvas.width/2,72,canvas.width-52);
+    ctx.fillStyle=color;ctx.font="bold 34px sans-serif";
+    ctx.fillText(detail,canvas.width/2,149,canvas.width-48);
+    const texture=new THREE.CanvasTexture(canvas);
+    texture.colorSpace=THREE.SRGBColorSpace;
+    const mesh=new THREE.Mesh(new THREE.PlaneGeometry(width,1.4),
+      new THREE.MeshBasicMaterial({map:texture,side:THREE.DoubleSide,depthWrite:false}));
+    mesh.position.set(x,y,z);
+    mesh.rotation.y=Math.PI; // face the shooter entering from negative Z
+    this.scene.add(mesh);
+    this.rangeSignMeshes.push(mesh);
+  }
+
   private setupFiringRangeTargets() {
     RANGE_TARGETS.forEach((point, i) => {
       const id = "range_target_" + i;
@@ -4482,6 +5897,31 @@ export class FPSEngine {
       track.position.set(target.center[0], 0.065, target.center[2]);
       this.scene.add(track);
     });
+    // Material stations occupy the two outer side corridors, not the center
+    // lane. Each has a real, respawning enemy target behind its sample panel,
+    // allowing damage comparison between normal ammo and Penetrator Rounds.
+    const materialColors:Record<string,string>={
+      glass:"#76dbea",thin_wood:"#d4a574",light_cover:"#dfc28c",
+      sheet_metal:"#a5bacc",concrete:"#f0a7a7",
+    };
+    for(const station of RANGE_MATERIAL_STATIONS){
+      const c:Combatant={
+        id:"range_material_target_"+station.id,
+        name:station.label+" · Test Dummy",
+        team:"red",isBot:true,isSelf:false,pos:[...station.target],
+        yaw:Math.PI,pitch:0,health:MAX_HEALTH,alive:true,
+        weaponId:"pistol_side",weaponSkinId:"default",playerSkinId:"red",
+        kills:0,deaths:0,score:0,
+      };
+      this.combatants.set(c.id,c);
+      this.addCombatantMesh(c);
+      this.addRangeStationSign(station.label,station.behavior,station.x,2.68,-.95,
+        materialColors[station.material]);
+      const line=new THREE.Mesh(new THREE.BoxGeometry(4.7,.025,.14),
+        new THREE.MeshBasicMaterial({color:new THREE.Color(materialColors[station.material])}));
+      line.position.set(station.x,.058,RANGE_MATERIAL_SHOOT_Z);
+      this.scene.add(line);
+    }
     // Mark the firing line and fixed target distances without bullet-blocking cover.
     for (const z of [-28, -10, 1, 13, 25]) {
       const marker = new THREE.Mesh(new THREE.BoxGeometry(18, 0.025, 0.12),
@@ -4512,17 +5952,40 @@ export class FPSEngine {
       const sp = this.pickSpawn(team);
       const teamSlot = team === "ffa" ? i : Math.floor(i/2);
       const archetype = botArchetypeForSlot(teamSlot);
+      const perk=botPerkForMode(this.opts.mode,1,Math.random,archetype);
       const wid = isGungame ? this.gungameWeapons[0] : botArchetypeWeapon(archetype,Math.floor(Math.random()*botArchetypeWeapons(archetype).length));
+      const ai=this.makeBotAI(sp,undefined,archetype);
+      ai.moveSpeed*=botMovementPerkMultiplier(perk);
+      ai.primaryWeaponId=wid;
+      ai.primaryAttachments=botAttachmentsForMode(this.opts.mode,archetype,wid);
+      ai.attachments=ai.primaryAttachments;
+      if(perk==="well_prepared"){
+        ai.secondaryWeaponId=botSecondaryPrimary(wid,Math.random,archetype);
+        ai.secondaryAttachments=botAttachmentsForMode(this.opts.mode,archetype,ai.secondaryWeaponId);
+        ai.secondaryAmmoInMag=botMagazineCapacity(ai.secondaryWeaponId,ai.secondaryAttachments);
+      }
+      const wonderId=perk==="wonder_weapon" ? botWonderForMode(this.opts.mode) : undefined;
       const c: Combatant = {
         id, name: "Bot-" + (n + 1), team, isBot: true, isSelf: false,
+        perkId:perk,botWonderId:wonderId,
         pos: sp, yaw: 0, pitch: 0, health: MAX_HEALTH, alive: true,
         weaponId: wid, weaponSkinId: "default", playerSkinId: botOperativeSkinId(i,skinRotation),
         kills: 0, deaths: 0, score: 0,
-        ai: this.makeBotAI(sp,undefined,archetype),
+        ai,
         gungameIndex: isGungame ? 0 : undefined,
       };
-      if(c.ai)c.ai.ammoInMag=weaponById(wid).stats.magSize;
+      if(c.ai)c.ai.ammoInMag=botMagazineCapacity(wid,c.ai.attachments);
       this.combatants.set(id, c);
+      if(wonderId){
+        const wonder=weaponById(wonderId).wonder;
+        if(wonder?.kind==="shield"){
+          c.riotShieldHp=this.opts.mode==="survival"?RIOT_SHIELD_HP:0;
+          c.riotShieldReadyAt=this.opts.mode==="survival"?0:performance.now()+RIOT_SHIELD_RECHARGE_MS;
+        }else if(wonder){
+          this.botWonderCharges.set(id,this.opts.mode==="survival"
+            ?fullWonderCharges(wonder):drainedWonderCharges(wonder,performance.now()));
+        }
+      }
       this.addCombatantMesh(c);
       i++;
     }
@@ -4598,14 +6061,29 @@ export class FPSEngine {
     this.survivalMaxReinforcements = 0;
     this.survivalReinforcements = 0;
     this.survivalWave = 0;
-    this.survivalPrepLeft = 5;       // short initial prep before wave 1
+    this.survivalUpgradeRanks={};
+    this.survivalPlayerRanks={};
+    this.survivalSelfReviveUsedWave=-1;
+    this.survivalDowned=false;
+    this.survivalDownedUntil=0;
+    this.survivalUpgradeOffer=undefined;
+    this.survivalRerolls=1;
+    this.survivalLastKillAt=-Infinity;
+    this.survivalLastHeadshotKillAt=-Infinity;
+    this.survivalPrepLeft = 2;       // short initial prep before wave 1
     this.survivalWaveActive = false;
     this.timeLeft = 99999;           // survival has no time limit
   }
 
   private startSurvivalWave() {
-    // Clear obsolete phase timers from bosses in earlier waves.
+    if(this.survivalUpgradeOffer){
+      this.survivalUpgradeRanks=chooseSurvivalUpgrade(this.survivalUpgradeRanks,this.survivalUpgradeOffer.choices[0]);
+      this.survivalUpgradeOffer=undefined;
+    }
+    this.health=Math.min(MAX_HEALTH,this.health+survivalWaveHealing(this.survivalUpgradeRanks));
+    // Clear obsolete phases and Wonder stocks from previous waves.
     this.survivalBossTimers.clear();
+    this.botWonderCharges.clear();
     this.survivalWave += 1;
     this.survivalWaveActive = true;
     // Wave-start SFX: menacing horn to signal the next wave incoming.
@@ -4617,8 +6095,8 @@ export class FPSEngine {
     const mutators=survivalWaveMutators(this.survivalTier,this.survivalWave);
     const count=Math.min(40,Math.ceil(survivalWaveBotCount(this.survivalWave)*mutators.spawnMul))+(mutators.boss ? 1 : 0);
     const hpMul=survivalWaveHealthMul(this.survivalWave)*mutators.healthMul;
-    // Every conventional ranged weapon can spawn; specials and launchers do not.
-    const botWeapons = BOT_ELIGIBLE_WEAPONS.map(w=>w.id);
+    // Curated Survival arsenal; launchers are allowed, long-range snipers excluded.
+    const botWeapons = SURVIVAL_BOT_WEAPONS.map(w=>w.id);
     const skinRotation = Math.floor(Math.random()*BOT_OPERATIVE_SKINS.length);
     // ---- Round 18-b: spread out spawns ----
     // Use FFA spawn list (typically 20 points across the whole map) instead of
@@ -4628,24 +6106,40 @@ export class FPSEngine {
     // other combatants + the player, so bots naturally spread out.
     for (let n = 0; n < count; n++) {
       const boss=mutators.boss && n === count-1;
-      const id=(boss ? "svboss_" : "svbot_")+this.survivalWave+"_"+n;
+      const elite=!boss && this.survivalWave>=5 && this.survivalWave%5===0 &&
+        n===count-(mutators.boss?2:1);
+      const id=(boss ? "svboss_" : elite ? "svelite_" : "svbot_")+this.survivalWave+"_"+n;
       const sp = this.pickSpawn("ffa");
       const wid = boss ? "lmg_hv" : botWeapons[Math.floor(Math.random()*botWeapons.length)];
+      const perk=boss?"steady":botPerkForMode("survival",this.survivalWave);
+      const wonderId=perk==="wonder_weapon"?botWonderForMode("survival"):undefined;
       const ai=this.makeBotAI(sp,survivalBotDifficulty(this.survivalTier,this.survivalWave),botArchetypeForCategory(weaponById(wid).category));
-      ai.moveSpeed*=mutators.speedMul*(boss ? 1.3:1);
+      ai.moveSpeed*=mutators.speedMul*(boss ? 1.3:1)*botMovementPerkMultiplier(perk);
       ai.skill=Math.min(0.98,ai.skill+mutators.skillBoost);
       if(mutators.skillBoost>0) ai.difficulty="veteran";
       ai.ammoInMag=weaponById(wid).stats.magSize;
       if(boss) this.survivalBossTimers.set(id,{phase:0,nextPhaseAt:performance.now()+5000,nextSkillAt:performance.now()+8500});
       const c: Combatant = {
-        id, name: boss ? `BOSS · W${this.survivalWave}` : `W${this.survivalWave}·${n + 1}`, team: "red", isBot: true, isSelf: false,
-        pos: sp, yaw: 0, pitch: 0, health: Math.round(MAX_HEALTH * hpMul * (boss ? 6 : 1)), alive: true,
+        id, name: boss ? `BOSS · W${this.survivalWave}` : elite ? `ELITE · W${this.survivalWave}` : `W${this.survivalWave}·${n + 1}`, team: "red", isBot: true, isSelf: false,
+        perkId:perk,botWonderId:wonderId,
+        pos: sp, yaw: 0, pitch: 0, health: Math.round(MAX_HEALTH * hpMul * (boss ? 6 : elite ? 2.2 : 1)), alive: true,
         bossMaxHealth:boss?Math.round(MAX_HEALTH*hpMul*6):undefined,
+        eliteMaxHealth:elite?Math.round(MAX_HEALTH*hpMul*2.2):undefined,
         weaponId: wid, weaponSkinId: "default", playerSkinId: boss ? SURVIVAL_BOSS_SKIN_ID : botOperativeSkinId(n,skinRotation),
         kills: 0, deaths: 0, score: 0,
         ai,
       };
       this.combatants.set(id, c);
+      if(wonderId){
+        const wonder=weaponById(wonderId).wonder;
+        if(wonder?.kind==="shield"){
+          c.riotShieldHp=this.opts.mode==="survival"?RIOT_SHIELD_HP:0;
+          c.riotShieldReadyAt=this.opts.mode==="survival"?0:performance.now()+RIOT_SHIELD_RECHARGE_MS;
+        }else if(wonder){
+          this.botWonderCharges.set(id,this.opts.mode==="survival"
+            ?fullWonderCharges(wonder):drainedWonderCharges(wonder,performance.now()));
+        }
+      }
       this.addCombatantMesh(c);
     }
     this.survivalEnemiesLeft = count;
@@ -4653,6 +6147,13 @@ export class FPSEngine {
 
   private updateSurvival(dt: number) {
     if (this.matchEnded) return;
+    if(this.survivalDowned && this.survivalDownedUntil>0 &&
+       performance.now()>=this.survivalDownedUntil){
+      this.survivalDowned=false;this.survivalDownedUntil=0;
+      this.alive=false;this.health=0;
+      this.finalizeMatchLocal();
+      return;
+    }
     if (this.survivalPrepLeft > 0) {
       this.survivalPrepLeft -= dt;
       if (this.survivalPrepLeft <= 0) {
@@ -4675,28 +6176,26 @@ export class FPSEngine {
           this.finalizeMatchLocal();
           return;
         }
-        this.survivalPrepLeft = SURVIVAL_PREP_SEC;
+        const bossCleared=survivalWaveMutators(this.survivalTier,this.survivalWave).boss;
+        if(bossCleared)this.survivalRerolls++;
+        if(survivalUpgradeDue(this.survivalWave)||bossCleared){
+          this.survivalPrepLeft=survivalPrepSeconds(this.survivalWave);
+          this.survivalUpgradeOffer={wave:this.survivalWave,
+            choices:generateSurvivalUpgradeChoices(this.survivalUpgradeRanks,Math.random,[],bossCleared),
+            rerollsRemaining:this.survivalRerolls};
+        }else this.survivalPrepLeft=survivalPrepSeconds(this.survivalWave);
       }
     }
   }
 
-  // ---- Humanoid model builder ----
-  // Articulated body: torso, head, arms (upper+lower), legs (upper+lower), weapon in hands.
-  private addCombatantMesh(c: Combatant) {
-    const skin = playerSkinById(c.playerSkinId);
-    const bodyMat = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(skin.color),
-      roughness: 0.6, metalness: 0.3,
-      emissive: skin.emissive ? new THREE.Color(skin.emissive) : new THREE.Color(0x000000),
-      emissiveIntensity: skin.emissive ? 0.4 : 0,
-    });
-    const accentMat = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(skin.accent),
-      roughness: 0.5, metalness: 0.4,
-      emissive: skin.emissive ? new THREE.Color(skin.emissive) : new THREE.Color(skin.accent),
-      emissiveIntensity: 0.3,
-    });
-    const darkMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.7, metalness: 0.2 });
+  private combatantAppearance(c:Combatant):string {
+    return JSON.stringify([c.playerSkinId,c.team,c.name,c.nameplateId]);
+  }
+
+  /** Reused by initial construction and weapon-only swaps. Body joints,
+   * skin materials, labels and armor survive ordinary weapon changes. */
+  private buildCombatantWeapon(c:Combatant) {
+    const optionalDetails:THREE.Object3D[]=[];
     const weaponFinish = weaponSkinById(c.weaponId==="wonder_turret"?"default":c.weaponSkinId);
     const fullWorldLegendary = coatsAllWeaponParts(weaponFinish) || weaponFinish.id === "carbon";
     const worldDefaultTint = weaponFinish.id === "default"
@@ -4719,8 +6218,151 @@ export class FPSEngine {
       weaponMat.color.set(0xffffff);
     }
 
+    // ---- Third-person weapon (model faces character-forward +Z) ----
+    // The procedural weapon builder is camera-local (-Z forward). Its geometry,
+    // hand contacts and muzzle direction are all rotated by 180° about Y for
+    // soldiers, so rifles actually point ahead of the character.
+    const weaponStub = new THREE.Group();
+    const wcat = weaponById(c.weaponId).category;
+    const wid = c.weaponId;
+    if (wcat === "melee") {
+      // World-space opponents carry the same identifiable blade/haft
+      // profiles as first-person and F quick melee, rotated toward +Z.
+      weaponStub.rotation.x=-Math.PI/2.7;
+      const visual=new THREE.Group();
+      visual.rotation.y=Math.PI;
+      visual.scale.setScalar(BOT_WEAPON_VISUAL_SCALE);
+      const grip=new THREE.MeshStandardMaterial({color:0x323f47,metalness:.3,roughness:.78});
+      buildMeleeWeaponParts(wid,weaponMat,grip,(part,x,y,z)=>{
+        part.position.set(x,y,z);visual.add(part);
+      });
+      batchStaticPropMeshes(visual);
+      weaponStub.add(visual);
+    } else {
+      // Other players/bots carry the SAME distinctive weapon silhouettes as the
+      // local player. The first-person builder points toward camera -Z; rotate
+      // its output 180° so it points forward (+Z) in the humanoid's hands.
+      const visual = new THREE.Group();
+      visual.rotation.y = Math.PI;
+      visual.scale.setScalar(BOT_WEAPON_VISUAL_SCALE);
+      const weaponFurniture = fullWorldLegendary
+        ? weaponMat
+        : new THREE.MeshStandardMaterial({ color: 0x28323b, roughness: 0.82, metalness: 0.18 });
+      if(c.akimbo&&isAkimboWeapon(wid,"grip_akimbo")){
+        // Two receivers with symmetric true grip contacts: remote players also dual wield.
+        for(const hand of ["left","right"] as const){
+          const sign=hand==="left"?1:-1; // builder is rotated 180deg on Y
+          const shiftX=sign*(wcat==="shotgun"?.42:.28)/BOT_WEAPON_VISUAL_SCALE;
+          const shiftY=-.035/BOT_WEAPON_VISUAL_SCALE;
+          const muzzleZ=buildFirstPersonWeapon(wid,weaponMat,weaponFurniture,(mesh,x,y,z)=>{
+            mesh.position.set(x+shiftX,y+shiftY,z);
+            visual.add(mesh);
+          },fullWorldLegendary?weaponMat:undefined,
+            weaponFinish.id!=="default"?(weaponFinish.id==="gold"?weaponFurniture:weaponMat):undefined);
+          // Each receiver's hardware duplicates the owner's actual sight and
+          // barrel attachment instead of showing bare guns to other players.
+          if(c.akimboBarrelId){
+            const barrel=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,.2,10),weaponFurniture);
+            barrel.rotation.x=Math.PI/2;
+            barrel.position.set(shiftX,shiftY,muzzleZ-.1);
+            visual.add(barrel);
+          }
+          if(c.akimboSightId){
+            const laser=c.akimboSightId==="sight_laser";
+            const sight=new THREE.Group();
+            if(laser){
+              const housing=new THREE.Mesh(new THREE.BoxGeometry(.055,.045,.075),weaponFurniture);
+              sight.add(housing);
+              const emitter=new THREE.Mesh(new THREE.SphereGeometry(.012,8,6),
+                new THREE.MeshBasicMaterial({color:0xff3333}));
+              emitter.position.z=-.042;
+              sight.add(emitter);
+            }else{
+              // Lightweight open-frame reflex/holo hardware; no blocked optic window.
+              for(const side of [-1,1]){
+                const upright=new THREE.Mesh(new THREE.BoxGeometry(.009,.07,.012),weaponFurniture);
+                upright.position.x=side*.041;sight.add(upright);
+              }
+              const bridge=new THREE.Mesh(new THREE.BoxGeometry(.092,.009,.012),weaponFurniture);
+              bridge.position.y=.034;sight.add(bridge);
+            }
+            sight.position.set(shiftX,shiftY+.105,-.16);
+            visual.add(sight);
+          }
+        }
+      }else{
+        buildFirstPersonWeapon(wid,weaponMat,weaponFurniture,(mesh,x,y,z)=>{
+          mesh.position.set(x,y,z);visual.add(mesh);
+        },fullWorldLegendary?weaponMat:undefined,
+          weaponFinish.id!=="default"?(weaponFinish.id==="gold"?weaponFurniture:weaponMat):undefined);
+      }
+      if(c.charmId && c.charmId!=="none" && weaponSupportsCharm(weaponById(c.weaponId))){
+        const charm=createWeaponCharm(c.charmId);
+        if(charm){charm.position.set(...weaponCharmMountPoint(c.weaponId,"thirdPerson"));visual.add(charm);optionalDetails.push(charm);}
+      }
+      batchStaticPropMeshes(visual);
+      weaponStub.add(visual);
+    }
+    // Place the gun ahead of the chest rather than through it. The right-hand
+    // grip is near the trigger; the left hand reaches under the rear handguard.
+    // For pistols both hands form a compact two-handed grip, while melee uses
+    // a single weapon hand and a relaxed off-hand.
+    const weaponBase = new THREE.Vector3(-0.08, wcat === "melee" ? 1.29 : 1.30, 0.36);
+    weaponStub.position.copy(weaponBase);
+    let weaponHoldRight: THREE.Vector3;
+    let weaponHoldLeft: THREE.Vector3;
+    if (wcat === "melee") {
+      weaponHoldRight = new THREE.Vector3(-0.07, -0.01, 0.015);
+      weaponHoldLeft = new THREE.Vector3(0.38, -0.19, -0.28);
+    } else {
+      const contacts = weaponHoldPoints(wid);
+      const toBotHandSpace = ([x, y, z]: [number, number, number]) =>
+        new THREE.Vector3(-x, y, -z).multiplyScalar(BOT_WEAPON_VISUAL_SCALE);
+      if(c.akimbo&&isAkimboWeapon(wid,"grip_akimbo")){
+        // Opposite hands now grip separate trigger guards rather than a support stock.
+        weaponHoldRight=toBotHandSpace(contacts.trigger).add(new THREE.Vector3(wcat==="shotgun"?.42:.28,-.035,0));
+        weaponHoldLeft=toBotHandSpace(contacts.trigger).add(new THREE.Vector3(wcat==="shotgun"?-.42:-.28,-.035,0));
+      }else{
+        weaponHoldRight=toBotHandSpace(contacts.trigger);
+        weaponHoldLeft=toBotHandSpace(contacts.support);
+      }
+    }
+    return {weaponStub,weaponHoldRight,weaponHoldLeft,weaponBase,weaponMat,optionalDetails};
+
+  }
+
+  // ---- Humanoid model builder ----
+  // Articulated body: torso, head, arms (upper+lower), legs (upper+lower), weapon in hands.
+  private addCombatantMesh(c: Combatant) {
+    const skin = playerSkinById(c.playerSkinId);
+    const isBoss = isSurvivalBoss(c.id, c.name, c.isBot);
+    const bodyMat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(skin.color),
+      roughness: 0.6, metalness: 0.3,
+      emissive: skin.emissive ? new THREE.Color(skin.emissive) : new THREE.Color(0x000000),
+      emissiveIntensity: skin.emissive ? 0.4 : 0,
+    });
+    const accentMat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(skin.accent),
+      roughness: 0.5, metalness: 0.4,
+      emissive: skin.emissive ? new THREE.Color(skin.emissive) : new THREE.Color(skin.accent),
+      emissiveIntensity: 0.3,
+    });
+    const darkMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.7, metalness: 0.2 });
+    // Bosses wear a sealed Juggernaut exosuit rather than a legendary
+    // operative skin. A neutral undersuit prevents exposed red cosmetic
+    // panels from bleeding through the armor and its visor.
+    if (isBoss) {
+      bodyMat.color.setHex(JUGGERNAUT_VISUAL_PALETTE.shadow);
+      bodyMat.emissive.setHex(0);
+      bodyMat.emissiveIntensity = 0;
+      accentMat.color.setHex(JUGGERNAUT_VISUAL_PALETTE.armor);
+      accentMat.emissive.setHex(0);
+      accentMat.emissiveIntensity = 0;
+    }
     c.skinMaterial = bodyMat;
     const root = new THREE.Group();
+    root.userData.appearance=this.combatantAppearance(c);
 
     // ---- Torso (chest + hips) ----
     const torsoGroup = new THREE.Group();
@@ -4815,72 +6457,28 @@ export class FPSEngine {
     const legL = makeLeg(1);
     const legR = makeLeg(-1);
 
+    // Visual-only, skin-specific equipment with shared geometry for the Armory.
+    // Details follow articulated limbs, but never alter combat hitboxes.
+    if (!isBoss) addOperativeSkinDetails(skin, {
+      torso: torsoGroup, head: headGroup,
+      upperArmL: armL.upper, upperArmR: armR.upper,
+      upperLegL: legL.upper, upperLegR: legR.upper,
+    });
+
     // Larger-than-life armor is a cosmetic overlay over the standard hitbox.
     // Online boss identity is the authoritative name (IDs are random svbot IDs).
-    c.bossVisual = isSurvivalBoss(c.id,c.name,c.isBot)
+    c.bossVisual = isBoss
       ? addSurvivalBossArmor({root,torso:torsoGroup,head:headGroup,
           upperArmL:armL.upper,upperArmR:armR.upper,
-          upperLegL:legL.upper,upperLegR:legR.upper})
+          upperLegL:legL.upper,upperLegR:legR.upper,
+          lowerLegL:legL.lower,lowerLegR:legR.lower})
       : undefined;
+    if(!isBoss && isSurvivalElite(c.id,c.name,c.isBot))
+      addSurvivalEliteArmor({torso:torsoGroup,head:headGroup,
+        upperArmL:armL.upper,upperArmR:armR.upper});
 
-    // ---- Third-person weapon (model faces character-forward +Z) ----
-    // The procedural weapon builder is camera-local (-Z forward). Its geometry,
-    // hand contacts and muzzle direction are all rotated by 180° about Y for
-    // soldiers, so rifles actually point ahead of the character.
-    const weaponStub = new THREE.Group();
-    const wcat = weaponById(c.weaponId).category;
-    const wid = c.weaponId;
-    if (wcat === "melee") {
-      // World-space opponents carry the same identifiable blade/haft
-      // profiles as first-person and F quick melee, rotated toward +Z.
-      weaponStub.rotation.x=-Math.PI/2.7;
-      const visual=new THREE.Group();
-      visual.rotation.y=Math.PI;
-      visual.scale.setScalar(BOT_WEAPON_VISUAL_SCALE);
-      const grip=new THREE.MeshStandardMaterial({color:0x323f47,metalness:.3,roughness:.78});
-      buildMeleeWeaponParts(wid,weaponMat,grip,(part,x,y,z)=>{
-        part.position.set(x,y,z);visual.add(part);
-      });
-      weaponStub.add(visual);
-    } else {
-      // Other players/bots carry the SAME distinctive weapon silhouettes as the
-      // local player. The first-person builder points toward camera -Z; rotate
-      // its output 180° so it points forward (+Z) in the humanoid's hands.
-      const visual = new THREE.Group();
-      visual.rotation.y = Math.PI;
-      visual.scale.setScalar(BOT_WEAPON_VISUAL_SCALE);
-      const weaponFurniture = fullWorldLegendary
-        ? weaponMat
-        : new THREE.MeshStandardMaterial({ color: 0x28323b, roughness: 0.82, metalness: 0.18 });
-      buildFirstPersonWeapon(wid, weaponMat, weaponFurniture, (mesh, x, y, z) => {
-        mesh.position.set(x, y, z);
-        visual.add(mesh);
-      }, fullWorldLegendary ? weaponMat : undefined,
-        weaponFinish.id !== "default" ? (weaponFinish.id === "gold" ? weaponFurniture : weaponMat) : undefined);
-      if(c.charmId && c.charmId!=="none"){
-        const charm=createWeaponCharm(c.charmId);
-        if(charm){charm.position.set(...weaponCharmMountPoint(c.weaponId,"thirdPerson"));visual.add(charm);}
-      }
-      weaponStub.add(visual);
-    }
-    // Place the gun ahead of the chest rather than through it. The right-hand
-    // grip is near the trigger; the left hand reaches under the rear handguard.
-    // For pistols both hands form a compact two-handed grip, while melee uses
-    // a single weapon hand and a relaxed off-hand.
-    const weaponBase = new THREE.Vector3(-0.08, wcat === "melee" ? 1.29 : 1.30, 0.36);
-    weaponStub.position.copy(weaponBase);
-    let weaponHoldRight: THREE.Vector3;
-    let weaponHoldLeft: THREE.Vector3;
-    if (wcat === "melee") {
-      weaponHoldRight = new THREE.Vector3(-0.07, -0.01, 0.015);
-      weaponHoldLeft = new THREE.Vector3(0.38, -0.19, -0.28);
-    } else {
-      const contacts = weaponHoldPoints(wid);
-      const toBotHandSpace = ([x, y, z]: [number, number, number]) =>
-        new THREE.Vector3(-x, y, -z).multiplyScalar(BOT_WEAPON_VISUAL_SCALE);
-      weaponHoldRight = toBotHandSpace(contacts.trigger);
-      weaponHoldLeft = toBotHandSpace(contacts.support);
-    }
+    const {weaponStub,weaponHoldRight,weaponHoldLeft,weaponBase,weaponMat,optionalDetails}=this.buildCombatantWeapon(c);
+    c.remoteWeaponDetails=optionalDetails;
     root.add(weaponStub);
 
     // ---- Name sprite ----
@@ -4981,6 +6579,8 @@ export class FPSEngine {
     this.scene.add(root);
     c.group = root;
 
+    // A rebuilt model has new joints; never reuse a pose captured from the old mesh.
+    c.deathPoseStart = undefined;
     c.parts = {
       root, torso: torsoGroup, head: headGroup,
       upperArmL: armL.upper, upperArmR: armR.upper,
@@ -5033,6 +6633,7 @@ export class FPSEngine {
     });
     if (typeof window !== "undefined") (window as any).__socket = this.socket;
     this.socket.on("connect", () => {
+      this.movementSendBudget.reset();
       const rc = this.opts.roomConnect;
       if (rc?.kind === "create" && rc.config) {
         console.log("[FPS] socket connected, sending createRoom");
@@ -5109,6 +6710,7 @@ export class FPSEngine {
         if (msg.mapId && msg.mapId !== this.opts.mapId) {
           this.opts.mapId = msg.mapId;
           this.map = makeEnvironmentMap(getMap(msg.mapId,msg.mode));
+          this.trackBallisticCover();
           // Rebuild arena visuals for the new map. We can't easily rebuild mid-scene
           // without removing old meshes; in practice the server uses the same map as
           // the client requested (findOpenRoom matches by mode only — fix that later).
@@ -5127,7 +6729,13 @@ export class FPSEngine {
       case "clusterVolley":
         this.addClusterVolley({...msg.volley,launchedAt:gravityClientTime(msg.volley.launchedAt,msg.serverNow,Date.now())},false);
         break;
+      case "burnFx":
+        // Do not wait for the next 20Hz snapshot to show an incendiary hit.
+        // The next authoritative snapshot refreshes the same expiry.
+        this.onlineBurning.set(msg.victimId,Date.now()+Math.max(0,msg.durationMs));
+        break;
       case "snapshot":
+        if(msg.deployedCovers)this.reconcileDeployCovers(msg.deployedCovers);
         for(const volley of msg.clusterVolleys??[])this.addClusterVolley({...volley,launchedAt:msg.serverNow?gravityClientTime(volley.launchedAt,msg.serverNow,Date.now()):volley.launchedAt},false);
         // Authoritative poison status is sent to everyone, not just the
         // attacker. Convert server timestamps so client clock skew is safe.
@@ -5196,6 +6804,21 @@ export class FPSEngine {
           if (Number.isFinite(hp)) this.setEnvironmentWallHP(id, hp);
         }
         // Hydrate live turrets for late-joining clients; synchronize removals.
+        if(msg.mechDrops){
+          const current=new Set(msg.mechDrops.map(d=>d.id));
+          for(const d of msg.mechDrops)this.addMechDrop(d.id,d.ownerId,d.pos,d.landAt,d.expiresAt,d.moduleId,d.landed,d.enteredBy);
+          for(const [id] of this.mechDrops)if(!current.has(id))this.removeMechDrop(id);
+        }
+        if(msg.harbingerDrones){
+          const active=new Set(msg.harbingerDrones.map(d=>d.id));
+          for(const d of msg.harbingerDrones)this.addHarbinger(d.id,d.ownerId,d.ownerTeam,d.pos,d.expiresAt,d.hp,d.moduleId,false);
+          for(const [id,d] of this.harbingerDrones)if(!d.offline&&!active.has(id))this.removeHarbinger(id);
+        }
+        if(msg.phantomDecoys){
+          const current=new Set(msg.phantomDecoys.map(d=>d.id));
+          for(const d of msg.phantomDecoys)this.addPhantom(d.id,d.ownerId,d.pos,d.yaw,d.createdAt,d.expiresAt,d.count);
+          for(const [id] of this.phantomDecoys)if(!current.has(id))this.clearPhantom(id);
+        }
         if (msg.gravityWells) {
           const activeIds = new Set(msg.gravityWells.map(w => w.id));
           for (const w of msg.gravityWells) this.addGravityWell(w.id, w.ownerId, w.ownerTeam, w.pos, w.radius, w.activatesAt, w.expiresAt, false, msg.serverNow);
@@ -5224,22 +6847,38 @@ export class FPSEngine {
         }
         if(this.opts.online&&this.map.id==="floodgate")
           this.floodgateServerRulesVersion=msg.floodgateRulesVersion;
+        // Snapshots repair missed impact events and initialize late joiners.
+        if(msg.materialCoverDestroyed){
+          const broken=reconcileBallisticCover(this.map,this.ballisticHp,this.ballisticDestroyed,
+            msg.materialCoverDestroyed,msg.materialCoverHp??{});
+          for(const id of broken)this.hideBrokenBallisticCover(id);
+          // Late joiners see a scar on already-damaged panels even if they
+          // missed the original transient hit packets.
+          for(const [id,hp] of Object.entries(msg.materialCoverHp??{})){
+            const box=this.ballisticOriginals.get(id);
+            const maximum=coverMaxIntegrity(box?.material);
+            if(!box||maximum===null||hp>=maximum||hp<=0||
+               this.ballisticDestroyed.has(id)||(this.ballisticDecals.get(id)?.length??0)>0)continue;
+            const at:Vec3=[box.pos[0],box.pos[1],box.pos[2]-box.size[2]];
+            this.displayBallisticImpact({coverId:id,material:box.material!,point:at,hp,destroyed:false});
+          }
+        }
         this.teamScores = msg.teamScores;
         this.trackScoreDeficit();
         if(this.opts.mode==="ctf")this.ctfCaptures=msg.scores[this.selfId]??this.ctfCaptures;
-        if (this.opts.mode === "ctf") {
-          this.ctfRulesVerified = msg.ctfRulesVersion === 2 && !!msg.ctfBases;
-          if(this.map.id==="orbital_nexus"){
+        if(reactorObjective(this.map)){
           if(msg.orbitalCharge!==undefined)this.orbitalCharge=msg.orbitalCharge;
            this.orbitalServerVersion=msg.orbitalRulesVersion;
            this.orbitalSnapshotSeen=true;
           if(msg.orbitalHolders)this.grantOrbitalReaper(msg.orbitalHolders.includes(this.selfId));
         }
+        if (this.opts.mode === "ctf") {
+          this.ctfRulesVerified = msg.ctfRulesVersion === 2 && !!msg.ctfBases;
         if (msg.ctfBases) {
             this.ctfBases = msg.ctfBases;
             for (const team of ["red","blue"] as const) {
               const marker=this.ctfMarkers[team],base=msg.ctfBases[team];
-              if (marker) marker.position.set(base[0],.07,base[2]);
+              if (marker) marker.position.set(base[0],base[1]+.07,base[2]);
             }
           }
         }
@@ -5247,7 +6886,8 @@ export class FPSEngine {
           // Snapshots update visuals only: discrete server events distinguish
           // capture, drop and return without a timing-dependent guess.
           this.ctfFlags = msg.ctfFlags;
-          this.ctfOvertime = !!msg.ctfOvertime;
+          if (msg.ctfOvertime) this.beginCtfOvertime();
+          else this.ctfOvertime = false;
         }
         if (this.opts.mode === "killconfirmed") {
           this.syncKillConfirmedTags(msg.tags ?? []);
@@ -5284,6 +6924,10 @@ export class FPSEngine {
           this.survivalPrepLeft = (msg as any).prepLeft ?? this.survivalPrepLeft;
           this.survivalWaveActive = (msg as any).waveActive ?? (this.survivalEnemiesLeft>0);
           this.survivalTier=normalizeSurvivalTier((msg as any).survivalTier ?? this.survivalTier);
+          this.survivalPlayerRanks=msg.survivalPlayerRanks??this.survivalPlayerRanks;
+          this.survivalServerPaused=msg.survivalPaused===true;
+          this.survivalUpgradePendingCount=msg.survivalUpgradePendingCount??0;
+          this.survivalUpgradeSecondsLeft=msg.survivalUpgradeSecondsLeft;
         }
         // Sync the server-side pre-match countdown. When > 0, the client's
         // update loop freezes local gameplay (movement, firing) and renders
@@ -5318,7 +6962,20 @@ export class FPSEngine {
           }
         }
         break;
+      case "shieldBashPush":
+        if(msg.victimId===this.selfId && this.alive){
+          // The authoritative server collision-checked the shove. Apply it to
+          // the owning client so client-sent movement cannot cancel the push.
+          this.pos.set(msg.pos[0],msg.pos[1],msg.pos[2]);
+          this.sprinting=false;
+          this.sound.play("melee_hit",{volume:.55});
+        }
+        break;
       case "hit": {
+        if(msg.killed&&msg.wonderKillEffectId){
+          const victim=this.combatants.get(msg.victimId);
+          if(victim)this.showWonderBurst(victim.pos,msg.wonderKillEffectId);
+        }
         if (msg.victimId === this.selfId) {
           this.damageFlashAt = performance.now();
           // Only update the regen-cooldown timestamp when real damage is dealt.
@@ -5335,6 +6992,18 @@ export class FPSEngine {
         if (msg.attackerId === this.selfId) {
           this.hitMarkerAt = performance.now();
           if (msg.headshot) this.headshotMarkerAt = performance.now(); // Round 20g
+          // Do not refund twice for a rail shot that pierces multiple heads.
+          if (msg.weaponId==="wonder_phasebreaker" && msg.headshot && msg.damage>0 &&
+              this.railRefundShotAt!==this.lastShotAt) {
+            const w=weaponById("wonder_phasebreaker"),state=this.wonderStates.get(w.id);
+            if(state&&w.wonder){
+              const next=refundWonderCharge(state,w.wonder,performance.now());
+              this.wonderStates.set(w.id,next);
+              this.wonderAmmoInMag=next.charges;
+              if(this.weaponId===w.id)this.ammoInMag=next.charges;
+              this.railRefundShotAt=this.lastShotAt;
+            }
+          }
           // Hit-marker SFX for non-killing hits (kills get the kill chime).
           if (!msg.killed) this.sound.play("hit_marker", { volume: 0.5, throttleMs: 60 });
         }
@@ -5344,6 +7013,15 @@ export class FPSEngine {
           if (msg.attackerId === this.selfId) {
             this.kills += 1;
             if (msg.headshot) this.headshots += 1;
+            if(this.opts.mode==="survival"){
+              const reward=survivalKillReward(this.survivalUpgradeRanks,!!msg.headshot);
+              if(weaponById(this.weaponId).category!=="melee"){
+                this.ammoInMag=Math.min(this.eff.magSize,this.ammoInMag+reward.ammo);
+                this.saveAmmoToSlot(this.currentSlot);
+              }
+              this.survivalLastKillAt=performance.now();
+              if(msg.headshot)this.survivalLastHeadshotKillAt=this.survivalLastKillAt;
+            }
             // Attribute the kill to the weapon the SERVER says was used
             // (msg.weaponId). In online Gun Game, the server advances our tier
             // via the separate "gungameProgress" S2C — using `this.weaponId`
@@ -5386,6 +7064,10 @@ export class FPSEngine {
           // another player — bots in online mode also use this path).
           const victim = this.combatants.get(msg.victimId);
           if (victim) {
+            // A winning hit may stop the server tick before its next snapshot.
+            victim.alive = false;
+            victim.health = 0;
+            victim.deaths = msg.victimId === this.selfId ? this.deaths : victim.deaths + 1;
             victim.deathAnimAt = performance.now();
             victim.deathAnimDur = 800 + Math.random() * 250;
           }
@@ -5422,14 +7104,14 @@ export class FPSEngine {
           this.equipQueuedLoadout();
           this.pos.set(msg.pos[0], msg.pos[1], msg.pos[2]);
           this.health = msg.health; this.alive = true; this.respawnAt = 0; this.lastDeath=undefined;
+          this.mechActive=null;this.mechRightDown=false;
           this.lastPlayerRespawnAt = performance.now();
-          this.ammoInMag = usesWonderCharges(weaponById(this.weaponId)) ? (this.wonderStates.get(this.weaponId)?.charges ?? 0) : this.eff.magSize; this.reloading = false; this.equipmentAction = null;
+          // Wonder charges persist without a refill. New queued kits start empty.
+          this.refillAmmoOnRespawn(); this.reloading = false; this.equipmentAction = null;
           this.heatStates.clear(); this.boltCharges = 0; this.poisonByVictim.clear();
           this.equipmentCharges = equipmentById(this.opts.loadout.equipmentId).charges;
-          // Round 20: Refill ALL weapon slots on respawn (not just the active one).
-          this.primaryAmmoInMag = usesWonderCharges(weaponById(this.primaryWeaponId)) ? (this.wonderStates.get(this.primaryWeaponId)?.charges ?? 0) : this.primaryEff.magSize;
-          this.secondaryAmmoInMag = this.secondaryEff.magSize;
-          this.meleeAmmoInMag = this.meleeEff.magSize;
+    this.equipmentNextRechargeAt=0;
+          this.equipmentAdsBlockedUntil=0;this.equipmentFlashUntil=0;this.equipmentFlashAudioUntil=0;
           this.lastServerHealth = MAX_HEALTH;
         }
         break;
@@ -5442,13 +7124,84 @@ export class FPSEngine {
         this.spawnExplosion(new THREE.Vector3(...msg.pos), "singularity", radius);
         break;
       }
+      case "chronoAnchor":
+        if(msg.playerId===this.selfId){this.chronoAnchor={pos:msg.pos,expiresAt:msg.expiresAt};this.placeChronoMarker(msg.pos);}
+        break;
+      case "chronoRecall":
+        if(msg.playerId===this.selfId){this.pos.set(...msg.pos);this.chronoAnchor=null;this.vel.set(0,0,0);this.sound.play("swap",{volume:.5});}
+        break;
+      case "phantomDecoy":
+        this.addPhantom(msg.id,msg.ownerId,msg.pos,msg.yaw,msg.createdAt,msg.expiresAt,msg.count);
+        break;
+      case "mechDrop":
+        this.addMechDrop(msg.id,msg.ownerId,msg.pos,msg.landAt,msg.expiresAt,msg.moduleId,false);
+        break;
+      case "mechLanded":{
+        const d=this.mechDrops.get(msg.id);if(d)d.landed=true;
+        this.spawnExplosion(new THREE.Vector3(...msg.pos),undefined,3);
+        break;
+      }
+      case "mechEntered":{
+        const d=this.mechDrops.get(msg.id);if(d){d.enteredBy=msg.playerId;d.expiresAt=Date.now()+JUGGERNAUT_ACTIVE_MS;}
+        if(msg.playerId===this.selfId){
+          this.mechActive={id:msg.id,moduleId:msg.moduleId,armor:msg.armor,minigunAmmo:msg.minigunAmmo,
+            secondaryAmmo:msg.secondaryAmmo,enteredAt:performance.now(),expiresAt:Date.now()+JUGGERNAUT_ACTIVE_MS};
+          if(d)this.pos.set(...d.pos);
+          this.aiming=false;this.manualAiming=false;this.sprinting=false;
+          this.sound.play("swap",{volume:.7});
+        }
+        break;
+      }
+      case "mechDestroyed": {
+        const drop=this.mechDrops.get(msg.id);
+        if(drop || this.mechActive?.id===msg.id) {
+          const pos=drop?.mech.group.position.clone() ??
+            new THREE.Vector3(this.pos.x,this.pos.y+1,this.pos.z);
+          this.showMechExitFx(pos);
+        }
+        if(this.mechActive?.id===msg.id){this.mechActive=null;this.mechRightDown=false;this.mechRightPressed=false;this.mouseDown=false;this.clearMechCockpit();}
+        this.removeMechDrop(msg.id);
+        break;
+      }
+      case "mechAmmo":
+        if(this.mechActive){this.mechActive.armor=msg.armor;this.mechActive.minigunAmmo=msg.minigunAmmo;this.mechActive.secondaryAmmo=msg.secondaryAmmo;}
+        break;
+      case "wonderFrozen":
+        this.frozenUntil.set(msg.victimId,performance.now()+msg.durationMs);
+        break;
+      case "mechShotFx":
+        if(msg.attackerId!==this.selfId){
+          if(msg.mode==="swarm")this.spawnRocketProjectile(msg.origin,msg.dir,"default",0,false,"launcher_swarm");
+          else this.spawnTracer(msg.origin,msg.dir,"default",0,msg.mode==="minigun"?70:17);
+          this.playEnemyFireSound(msg.origin,msg.mode==="swarm"?"launcher_swarm":msg.mode==="minigun"?"lmg_hv":"shotgun_combat",false);
+        }
+        break;
+      case "harbingerPlaced":
+        this.addHarbinger(msg.id,msg.ownerId,msg.ownerTeam,msg.pos,msg.expiresAt,msg.hp,msg.moduleId,false);
+        break;
+      case "harbingerRemoved":
+        this.removeHarbinger(msg.id);
+        break;
+      case "harbingerFired":{
+        const d=this.harbingerDrones.get(msg.id);
+        if(d){
+          const dir=this.normalize([msg.target[0]-d.pos[0],msg.target[1]-d.pos[1],msg.target[2]-d.pos[2]]);
+          this.spawnTracer(d.pos,dir,"default",0,Math.hypot(msg.target[0]-d.pos[0],msg.target[1]-d.pos[1],msg.target[2]-d.pos[2]));
+          this.playEnemyFireSound(d.pos,"wonder_harbinger",false);
+        }
+        break;
+      }
+      case "harbingerScan":
+        for(const id of msg.ids)this.smartTags.set(id,performance.now()+msg.durationMs);
+        break;
       case "turretPlaced":
         this.placeBulletSpitter(msg.id, msg.ownerId, msg.pos, msg.yaw, msg.expiresAt, false);
         if (msg.ownerId === this.selfId && this.turretDeployPending) {
           this.turretDeployPending = false;
           const id = "wonder_turret";
           const rules = weaponById(id).wonder!;
-          const prior = this.wonderStates.get(id) ?? fullWonderCharges(rules);
+          // This is an authoritative acceptance, not a speculative attempt to fire.
+          const prior = this.wonderStates.get(id) ?? {charges:1,nextAt:0};
           const charged = spendWonderCharge(prior, rules, performance.now());
           if (charged) {
             this.wonderStates.set(id, charged);
@@ -5474,17 +7227,33 @@ export class FPSEngine {
           turret.yawPivot.rotation.y = Math.atan2(Math.sin(targetYaw - turret.yaw), Math.cos(targetYaw - turret.yaw));
           turret.barrelPivot.rotation.x = -Math.atan2(delta[1],Math.hypot(delta[0],delta[2]));
           this.spawnTracer(origin,[delta[0]/len,delta[1]/len,delta[2]/len], "default");
+          // Network turrets emit turretFired rather than ordinary shotFx.
+          this.playEnemyFireSound(origin, "wonder_turret", false);
         }
         break;
       }
       case "turretRemoved":
         this.removeBulletSpitter(msg.id);
         break;
+      case "survivalUpgradeOffer":
+        if(this.opts.mode==="survival"){
+          this.survivalUpgradeOffer=msg.offer;
+          this.survivalUpgradeRanks=msg.ranks;
+          this.survivalRerolls=msg.offer.rerollsRemaining;
+        }
+        break;
+      case "survivalUpgradeChosen":
+        if(this.opts.mode==="survival"){
+          this.survivalUpgradeRanks=msg.ranks;
+          this.survivalUpgradeOffer=undefined;
+        }
+        break;
       case "survivalDowned":
         if (msg.playerId === this.selfId) {
           // Save the outgoing primary's remaining ammo before locking swaps.
           this.saveAmmoToSlot(this.currentSlot);
           this.survivalDowned = true;
+          this.survivalDownedUntil=msg.selfReviveUntil??0;
           this.alive = true; this.health = 1; this.respawnAt = 0;
           this.sprinting = false; this.reloading = false;
           // Downed status disallows the normal swap action, so activate the
@@ -5494,18 +7263,26 @@ export class FPSEngine {
           this.ammoInMag = this.secondaryAmmoInMag; this.buildViewmodel();
         }
         break;
+      case "survivalReviveExpired":
+        if(msg.playerId===this.selfId){
+          this.survivalDowned=false;
+          this.survivalDownedUntil=0;
+          this.alive=false;this.health=0;this.respawnAt=0;
+        }
+        break;
       case "survivalRecovered":
         if (msg.playerId === this.selfId) {
           this.equipQueuedLoadout();
           this.survivalDowned = false;
+          this.survivalDownedUntil=0;
           this.lastPlayerRespawnAt = performance.now();
           this.pos.set(...msg.pos); this.vel.set(0,0,0);
-          this.alive = true; this.health = msg.health; this.respawnAt = 0;
+          this.alive = true; this.health = msg.health; this.respawnAt = 0; this.lastDeath = undefined;
           this.currentSlot = "primary"; this.weaponId = this.primaryWeaponId;
           this.eff = this.primaryEff; this.sightDef = this.primarySight;
-          this.primaryAmmoInMag = this.primaryEff.magSize;
-          this.secondaryAmmoInMag = this.secondaryEff.magSize;
-          this.ammoInMag = this.primaryAmmoInMag; this.buildViewmodel();
+          // Survival wave recovery is also a fresh deployment with full ammo.
+          this.refillAmmoOnRespawn(); this.buildViewmodel();
+          this.equipmentAdsBlockedUntil=0;this.equipmentFlashUntil=0;this.equipmentFlashAudioUntil=0;
         }
         break;
       case "deathBomb":
@@ -5535,27 +7312,66 @@ export class FPSEngine {
         if (msg.ownerId === this.selfId) this.recoverBolt();
         break;
       case "equipmentState":
-        this.equipmentCharges = msg.remaining;
+        this.equipmentCharges=msg.remaining;
+        this.equipmentNextRechargeAt=msg.nextRechargeMs?performance.now()+msg.nextRechargeMs:0;
+        break;
+      case "equipmentRejected":
+        void import("sonner").then(({toast})=>toast.error(msg.reason));
+        break;
+      case "deployedCoverPlaced":
+        this.installDeployCover(msg.cover);
+        this.playEquipmentCue("cover","deploy",msg.cover.pos);
+        break;
+      case "deployedCoverDamaged": {
+        const item=this.deployedCovers.get(msg.id);
+        if(item){item.cover.hp=msg.hp;this.paintDeployCover(item);}
+        break;
+      }
+      case "deployedCoverRemoved":
+        this.removeDeployCover(msg.id);
         break;
       case "equipmentStatus":
-        if (msg.effect === "flash") this.equipmentFlashUntil = performance.now() + msg.durationMs;
-        else this.equipmentStunUntil = performance.now() + msg.durationMs;
+        if(msg.effect==="cryo"){
+          // Whiteout slows locomotion and adds frost, but does not stun
+          // aiming or prevent controls like the Taser tactical.
+          this.localCryoSlowUntil=Math.max(this.localCryoSlowUntil,performance.now()+msg.durationMs);
+        } else if(msg.effect==="flash"){
+          const now=performance.now();
+          this.equipmentFlashAudioUntil=Math.max(this.equipmentFlashAudioUntil,now+msg.durationMs);
+          const visibleMs=msg.visualDurationMs??msg.durationMs;
+          if(visibleMs>0)this.equipmentFlashUntil=Math.max(this.equipmentFlashUntil,now+visibleMs);
+        }else{
+          this.equipmentAdsBlockedUntil=Math.max(this.equipmentAdsBlockedUntil,performance.now()+msg.durationMs);
+          this.aiming=false;
+        }
+        break;
+      case "equipmentStatusFx":
+        this.spawnTacticalStatusVisual(msg.victimId,msg.effect==="taser"?"stun":"flash",msg.durationMs);
         break;
       case "equipmentFx": {
         if(msg.mineState==="placed" && msg.mineId){
           const existing=this.remoteEquipmentMines.get(msg.mineId);
           if(existing)this.removeMineMarker(existing);
           this.remoteEquipmentMines.set(msg.mineId,this.makeMineMarker(msg.position));
+          this.playEquipmentCue("mine","placed",msg.position);
         } else if(msg.mineState==="triggered"){
           if(msg.mineId){const old=this.remoteEquipmentMines.get(msg.mineId);
             if(old)this.removeMineMarker(old);this.remoteEquipmentMines.delete(msg.mineId);}
+          this.playEquipmentCue("mine","triggered",msg.position);
           this.spawnEquipmentVisual(msg.position,0xffb448);
+          this.spawnTacticalBlastRing(msg.position,MINE_SPLASH_RADIUS,false);
         } else if(msg.path?.length){
+          this.playEquipmentCue(msg.equipmentId,"release",msg.path[0]);
           this.animateEquipmentPath(msg.path,msg.equipmentId,msg.flightMs??500,()=>{
-            if (msg.equipmentId === "frag") this.spawnExplosion(new THREE.Vector3(...msg.position));
-            else if (msg.equipmentId === "flashbang") this.spawnEquipmentVisual(msg.position,0xffffff);
-            else this.spawnEquipmentVisual(msg.position,0xffb448, false);
-          });
+            this.playEquipmentCue(msg.equipmentId,"impact",msg.position);
+            if(msg.equipmentId==="frag"){
+              this.spawnExplosion(new THREE.Vector3(...msg.position),undefined,equipmentById("frag").radius);
+              this.spawnTacticalBlastRing(msg.position,equipmentById("frag").radius,false);
+            }else if(msg.equipmentId==="flashbang"){
+              this.spawnEquipmentVisual(msg.position,0xffffff);
+              this.spawnTacticalBlastRing(msg.position,equipmentById("flashbang").radius,true);
+            }else this.spawnEquipmentVisual(msg.position,0xffb448,false);
+          },msg.pathTimesMs);
         }
         break;
       }
@@ -5597,6 +7413,9 @@ export class FPSEngine {
         if (msg.playerId === this.selfId) this.selfSpawnProtectedUntil = 0;
         break;
       }
+      case "materialCoverImpact":
+        this.displayBallisticImpact(msg.impact);
+        break;
       case "shotFx":
         if (msg.attackerId !== this.selfId) {
           // Every shotFx originates from a server-accepted shot. Use it as a
@@ -5613,7 +7432,9 @@ export class FPSEngine {
             });
           }
           // Rocket launchers spawn a projectile + explosion instead of a tracer.
-          if(msg.weaponId===CLUSTER_ID){
+          if(isThrowingKnife(msg.weaponId)){
+             this.spawnThrowingKnifeProjectile(msg.origin,msg.dir);
+           } else if(msg.weaponId===CLUSTER_ID){
             // The server-authored volley owns every shell and bomblet visual.
           } else if (!!weaponById(msg.weaponId).explosive || ["singularity","corrosion"].includes(weaponById(msg.weaponId).wonder?.kind ?? "")) {
             // Other players' rockets: visual only (server applies damage). damage=0, applyLocalSplash=false.
@@ -5623,13 +7444,26 @@ export class FPSEngine {
           } else if (msg.weaponId==="wonder_hellfire") {
             this.spawnFlameSpray(msg.origin,msg.dir);
           } else {
-            this.spawnTracer(msg.origin, msg.dir, msg.skinId);
+            const shotStats=weaponById(msg.weaponId).stats;
+            this.spawnTracer(msg.origin,msg.dir,msg.skinId,msg.coverPower??shotStats.coverPenetration??0,shotStats.range,msg.traceStop);
           }
           // Trigger recoil animation on the firing combatant
           const shooter = this.combatants.get(msg.attackerId);
           if (shooter) shooter.lastFireRecoil = performance.now();
           // Enemy fire sound: distance-attenuated + muffled if suppressed.
-          this.playEnemyFireSound(msg.origin, msg.weaponId, !!msg.suppressed);
+          if(!isThrowingKnife(msg.weaponId))this.playEnemyFireSound(msg.origin, msg.weaponId, !!msg.suppressed);
+        } else {
+          // Self-fired shots were already given immediate audio/muzzle flash.
+          // Draw only their authoritative trajectory; do not replay the sound.
+          const confirmed = weaponById(msg.weaponId);
+          if (!!confirmed.explosive || ["singularity", "corrosion"].includes(confirmed.wonder?.kind ?? "")) {
+            this.spawnRocketProjectile(msg.origin, msg.dir, msg.skinId, 0, false, msg.weaponId);
+          } else if(confirmed.category !== "melee" &&
+            !["cluster", "flame", "storm", "sludge", "seismic", "cryo", "ricochet",
+              "smart", "decoy", "turret", "mech", "chrono", "drone"].includes(confirmed.wonder?.kind ?? "")) {
+            this.spawnTracer(msg.origin,msg.dir,msg.skinId,
+              msg.coverPower??confirmed.stats.coverPenetration??0,confirmed.stats.range,msg.traceStop);
+          }
         }
         break;
       case "orbitalAbsorb":
@@ -5639,7 +7473,7 @@ export class FPSEngine {
         this.showOrbitalPulse(msg.pos);
         break;
       case "orbitalReactor":
-        if(this.map.id==="orbital_nexus"){
+        if(reactorObjective(this.map)){
           const old=this.orbitalCharge;
           this.orbitalCharge=msg.charge;
           void old; // Charge updates are reflected in the HUD only.
@@ -5657,7 +7491,7 @@ export class FPSEngine {
         }
         break;
       case "matchEnd":
-        this.finalizeMatch(msg.standings, msg.winnerTeam);
+        this.finalizeMatch(msg.standings, msg.winnerTeam, msg.teamScores);
         break;
       case "chat":
         break;
@@ -5676,6 +7510,7 @@ export class FPSEngine {
         if (msg.mapId && msg.mapId !== this.opts.mapId) {
           this.opts.mapId = msg.mapId;
           this.map = makeEnvironmentMap(getMap(msg.mapId,msg.mode));
+          this.trackBallisticCover();
         }
         for (const p of msg.players) this.ensureCombatant(p);
         // Never retain the initial FFA preview position in team modes.
@@ -5731,7 +7566,7 @@ export class FPSEngine {
         // Reset tags and objective score for the new online match.
         for (const id of [...this.kcTags.keys()]) this.removeKillConfirmedTag(id);
         this.confirmations = 0; this.denials = 0; this.tagNotice = undefined;
-        this.ctfFlags = createCtfFlags(this.map.id); this.ctfCaptures = 0; this.ctfOvertime = false; this.ctfNotice = undefined;
+        this.ctfFlags = createCtfFlags(this.map); this.ctfCaptures = 0; this.ctfOvertime = false; this.ctfNotice = undefined;
         this.orbitalCharge=0;
         this.orbitalServerVersion=undefined;this.orbitalSnapshotSeen=false;
         this.grantOrbitalReaper(false);
@@ -5741,11 +7576,18 @@ export class FPSEngine {
         // per-weapon tallies don't bleed into the new match).
         this.perWeaponKills = new Map();
         this.perWeaponActions = new Map();
+        this.perAttachmentKills = new Map();
         this.wonderStates.clear();
-        this.riotShieldHp=RIOT_SHIELD_HP;this.riotShieldReadyAt=0;
-        const matchPrimary = weaponById(this.primaryWeaponId);
-        if (usesWonderCharges(matchPrimary) && matchPrimary.wonder) this.wonderStates.set(matchPrimary.id, fullWonderCharges(matchPrimary.wonder));
-        this.primaryAmmoInMag = usesWonderCharges(matchPrimary) ? matchPrimary.wonder!.maxCharges : this.primaryEff.magSize;
+        const startTime=performance.now();
+        const matchWonder=WEAPONS.find(w=>w.id===this.wonderWeaponId);
+        if(matchWonder?.wonder && usesWonderCharges(matchWonder))
+          this.wonderStates.set(matchWonder.id,drainedWonderCharges(matchWonder.wonder,startTime));
+        this.riotShieldHp=matchWonder?.id===RIOT_SHIELD_ID?0:RIOT_SHIELD_HP;
+        this.riotShieldReadyAt=matchWonder?.id===RIOT_SHIELD_ID
+          ? startTime+RIOT_SHIELD_RECHARGE_MS:0;
+        this.wonderAmmoInMag=this.wonderEff.magSize;
+        if(this.weaponId===RIOT_SHIELD_ID)this.ammoInMag=this.wonderAmmoInMag;
+        this.primaryAmmoInMag=this.primaryEff.magSize;
         if (this.weaponId === this.primaryWeaponId) this.ammoInMag = this.primaryAmmoInMag;
         // 19a+19b: Reset killstreak counters for the fresh match. The engine
         // instance persists across lobby→playing transitions for online matches,
@@ -5778,7 +7620,8 @@ export class FPSEngine {
           const w = weaponById(this.weaponId);
           this.eff = computeEffectiveStats(w, this.getCurrentAttachments());
           this.sightDef = sightDefForType(this.eff.sightType);
-          this.ammoInMag = this.eff.magSize;
+          if(isThrowingKnife(this.weaponId))this.throwingKnifeState=fullThrowingKnives();
+          this.ammoInMag = isThrowingKnife(this.weaponId)?this.throwingKnifeState.charges:this.eff.magSize;
           // Round 20: Rebuild the viewmodel so it shows the correct first-tier
           // weapon. The constructor built it from the initial weaponId, but
           // the server's gungame weapon list may differ from the local resolution.
@@ -5794,6 +7637,11 @@ export class FPSEngine {
       case "roomList":
         // The engine doesn't act on room lists (the Play lobby screen does).
         break;
+      case "knifeAmmo":
+        this.throwingKnifeState={charges:msg.charges,nextAt:msg.rechargeMs>0?performance.now()+msg.rechargeMs:0};
+        this.meleeAmmoInMag=msg.charges;
+        if(isThrowingKnife(this.weaponId))this.ammoInMag=msg.charges;
+        break;
       case "gungameProgress":
         // Server advanced a player's Gun Game tier. If it's the local player,
         // sync our own weaponId + effective stats so subsequent shots use the
@@ -5806,7 +7654,8 @@ export class FPSEngine {
           const w = weaponById(this.weaponId);
           this.eff = computeEffectiveStats(w, this.getCurrentAttachments());
           this.sightDef = sightDefForType(this.eff.sightType);
-          this.ammoInMag = this.eff.magSize;
+          if(isThrowingKnife(this.weaponId))this.throwingKnifeState=fullThrowingKnives();
+          this.ammoInMag=isThrowingKnife(this.weaponId)?this.throwingKnifeState.charges:this.eff.magSize;
           this.reloading = false;
           // ---- Play the weapon-swap animation + SFX ----
           // Each Gun Game tier-up is effectively a weapon swap (the player's
@@ -5815,9 +7664,9 @@ export class FPSEngine {
           // weapon is being drawn. We also rebuild the viewmodel so the new
           // weapon's distinct shape (sniper barrel, SMG compact body, etc.)
           // is rendered.
-          this.swapAnimAt = performance.now();
+          this.startWeaponSwapVisual();
           this.sound.play("swap", { volume: 0.5 });
-          this.buildViewmodel();
+          // The outgoing tier holsters before the new model is drawn.
         } else {
           const c = this.combatants.get(msg.playerId);
           if (c) {
@@ -5864,22 +7713,39 @@ export class FPSEngine {
     this.emitLobbyState();
   }
 
+  /** Materials and thermal-overlay geometry can occur on many body parts. */
+  private disposeCombatantObject(root:THREE.Object3D):void{
+    const geometries=new Set<THREE.BufferGeometry>(),materials=new Set<THREE.Material>();
+    root.traverse(node=>{
+      if(node instanceof THREE.Mesh)geometries.add(node.geometry);
+      if(node instanceof THREE.Mesh||node instanceof THREE.Sprite)
+        for(const material of Array.isArray(node.material)?node.material:[node.material])materials.add(material);
+    });
+    for(const geometry of geometries)geometry.dispose();
+    const textures=new Set<THREE.Texture>();
+    for(const material of materials){
+      const map=(material as THREE.MeshStandardMaterial).map;if(map)textures.add(map);
+      material.dispose();
+    }
+    for(const texture of textures)texture.dispose();
+  }
+
   /** Rebuild third-person weapon/armor geometry on a loadout change. */
   private rebuildCombatantMesh(c: Combatant): void {
     if (!c.group) return;
+    if(c.alive && c.parts && c.group.userData.appearance===this.combatantAppearance(c)){
+      const next=this.buildCombatantWeapon(c),old=c.parts.weaponStub;
+      old.removeFromParent();
+      this.disposeCombatantObject(old);
+      c.group.add(next.weaponStub);Object.assign(c.parts,next);
+      c.remoteWeaponDetails=next.optionalDetails;
+      c.deathPoseStart=undefined;
+      return;
+    }
     this.scene.remove(c.group);
-    c.group.traverse((child) => {
-      if (child instanceof THREE.Mesh) {
-        child.geometry.dispose();
-        const mat = child.material;
-        if (Array.isArray(mat)) mat.forEach(m => m.dispose());
-        else mat.dispose();
-      } else if (child instanceof THREE.Sprite) {
-        const sm = child.material as THREE.SpriteMaterial;
-        sm.map?.dispose();
-        sm.dispose();
-      }
-    });
+    this.disposeCombatantObject(c.group);
+    this.frozenFx?.delete(c.id);
+    c.riotShieldModel=undefined;
     c.group = undefined;
     c.parts = undefined;
     c.bossVisual = undefined;
@@ -5893,9 +7759,11 @@ export class FPSEngine {
         id: p.id, name: p.name, team: p.team, isBot: p.isBot, isSelf: p.id === this.selfId,
         pos: p.pos, yaw: p.yaw, pitch: p.pitch, health: p.health, alive: p.alive,
         weaponId: p.weaponId, weaponSkinId: p.weaponSkinId, playerSkinId: p.playerSkinId,
+        akimbo:p.akimbo===true,
+        akimboSightId:p.akimboSightId,akimboBarrelId:p.akimboBarrelId,
         charmId:p.charmId,nameplateId:p.nameplateId,
         kills: p.kills, deaths: p.deaths, score: 0,
-        bossMaxHealth:p.bossMaxHealth,bossCharge:p.bossCharge,
+        bossMaxHealth:p.bossMaxHealth,eliteMaxHealth:p.eliteMaxHealth,bossCharge:p.bossCharge,downed:p.downed,
         spawnProtectedUntil: p.spawnProtectedUntil,
       };
       this.combatants.set(p.id, c);
@@ -5904,8 +7772,16 @@ export class FPSEngine {
       // Gun Game (and late joins): rebuild an opponent's third-person weapon
       // if their authoritative weapon ID changes. Previously the stats changed
       // but the model in their hands stayed visually the old category forever.
-      if (!c.isSelf && c.group && (p.weaponId !== c.weaponId || p.charmId !== c.charmId || p.nameplateId !== c.nameplateId)) {
-        c.weaponId = p.weaponId;
+      if(!c.isSelf&&c.group&&(p.weaponId!==c.weaponId||
+        (p.akimbo===true)!==(c.akimbo===true)||p.akimboSightId!==c.akimboSightId||
+        p.akimboBarrelId!==c.akimboBarrelId||
+        p.charmId!==c.charmId||p.nameplateId!==c.nameplateId||
+        p.weaponSkinId!==c.weaponSkinId||p.playerSkinId!==c.playerSkinId||p.team!==c.team||p.name!==c.name)){
+        c.weaponId=p.weaponId;c.weaponSkinId=p.weaponSkinId;
+        c.playerSkinId=p.playerSkinId;c.team=p.team;c.name=p.name;
+        c.akimbo=p.akimbo===true;
+        c.akimboSightId=p.akimboSightId;
+        c.akimboBarrelId=p.akimboBarrelId;
         c.charmId = p.charmId;
         c.nameplateId = p.nameplateId;
         this.rebuildCombatantMesh(c);
@@ -5914,7 +7790,9 @@ export class FPSEngine {
       c.spawnProtectedUntil = p.spawnProtectedUntil;
     }
     c.bossMaxHealth=p.bossMaxHealth;
+    c.eliteMaxHealth=p.eliteMaxHealth;
     c.bossCharge=p.bossCharge;
+    c.downed=p.downed;
     c.riotShieldHp=p.riotShieldHp;c.riotShieldRaised=p.riotShieldRaised;c.riotShieldReadyAt=p.riotShieldReadyAt;
     c.perkId = p.perkId;
     return c;
@@ -5926,6 +7804,21 @@ export class FPSEngine {
     const occupants=[...this.combatants.values()].filter(c=>c.alive).map(c=>({pos:c.pos as Vec3,team:c.team}));
     if(this.alive)occupants.push({pos:[this.pos.x,this.pos.y,this.pos.z],team:this.opts.team});
     return chooseSpawn(this,this.map,team,occupants);
+  }
+
+  /** Ordinary firearms refill on spawn; Wonder charges and cooldowns do not.
+   * Applying a queued kit separately drains its selected Wonder to zero. */
+  private refillAmmoOnRespawn() {
+    this.resetAkimboAmmo();
+    this.primaryAmmoInMag = this.primaryEff.magSize;
+    this.secondaryAmmoInMag = this.secondaryEff.magSize;
+    if(this.opts?.mode!=="gungame")this.throwingKnifeState=fullThrowingKnives();
+    this.meleeAmmoInMag = isThrowingKnife(this.meleeWeaponId)?this.throwingKnifeState.charges:this.meleeEff.magSize;
+    this.wonderAmmoInMag = this.wonderEff.magSize;
+    this.ammoInMag = isThrowingKnife(this.weaponId)?this.throwingKnifeState.charges:
+      usesWonderCharges(weaponById(this.weaponId))
+        ? (this.wonderStates.get(this.weaponId)?.charges ?? 0)
+        : this.eff.magSize;
   }
 
   private respawnSelf() {
@@ -5940,19 +7833,16 @@ export class FPSEngine {
     this.wasJumpHeld = !!this.keys["Space"];
     this.touchJumpQueued = false;
     this.touchAutoSprintActive = false;
-    this.riotShieldHp=RIOT_SHIELD_HP;
-    this.riotShieldReadyAt=0;
+    if(this.wonderWeaponId!==RIOT_SHIELD_ID){this.riotShieldHp=RIOT_SHIELD_HP;this.riotShieldReadyAt=0;}
     this.health = MAX_HEALTH; this.alive = true;
     this.lastPlayerRespawnAt = performance.now();
     this.lastServerHealth = MAX_HEALTH; // reset so the next snapshot doesn't sync down
-    this.ammoInMag = usesWonderCharges(weaponById(this.weaponId)) ? (this.wonderStates.get(this.weaponId)?.charges ?? 0) : this.eff.magSize;
+    this.refillAmmoOnRespawn();
     this.reloading = false;
     this.heatStates.clear(); this.boltCharges = 0; this.poisonByVictim.clear();
     this.equipmentCharges = equipmentById(this.opts.loadout.equipmentId).charges;
-    // Round 19o: refill ALL slots on respawn (not just the active one).
-    this.primaryAmmoInMag = usesWonderCharges(weaponById(this.primaryWeaponId)) ? (this.wonderStates.get(this.primaryWeaponId)?.charges ?? 0) : this.primaryEff.magSize;
-    this.secondaryAmmoInMag = this.secondaryEff.magSize;
-    this.meleeAmmoInMag = this.meleeEff.magSize;
+    this.equipmentNextRechargeAt=0;
+    this.equipmentFlashUntil=0;this.equipmentFlashAudioUntil=0;this.equipmentAdsBlockedUntil=0;
     // Round 20h: Local player spawn protection (offline only — online is
     // handled by the server). 3 seconds of immunity.
     if (!this.opts.online) this.selfSpawnProtectedUntil = Date.now() + 3000;
@@ -5998,29 +7888,39 @@ export class FPSEngine {
   }
 
   private collectScavengerAmmo() {
-    this.saveAmmoToSlot(this.currentSlot); // reconcile shots spent since last weapon swap
-    // A cache always replenishes conventional primary and secondary magazines,
-    // including the one currently held. Heat/melee weapons have no ammo, but
-    // their holstered firearms still benefit. Ammo reserve is unlimited in
-    // this game; restore the actual magazine values used by weapon swapping.
-    const beforePrimary = this.primaryAmmoInMag;
-    const beforeSecondary = this.secondaryAmmoInMag;
-    if (this.primaryWeaponId && !usesWonderCharges(weaponById(this.primaryWeaponId)) && weaponById(this.primaryWeaponId).special?.kind !== "heat" &&
-        weaponById(this.primaryWeaponId).category !== "melee") {
-      this.primaryAmmoInMag = Math.min(this.primaryEff.magSize,
-        this.primaryAmmoInMag + scavengerAmmoAmount(this.primaryEff.magSize));
+    this.saveAmmoToSlot(this.currentSlot);
+    const w=weaponById(this.weaponId);
+    const eligible=(this.currentSlot==="primary" || this.currentSlot==="secondary") &&
+      !w.wonder && w.category!=="melee" && w.special?.kind!=="heat";
+    const before=this.ammoInMag;
+    this.scavengerAmmoGained=eligible?Math.max(0,this.eff.magSize-this.ammoInMag):0;
+    if(eligible){
+      if(this.isAkimboActive()){
+        const gained=Math.min(this.eff.magSize-this.ammoInMag,scavengerAmmoAmount(this.eff.magSize));
+        for(let n=0;n<gained;n++){
+          const hand=this.akimboAmmo.left<=this.akimboAmmo.right?"left":"right";
+          if(this.akimboAmmo[hand]>=akimboHandCapacity(this.eff.magSize))break;
+          this.akimboAmmo[hand]++;
+        }
+        this.ammoInMag=this.akimboAmmo.left+this.akimboAmmo.right;
+      }else{
+        this.ammoInMag=scavengerAmmoAmount(this.eff.magSize);
+      }
+      this.scavengerAmmoGained=Math.max(0,this.ammoInMag-before);
+      this.saveAmmoToSlot(this.currentSlot);
     }
-    if (this.secondaryWeaponId && weaponById(this.secondaryWeaponId).special?.kind !== "heat" &&
-        weaponById(this.secondaryWeaponId).category !== "melee") {
-      this.secondaryAmmoInMag = Math.min(this.secondaryEff.magSize,
-        this.secondaryAmmoInMag + scavengerAmmoAmount(this.secondaryEff.magSize));
-    }
-    if (this.currentSlot === "primary") this.ammoInMag = this.primaryAmmoInMag;
-    if (this.currentSlot === "secondary") this.ammoInMag = this.secondaryAmmoInMag;
-    this.scavengerAmmoGained = (this.primaryAmmoInMag - beforePrimary) +
-      (this.secondaryAmmoInMag - beforeSecondary);
-    this.scavengerFeedbackAt = performance.now();
-    this.sound.play("reload", { volume: 0.34 });
+    this.scavengerFeedbackAt=performance.now();
+    if(eligible)this.sound.play("reload",{volume:.34});
+  }
+
+  /** Missing match state starts an empty cooldown. The Firing Range is a
+   * practice sandbox and allows immediate shots without an unlock or wait. */
+  private ensureWonderState(id: string, rules: WonderChargeRules, now: number): WonderChargeState {
+    const existing=this.wonderStates.get(id);
+    if(existing)return existing;
+    const fresh=this.opts.firingRange ? fullWonderCharges(rules) : drainedWonderCharges(rules,now);
+    this.wonderStates.set(id,fresh);
+    return fresh;
   }
 
   // ---- Special-weapon resources & ground pickups ----
@@ -6040,7 +7940,7 @@ export class FPSEngine {
     for (const [id, state] of this.wonderStates) {
       const rules = weaponById(id).wonder;
       if (!rules) continue;
-      const next = tickWonderCharges(state, rules, now);
+      const next = tickWonderCharges(state, {...rules,rechargeMs:rules.rechargeMs*wonderModuleEffects(id,this.wonderModuleId).rechargeMul}, now);
       this.wonderStates.set(id, next);
       // Show stored reserve only. Including the current prepaid slice caused
       // the HUD to drop by one AFTER trigger release when that slice expired.
@@ -6065,13 +7965,16 @@ export class FPSEngine {
     for(const c of this.combatants.values()){
       const marker=c.group?.getObjectByName("deadlock_tag");
       if(marker){
-        marker.visible=this.weaponId==="wonder_deadlock"&&c.alive&&this.smartTags.has(c.id);
+        marker.visible=(this.weaponId==="wonder_deadlock"||[...this.harbingerDrones.values()].some(d=>d.ownerId===this.selfId&&d.expiresAt>Date.now()))&&c.alive&&this.smartTags.has(c.id);
         if(marker.visible)marker.rotation.z=now*.002;
       }
     }
     for (const [id, state] of this.heatStates) {
-      const special = weaponById(id).special;
-      if (special?.kind === "heat") this.heatStates.set(id, coolHeat(state, special, dt, now));
+      const heatAtts = id === this.primaryWeaponId ? this.opts.loadout.attachments :
+        id === this.secondaryWeaponId ? (this.opts.loadout.secondaryAttachments ?? {sight:null,barrel:null,grip:null,magazine:null}) :
+        {sight:null,barrel:null,grip:null,magazine:null};
+      const heat = effectiveHeatConfig(weaponById(id),heatAtts);
+      if (heat) this.heatStates.set(id, coolHeat(state, heat, dt, now));
     }
     const time=Date.now();
     this.updateStormMines(time);
@@ -6084,8 +7987,18 @@ export class FPSEngine {
       for(const c of this.combatants.values()){
         if(!c.alive||c.id===field.ownerId||(this.opts.mode!=="ffa"&&this.opts.mode!=="gungame"&&c.team===field.ownerTeam))continue;
         if(Math.hypot(c.pos[0]-field.pos[0],c.pos[2]-field.pos[2])>field.radius)continue;
-        if(this.hasLineOfSight([field.pos[0],field.pos[1]+.35,field.pos[2]],[c.pos[0],c.pos[1]+.9,c.pos[2]]))
-          this.applyDamageLocal(c,field.kind==="flame"?7:5,false,field.weaponId);
+        if(this.hasLineOfSight([field.pos[0],field.pos[1]+.35,field.pos[2]],[c.pos[0],c.pos[1]+.9,c.pos[2]])){
+          const owner=this.combatants.get(field.ownerId);
+          if(owner)this.damageFromOfflineBotTactical(owner,c,field.kind==="flame"?7:5,"frag",false,field.weaponId);
+          else this.applyDamageLocal(c,field.kind==="flame"?7:5,false,field.weaponId);
+        }
+      }
+      if(field.ownerId!==this.selfId&&this.alive &&
+         blastCanDamage(field.ownerId,field.ownerTeam,this.selfId,this.opts.team as string,this.opts.mode)&&
+         Math.hypot(this.pos.x-field.pos[0],this.pos.z-field.pos[2])<=field.radius &&
+         this.hasLineOfSight([field.pos[0],field.pos[1]+.35,field.pos[2]],[this.pos.x,this.pos.y+.9,this.pos.z])){
+        const owner=this.combatants.get(field.ownerId);
+        this.takeDamage(field.kind==="flame"?7:5,owner?.name??"Bot",field.ownerTeam,false,field.weaponId,owner?.pos);
       }
     }
     // Poison ticks only in offline simulation; online the server owns the status.
@@ -6096,7 +8009,9 @@ export class FPSEngine {
         if (now >= poison.tickAt) {
           poison.tickAt = now + 500;
           if (!victim.spawnProtectedUntil || victim.spawnProtectedUntil <= Date.now()) {
-            this.applyDamageLocal(victim, poison.damagePerTick ?? 2, false, poison.weaponId);
+            const owner=poison.ownerId?this.combatants.get(poison.ownerId):null;
+            if(owner)this.damageFromOfflineBotTactical(owner,victim,poison.damagePerTick??2,"frag",false,poison.weaponId);
+            else this.applyDamageLocal(victim,poison.damagePerTick??2,false,poison.weaponId);
           }
         }
       }
@@ -6132,10 +8047,12 @@ export class FPSEngine {
       bolt.mesh.position.lerpVectors(flight.start, flight.end, t);
       if (t >= 1) this.boltFlights.delete(id);
     }
+    const boltSpecial = weaponById("crossbow_reclaimer").special;
+    const boltPickupRadius = boltSpecial?.kind === "bolt" ? boltSpecial.pickupRadius : 2;
     for (const [id, bolt] of this.boltPickups) {
       if (Date.now() >= bolt.expiresAt) { this.removeBoltPickup(id); continue; }
       if (bolt.ownerId !== this.selfId || !this.alive || !this.pointerLocked && !this.touchMode) continue;
-      if (Math.hypot(this.pos.x - bolt.pos[0], this.pos.z - bolt.pos[2]) > 2.0) continue;
+      if (Math.hypot(this.pos.x - bolt.pos[0], this.pos.z - bolt.pos[2]) > boltPickupRadius) continue;
       if (this.getCurrentAttachments().magazine==="mag_bolt_quiver" &&
           this.weaponId==="crossbow_reclaimer") continue;
       if (this.opts.online) {
@@ -6171,7 +8088,11 @@ export class FPSEngine {
       return;
     }
     if (this.weaponId === "crossbow_reclaimer" && this.reloading) {
-      this.reloadEndsAt = Math.min(this.reloadEndsAt, performance.now() + special.quickReloadSeconds * 1000);
+      // Keep the HUD/animation timeline aligned with an accelerated nock.
+      const newEnd = Math.min(this.reloadEndsAt,
+        performance.now() + crossbowReloadCycleMs(this.eff.reloadTime, special.quickReloadSeconds, true));
+      this.reloadEndsAt = newEnd;
+      this.reloadDurationMs = Math.max(1, newEnd - this.reloadStartedAt);
     } else {
       this.boltCharges = Math.min(3, this.boltCharges + 1);
     }
@@ -6256,9 +8177,46 @@ export class FPSEngine {
       this.flamePlumes.push({mesh,born:performance.now(),life:165+i*33});
     }
   }
-  private spawnWonderBeam(from:Vec3,to:Vec3,kind:"smart"|"storm"){
+  private spawnWonderBeam(from:Vec3,to:Vec3,kind:Extract<S2C,{t:"wonderBeam"}>["kind"]){
     const start=new THREE.Vector3(...from),end=new THREE.Vector3(...to);
     const mid=start.clone().lerp(end,.5);
+    if(kind==="seismic"){
+      const ring=new THREE.Mesh(new THREE.TorusGeometry(1,.075,8,60),
+        new THREE.MeshBasicMaterial({color:0xffc17e,transparent:true,opacity:.86,depthWrite:false}));
+      ring.rotation.x=-Math.PI/2;ring.position.set(start.x,start.y+.10,start.z);
+      ring.scale.setScalar(.2);this.scene.add(ring);
+      this.radialShockwaves.push({mesh:ring,born:performance.now(),life:540,radius:8});
+      return;
+    }
+    if(kind==="ripper"){
+      // A visibly spinning and travelling sawblade for every ricochet leg.
+      const dir=end.clone().sub(start),dist=dir.length();
+      if(dist<.1)return;
+      const group=new THREE.Group();group.name="ripper_flying_blade";
+      const steel=new THREE.MeshBasicMaterial({color:0xc6cdd0,side:THREE.DoubleSide});
+      const glow=new THREE.MeshBasicMaterial({color:0xff822e,side:THREE.DoubleSide});
+      const core=new THREE.Mesh(new THREE.CylinderGeometry(.27,.27,.065,20),steel);
+      core.name="ripper_blade_core";group.add(core);
+      const hub=new THREE.Mesh(new THREE.CylinderGeometry(.095,.095,.075,12),glow);group.add(hub);
+      for(let i=0;i<12;i++){
+        const a=i*Math.PI/6;
+        const tooth=new THREE.Mesh(new THREE.BoxGeometry(.15,.05,.11),i%2?steel:glow);
+        tooth.position.set(Math.cos(a)*.31,0,Math.sin(a)*.31);tooth.rotation.y=-a;
+        group.add(tooth);
+      }
+      // Keep flying disc in the horizontal XZ plane, spinning about Y.
+      group.position.copy(start);this.scene.add(group);
+      // Follow a preceding segment's endpoint before playing this ricochet.
+      // Server sends segments in one tick; they must appear as a SINGLE saw
+      // travelling and rebounding, not multiple simultaneous blades.
+      const now=performance.now();
+      const prior=[...this.ripperFlights].reverse().find(f=>
+        f.end.distanceTo(start)<.4&&now-f.born<3000);
+      const begin=prior?prior.born+prior.life:now;
+      group.visible=begin<=now;
+      this.ripperFlights.push({group,start,end,born:begin,life:Math.max(180,dist/42*1000)});
+      return;
+    }
     if(kind==="storm"){
       mid.x+=.24;mid.y+=.18;
       // ONE thick, jagged electrical tube instead of three fine lines.
@@ -6278,23 +8236,28 @@ export class FPSEngine {
     mid.y+=Math.min(2.5,start.distanceTo(end)*.055);
     const points=new THREE.QuadraticBezierCurve3(start,mid,end).getPoints(24);
     const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),
-      new THREE.LineBasicMaterial({color:0xff527f,transparent:true,opacity:.94}));
+      new THREE.LineBasicMaterial({color:kind==="cryo"?0x80e8ff:0xff527f,transparent:true,opacity:.94}));
     this.scene.add(line);this.tracers.push({line,born:performance.now(),life:340});
   }
   /** Offline paths mirror server pellet hits, mine triggers and chain falloff. */
   private stormVictims(ownerId:string,ownerTeam:string):StormVictim[]{
-    return [...this.combatants.values()].map(c=>({
+    const candidates:StormVictim[]=[...this.combatants.values()].map(c=>({
       id:c.id,pos:c.pos,alive:c.alive,team:c.team,
       protected:!!c.spawnProtectedUntil&&c.spawnProtectedUntil>Date.now(),
-    })).filter(c=>stormEnemy(c,ownerId,ownerTeam,
+    }));
+    if(ownerId!==this.selfId&&this.alive)candidates.push({
+      id:this.selfId,pos:[this.pos.x,this.pos.y,this.pos.z],alive:true,
+      team:this.opts.team as string,protected:this.selfSpawnProtectedUntil>Date.now(),
+    });
+    return candidates.filter(c=>stormEnemy(c,ownerId,ownerTeam,
       this.opts.mode==="ffa"||this.opts.mode==="gungame"));
   }
-  private chainStormOffline(first:Combatant,baseDamage:number,jumps:number,counts?:Map<string,number>){
+  private chainStormOffline(first:Combatant,baseDamage:number,jumps:number,counts?:Map<string,number>,ownerId=this.selfId,ownerTeam=this.opts.team as string){
     const visited=new Set([first.id]);
     let from:Vec3=[first.pos[0],first.pos[1]+1.05,first.pos[2]];
     for(let jump=1;jump<=jumps;jump++){
-      const next=nextStormChainTarget(from,this.stormVictims(this.selfId,this.opts.team),
-        visited,this.selfId,this.opts.team,
+      const next=nextStormChainTarget(from,this.stormVictims(ownerId,ownerTeam),
+        visited,ownerId,ownerTeam,
         this.opts.mode==="ffa"||this.opts.mode==="gungame",
         STORM_MINE_CHAIN_RADIUS,(a,b)=>this.hasLineOfSight(a,b));
       if(!next)break;
@@ -6302,13 +8265,17 @@ export class FPSEngine {
       const to=stormTargetPoint(next);
       this.spawnWonderBeam(from,to,"storm");
       const victim=this.combatants.get(next.id);
-      if(victim?.alive){
-        const count=counts?.get(victim.id)??0;
-        if(count<2){
-          this.applyDamageLocal(victim,baseDamage*Math.pow(STORM_CHAIN_DECAY,jump),
-            false,"wonder_stormweaver");
-          counts?.set(victim.id,count+1);
+      const owner=this.combatants.get(ownerId);
+      const count=counts?.get(next.id)??0;
+      if(count<2){
+        const damage=baseDamage*Math.pow(STORM_CHAIN_DECAY,jump);
+        if(next.id===this.selfId&&owner)
+          this.takeDamage(damage,owner.name,owner.team,false,"wonder_stormweaver",owner.pos);
+        else if(victim?.alive){
+          if(owner)this.damageFromOfflineBotTactical(owner,victim,damage,"frag",false,"wonder_stormweaver");
+          else this.applyDamageLocal(victim,damage,false,"wonder_stormweaver");
         }
+        counts?.set(next.id,count+1);
       }
       from=to;
     }
@@ -6327,7 +8294,7 @@ export class FPSEngine {
     cross.rotation.y=Math.PI/2;cross.position.y=.14;group.add(cross);
     group.position.set(...pos);
     this.scene.add(group);
-    this.stormMines.set(id,{mesh:group,pos,expiresAt,armedAt:Date.now()+STORM_MINE_ARM_MS,
+    this.stormMines.set(id,{mesh:group,pos,expiresAt,armedAt:Date.now()+STORM_MINE_ARM_MS*(ownerId===this.selfId?wonderModuleEffects("wonder_stormweaver",this.wonderModuleId).armMul:1),
       offline,ownerId,ownerTeam});
   }
   private removeStormMine(id:string){
@@ -6359,9 +8326,13 @@ export class FPSEngine {
       this.spawnStormMineBurst(mine.pos);
       this.spawnWonderBeam(mine.pos,stormTargetPoint(target),"storm");
       const victim=this.combatants.get(target.id);
-      if(victim?.alive){
-        this.applyDamageLocal(victim,STORM_MINE_DAMAGE,false,"wonder_stormweaver");
-        this.chainStormOffline(victim,STORM_MINE_DAMAGE,STORM_MINE_JUMPS);
+      const owner=this.combatants.get(mine.ownerId);
+      if(target.id===this.selfId&&owner)
+        this.takeDamage(STORM_MINE_DAMAGE,owner.name,owner.team,false,"wonder_stormweaver",owner.pos);
+      else if(victim?.alive){
+        if(owner)this.damageFromOfflineBotTactical(owner,victim,STORM_MINE_DAMAGE,"frag",false,"wonder_stormweaver");
+        else this.applyDamageLocal(victim,STORM_MINE_DAMAGE,false,"wonder_stormweaver");
+        this.chainStormOffline(victim,STORM_MINE_DAMAGE,STORM_MINE_JUMPS,undefined,mine.ownerId,mine.ownerTeam);
       }
     }
   }
@@ -6417,6 +8388,53 @@ export class FPSEngine {
     const kind=w.wonder?.kind;
     const enemies=()=>[...this.combatants.values()].filter(c=>c.id!==this.selfId&&c.alive&&
       (this.opts.mode==="ffa"||this.opts.mode==="gungame"||c.team!==this.opts.team));
+    if(kind==="seismic"){
+      const feet:Vec3=[this.pos.x,this.pos.y,this.pos.z],radius=w.wonder?.radius??8;
+      this.spawnWonderBeam([feet[0],feet[1]+.12,feet[2]],[feet[0],feet[1]+.12,feet[2]],"seismic");
+      this.sound.play("melee_hit",{volume:.95});
+      for(const target of enemies()){
+        if(!seismicPulseHit(feet,target.pos,radius))continue;
+        if(!this.hasLineOfSight([feet[0],feet[1]+1,feet[2]],[target.pos[0],target.pos[1]+1,target.pos[2]]))continue;
+        this.applyDamageLocal(target,this.eff.damage,false,w.id);
+        if(!target.alive)continue;
+        const next=seismicPushPosition(feet,target.pos,4.5*wonderModuleEffects(w.id,this.wonderModuleId).knockbackMul);
+        if(!this.botMoveBlocked(target.pos,next,next[1])){target.pos=next;this.actorIndex?.update(target);}
+      }
+      this.damageDeployCoverBlast([feet[0],feet[1]+.5,feet[2]],radius,this.eff.damage);
+      return;
+    }
+    if(kind==="cryo"){
+      const module=wonderModuleEffects(w.id,this.wonderModuleId),cosine=Math.cos(.20*module.radiusMul);
+      const end:Vec3=[origin[0]+dir[0]*this.eff.range,origin[1]+dir[1]*this.eff.range,origin[2]+dir[2]*this.eff.range];
+      this.spawnWonderBeam(origin,end,"cryo");
+      for(const target of enemies()){
+        const point:Vec3=[target.pos[0],target.pos[1]+1,target.pos[2]];
+        if(!wonderConeHit(origin,dir,point,this.eff.range,cosine)||!this.hasLineOfSight(origin,point))continue;
+        this.applyDamageLocal(target,this.eff.damage,false,w.id);
+        if(target.alive){
+          this.botCryoSlowUntil.set(target.id,performance.now()+CRYO_SLOW_MS*module.durationMul);
+          this.frozenUntil.set(target.id,performance.now()+CRYO_SLOW_MS*module.durationMul);
+        }
+      }
+      return;
+    }
+    if(kind==="ricochet"){
+      const module=wonderModuleEffects(w.id,this.wonderModuleId);
+      const visited=new Set<string>();
+      for(const segment of ripperSegments(origin,dir,this.map.cover,this.eff.range,module.targets||4)){
+        const vector:Vec3=[segment.to[0]-segment.from[0],segment.to[1]-segment.from[1],segment.to[2]-segment.from[2]];
+        const distance=Math.hypot(...vector);
+        if(distance<.05)continue;
+        const unit:Vec3=[vector[0]/distance,vector[1]/distance,vector[2]/distance];
+        this.spawnWonderBeam(segment.from,segment.to,"ripper");
+        for(const target of enemies()){
+          if(visited.has(target.id))continue;
+          const hit=rayCombatantHit(segment.from,unit,target.pos);
+          if(hit&&hit.t<=distance){visited.add(target.id);this.applyDamageLocal(target,this.eff.damage*segment.damageScale,hit.head,w.id);}
+        }
+      }
+      return;
+    }
     if(kind==="smart"){
       // All valid acquired targets are struck by the same smart volley, not
       // only the first marker. A single charge is still consumed per volley.
@@ -6465,7 +8483,7 @@ export class FPSEngine {
     if(kind==="storm"){
       const hits=new Map<string,number>(),chains=new Map<string,number>();
       for(const pelletDir of stormPelletDirections(dir)){
-        const impact=traceStormPellet(origin,pelletDir,this.eff.range,this.map.cover,
+        const impact=traceStormPellet(origin,pelletDir,this.eff.range,this.coverForRay(origin,pelletDir,this.eff.range),
           this.stormVictims(this.selfId,this.opts.team));
         // Pellet travel is not chain lightning: arcs begin only on impact,
         // between struck targets (or between a triggered mine and its victim).
@@ -6477,7 +8495,7 @@ export class FPSEngine {
             this.applyDamageLocal(victim,STORM_DIRECT_DAMAGE,false,w.id);
             hits.set(victim.id,amount+1);
           }
-          this.chainStormOffline(victim,STORM_DIRECT_DAMAGE,STORM_CHAIN_JUMPS,chains);
+          this.chainStormOffline(victim,STORM_DIRECT_DAMAGE,Math.max(1,Math.floor(STORM_CHAIN_JUMPS*wonderModuleEffects("wonder_stormweaver",this.wonderModuleId).chainMul)),chains);
         }else{
           const place=stormMinePosition(impact.point,this.map.cover);
           const owned=[...this.stormMines].filter(([,m])=>m.offline&&m.ownerId===this.selfId);
@@ -6490,8 +8508,338 @@ export class FPSEngine {
     }
   }
 
+  /** One model per drop, reused across snapshots and room broadcasts. */
+  private addMechDrop(id:string,ownerId:string,pos:Vec3,landAt:number,expiresAt:number,moduleId:string,landed:boolean,enteredBy?:string){
+    const previous=this.mechDrops.get(id);
+    if(previous){previous.landed=landed;previous.expiresAt=expiresAt;previous.enteredBy=enteredBy;return;}
+    const mech=wonderMechModel(),aircraft=wonderAircraftModel();
+    mech.group.position.set(...pos);aircraft.group.position.set(pos[0]-28,pos[1]+31,pos[2]+15);
+    this.scene.add(mech.group);this.scene.add(aircraft.group);
+    this.mechDrops.set(id,{ownerId,pos,landAt,expiresAt,moduleId,landed,enteredBy,mech,aircraft});
+  }
+  private removeMechDrop(id:string){
+    const d=this.mechDrops.get(id);if(!d)return;
+    d.mech.dispose();d.aircraft.dispose();this.mechDrops.delete(id);
+  }
+  private addPhantom(id:string,ownerId:string,pos:Vec3,yaw:number,createdAt:number,expiresAt:number,count:number){
+    const existing=this.phantomDecoys.get(id);
+    if(existing){existing.pos=pos;existing.expiresAt=expiresAt;return;}
+    const visual=wonderHologramModel();
+    visual.group.position.set(pos[0],pos[1]+.04,pos[2]);
+    visual.group.rotation.y=yaw+Math.PI; // Model muzzle faces -Z; game forward is +Z.
+    this.scene.add(visual.group);
+    this.phantomDecoys.set(id,{pos,spawnPos:[...pos],yaw,createdAt,expiresAt,count,visual});
+  }
+  private clearPhantom(id:string){const p=this.phantomDecoys.get(id);if(!p)return;p.visual.dispose();this.phantomDecoys.delete(id);}
+  private addHarbinger(id:string,ownerId:string,ownerTeam:string,pos:Vec3,expiresAt:number,hp:number,moduleId:string,offline:boolean){
+    const existing=this.harbingerDrones.get(id);
+    if(existing){existing.pos=pos;existing.hp=hp;existing.expiresAt=expiresAt;return;}
+    if(this.disposed||expiresAt<=Date.now())return;
+    const visual=wonderDroneModel();visual.group.position.set(...pos);this.scene.add(visual.group);
+    this.harbingerDrones.set(id,{ownerId,ownerTeam,pos,expiresAt,hp,moduleId,nextShotAt:Date.now()+750,nextScanAt:0,offline,visual});
+  }
+  private removeHarbinger(id:string){
+    const d=this.harbingerDrones.get(id);if(!d)return;d.visual.dispose();this.harbingerDrones.delete(id);
+  }
+  private tickHarbingerWorld(now:number){
+    const time=Date.now();
+    for(const [id,d] of this.harbingerDrones){
+      if(time>=d.expiresAt||d.hp<=0){this.removeHarbinger(id);continue;}
+      d.visual.group.position.set(d.pos[0],d.pos[1]+Math.sin(now*.004)*.12,d.pos[2]);
+      d.visual.group.rotation.y=now*.00052;
+      // The four ducted propellers visibly spin even on remote (server-owned) drones.
+      d.visual.group.traverse(node=>{if(node.name==="harbinger_rotor")node.rotation.y=now*.037;});
+      if(!d.offline||this.matchEnded)continue;
+      const tune=harbingerTuning(d.moduleId);
+      const targets=harbingerTargets(d.pos,d.ownerId,d.ownerTeam,this.opts.mode,
+        [...this.combatants.values()].map(c=>({id:c.id,pos:c.pos,team:c.team,alive:c.alive,
+          protected:!!c.spawnProtectedUntil&&c.spawnProtectedUntil>time})).concat(
+          d.ownerId!==this.selfId&&this.alive?[{id:this.selfId,pos:[this.pos.x,this.pos.y,this.pos.z] as Vec3,
+            team:this.opts.team as string,alive:true,protected:this.selfSpawnProtectedUntil>now}]:[]),
+        tune.range,to=>this.hasLineOfSight(d.pos,[...to] as Vec3),d.priorityId);
+      if(time>=d.nextScanAt){
+        d.nextScanAt=time+HARBINGER_SCAN_INTERVAL_MS;
+        if(d.ownerId===this.selfId)for(const t of targets.slice(0,3))this.smartTags.set(t.id,now+1800);
+      }
+      if(time<d.nextShotAt||!targets.length)continue;
+      const target=targets[0],point:Vec3=[target.pos[0],target.pos[1]+1,target.pos[2]];
+      const dir=this.normalize([point[0]-d.pos[0],point[1]-d.pos[1],point[2]-d.pos[2]]);
+      d.nextShotAt=time+HARBINGER_INTERVAL_MS;
+      this.spawnTracer(d.pos,dir,"default",0,Math.hypot(point[0]-d.pos[0],point[1]-d.pos[1],point[2]-d.pos[2]));
+      this.playEnemyFireSound(d.pos,"wonder_harbinger",false);
+      if(target.id===this.selfId)this.takeDamage(tune.damage,"Harbinger",d.ownerTeam,false,"wonder_harbinger");
+      else{
+        const victim=this.combatants.get(target.id);
+        if(!victim?.alive)continue;
+        if(d.ownerId===this.selfId)this.applyDamageLocal(victim,tune.damage,false,"wonder_harbinger");
+        else{
+          const owner=this.combatants.get(d.ownerId);
+          if(owner)this.botWonderDamage(owner,victim,tune.damage,"wonder_harbinger");
+        }
+      }
+    }
+    const own=[...this.harbingerDrones.values()].find(d=>d.ownerId===this.selfId&&d.expiresAt>time);
+    if(!own||this.weaponId!=="wonder_harbinger"||!this.alive||!this.aiming||now-this.lastHarbingerAimAt<400)return;
+    this.lastHarbingerAimAt=now;
+    if(this.opts.online)this.socket?.emit("message",{t:"harbingerDesignate"} as C2S);
+    else{
+      const origin:Vec3=[this.camera.position.x,this.camera.position.y,this.camera.position.z],dir=this.aimDir(0);
+      const candidates=harbingerTargets(origin,this.selfId,this.opts.team as string,this.opts.mode,
+        [...this.combatants.values()].map(c=>({id:c.id,pos:c.pos,team:c.team,alive:c.alive,
+          protected:!!c.spawnProtectedUntil&&c.spawnProtectedUntil>time})),32,to=>this.hasLineOfSight(origin,[...to] as Vec3));
+      const selected=candidates.find(c=>{
+        const toward=this.normalize([c.pos[0]-origin[0],c.pos[1]+1-origin[1],c.pos[2]-origin[2]]);
+        return toward[0]*dir[0]+toward[1]*dir[1]+toward[2]*dir[2]>.97;
+      });
+      if(selected)own.priorityId=selected.id;
+    }
+  }
+  private showWonderBurst(pos:Vec3,id:string){
+    const visual=createWonderKillVisual(id,pos);
+    if(!visual)return;
+    // High player counts can create many eliminations in one frame. Bound
+    // active cosmetic effects and release GPU allocations for the oldest.
+    if(this.wonderVisualFx.length>=12){
+      const oldest=this.wonderVisualFx.shift();
+      oldest?.dispose();
+    }
+    this.scene.add(visual.group);
+    this.wonderVisualFx.push({...visual,born:performance.now()});
+  }
+  private placeChronoMarker(pos:Vec3){
+    if(this.chronoMarker){this.chronoMarker.removeFromParent();this.chronoMarker.geometry.dispose();(this.chronoMarker.material as THREE.Material).dispose();}
+    this.chronoMarker=new THREE.Mesh(new THREE.TorusGeometry(.58,.075,8,32),
+      new THREE.MeshBasicMaterial({color:0x8fc5ff,transparent:true,opacity:.7}));
+    this.chronoMarker.rotation.x=-Math.PI/2;
+    this.chronoMarker.position.set(pos[0],pos[1]+.1,pos[2]);
+    this.scene.add(this.chronoMarker);
+  }
+  private clearMechCockpit(){
+    if(!this.mechCockpit)return;
+    this.mechCockpit.removeFromParent();
+    this.mechCockpit.traverse(o=>{if(o instanceof THREE.Mesh){
+      o.geometry.dispose();const mats=Array.isArray(o.material)?o.material:[o.material];
+      mats.forEach(m=>m.dispose());
+    }});
+    this.mechCockpit=null;this.mechMuzzles=null;this.mechRotary=null;
+  }
+  private buildMechCockpit(){
+    this.clearMechCockpit();
+    const rig=new THREE.Group();rig.name="juggernaut_cockpit_weapons";
+    const metal=new THREE.MeshBasicMaterial({color:0x344855});
+    const black=new THREE.MeshBasicMaterial({color:0x131d24});
+    const light=new THREE.MeshBasicMaterial({color:0x70bfd5});
+    const box=(w:number,h:number,d:number,x:number,y:number,z:number,mat:THREE.Material)=>{
+      const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);rig.add(m);return m;
+    };
+    const barrel=(radius:number,length:number,x:number,y:number,z:number,mat:THREE.Material)=>{
+      const m=new THREE.Mesh(new THREE.CylinderGeometry(radius,radius,length,12),mat);
+      m.rotation.x=Math.PI/2;m.position.set(x,y,z);rig.add(m);return m;
+    };
+    // LEFT weapon: exposed rotating minigun barrel assembly.
+    box(.29,.28,.66,-.49,-.36,-.62,metal);
+    barrel(.16,.48,-.49,-.35,-1.03,black);
+    const spin=new THREE.Group();spin.position.set(-.49,-.35,-1.05);
+    for(let n=0;n<6;n++){
+      const a=n*Math.PI/3;
+      const m=new THREE.Mesh(new THREE.CylinderGeometry(.034,.034,.58,8),metal);
+      m.rotation.x=Math.PI/2;m.position.set(Math.cos(a)*.105,Math.sin(a)*.105,-.17);spin.add(m);
+    }
+    rig.add(spin);this.mechRotary=spin;
+    // RIGHT weapon: shotgun tubes or Swarm-3 triple-pod by module.
+    const swarm=mechTuning(this.mechActive?.moduleId).secondary==="swarm";
+    box(.32,.26,.50,.48,-.39,-.58,metal);
+    if(swarm){
+      for(let n=-1;n<=1;n++)barrel(.064,.49,.48+n*.09,-.38,-1,black);
+      box(.33,.08,.24,.48,-.24,-.75,light);
+    }else{
+      barrel(.11,.74,.48,-.40,-.97,black);
+      barrel(.07,.74,.48,-.29,-.97,metal);
+      barrel(.16,.16,.48,-.50,-.44,black);
+    }
+    const flash=(x:number,y:number,z:number)=>{
+      const m=new THREE.Mesh(new THREE.SphereGeometry(.15,8,6),
+        new THREE.MeshBasicMaterial({color:0xffd283,transparent:true,opacity:.9,depthWrite:false}));
+      m.position.set(x,y,z);m.visible=false;rig.add(m);return m;
+    };
+    this.mechMuzzles={minigun:flash(-.49,-.35,-1.49),secondary:flash(.48,-.37,-1.34)};
+    this.camera.add(rig);this.mechCockpit=rig;
+  }
+  /** Cosmetic suit rupture: no damage, splash simulation or combat packets. */
+  private showMechExitFx(pos: THREE.Vector3) {
+    const listener=this.camera.position;
+    this.explosionEffects?.spawn(pos,"ordinary",1.55,performance.now(),listener);
+    const distance=pos.distanceTo(listener);
+    if(distance<55)this.sound.play("mech_eject",{volume:.45*Math.max(.12,1-distance/55),throttleMs:100});
+  }
+  /** Voluntary ejection leaves normal health/ammo intact and consumes the suit. */
+  public exitMech(){
+    if(!this.mechActive||!this.alive)return;
+    if(this.opts.online){
+      this.socket?.emit("message",{t:"exitMech"} as C2S);
+      return; // await the authoritative mechDestroyed broadcast
+    }
+    const id=this.mechActive.id;
+    this.mechActive=null;
+    this.mechRightDown=false;this.mechRightPressed=false;this.mouseDown=false;
+    this.showMechExitFx(new THREE.Vector3(this.pos.x,this.pos.y+1,this.pos.z));
+    this.clearMechCockpit();this.removeMechDrop(id);
+  }
+  private enterNearbyMech(){
+    if(!this.alive||this.mechActive||this.opts.mode==="gungame")return;
+    const nearby=[...this.mechDrops.entries()].find(([,d])=>d.landed&&!d.enteredBy&&d.expiresAt>Date.now()&&
+      Math.hypot(this.pos.x-d.pos[0],this.pos.z-d.pos[2])<=3.2&&Math.abs(this.pos.y-d.pos[1])<2);
+    if(!nearby)return;
+    const [id,d]=nearby;
+    if(this.opts.mode==="ctf"&&(this.ctfFlags.red.carrierId===this.selfId||this.ctfFlags.blue.carrierId===this.selfId))return;
+    if(this.opts.online)this.socket?.emit("message",{t:"enterMech",dropId:id} as C2S);
+    else{
+      const t=mechTuning(d.moduleId);
+      d.enteredBy=this.selfId;d.expiresAt=Date.now()+JUGGERNAUT_ACTIVE_MS*wonderModuleEffects("wonder_juggernaut",d.moduleId).durationMul;
+      this.mechActive={id,moduleId:d.moduleId,armor:t.armor,minigunAmmo:t.minigunAmmo,
+        secondaryAmmo:t.secondaryAmmo,enteredAt:performance.now(),expiresAt:Date.now()+JUGGERNAUT_ACTIVE_MS*wonderModuleEffects("wonder_juggernaut",d.moduleId).durationMul};
+      this.pos.set(...d.pos);this.aiming=false;this.manualAiming=false;this.sprinting=false;
+      this.sound.play("swap",{volume:.7});
+    }
+  }
+  private updateWonderWorld(now:number){
+    const time=Date.now();
+    this.tickHarbingerWorld(now);
+    for(const [id,drop] of this.mechDrops){
+      if(time>=drop.expiresAt){this.removeMechDrop(id);continue;}
+      if(!drop.landed&&time>=drop.landAt){
+        drop.landed=true;
+        if(!this.opts.online){
+          this.spawnExplosion(new THREE.Vector3(...drop.pos),undefined,3);
+          for(const target of this.combatants.values()){
+            if(!target.alive||!crushesAtLanding(target.pos,drop.pos))continue;
+            target.spawnProtectedUntil=0;this.applyDamageLocal(target,target.health+500,false,"wonder_juggernaut");
+          }
+          if(this.alive&&crushesAtLanding([this.pos.x,this.pos.y,this.pos.z],drop.pos)){
+            this.selfSpawnProtectedUntil=0;this.takeDamage(this.health+500,"Drop pod",this.opts.team,false,"wonder_juggernaut");
+          }
+        }
+      }
+      const progress=Math.max(0,Math.min(1,1-(drop.landAt-time)/JUGGERNAUT_DROP_MS));
+      const remotePilot=drop.enteredBy&&drop.enteredBy!==this.selfId?this.combatants.get(drop.enteredBy):undefined;
+      drop.mech.group.visible=!drop.enteredBy||!!remotePilot?.alive;
+      drop.mech.group.position.set(remotePilot?.pos[0]??drop.pos[0],remotePilot?.pos[1]??(drop.pos[1]+(!drop.landed?20*(1-progress):0)),remotePilot?.pos[2]??drop.pos[2]);
+      if(remotePilot){
+        drop.mech.group.rotation.y=remotePilot.yaw;
+        // Rotate the barrel cluster around the cannon's forward axis only.
+        drop.mech.group.getObjectByName("juggernaut_world_rotor")?.rotateZ(.24);
+      }
+      drop.aircraft.group.visible=!drop.landed&&progress<.88;
+      drop.aircraft.group.position.set(drop.pos[0]-30+progress*62,drop.pos[1]+28,drop.pos[2]+15);
+      drop.aircraft.group.rotation.y=-.18;
+    }
+    for(const [id,decoy] of this.phantomDecoys){
+      if(time>=decoy.expiresAt){this.clearPhantom(id);continue;}
+      const age=time-decoy.createdAt;
+      if(!this.opts.online){
+        const next=phantomTravelPosition(decoy.spawnPos,decoy.yaw,age);
+        if(!this.botMoveBlocked(decoy.pos,next,decoy.pos[1]))decoy.pos=next;
+      }
+      decoy.visual.group.position.set(decoy.pos[0],decoy.pos[1]+.04,decoy.pos[2]);
+      const flash=decoy.visual.group.getObjectByName("phantom_muzzle_flash");
+      if(flash)flash.visible=age>250&&(age%850)<115;
+      if(age>250&&Math.floor(age/850)!==Math.floor((age-50)/850)){
+        this.playEnemyFireSound(decoy.pos,"rifle_ar",false);
+        if(!this.opts.online&&this.combatants.size)
+          this.publishBotNoise({sourceId:this.selfId,pos:decoy.pos,at:now,kind:"gunshot",suppressed:false});
+      }
+    }
+    for(let i=this.ripperFlights.length-1;i>=0;i--){
+      const f=this.ripperFlights[i],t=(now-f.born)/f.life;
+      if(t<0){f.group.visible=false;continue;}
+      f.group.visible=true;
+      if(t>=1){f.group.removeFromParent();f.group.traverse(o=>{if(o instanceof THREE.Mesh){
+        o.geometry.dispose();(o.material as THREE.Material).dispose();}});
+        this.ripperFlights.splice(i,1);continue;}
+      f.group.position.lerpVectors(f.start,f.end,Math.max(0,t));
+      f.group.rotateY(.35);
+    }
+    for(let i=this.radialShockwaves.length-1;i>=0;i--){
+      const f=this.radialShockwaves[i],t=(now-f.born)/f.life;
+      if(t>=1){f.mesh.removeFromParent();f.mesh.geometry.dispose();(f.mesh.material as THREE.Material).dispose();this.radialShockwaves.splice(i,1);continue;}
+      f.mesh.scale.setScalar(.3+f.radius*t);
+      (f.mesh.material as THREE.MeshBasicMaterial).opacity=.8*(1-t);
+    }
+    if(this.mechActive&&!this.mechCockpit)this.buildMechCockpit();
+    else if(!this.mechActive&&this.mechCockpit)this.clearMechCockpit();
+    if(this.mechRotary&&this.mechActive)this.mechRotary.rotateZ(.28);
+    if(this.mechMuzzles){
+      this.mechMuzzles.minigun.visible=now<this.mechMuzzleUntil.minigun;
+      this.mechMuzzles.secondary.visible=now<this.mechMuzzleUntil.secondary;
+    }
+    if(this.chronoAnchor&&time>=this.chronoAnchor.expiresAt){this.chronoAnchor=null;}
+    if(!this.chronoAnchor&&this.chronoMarker){this.chronoMarker.removeFromParent();this.chronoMarker.geometry.dispose();(this.chronoMarker.material as THREE.Material).dispose();this.chronoMarker=null;}
+    if(this.chronoMarker){this.chronoMarker.rotation.z=now*.001;this.chronoMarker.scale.setScalar(1+Math.sin(now*.006)*.08);}
+    for(let i=this.wonderVisualFx.length-1;i>=0;i--){
+      const visual=this.wonderVisualFx[i];
+      const fraction=(now-visual.born)/visual.duration;
+      if(fraction>=1){
+        visual.dispose();
+        this.wonderVisualFx.splice(i,1);
+      }else visual.update(fraction);
+    }
+    if(this.mechActive&&time>=this.mechActive.expiresAt){
+      this.showMechExitFx(new THREE.Vector3(this.pos.x,this.pos.y+1,this.pos.z));
+      this.removeMechDrop(this.mechActive.id);this.mechActive=null;this.clearMechCockpit();
+    }
+  }
+  private fireMech(mode:"minigun"|"secondary",now:number){
+    const mech=this.mechActive;if(!mech||!this.alive||this.matchEnded||this.survivalDowned)return;
+    const tune=mechTuning(mech.moduleId),isSwarm=tune.secondary==="swarm";
+    if(mode==="minigun"){
+      if(mech.minigunAmmo<=0)return;
+      if(now-this.lastMechPrimaryAt<1000/JUGGERNAUT_MINIGUN_RATE*.9)return;
+      if(now-this.lastMechPrimaryAt>450)this.mechSpinAt=now;
+      this.lastMechPrimaryAt=now;
+      if(now-this.mechSpinAt<tune.minigunSpinupMs){
+        if(this.opts.online){const origin:Vec3=[this.camera.position.x,this.camera.position.y,this.camera.position.z];
+          this.socket?.emit("message",{t:"mechShot",mode,origin,dir:this.aimDir(0)} as C2S);}
+        return;
+      }
+      mech.minigunAmmo--;
+    }else{
+      const interval=1000/(isSwarm?JUGGERNAUT_SWARM_RATE:JUGGERNAUT_SHOTGUN_RATE);
+      if(mech.secondaryAmmo<=0||now-this.lastMechSecondaryAt<interval*.9)return;
+      this.lastMechSecondaryAt=now;mech.secondaryAmmo--;
+    }
+    const origin:Vec3=[this.camera.position.x,this.camera.position.y,this.camera.position.z];
+    const dir=this.aimDir(0);
+    if(this.opts.online)this.socket?.emit("message",{t:"mechShot",mode,origin,dir} as C2S);
+    else if(mode==="secondary"&&isSwarm){
+      this.spawnRocketProjectile(origin,dir,"default",82,true,"launcher_swarm");
+    }else{
+      const pellets=mode==="minigun"?1:tune.shotgunPellets;
+      for(let i=0;i<pellets;i++){
+        const d=this.normalize(this.add(dir,this.randSpread(mode==="minigun"?.024:.14)));
+        const cover=closestCoverHit(this.coverForRay(origin,d,mode==="minigun"?70:17),origin,d,mode==="minigun"?70:17,rayBox);
+        const target=[...this.combatants.values()].filter(c=>c.alive&&
+          (this.opts.mode==="ffa"||this.opts.mode==="gungame"||c.team!==this.opts.team))
+          .map(c=>({c,hit:rayCombatantHit(origin,d,c.pos)}))
+          .filter((v):v is {c:Combatant;hit:{t:number;head:boolean}}=>v.hit!==null)
+          .filter(v=>v.hit.t<=(mode==="minigun"?70:17)&&(!cover||v.hit.t<cover.distance))
+          .sort((a,b)=>a.hit.t-b.hit.t)[0];
+        if(target)this.applyDamageLocal(target.c,mode==="minigun"?tune.minigunDamage:tune.shotgunDamage,target.hit.head,"wonder_juggernaut");
+      }
+    }
+    this.selfSpawnProtectedUntil=0;
+    if(this.mechMuzzles){
+      this.mechMuzzleUntil[mode]=now+95;
+      this.mechMuzzles[mode].visible=true;
+    }
+    this.weaponAudio.play(mode==="secondary"?(isSwarm?"launcher":"shotgun"):"lmg",{
+      weaponId:mode==="minigun"?"lmg_hv":isSwarm?"launcher_swarm":"shotgun_combat",
+      volume:mode==="minigun"?.46:.75});
+    if(mode!=="secondary"||!isSwarm)this.spawnTracer(origin,dir,"default",0,mode==="minigun"?70:17);
+  }
+
   private shieldRaised():boolean{
-    return this.weaponId===RIOT_SHIELD_ID && this.aiming && !this.reloading && !this.sprinting && this.riotShieldHp>0;
+    return this.weaponId===RIOT_SHIELD_ID && this.aiming && !this.reloading && !this.sprinting &&
+      this.riotShieldHp>0 && (!this.quickMeleeFeedbackAt || performance.now()-this.quickMeleeFeedbackAt>=riotBashProfile().swingMs);
   }
   private disposeRiotModel(model:THREE.Object3D){
     model.removeFromParent();
@@ -6511,8 +8859,25 @@ export class FPSEngine {
       applyRiotShieldDamageVisual(model,this.riotShieldHp);
       model.scale.set(panel.width/full.width,panel.height/full.height,1);
       model.position.set(panel.right,panel.centerY-EYE_HEIGHT,-Math.max(.75,panel.forward));
+      const bashProgress=(performance.now()-this.quickMeleeFeedbackAt)/riotBashProfile().swingMs;
+      if(this.weaponId===RIOT_SHIELD_ID && bashProgress>=0 && bashProgress<1)
+        model.position.z-=.4*Math.sin(Math.PI*bashProgress);
       // Camera forward is -Z; the same panel angle is required, not its mirror.
       model.rotation.set(0,panel.yawOffset,0);
+      // The Bulwark shield uses a separate left-shoulder draw, while its
+      // sidearm follows the normal holster/draw timeline. Keep the new shield
+      // off-screen at viewmodel handoff and sweep it into the guard pose instead
+      // of making a full-size shield abruptly appear in front of the camera.
+      const swapAge = this.swapAnimAt ? performance.now() - this.swapAnimAt : Infinity;
+      if (swapAge >= 0 && swapAge < WEAPON_SWAP_VISUAL_MS) {
+        const pose = sampleRiotShieldSwapMotion(swapAge / WEAPON_SWAP_VISUAL_MS);
+        model.position.x += pose.x;
+        model.position.y += pose.y;
+        model.position.z += pose.z;
+        model.rotation.x += pose.pitch;
+        model.rotation.y += pose.yaw;
+        model.rotation.z += pose.roll;
+      }
     }
     for(const c of this.combatants.values()){
       if(!c.group||c.isSelf)continue;
@@ -6552,13 +8917,37 @@ export class FPSEngine {
           if(v.offline&&!this.matchEnded){
             const point=s.path.impact;
             for(const [turretId,turret] of this.bulletSpitters){if(turret.offline&&Math.hypot(turret.pos[0]-point[0],turret.pos[1]-point[1],turret.pos[2]-point[2])<=s.radius)this.removeBulletSpitter(turretId);}
+            if(v.ownerId===this.selfId && this.alive){
+              const center:Vec3=[this.pos.x,this.pos.y+.85,this.pos.z];
+              const d=clusterDamage(Math.hypot(center[0]-point[0],center[1]-point[1],center[2]-point[2]),s);
+              const dmg=Math.max(0,Math.min(d,CLUSTER_MAX_DAMAGE-(v.dealt.get(this.selfId)??0)));
+              if(dmg>0 && this.hasLineOfSight(point,center)){
+                v.dealt.set(this.selfId,(v.dealt.get(this.selfId)??0)+dmg);
+                this.takeDamage(dmg,this.opts.playerName,this.opts.team,false,CLUSTER_ID);
+              }
+            }
+            if(v.ownerId!==this.selfId&&this.alive&&
+               blastCanDamage(v.ownerId,v.ownerTeam,this.selfId,this.opts.team as string,this.opts.mode)){
+              const center:Vec3=[this.pos.x,this.pos.y+.85,this.pos.z];
+              const d=clusterDamage(Math.hypot(center[0]-point[0],center[1]-point[1],center[2]-point[2]),s);
+              const dmg=Math.min(d,CLUSTER_MAX_DAMAGE-(v.dealt.get(this.selfId)??0));
+              if(dmg>0&&this.hasLineOfSight(point,center)){
+                v.dealt.set(this.selfId,(v.dealt.get(this.selfId)??0)+dmg);
+                const owner=this.combatants.get(v.ownerId);
+                this.takeDamage(dmg,owner?.name??"Bot",v.ownerTeam,false,CLUSTER_ID,owner?.pos);
+              }
+            }
             for(const target of this.combatants.values()){
-              if(!target.alive||target.id===v.ownerId||(this.opts.mode!=="ffa"&&this.opts.mode!=="gungame"&&target.team===v.ownerTeam))continue;
+              if(!target.alive||!blastCanDamage(v.ownerId,v.ownerTeam,target.id,target.team,this.opts.mode))continue;
               const center:Vec3=[target.pos[0],target.pos[1]+.85,target.pos[2]];
               const dmg=Math.min(clusterDamage(Math.hypot(center[0]-point[0],center[1]-point[1],center[2]-point[2]),s),CLUSTER_MAX_DAMAGE-(v.dealt.get(target.id)??0));
               if(dmg<=0||!this.hasLineOfSight(point,center))continue;
-              v.dealt.set(target.id,(v.dealt.get(target.id)??0)+dmg);this.applyDamageLocal(target,dmg,false,CLUSTER_ID);
+              v.dealt.set(target.id,(v.dealt.get(target.id)??0)+dmg);
+              const owner=this.combatants.get(v.ownerId);
+              if(owner)this.damageFromOfflineBotTactical(owner,target,dmg,"frag",false,CLUSTER_ID,true);
+              else this.applyDamageLocal(target,dmg,false,CLUSTER_ID);
             }
+            this.damageLocalBallisticCoverExplosion(point,s.radius,s.damage,CLUSTER_ID);
           }
         }else{
           let mesh=v.meshes.get(i);
@@ -6574,29 +8963,33 @@ export class FPSEngine {
   // BOTH gun-fire and melee attacks — melee weapons route through tryMeleeAttack
   // instead of the ray-based gun path so they feel like real melee (short-range
   // arc hit, swing animation, no ammo, no tracer).
-  private fireOneShot(w: WeaponDef) {
-    if (!this.alive || this.reloading || this.matchEnded || performance.now() < this.equipmentStunUntil || performance.now() < this.swapReadyAt) return;
-    if (w.disabled || shieldBlocksFire(w.id,this.shieldRaised(),this.riotShieldHp)) return;
+  private fireOneShot(w: WeaponDef, akimboHand?: AkimboHand) {
+    if (!this.alive || this.reloading || this.matchEnded || performance.now() < this.swapReadyAt) return;
+    if (w.disabled || !!this.mechActive || shieldBlocksFire(w.id,this.shieldRaised(),this.riotShieldHp)) return;
     // Can't fire while sprinting — must release sprint or ADS first (arcade rule).
     if (this.sprinting) return;
     const now = performance.now();
+    if(isThrowingKnife(w.id)){
+      this.throwThrowingKnife(w,now,false);
+      return;
+    }
     const isMelee = w.category === "melee";
-    // Melee weapons have no ammo — just a swing cooldown.
-    if (isMelee) {
+    // Seismic Lance is held like melee gear but spends an actual wonder charge.
+    if (isMelee && w.wonder?.kind !== "seismic") {
       this.tryMeleeAttack(w, now);
       return;
     }
     const special = w.special;
     if (special?.kind === "heat") {
       const state = this.heatStates.get(w.id) ?? freshHeat();
-      const next = addHeat(state, special, now);
+      const next = addHeat(state, effectiveHeatConfig(w,this.getCurrentAttachments()) ?? special, now);
       if (!next) return; // locked by overheat; no bullets or energy consumed
       this.heatStates.set(w.id, next);
     }
     if (w.wonder?.kind === "turret" && this.opts.online) {
       if (this.turretDeployPending) return;
       const current = tickWonderCharges(
-        this.wonderStates.get(w.id) ?? fullWonderCharges(w.wonder), w.wonder, now,
+        this.ensureWonderState(w.id,w.wonder,now), w.wonder, now,
       );
       if (current.charges <= 0) { this.sound.play("empty_click", { volume: .4 }); return; }
       if (!this.socket?.connected) {
@@ -6610,18 +9003,37 @@ export class FPSEngine {
       this.socket.emit("message", { t: "deployTurret" } as const);
       return;
     }
+    if(w.wonder?.kind==="chrono"&&this.chronoAnchor&&this.chronoAnchor.expiresAt>Date.now()){
+      const origin:Vec3=[this.camera.position.x,this.camera.position.y,this.camera.position.z];
+      if(!this.opts.online&&this.wonderModuleId==="residual_beacon"){
+        const a=this.chronoAnchor.pos;
+        for(const target of this.combatants.values())if(target.alive&&
+          (this.opts.mode==="ffa"||this.opts.mode==="gungame"||target.team!==this.opts.team)&&
+          Math.hypot(target.pos[0]-a[0],target.pos[2]-a[2])<12&&
+          this.hasLineOfSight(a,[target.pos[0],target.pos[1]+1,target.pos[2]]))
+          this.smartTags.set(target.id,performance.now()+2200);
+      }
+      if(this.opts.online)this.socket?.emit("message",{t:"shot",origin,dir:this.aimDir(0),weaponId:w.id,skinId:"default"} as C2S);
+      else {this.pos.set(...this.chronoAnchor.pos);this.chronoAnchor=null;}
+      this.lastShotAt=now;return;
+    }
+    if(w.wonder?.kind==="mech"&&
+      (!juggernautDropPoint([this.pos.x,this.pos.y,this.pos.z],this.yaw,this.map.cover,this.map.size)||
+        [...this.mechDrops.values()].some(d=>d.ownerId===this.selfId&&d.expiresAt>Date.now()))){
+      this.sound.play("wonder_error",{volume:.7,throttleMs:240});return;
+    }
     if (usesWonderCharges(w) && w.wonder) {
-      const state = this.wonderStates.get(w.id) ?? fullWonderCharges(w.wonder);
+      const state = this.ensureWonderState(w.id,w.wonder,now);
       if(w.wonder.kind==="flame"){
         // Only accepted trigger-held shots call this function.
-        const spent=spendHellfireFuelOnShot(state,w.wonder,now,
+        const spent=spendHellfireFuelOnShot(state,{...w.wonder,rechargeMs:w.wonder.rechargeMs*wonderModuleEffects(w.id,this.wonderModuleId).rechargeMul},now,
           this.hellfireActiveUntil,HELLFIRE_FUEL_STEP_MS);
         if(!spent){this.sound.play("empty_click",{volume:.4});return;}
         this.wonderStates.set(w.id,spent.state);
         this.hellfireActiveUntil=spent.paidThrough;
       }else{
-        const next=spendWonderCharge(state,w.wonder,now);
-        if(!next){this.sound.play("empty_click",{volume:.4});return;}
+        const next=spendWonderCharge(state,{...w.wonder,rechargeMs:w.wonder.rechargeMs*wonderModuleEffects(w.id,this.wonderModuleId).rechargeMul},now);
+        if(!next){this.sound.play(w.wonder.kind==="mech"?"wonder_error":"empty_click",{volume:.5,throttleMs:240});return;}
         this.wonderStates.set(w.id,next);
       }
     }
@@ -6630,12 +9042,56 @@ export class FPSEngine {
       this.startReload();
       return;
     }
+    if(akimboHand){
+      if(this.akimboAmmo[akimboHand]<=0)return;
+      this.akimboAmmo[akimboHand]--;
+      this.akimboLastHandShot[akimboHand]=now;
+      this.akimboKick[akimboHand]=1;
+    }
     this.lastShotAt = now;
+    if(w.wonder?.kind==="seismic"){this.meleeSwingAt=now;this.meleeSwingDur=660;}
     this.selfSpawnProtectedUntil = 0; // protection ends when the attack actually fires
     if (usesWonderCharges(w)) this.ammoInMag = this.wonderStates.get(w.id)!.charges;
     else if (special?.kind !== "heat") this.ammoInMag--;
     // Round 19o: Keep per-slot ammo in sync so swapping preserves the correct count.
     this.saveAmmoToSlot(this.currentSlot);
+    if(w.wonder?.kind==="drone"){
+      const origin:Vec3=[this.camera.position.x,this.camera.position.y,this.camera.position.z],dir=this.aimDir(0);
+      if(this.opts.online)this.socket?.emit("message",{t:"shot",origin,dir,weaponId:w.id,skinId:"default"} as C2S);
+      else{
+        for(const [id,d] of this.harbingerDrones)if(d.ownerId===this.selfId)this.removeHarbinger(id);
+        const hit=closestCoverHit(this.coverForRay(origin,dir,14),origin,dir,14,rayBox);
+        const pos=harbingerPlacement(origin,dir,hit?.distance??14,this.map.size),tune=harbingerTuning(this.wonderModuleId);
+        this.addHarbinger("offline_harbinger_"+(++this.localWonderSequence),this.selfId,this.opts.team as string,
+          pos,Date.now()+tune.durationMs,tune.health,this.wonderModuleId,true);
+      }
+      this.spawnTracer(origin,dir,"default",0,14);
+      this.sound.play("swap",{volume:.55});return;
+    }
+    if(w.wonder?.kind==="chrono"||w.wonder?.kind==="decoy"||w.wonder?.kind==="mech"){
+      const origin:Vec3=[this.camera.position.x,this.camera.position.y,this.camera.position.z];
+      const dir=this.aimDir(0);
+      if(this.opts.online)this.socket?.emit("message",{t:"shot",origin,dir,weaponId:w.id,skinId:"default"} as C2S);
+      else if(w.wonder.kind==="chrono"){
+        this.chronoAnchor={pos:[this.pos.x,this.pos.y,this.pos.z],expiresAt:Date.now()+CHRONO_ANCHOR_MS* wonderModuleEffects(w.id,this.wonderModuleId).durationMul};
+        this.placeChronoMarker(this.chronoAnchor.pos);
+      }else if(w.wonder.kind==="decoy"){
+        const mod=wonderModuleEffects(w.id,this.wonderModuleId);
+        for(let i=0;i<(mod.targets===2?2:1);i++){
+          const id="offline_phantom_"+(++this.localWonderSequence);
+          const feet:Vec3=[this.pos.x,this.pos.y,this.pos.z];
+          const desired=phantomSpawnPosition(feet,this.yaw,i?1.5:0);
+          const spawn=this.botMoveBlocked(feet,desired,feet[1])?feet:desired;
+          this.addPhantom(id,this.selfId,spawn,this.yaw,
+            Date.now(),Date.now()+PHANTOM_DURATION_MS*mod.durationMul,mod.targets===2?2:1);
+        }
+      }else{
+        const pos=juggernautDropPoint([this.pos.x,this.pos.y,this.pos.z],this.yaw,this.map.cover,this.map.size);
+        if(pos)this.addMechDrop("offline_mech_"+(++this.localWonderSequence),this.selfId,pos,
+          Date.now()+JUGGERNAUT_DROP_MS,Date.now()+JUGGERNAUT_DROP_MS+25000,this.wonderModuleId,false);
+      }
+      this.sound.play("swap",{volume:.56});return;
+    }
     if (w.wonder?.kind === "turret") {
       // Deploy equipment into the world; it is NOT a bullet, cannot hit a
       // target directly and never shows the normal muzzle flash / gunshot.
@@ -6654,7 +9110,7 @@ export class FPSEngine {
       this.sound.play("swap", { volume: 0.65 });
       return;
     }
-    if(w.wonder?.kind!=="flame")this.triggerMuzzleFlash();
+    if(w.wonder?.kind!=="flame"&&w.wonder?.kind!=="seismic")this.triggerMuzzleFlash(akimboHand);
     // Hellfire uses a filtered combustion hiss, never a muzzle blast or bullet crack.
     if(!this.opts.online&&!this.opts.firingRange&&w.wonder?.kind!=="flame")
       this.publishBotNoise({sourceId:this.selfId,pos:[this.pos.x,this.pos.y,this.pos.z],
@@ -6662,6 +9118,7 @@ export class FPSEngine {
     this.weaponAudio.play(this.weaponSoundCategory(this.weaponId), {
       weaponId: this.weaponId,
       aiming:this.aiming,
+      environment: weaponAcousticSpace(this.map.id),
       suppressed: this.getCurrentAttachments().barrel === "barrel_suppressor",
       volume: w.wonder?.kind==="flame" ? .47 : .9,
     });
@@ -6685,8 +9142,19 @@ export class FPSEngine {
     // which recovers between engagements even for high rate-of-fire guns.
     const steadyAds = this.aiming && this.adsProgress >= 0.9 && this.onGround
       && (this.vel.x * this.vel.x + this.vel.z * this.vel.z) < 1;
-    const spread = shotSpread(this.eff, w.category, this.aiming, this.currentSpread, this.shotBloom, steadyAds);
-    const dir = this.aimDir(spread);
+    const taserSpread=isTaserAdsBlocked(this.equipmentAdsBlockedUntil,now)&&!this.aiming?
+      TASER_HIPFIRE_SPREAD_MULTIPLIER:1;
+    // A just-lowered weapon is temporarily less precise. Quick-Ready
+    // restores hipfire after 95ms rather than the ordinary 300ms.
+    const sprintRecovery=this.aiming?1:sprintRecoverySpreadMultiplier(
+      now,this.lastSprintAt,this.getCurrentAttachments().grip);
+    const spread = shotSpread(this.eff, w.category, this.aiming, this.currentSpread, this.shotBloom, steadyAds)*taserSpread*sprintRecovery;
+    // Buckshot pellets originate at the true crosshair ray. Their individual
+    // deviations are resolved once by the shared shotgun pattern function.
+    const multiPelletShotgun = w.category === "shotgun" && !w.wonder && (this.eff.pellets ?? 1) > 1;
+    // Online: send the clean aim ray; only the server rolls bullet dispersion.
+    // Offline: apply the exact same shared sampler here, once.
+    const dir = this.aimDir(this.opts.online || multiPelletShotgun ? 0 : spread);
     // Apply recoil after locking the current shot's trajectory. Subsequent shots
     // must contend with the physical camera kick, not only cosmetic gun motion.
     this.applyRecoil();
@@ -6700,11 +9168,11 @@ export class FPSEngine {
     const boltImpact = special?.kind === "bolt" ? this.boltLanding(origin, dir) : null;
     if(w.wonder?.kind==="cluster"){
       if(this.opts.online)this.socket?.emit("message",{t:"shot",origin,dir,weaponId:w.id,skinId:this.getCurrentSkinId()});
-      else this.addClusterVolley({id:"local_cluster_"+(++this.localWonderSequence),ownerId:this.selfId,ownerTeam:this.opts.team,launchedAt:Date.now(),shots:clusterShots(origin,dir,this.map.cover,this.map.id)},true);
+      else this.addClusterVolley({id:"local_cluster_"+(++this.localWonderSequence),ownerId:this.selfId,ownerTeam:this.opts.team,launchedAt:Date.now(),shots:clusterShots(origin,dir,this.map.cover,this.map,this.wonderModuleId)},true);
       return;
     }
     // These kinds implement new hitscan / area rules, never rocket splash.
-    if(w.wonder&&["smart","flame","storm","sludge"].includes(w.wonder.kind)){
+    if(w.wonder&&["smart","flame","storm","sludge","seismic","cryo","ricochet"].includes(w.wonder.kind)){
       if(w.wonder.kind==="flame")this.spawnFlameSpray(origin,dir);
       if(this.opts.online)this.socket?.emit("message",{t:"shot",origin,dir,weaponId:this.weaponId,skinId:this.getCurrentSkinId()});
       else this.fireNovelWonderOffline(w,origin,dir);
@@ -6712,7 +9180,7 @@ export class FPSEngine {
     }
     // Turrets already return through the placement path, so any remaining
     // wonder weapon here is an explosive projectile.
-    const isRocket = !!w.explosive || usesWonderCharges(w);
+    const isRocket = !!w.explosive || (usesWonderCharges(w)&&w.wonder?.kind!=="rail");
 
     if (isRocket) {
       // Rocket: fires a visible projectile that travels to the impact point and
@@ -6724,9 +9192,10 @@ export class FPSEngine {
         this.socket?.emit("message", { t: "shot", origin, dir, weaponId: this.weaponId, skinId: this.getCurrentSkinId() });
       }
       // Offline: damage is applied locally when the projectile arrives (below).
-      this.spawnRocketProjectile(origin, dir, this.getCurrentSkinId(), w.stats.damage, !this.opts.online);
+      if (!this.opts.online)
+        this.spawnRocketProjectile(origin, dir, this.getCurrentSkinId(), w.stats.damage, true);
       if (!this.opts.online) {
-        const first = closestCoverHit(this.map.cover, origin, dir, this.eff.range, rayBox);
+        const first = closestCoverHit(this.coverForRay(origin,dir,this.eff.range), origin, dir, this.eff.range, rayBox);
         if (first?.box.environmentId && this.environmentWalls.has(first.box.environmentId)) {
           // Do not hit a wall that is behind the first combatant impact.
           const nearerEnemy = [...this.combatants.values()].some(c => {
@@ -6738,11 +9207,23 @@ export class FPSEngine {
         }
       }
     } else if (this.opts.online) {
-      this.socket?.emit("message", { t: "shot", origin, dir, weaponId: this.weaponId, skinId: this.getCurrentSkinId() });
-      this.spawnTracer(origin, dir, this.getCurrentSkinId());
+      // Each revolver sends its OWN shot; two simultaneous inputs yield two
+      // messages and two server-authorized rays without an alternating delay.
+      this.socket?.emit("message", {
+        t:"shot", origin, dir, weaponId:this.weaponId,
+        skinId:this.getCurrentSkinId(), aiming:akimboHand?false:this.aiming,
+        akimboHand,
+      } as C2S);
+      // Multiplayer tracers use the server's accepted, spread-adjusted shotFx
+      // direction, not a speculative local ray that might register elsewhere.
     } else {
+      // Capture the tracer against PRE-destruction geometry; the finishing
+      // shot is still blocked by the panel it breaks.
+      if(special?.kind!=="bolt")this.spawnTracer(origin,dir,this.getCurrentSkinId(),this.eff.coverPenetration??0,this.eff.range);
       for (let i = 0; i < pellets; i++) {
-        const pdir = pellets > 1 ? this.normalize(this.add(dir, this.randSpread(spread))) : dir;
+        const pdir = multiPelletShotgun
+          ? shotgunPelletDirection(dir, {...this.eff,spread:this.eff.spread*taserSpread*sprintRecovery}, this.aiming, undefined, i)
+          : pellets > 1 ? this.normalize(this.add(dir, this.randSpread(spread))) : dir;
         const victim = this.localFireRay(origin, pdir, w.stats.headshotMult, false);
         if (victim && special?.kind === "arc") this.chainArcOffline(victim, w.id);
       }
@@ -6751,7 +9232,60 @@ export class FPSEngine {
           const id = `local_bolt_${++this.localBoltSequence}`;
           this.spawnBoltPickup(id, this.selfId, boltImpact!, Date.now() + special.lifetimeMs);
         }
-      } else this.spawnTracer(origin, dir, this.getCurrentSkinId());
+      }
+    }
+  }
+
+  /** Two finite steel knives shared by F and the melee slot. All damage
+   * happens on the short ray, never through walls or behind another target. */
+  private throwThrowingKnife(w:WeaponDef,now:number,quick:boolean){
+    const gap=1000/Math.max(.1,w.stats.fireRate);
+    if(now-this.lastThrowingKnifeAt<gap || now-this.lastShotAt<gap)return;
+    const spent=spendThrowingKnife(this.throwingKnifeState,now,this.opts.mode==="gungame");
+    if(!spent){this.sound.play("empty_click",{volume:.35});return;}
+    const origin:Vec3=[this.camera.position.x,this.camera.position.y,this.camera.position.z];
+    const dir=this.aimDir(0);
+    this.throwingKnifeState=spent;
+    this.meleeAmmoInMag=spent.charges;
+    if(isThrowingKnife(this.weaponId))this.ammoInMag=spent.charges;
+    this.lastThrowingKnifeAt=now;
+    if(quick){this.quickMeleeLastAt=now;this.quickMeleeFeedbackAt=now;this.meleeSwingAt=0;}
+    else this.meleeSwingAt=now;
+    this.lastShotAt=now;
+    this.meleeSwingDur=350;
+    this.selfSpawnProtectedUntil=0;
+    this.weaponAudio.play("melee",{weaponId:w.id,volume:.7});
+    this.spawnThrowingKnifeProjectile(origin,dir);
+    if(this.opts.online){
+      if(quick)this.socket?.emit("message",{t:"quickMelee"});
+      else this.socket?.emit("message",{t:"shot",origin,dir,weaponId:w.id,skinId:this.getCurrentSkinId()});
+      return;
+    }
+    let nearest:{victim:Combatant;t:number;head:boolean;shield:boolean}|null=null;
+    for(const c of this.combatants.values()){
+      if(!c.alive||(this.opts.mode!=="ffa"&&this.opts.mode!=="gungame"&&c.team===this.opts.team))continue;
+      const body=rayCombatantHit(origin,dir,c.pos);
+      const shield=rayRiotShield(origin,dir,c);
+      const shieldFirst=shield!==null&&shield>=0&&(!body||shield<body.t);
+      const t=shieldFirst?shield!:body?.t;
+      if(t===undefined||t<0||t>THROWING_KNIFE_RANGE||(nearest&&nearest.t<=t))continue;
+      nearest={victim:c,t,head:!shieldFirst&&!!body?.head,shield:shieldFirst};
+    }
+    const cover=closestCoverHit(this.coverForRay(origin,dir,THROWING_KNIFE_RANGE),origin,dir,THROWING_KNIFE_RANGE,rayBox);
+    if(nearest&&(!cover||cover.distance>=nearest.t)){
+      if(nearest.victim.spawnProtectedUntil&&nearest.victim.spawnProtectedUntil>Date.now()){
+        this.hitMarkerAt=now;return;
+      }
+      if(nearest.shield){
+        const next=hitRiotShield(nearest.victim.riotShieldHp??RIOT_SHIELD_HP,
+          nearest.victim.riotShieldReadyAt??0,w.stats.damage,now);
+        nearest.victim.riotShieldHp=next.hp;nearest.victim.riotShieldReadyAt=next.readyAt;
+        this.sound.play("melee_hit",{volume:.4});return;
+      }
+      this.applyDamageLocal(nearest.victim,w.stats.damage*(nearest.head?w.stats.headshotMult:1),nearest.head,w.id);
+      this.hitMarkerAt=now;
+      if(nearest.head)this.headshotMarkerAt=now;
+      this.sound.play("melee_hit",{volume:.65});
     }
   }
 
@@ -6796,10 +9330,6 @@ export class FPSEngine {
       const victim=this.combatants.get(nearest.id);
       if(victim){
         this.applyDamageLocal(victim,this.eff.damage,false,w.id);
-        if(w.id==="baton"&&victim.ai&&victim.ai.reloadingUntil>now){
-          victim.ai.reloadingUntil=now+1100;
-          victim.ai.nextShotAt=Math.max(victim.ai.nextShotAt,now+1100);
-        }
         this.hitMarkerAt=now;
         this.sound.play("melee_hit",{volume:.7});
       }
@@ -6815,7 +9345,99 @@ export class FPSEngine {
     }
   }
 
+  /** Apply Dragon's Breath after a real, unshielded hit, regardless of which
+   * bullet penetration path resolved it. All regular shotguns have nonzero
+   * coverPenetration, so a handler inside just the plain-ray path never ran. */
+  private igniteDragonBreath(victim:Combatant) {
+    const now=performance.now();
+    const incendiary=this.eff.shotgunAmmo==="dragons_breath";
+    const until=dragonBreathVisualUntil(now,incendiary,false,victim.alive);
+    if(until!==null)this.localBurning.set(victim.id,until);
+    const burn=dragonBreathIgnition(now,incendiary,victim.alive);
+    // Lethal hits do not leave flames or damage-over-time on the corpse.
+    if(burn)this.poisonByVictim.set(victim.id,{...burn,weaponId:this.weaponId});
+  }
+
   private localFireRay(origin: Vec3, dir: Vec3, headshotMult: number, isMelee = false) {
+    // The mine is a physical, shootable floor target, not an enemy entity.
+    // Compare the intersection against both blocking cover and the nearest
+    // combatant, so bullets cannot detonate a mine through someone or a wall.
+    if (!isMelee && this.offlineMines.length) {
+      const range = maxWeaponHitRange(this.eff.range, this.eff);
+      const coverStop = traceCoverPenetration(this.coverForRay(origin,dir,range), origin, dir, range,
+        this.eff.coverPenetration ?? 0, this.weaponId === "wonder_phasebreaker").blockedAt;
+      let firstBody = Infinity;
+      for (const c of this.combatants.values()) {
+        if (!c.alive || this.opts.mode !== "ffa" && this.opts.mode !== "gungame" && c.team === this.opts.team) continue;
+        const body = rayCombatantHit(origin, dir, c.pos);
+        const shield = rayRiotShield(origin, dir, c);
+        if (body) firstBody = Math.min(firstBody, body.t);
+        if (shield !== null) firstBody = Math.min(firstBody, shield);
+      }
+      if (this.shootOfflineMine(origin, dir, Math.min(range, coverStop ?? Infinity, firstBody))) return null;
+    }
+    // Offline hitscan shares the server's body + explicitly tagged cover trace.
+    if ((this.eff.bodyPenetration || this.eff.coverPenetration) && !isMelee) {
+      const maxDistance = maxWeaponHitRange(this.eff.range, this.eff);
+      const contacts: BodyRayContact<Combatant>[] = [];
+      for (const c of this.combatants.values()) {
+        if (!c.alive || (this.opts.mode !== "ffa" && this.opts.mode !== "gungame" && c.team === this.opts.team)) continue;
+        const panel = rayRiotShield(origin, dir, c);
+        const body = rayCombatantHit(origin, dir, c.pos);
+        const shieldFirst = panel !== null && panel >= 0 && (!body || panel < body.t);
+        const t = shieldFirst ? panel! : body?.t;
+        if (t !== undefined) contacts.push({ target: c, t, head: shieldFirst ? false : !!body?.head,
+          shield: shieldFirst, protected: (c.spawnProtectedUntil ?? 0) > Date.now() });
+      }
+      const cover = closestCoverHit(this.coverForRay(origin,dir,maxDistance), origin, dir, maxDistance, rayBox);
+      const firstBody = selectBodyPenetrationHits(contacts, maxDistance, Infinity)[0];
+      if (cover?.box.environmentId && this.environmentWalls.has(cover.box.environmentId) &&
+          (!firstBody || firstBody.t >= cover.distance)) {
+        this.damageEnvironmentWall(cover.box.environmentId, this.eff.damage);
+        return null;
+      }
+      const resolved=resolveMaterialPenetrationShot(contacts,this.coverForRay(origin,dir,maxDistance),origin,dir,maxDistance,
+        this.eff.bodyPenetration,this.eff.coverPenetration,this.weaponId==="wonder_phasebreaker");
+      const hits=resolved.hits;
+      this.damageLocalBallisticCover(origin,dir,maxDistance,this.eff.coverPenetration??0,this.eff.damage,
+        resolved.stoppedAt);
+      let firstVictim: Combatant | null = null;
+      let refundedRailShot=false;
+      for (const hit of hits) {
+        const victim = hit.target;
+        if (hit.protected) { this.hitMarkerAt = performance.now(); break; }
+        if (hit.shield) {
+          const next = hitRiotShield(victim.riotShieldHp ?? RIOT_SHIELD_HP,
+            victim.riotShieldReadyAt ?? 0, this.eff.damage * hit.damageScale, performance.now());
+          victim.riotShieldHp = next.hp; victim.riotShieldReadyAt = next.readyAt;
+          this.sound.play("melee_hit", { volume: .45 });
+          break;
+        }
+        const base = this.eff.damage * (hit.head ? headshotMult : 1);
+        const damage = damageAtRange(base, hit.t, this.eff.range, this.eff) * hit.damageScale;
+        const willKill = victim.health - damage <= 0 && victim.alive;
+        this.applyDamageLocal(victim, damage, hit.head);
+        this.igniteDragonBreath(victim);
+        if(hit.head&&!refundedRailShot&&this.weaponId==="wonder_phasebreaker"){
+          const rail=weaponById(this.weaponId),state=this.wonderStates.get(rail.id);
+          if(state&&rail.wonder){
+            const next=refundWonderCharge(state,rail.wonder,performance.now());
+            this.wonderStates.set(rail.id,next);
+            this.ammoInMag=next.charges;this.wonderAmmoInMag=next.charges;
+            refundedRailShot=true;
+          }
+        }
+        if (!firstVictim) firstVictim = victim;
+        this.hitMarkerAt = performance.now();
+        if (hit.head) this.headshotMarkerAt = performance.now();
+        if (!willKill && performance.now() - this.lastHitSoundAt > 60) {
+          this.lastHitSoundAt = performance.now();
+          this.sound.play("hit_marker", { volume: .5 });
+        }
+        if (this.matchEnded) break;
+      }
+      return firstVictim;
+    }
     let nearest: { c: Combatant; t: number; head: boolean; shield?:boolean } | null = null;
     for (const c of this.combatants.values()) {
       if (!c.alive) continue;
@@ -6828,7 +9450,7 @@ export class FPSEngine {
       }
     }
     // First hit on destructible cover absorbs the bullet (even the fatal bullet).
-    const firstCover = closestCoverHit(this.map.cover, origin, dir, this.eff.range * 1.6, rayBox);
+    const firstCover = closestCoverHit(this.coverForRay(origin,dir,this.eff.range * 1.6), origin, dir, this.eff.range * 1.6, rayBox);
     if (firstCover?.box.environmentId && this.environmentWalls.has(firstCover.box.environmentId) &&
         (!nearest || nearest.t >= firstCover.distance)) {
       this.damageEnvironmentWall(firstCover.box.environmentId, this.eff.damage);
@@ -6840,6 +9462,10 @@ export class FPSEngine {
       const t = rayBox(origin, dir, cov.pos, cov.size);
       if (t !== null && t < blockedT) blockedT = t;
     }
+    // Ordinary calibers still crack, splinter or mark the first tagged panel,
+    // even when they have no penetration budget at all.
+    this.damageLocalBallisticCover(origin,dir,maxWeaponHitRange(this.eff.range,this.eff),0,this.eff.damage,
+      nearest&&nearest.t<blockedT?nearest.t:Infinity);
     if (nearest && nearest.t < blockedT) {
       // Round 20h: Check bot spawn protection — skip damage if protected.
       if (nearest.c.spawnProtectedUntil && nearest.c.spawnProtectedUntil > Date.now()) {
@@ -6857,9 +9483,7 @@ export class FPSEngine {
       const dmg = damageAtRange(baseDmg, nearest.t, this.eff.range, this.eff);
       const willKill = nearest.c.health - dmg <= 0 && nearest.c.alive;
       this.applyDamageLocal(nearest.c, dmg, nearest.head);
-      if (this.eff.shotgunAmmo === "dragons_breath" && nearest.c.alive)
-        this.poisonByVictim.set(nearest.c.id, { expiresAt:performance.now()+5000,
-          tickAt:performance.now()+500, weaponId:this.weaponId, damagePerTick:4 });
+      this.igniteDragonBreath(nearest.c);
       if (this.weaponId === "crossbow_reclaimer" && this.getCurrentAttachments().barrel === "barrel_poison" && nearest.c.alive) {
         this.poisonByVictim.set(nearest.c.id, { expiresAt: performance.now() + 4000, tickAt: performance.now() + 500, weaponId: this.weaponId });
       }
@@ -6901,11 +9525,12 @@ export class FPSEngine {
       suppressed,
       distance,
       pan,
+      environment: weaponAcousticSpace(this.map.id),
       volume: 0.92,
     });
   }
 
-  private applyDamageLocal(victim: Combatant, damage: number, head: boolean, sourceWeaponId = this.weaponId) {
+  private applyDamageLocal(victim: Combatant, damage: number, head: boolean, sourceWeaponId = this.weaponId, directLethal=false) {
     if (!victim.alive || (victim.spawnProtectedUntil ?? 0) > Date.now()) return;
     // Remember the player's meaningful non-lethal contributions so a
     // friendly offline bot finishing the same enemy can award an assist.
@@ -6921,18 +9546,72 @@ export class FPSEngine {
       victim.ai.lastAlert=botRememberHit(this.selfId,[this.pos.x,this.pos.y,this.pos.z],performance.now());
       victim.ai.nextDecisionAt=0;
     }
+    if(this.opts.mode==="survival"&&victim.isBot&&!this.opts.online){
+      damage*=survivalOutgoingMultiplier(this.survivalUpgradeRanks,{
+        headshot:head,
+        distance:Math.hypot(this.pos.x-victim.pos[0],this.pos.z-victim.pos[2]),
+        boss:!!victim.bossMaxHealth,aiming:this.aiming,
+        healthFraction:this.health/MAX_HEALTH,
+        sinceKillMs:performance.now()-this.survivalLastKillAt,
+        sinceHeadshotKillMs:performance.now()-this.survivalLastHeadshotKillAt,
+      });
+    }
+    if(directLethal)damage=tacticalDirectDamage(damage,victim.health,!!victim.bossMaxHealth);
     victim.health -= damage;
     if (victim.health <= 0 && victim.alive) {
+      if(sourceWeaponId==="wonder_deadlock"&&this.wonderModuleId==="tag_relay"){
+        const expire=this.smartTags.get(victim.id)??0;
+        if(expire>performance.now()){
+          const match=[...this.combatants.values()].find(c=>c.alive&&c.id!==victim.id&&
+            (this.opts.mode==="ffa"||this.opts.mode==="gungame"||c.team!==this.opts.team)&&
+            Math.hypot(c.pos[0]-victim.pos[0],c.pos[2]-victim.pos[2])<12&&
+            this.hasLineOfSight(victim.pos,[c.pos[0],c.pos[1]+1,c.pos[2]]));
+          if(match)this.smartTags.set(match.id,performance.now()+SMART_TAG_MS);
+        }
+      }
+      const dot=this.poisonByVictim.get(victim.id);
+      if(dot?.weaponId==="wonder_corrosion"&&this.wonderModuleId==="spore_relay"){
+        for(const other of this.combatants.values())if(other.alive&&other.id!==victim.id&&
+          (this.opts.mode==="ffa"||this.opts.mode==="gungame"||other.team!==this.opts.team)&&
+          Math.hypot(other.pos[0]-victim.pos[0],other.pos[2]-victim.pos[2])<=3.5&&
+          this.hasLineOfSight(victim.pos,[other.pos[0],other.pos[1]+1,other.pos[2]]))
+            this.poisonByVictim.set(other.id,{expiresAt:performance.now()+1800,tickAt:performance.now()+CORROSION_TICK_MS,
+              weaponId:"wonder_corrosion",ownerId:this.selfId,damagePerTick:(dot.damagePerTick??2)*.4});
+      }
+      if(sourceWeaponId===this.wonderWeaponId && this.wonderKillEffectId)this.showWonderBurst(victim.pos,this.wonderKillEffectId);
       this.offlineAssistDamage.delete(victim.id);
       victim.alive = false;
+      // Do not resurrect the burn overlay on a respawn or leave it on a
+      // falling corpse after Dragon's Breath finishes the target.
+      this.localBurning.delete(victim.id);
+      this.poisonByVictim.delete(victim.id);
       victim.deaths += 1;
-      if (victim.team!==this.opts.team)
+      if (this.opts.mode==="ffa"||this.opts.mode==="gungame"||victim.team!==this.opts.team)
         this.recordOrbitalKill(victim.pos,[this.pos.x,this.pos.y,this.pos.z]);
       this.releaseOrbitalBotWeapon(victim);
       if (this.opts.mode === "ctf") this.dropOfflineCtfCarrier(victim.id, [...victim.pos] as Vec3);
       if (this.opts.mode !== "killconfirmed" && this.opts.mode !== "ctf") victim.score = victim.kills;
       this.kills += 1;
       this.headshots += head ? 1 : 0;
+      if(this.opts.mode==="survival"){
+        const selfRevived=this.survivalDowned;
+        if(selfRevived){
+          this.survivalDowned=false;
+          this.survivalDownedUntil=0;
+          this.health=SURVIVAL_SELF_REVIVE_HP;
+          this.currentSlot="primary";this.weaponId=this.primaryWeaponId;
+          this.eff=this.primaryEff;this.sightDef=this.primarySight;
+          this.refillAmmoOnRespawn();this.buildViewmodel();
+        }
+        const reward=survivalKillReward(this.survivalUpgradeRanks,head);
+        if(!selfRevived)this.health=Math.min(MAX_HEALTH,this.health+reward.health);
+        if(weaponById(this.weaponId).category!=="melee"){
+          this.ammoInMag=Math.min(this.eff.magSize,this.ammoInMag+reward.ammo);
+          this.saveAmmoToSlot(this.currentSlot);
+        }
+        this.survivalLastKillAt=performance.now();
+        if(head)this.survivalLastHeadshotKillAt=this.survivalLastKillAt;
+      }
       // Offline: only a Scavenger player's kills create private ammo packs.
       if (shouldCreateScavengerDrop(this.selfId, victim.id, this.activePerkId)) {
         this.spawnScavengerPickup(`offline_ammo_${victim.id}_${Date.now()}`,
@@ -7001,12 +9680,13 @@ export class FPSEngine {
     const w = weaponById(this.weaponId);
     this.eff = computeEffectiveStats(w, this.getCurrentAttachments());
     this.sightDef = sightDefForType(this.eff.sightType);
-    this.ammoInMag = this.eff.magSize;
+    if(isThrowingKnife(this.weaponId))this.throwingKnifeState=fullThrowingKnives();
+    this.ammoInMag = isThrowingKnife(this.weaponId)?this.throwingKnifeState.charges:this.eff.magSize;
     this.reloading = false;
     // ---- Play the weapon-swap animation + SFX on tier-up ----
-    this.swapAnimAt = performance.now();
+    this.startWeaponSwapVisual();
     this.sound.play("swap", { volume: 0.5 });
-    this.buildViewmodel();
+    // The outgoing tier holsters before the new model is drawn.
     return false;
   }
 
@@ -7018,7 +9698,7 @@ export class FPSEngine {
     if (canCompleteGunGame(idx, this.gungameWeapons, c.weaponId)) return true;
     c.gungameIndex = Math.min(last, idx + 1);
     c.weaponId = this.gungameWeapons[c.gungameIndex];
-    if (c.ai) { c.ai.ammoInMag = weaponById(c.weaponId).stats.magSize; c.ai.reloadingUntil = 0; }
+    if (c.ai) { c.ai.ammoInMag = weaponById(c.weaponId).stats.magSize; c.ai.knifeNextAt = 0; c.ai.reloadingUntil = 0; }
     return false;
   }
 
@@ -7069,6 +9749,13 @@ export class FPSEngine {
     // Temporary Reaper kills earn their unique achievement, not regular
     // Armory challenge or permanent weapon mastery progression.
     if(weaponId===ORBITAL_REAPER_ID)return;
+    // Count only attachments mounted on the weapon credited for the elimination.
+    // Gun Game weapons have no authored attachments regardless of saved loadout.
+    if (weaponId === this.weaponId && this.opts.mode !== "gungame") {
+      for (const attachmentId of Object.values(this.getCurrentAttachments())) {
+        if (attachmentId) this.perAttachmentKills.set(attachmentId, (this.perAttachmentKills.get(attachmentId) ?? 0) + 1);
+      }
+    }
     // Applied at elimination, including online kills acknowledged by the server.
     const actions = this.perWeaponActions.get(weaponId) ?? {};
     const bump = (metric: WeaponConditionMetric) => { actions[metric] = (actions[metric] ?? 0) + 1; };
@@ -7102,12 +9789,15 @@ export class FPSEngine {
     if (!weaponById(weaponId).wonder) {
       for (const [id, state] of this.wonderStates) {
         const rules = weaponById(id).wonder;
-        if (rules) this.wonderStates.set(id, accelerateWonderCharge(state, rules, performance.now()));
+        if (rules) this.wonderStates.set(id, accelerateWonderCharge(state, {...rules,rechargeMs:rules.rechargeMs*wonderModuleEffects(id,this.wonderModuleId).rechargeMul}, performance.now()));
       }
     }
   }
 
   private scheduleRespawn(c: Combatant) {
+    if(!c.alive && c.perkId==="explonando")
+      this.placeDeathBomb("bot_death_"+c.id+"_"+Date.now(),[...c.pos],
+        Date.now()+EXPLO_FUSE_MS,true,c.id,c.team);
     // In survival, dead bots stay dead until the next wave resets them.
     if (this.opts.mode === "survival") return;
     setTimeout(() => {
@@ -7118,13 +9808,20 @@ export class FPSEngine {
         : this.opts.firingRange ? c.pos : this.pickSpawn(c.team);
       this.offlineAssistDamage.delete(c.id);
       c.pos = sp; c.health = MAX_HEALTH; c.alive = true;
-      if(c.ai){c.ai.lastSighting=null;c.ai.lastAlert=null;c.ai.investigationLookAt=null;c.ai.targetId=null;}
+      if(c.ai){c.ai.lastSighting=null;c.ai.lastAlert=null;c.ai.investigationLookAt=null;c.ai.targetId=null;
+        this.botTacticalAdsBlockedUntil.delete(c.id);
+        const state=this.botTacticalState.get(c.id);
+        if(state){state.charges=equipmentById(state.id).charges;state.rechargeAt=0;state.nextAt=performance.now()+3500+Math.random()*2500;}
+        this.botFlashUntil.delete(c.id);
+      }
       // Round 20h: Bot spawn protection — 2.5s immunity so bots don't get
       // spawn-killed. The shield mesh shows while active.
       c.spawnProtectedUntil = this.opts.firingRange ? 0 : Date.now() + 2500;
       // Clear the death animation so the mesh renders normally after respawn.
       c.deathAnimAt = 0;
       c.deathAnimDur = 0;
+      if (c.parts) resetThirdPersonDeathPose(c.parts);
+      c.deathPoseStart = undefined;
       if (c.group) {
         c.group.rotation.x = 0;
         c.group.rotation.z = 0;
@@ -7239,18 +9936,35 @@ export class FPSEngine {
     }
   }
 
-  // Keep the arena onscreen briefly after the decisive kill, even in FFA.
+  // The score is final; continue rendering the decisive action without
+  // processing movement, shots, bot AI, pickups or any new scoring.
+  private beginMatchFinale(): void {
+    this.matchEnded = true;
+    this.finaleStartedAt = performance.now();
+    this.finaleDeathAges.clear();
+    for (const combatant of this.combatants.values()) {
+      if (combatant.alive || !combatant.deathAnimAt || !combatant.deathAnimDur) continue;
+      const age = this.finaleStartedAt - combatant.deathAnimAt;
+      if (age >= 0 && age <= MATCH_FINALE_RECENT_DEATH_MS)
+        this.finaleDeathAges.set(combatant.id, age);
+    }
+    this.mouseDown = false;
+    this.touchFiring = false;
+    this.burstShotsLeft = 0;
+  }
+
   private deliverMatchEnd(result: MatchEndResult) {
     this.matchFinishingLabel = result.won ? "VICTORY" : "MATCH COMPLETE";
-    this.emitHud(performance.now());
-    setTimeout(() => {
+    this.emitHud(performance.now()); // Final standings are available before the results screen.
+    this.finaleTimer = setTimeout(() => {
+      this.finaleTimer = null;
       if (!this.disposed) this.opts.onMatchEnd(result);
-    }, 2500);
+    }, MATCH_FINALE_DURATION_MS);
   }
 
   private finalizeMatchLocal() {
     if (this.matchEnded) return;
-    this.matchEnded = true;
+    this.beginMatchFinale();
     const isSurvival = this.opts.mode === "survival";
     const objectiveScore = this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills;
     // Build standings. CRITICAL: filter out any combatant whose id matches
@@ -7265,7 +9979,7 @@ export class FPSEngine {
       kills: this.kills, deaths: this.deaths, score: isSurvival ? this.survivalWave : objectiveScore, isBot: false,
     }].map((c) => ({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths,
       assists:c.id===this.selfId?this.assists:0,
-      score:(c.score ?? c.kills)+(c.id===this.selfId?this.assists:0), isBot: c.isBot }))
+      score:(c.score ?? c.kills)+(c.id===this.selfId && this.opts.mode!=="ctf" && this.opts.mode!=="killconfirmed"?this.assists:0), isBot: c.isBot }))
       .sort((a, b) => b.score - a.score || b.kills - a.kills);
     const placement = standings.findIndex((s) => s.id === this.selfId) + 1;
     // Win detection: FFA and Gun Game are both free-for-all — the player wins
@@ -7285,19 +9999,37 @@ export class FPSEngine {
     this.sound.play(won ? "match_win" : "match_lose", { volume: 0.9 });
     const durationSec = Math.max(0, Math.round((performance.now() - this.matchStartedAt) / 1000));
     this.deliverMatchEnd({
-      kills: this.kills, deaths: this.deaths, headshots: this.headshots, assists:this.assists, won, score: isSurvival ? this.survivalWave : objectiveScore, mode: this.opts.mode, standings,
+      kills: this.kills, deaths: this.deaths, headshots: this.headshots, assists:this.assists, won, score: isSurvival ? this.survivalWave : objectiveScore, mode: this.opts.mode, mapId: this.opts.mapId, standings,
       durationSec, completed: true, placement, multikills: this.multikillsCount, bestStreak: this.bestStreak, maxNoDeathStreak: this.maxNoDeathStreak, defenseKills: this.defenseKills, flagReturns: this.flagReturns, maxScoreDeficit: this.maxScoreDeficit, participants: standings.length, weaponId: this.weaponId,
       killDifficulties: this.killDifficulties.slice(),
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
       perWeaponActions: Object.fromEntries(this.perWeaponActions),
+      perAttachmentKills: Object.fromEntries(this.perAttachmentKills),
       confirmations: this.confirmations, denials: this.denials,
       ...(isSurvival ? { survivalWaves: this.getSurvivalClearedWaves(), survivalTier: this.survivalTier } as any : {}),
     });
   }
 
-  private finalizeMatch(standings: any, winnerTeam: string | null) {
+  private finalizeMatch(standings: any, winnerTeam: string | null, teamScores?: { red: number; blue: number }) {
     if (this.matchEnded) return;
-    this.matchEnded = true;
+    // A score-limit matchEnd may arrive without another periodic snapshot.
+    // Apply the server's definitive scores and each player's final K/D first.
+    const rows = Array.isArray(standings) ? standings : [];
+    this.teamScores = finalTeamScores(rows, teamScores);
+    for (const row of rows) {
+      const combatant = this.combatants.get(row.id);
+      if (combatant) {
+        combatant.kills = row.kills;
+        combatant.deaths = row.deaths;
+        combatant.score = row.score;
+      }
+      if (row.id === this.selfId) {
+        this.kills = row.kills;
+        this.deaths = row.deaths;
+        if (this.opts.mode === "ctf") this.ctfCaptures = row.score;
+      }
+    }
+    this.beginMatchFinale();
     // Dedupe standings by id — a mis-seeded bot or online snapshot can include
     // the local player twice, which makes them appear in both 1st and 2nd place.
     const seen = new Set<string>();
@@ -7326,52 +10058,222 @@ export class FPSEngine {
     const durationSec = Math.max(0, Math.round((performance.now() - this.matchStartedAt) / 1000));
     this.deliverMatchEnd({
       kills: me?.kills ?? this.kills, deaths: me?.deaths ?? this.deaths, headshots: this.headshots, assists:me?.assists??0, won: !!won,
-      score: me?.score ?? (isSurvival ? this.survivalWave : this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills), mode: this.opts.mode, standings,
+      score: me?.score ?? (isSurvival ? this.survivalWave : this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills), mode: this.opts.mode, mapId: this.opts.mapId, standings,
       durationSec, completed: true, placement: placement || 1, multikills: this.multikillsCount, bestStreak: this.bestStreak, maxNoDeathStreak: this.maxNoDeathStreak, defenseKills: this.defenseKills, flagReturns: this.flagReturns, maxScoreDeficit: this.maxScoreDeficit, participants: standings.length, weaponId: this.weaponId,
       killDifficulties: this.killDifficulties.slice(),
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
       perWeaponActions: Object.fromEntries(this.perWeaponActions),
+      perAttachmentKills: Object.fromEntries(this.perAttachmentKills),
       confirmations: this.confirmations, denials: this.denials,
       ...(isSurvival ? { survivalWaves: this.getSurvivalClearedWaves(), survivalTier: this.survivalTier } as any : {}),
     });
   }
 
   private applyRecoil() {
-    const kick = recoilKickRadians(this.eff.recoil, this.aiming, recoilMultiplier(this.activePerkId));
+    const weapon = weaponById(this.weaponId);
+    // The first shot remains predictable; heavy LMGs climb progressively while
+    // the trigger is held. Pausing and bursting lets bloom settle naturally.
+    const sustained = sustainedRecoilMultiplier(weapon.category, this.shotBloom, !!weapon.wonder);
+    const heavyHandgun = weapon.id === "pistol_bastion" ? 1.08 : 1;
+    const kick = recoilKickRadians(this.eff.recoil, this.aiming,
+      recoilMultiplier(this.activePerkId)) * sustained * heavyHandgun;
     this.pitch += kick + (Math.random() - 0.5) * kick * 0.5;
-    this.yaw += (Math.random() - 0.5) * kick * 0.6;
-    // Kick the viewmodel back + up; decays each frame in the update loop.
-    this.vmRecoilZ = Math.min(0.08, this.vmRecoilZ + 0.04 * recoilMultiplier(this.activePerkId));
-    this.vmRecoilPitch = Math.min(0.12, this.vmRecoilPitch + 0.05 * recoilMultiplier(this.activePerkId));
+    // Horizontal drift is less predictable on heavy weapons, without
+    // replacing their learnable vertical climb with purely random spread.
+    const yawVariance = weapon.category === "lmg" ? 0.85 :
+      weapon.id === "pistol_bastion" ? 0.75 : 0.6;
+    this.yaw += (Math.random() - 0.5) * kick * yawVariance;
+    // A heavy shot must also be visible in the weapon/hands, not just the
+    // camera. This remains rigid-body motion shared by all viewmodel parts.
+    const visualWeight = Math.max(1, Math.min(1.7,
+      this.eff.recoil / 1.65 + (weapon.category === "lmg" ? 0.25 : 0)));
+    const perk = recoilMultiplier(this.activePerkId);
+    this.vmRecoilZ = Math.min(0.115, this.vmRecoilZ + 0.04 * visualWeight * perk);
+    this.vmRecoilPitch = Math.min(0.17, this.vmRecoilPitch + 0.05 * visualWeight * perk);
   }
 
-  private triggerMuzzleFlash() {
-    // A mechanical crossbow does not emit a firearm-style muzzle flash.
-    if (this.weaponId === "crossbow_reclaimer") return;
-    (this.muzzleFlash.material as THREE.MeshBasicMaterial).opacity = 1;
-    this.muzzleFlash.scale.setScalar(1 + Math.random() * 0.6);
-    this.muzzleFlash.rotation.z = Math.random() * Math.PI;
-    this.muzzleLight.intensity = 3;
-    this.muzzleFlashUntil = performance.now() + 60;
+  private triggerMuzzleFlash(akimboHand?: AkimboHand) {
+    // The crossbow has no firearm flash. Bulwark's integrated P-9 also hides
+    // its first-person flash: the camera-space effect obscures the shield visor.
+    // The standalone P-9 keeps its normal flash and all shots still fire.
+    if (this.weaponId === "crossbow_reclaimer" || this.weaponId === RIOT_SHIELD_ID) return;
+    const suppressed = this.getCurrentAttachments().barrel === "barrel_suppressor";
+    const flash=akimboHand==="left"&&this.akimboLeftFlash?this.akimboLeftFlash:this.muzzleFlash;
+    const light=akimboHand==="left"&&this.akimboLeftLight?this.akimboLeftLight:this.muzzleLight;
+    (flash.material as THREE.MeshBasicMaterial).opacity=suppressed?.14:1;
+    flash.scale.setScalar(suppressed?.65:1+Math.random()*.6);
+    flash.rotation.z=Math.random()*Math.PI;
+    light.intensity=suppressed?.25:3;
+    if(akimboHand==="left"&&this.akimboLeftFlash)this.akimboLeftFlashUntil=performance.now()+60;
+    else this.muzzleFlashUntil=performance.now()+60;
   }
 
   private aimDir(spread: number): Vec3 {
     const cp = Math.cos(this.pitch);
-    const dir: Vec3 = [
-      Math.sin(this.yaw) * cp + (Math.random() - 0.5) * spread,
-      Math.sin(this.pitch) + (Math.random() - 0.5) * spread,
-      Math.cos(this.yaw) * cp + (Math.random() - 0.5) * spread,
-    ];
-    return this.normalize(dir);
+    return spreadShotDirection([
+      Math.sin(this.yaw) * cp, Math.sin(this.pitch), Math.cos(this.yaw) * cp,
+    ], spread);
   }
 
-  private spawnTracer(origin: Vec3, dir: Vec3, skinId: string) {
-    const skin = weaponSkinById(skinId);
-    let maxT = this.eff.range;
-    for (const cov of this.map.cover) {
-      const t = rayBox(origin, dir, cov.pos, cov.size);
-      if (t !== null && t < maxT) maxT = t;
+  /** Render an actual spinning steel blade on a short trajectory, not a tracer. */
+  private spawnThrowingKnifeProjectile(origin:Vec3,dir:Vec3){
+    const d=new THREE.Vector3(...dir).normalize(),start=new THREE.Vector3(...origin);
+    let distance=THROWING_KNIFE_RANGE;
+    for(const cov of this.map.cover){
+      const t=rayBox(origin,dir,cov.pos,cov.size);
+      if(t!==null&&t>=0&&t<distance)distance=t;
     }
+    for(const c of this.combatants.values()){
+      if(!c.alive||(this.opts.mode!=="ffa"&&this.opts.mode!=="gungame"&&c.team===this.opts.team))continue;
+      const hit=rayCombatantHit(origin,dir,c.pos);
+      if(hit&&hit.t>=0&&hit.t<distance)distance=hit.t;
+    }
+    const group=new THREE.Group();
+    const steel=new THREE.MeshStandardMaterial({color:0xd6e2e8,metalness:.85,roughness:.27,side:THREE.DoubleSide});
+    const grip=new THREE.MeshStandardMaterial({color:0x222a30,metalness:.2,roughness:.72});
+    const blade=new THREE.Mesh(new THREE.ConeGeometry(.045,.29,4),steel);
+    blade.rotation.x=-Math.PI/2;blade.position.z=-.14;
+    const handle=new THREE.Mesh(new THREE.CylinderGeometry(.025,.024,.19,8),grip);
+    handle.rotation.x=Math.PI/2;handle.position.z=.12;
+    group.add(blade,handle);
+    const rotation=new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,-1),d);
+    group.quaternion.copy(rotation);group.position.copy(start);
+    this.scene.add(group);
+    this.thrownKnives.push({mesh:group,start,dir:d,distance,born:performance.now(),
+      travelMs:Math.max(90,distance/THROWING_KNIFE_SPEED*1000),rotation});
+  }
+
+
+  /** Preserve immutable source boxes so a shattered panel can still yield shards. */
+  private trackBallisticCover(){
+    this.ballisticOriginals.clear();
+    this.ballisticMeshes.clear();
+    this.ballisticDetailMeshes.clear();
+    this.ballisticDecals.clear();
+    this.ballisticHp.clear();
+    this.ballisticDestroyed.clear();
+    for(const box of authoredBallisticCover(this.map.cover))
+      this.ballisticOriginals.set(box.ballisticId!,box);
+    invalidateMapCoverIndex(this.map);
+  }
+
+  private hideBrokenBallisticCover(id:string){
+    const mesh=this.ballisticMeshes.get(id);
+    if(mesh)mesh.visible=false;
+    for(const detail of this.ballisticDetailMeshes.get(id)??[])detail.visible=false;
+    for(const decal of this.ballisticDecals.get(id)??[]){
+      this.scene.remove(decal);
+      decal.traverse(object=>{
+        if(object instanceof THREE.Mesh||object instanceof THREE.LineSegments){
+          object.geometry.dispose();
+          const mats=Array.isArray(object.material)?object.material:[object.material];
+          mats.forEach(m=>m.dispose());
+        }
+      });
+    }
+    this.ballisticDecals.delete(id);
+    // Mutating cover invalidates the optional city broadphase immediately.
+    invalidateMapCoverIndex(this.map);
+  }
+
+  private damageLocalBallisticCover(origin:Vec3,dir:Vec3,range:number,power:number,damage:number,stopAt=Infinity){
+    if(this.opts.online)return; // only the server may destroy cover in a network match
+    this.damageDeployCoverRay(origin,dir,range,damage,stopAt);
+    const events=damageBallisticCoverOnShot(this.map,this.ballisticHp,this.ballisticDestroyed,
+      origin,dir,range,power,damage,stopAt);
+    for(const impact of events)this.displayBallisticImpact(impact);
+  }
+
+  /** Offline explosions use the same soft-cover HP model as the game server. */
+  private damageLocalBallisticCoverExplosion(pos:Vec3,radius:number,damage:number,sourceId:string){
+    if(this.opts.online)return;
+    this.damageDeployCoverBlast(pos,radius,damage);
+    for(const impact of damageBallisticCoverFromExplosion(this.map,this.ballisticHp,
+      this.ballisticDestroyed,pos,radius,damage,sourceId))this.displayBallisticImpact(impact);
+  }
+
+  /** Small, capped decals and short-lived fragments; never emit heavy explosions
+   * per pellet (a shotgun must not flood the renderer with draw calls). */
+  private displayBallisticImpact(impact:MaterialCoverImpact){
+    const box=this.ballisticOriginals.get(impact.coverId);
+    if(!box)return;
+    const p=new THREE.Vector3(...impact.point);
+    const normal=new THREE.Vector3(0,0,0);
+    let axis=0,closest=Infinity;
+    for(let i=0;i<3;i++){
+      const dist=Math.abs(Math.abs(impact.point[i]-box.pos[i])-box.size[i]);
+      if(dist<closest){closest=dist;axis=i;}
+    }
+    const value=impact.point[axis]-box.pos[axis];
+    normal.setComponent(axis,value<0?-1:1);
+    const destroyed=impact.destroyed;
+    const isGlass=impact.material==="glass";
+    const isMetal=impact.material==="sheet_metal";
+    const isWood=impact.material==="thin_wood";
+    if(!destroyed){
+      const group=new THREE.Group();
+      const radius=isGlass ? 0.095 : 0.065;
+      const spot=new THREE.Mesh(new THREE.CircleGeometry(radius,10),
+        new THREE.MeshBasicMaterial({color:isGlass?0xdef9fc:isMetal?0x242e34:isWood?0x443022:0x4e4639,
+          transparent:true,opacity:isGlass ? .62 : .78,depthWrite:false,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2}));
+      group.add(spot);
+      if(isGlass){
+        // Spider-web fractures remain visible until the pane shatters.
+        const lines:THREE.Vector3[]=[];
+        for(let j=0;j<7;j++){
+          const a=j*Math.PI*2/7,extent=.28+(j%3)*.11;
+          const bend=.06*(j%2?1:-1);
+          lines.push(new THREE.Vector3(0,0,.003),new THREE.Vector3(Math.cos(a)*extent*.54,Math.sin(a)*extent*.54,.003));
+          lines.push(new THREE.Vector3(Math.cos(a)*extent*.54,Math.sin(a)*extent*.54,.003),
+            new THREE.Vector3(Math.cos(a+bend)*extent,Math.sin(a+bend)*extent,.003));
+        }
+        group.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(lines),
+          new THREE.LineBasicMaterial({color:0xd4f5fa,transparent:true,opacity:.75,depthWrite:false})));
+      }
+      group.position.copy(p).addScaledVector(normal,.025);
+      group.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),normal);
+      this.scene.add(group);
+      const items=this.ballisticDecals.get(impact.coverId)??[];
+      items.push(group);
+      // Keep at most six marked impacts on one panel and bound total decals.
+      while(items.length>6){
+        const old=items.shift()!;
+        this.scene.remove(old);
+        old.traverse(object=>{
+          if(object instanceof THREE.Mesh||object instanceof THREE.LineSegments){
+            object.geometry.dispose();(object.material as THREE.Material).dispose();
+          }
+        });
+      }
+      this.ballisticDecals.set(impact.coverId,items);
+    }
+    const count=destroyed?(isGlass?16:11):(isMetal?4:isGlass?3:5);
+    const color=isGlass?0xb6f1f7:isMetal?0xffc472:isWood?0xad8654:0xb5aa86;
+    for(let i=0;i<count;i++){
+      if(this.ballisticParticles.length>=96)break;
+      const size=isGlass ? .05 : isMetal ? .025 : .07;
+      const particle=new THREE.Mesh(new THREE.BoxGeometry(size,size*(1+(i%3)),size*.35),
+        new THREE.MeshBasicMaterial({color,transparent:true,opacity:1,depthWrite:false}));
+      particle.position.copy(p).addScaledVector(normal,.04);
+      particle.rotation.set(Math.random()*3,Math.random()*3,Math.random()*3);
+      this.scene.add(particle);
+      this.ballisticParticles.push({
+        mesh:particle,born:performance.now(),life:destroyed?800:330,
+        velocity:new THREE.Vector3(normal.x*(2+Math.random()*3)+(Math.random()-.5)*3,
+          (Math.random()-.2)*(destroyed?4:2),
+          normal.z*(2+Math.random()*3)+(Math.random()-.5)*3),
+      });
+    }
+    applyConfirmedCoverImpact(this.map,this.ballisticHp,this.ballisticDestroyed,impact);
+    if(destroyed)this.hideBrokenBallisticCover(impact.coverId);
+  }
+
+  private spawnTracer(origin: Vec3, dir: Vec3, skinId: string, penetrationPower = 0, range = this.eff.range, serverStop?:number) {
+    const skin = weaponSkinById(skinId);
+    // Visual path must match the damage ray: punching through thin cover cannot
+    // draw a tracer that stops at the entry face. Structural cover still stops it.
+    const maxT = Math.max(0,Math.min(range,serverStop!==undefined&&Number.isFinite(serverStop)
+      ?serverStop:traceCoverPenetration(this.coverForRay(origin,dir,range), origin, dir, range, penetrationPower, this.weaponId==="wonder_phasebreaker").blockedAt));
     const endX = origin[0] + dir[0] * maxT, endY = origin[1] + dir[1] * maxT, endZ = origin[2] + dir[2] * maxT;
     const geo = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(origin[0] - this.pos.x, origin[1] - (this.pos.y + EYE_HEIGHT), origin[2] - this.pos.z),
@@ -7391,7 +10293,7 @@ export class FPSEngine {
   // (expanding sphere + light flash). If `applyLocalSplash` is true (offline mode),
   // the explosion also applies SPLASH DAMAGE to all combatants within
   // `splashRadius` — damage falls off linearly from full (at center) to 30% (at edge).
-  private spawnRocketProjectile(origin: Vec3, dir: Vec3, _skinId: string, damage: number, applyLocalSplash: boolean, weaponId = this.weaponId) {
+  private spawnRocketProjectile(origin: Vec3, dir: Vec3, _skinId: string, damage: number, applyLocalSplash: boolean, weaponId = this.weaponId, shooter?:Combatant) {
     // Normalize the direction vector so the raycast + impact point math is stable.
     // (The caller's dir comes from aimDir(spread) which IS normalized, but defensive
     // normalization prevents any future edge case where a non-unit vector would
@@ -7405,14 +10307,30 @@ export class FPSEngine {
       const t = rayBox(origin, ndir, cov.pos, cov.size);
       if (t !== null && t < maxT) maxT = t;
     }
-    // Also stop at the first combatant hit.
-    for (const c of this.combatants.values()) {
-      if (!c.alive || c.id === this.selfId) continue;
-      if (this.opts.mode !== "ffa" && this.opts.mode !== "gungame" && c.team === this.opts.team) continue;
+    // Include the actual local human as an impact candidate when a bot launches.
+    const rocketOwnerId=shooter?.id??this.selfId;
+    const rocketOwnerTeam=shooter?.team??(this.opts.team as string);
+    const projectileCandidates:Combatant[]=[...this.combatants.values()];
+    if(shooter&&this.alive)projectileCandidates.push({
+      id:this.selfId,name:this.opts.playerName,team:this.opts.team as string,
+      isBot:false,isSelf:true,pos:[this.pos.x,this.pos.y,this.pos.z],
+      yaw:this.yaw,pitch:this.pitch,health:this.health,alive:this.alive,
+      weaponId:this.weaponId,weaponSkinId:"default",playerSkinId:"default",
+      kills:this.kills,deaths:this.deaths,score:0,
+    });
+    // Also stop at the first hostile combatant hit.
+    for (const c of projectileCandidates) {
+      if (!c.alive || c.id === rocketOwnerId) continue;
+      if (this.opts.mode !== "ffa" && this.opts.mode !== "gungame" && c.team === rocketOwnerTeam) continue;
       const center: Vec3 = [c.pos[0], c.pos[1] + PLAYER_HEIGHT / 2, c.pos[2]];
       const hit = rayCapsule(origin, ndir, center, PLAYER_RADIUS, PLAYER_HEIGHT);
       if (hit && hit.t >= 0 && hit.t < maxT) maxT = hit.t;
     }
+    // Local launchers stop at a mine and set it off on actual projectile
+    // arrival, not immediately on the shooter's button press.
+    const mineTarget = applyLocalSplash && weaponById(weaponId).explosive
+      ? closestShotMine(this.offlineMines, origin, ndir, maxT) : null;
+    if (mineTarget) maxT = mineTarget.distance;
     const isGravity = weaponById(weaponId).wonder?.kind === "singularity";
     if (isGravity) {
       const candidates = [...this.combatants.values()].filter(c => c.alive && c.id !== this.selfId &&
@@ -7490,7 +10408,7 @@ export class FPSEngine {
     // Splash radius: 8 units (roughly 4x player width). Larger than before so
     // near-misses still deal meaningful damage — the rocket's value is area denial.
     const splashRadius = projectileSplashRadius(weaponById(weaponId));
-    this.projectiles.push({ mesh: rocketGroup, start, end, born: performance.now(), travelMs, damage, splashRadius, weaponId, applyLocalSplash });
+    this.projectiles.push({ mesh: rocketGroup, start, end, born: performance.now(), travelMs, damage, splashRadius, weaponId, applyLocalSplash, ownerId:rocketOwnerId, ownerTeam:rocketOwnerTeam, mineTarget:mineTarget?.mine });
   }
 
   // Reuse bounded visuals and one permanent light; never vary the scene's light count per blast.
@@ -7538,14 +10456,16 @@ export class FPSEngine {
     const light = new THREE.PointLight(0x8844ff, 8, radius * 1.6);
     light.position.set(...pos);
     light.visible = false;
-    this.scene.add(mesh, light);
+    this.scene.add(mesh);
+    this.worldLightBudget?.register(light,()=>mesh.visible);
     this.gravityWells.set(id, { pos, ownerId, ownerTeam, weaponId, radius, activatesAt, expiresAt, offline, mesh, light });
   }
 
   private removeGravityWell(id: string) {
     const well = this.gravityWells.get(id);
     if (!well) return;
-    this.scene.remove(well.mesh, well.light);
+    this.scene.remove(well.mesh);
+    this.worldLightBudget?.remove(well.light);
     well.mesh.traverse(child => { if (child instanceof THREE.Mesh) {
       child.geometry.dispose();
       for (const mat of Array.isArray(child.material) ? child.material : [child.material]) mat.dispose();
@@ -7569,10 +10489,21 @@ export class FPSEngine {
             const damage = gravityBlastDamage(distance, well.radius, weaponById(well.weaponId).stats.damage);
             if (damage && this.hasLineOfSight(well.pos,
               [enemy.pos[0], enemy.pos[1] + PLAYER_HEIGHT / 2, enemy.pos[2]])) {
-              this.applyDamageLocal(enemy, damage, false, well.weaponId);
+              const owner=this.combatants.get(well.ownerId);
+              if(owner)this.damageFromOfflineBotTactical(owner,enemy,damage,"frag",false,well.weaponId);
+              else this.applyDamageLocal(enemy,damage,false,well.weaponId);
             }
           }
-          this.hitMarkerAt = performance.now();
+          if(well.ownerId!==this.selfId&&this.alive &&
+             blastCanDamage(well.ownerId,well.ownerTeam,this.selfId,this.opts.team as string,this.opts.mode)){
+            const dist=Math.hypot(this.pos.x-well.pos[0],this.pos.y+PLAYER_HEIGHT/2-well.pos[1],this.pos.z-well.pos[2]);
+            const dmg=gravityBlastDamage(dist,well.radius,weaponById(well.weaponId).stats.damage);
+            if(dmg&&this.hasLineOfSight(well.pos,[this.pos.x,this.pos.y+PLAYER_HEIGHT/2,this.pos.z])){
+              const owner=this.combatants.get(well.ownerId);
+              this.takeDamage(dmg,owner?.name??"Bot",well.ownerTeam,false,well.weaponId,owner?.pos);
+            }
+          }
+          if(well.ownerId===this.selfId)this.hitMarkerAt = performance.now();
         }
         // Online wells are removed by the authoritative gravityDetonate message,
         // or the snapshot fallback below if a detonation packet was missed.
@@ -7594,7 +10525,7 @@ export class FPSEngine {
       for (const enemy of this.combatants.values()) {
         if (!enemy.alive || !enemy.isBot || enemy.id === well.ownerId ||
             (this.opts.mode !== "ffa" && this.opts.mode !== "gungame" && enemy.team === well.ownerTeam)) continue;
-        const [dx, dz] = gravityPullOffset(well.pos, enemy.pos, well.radius, dt);
+        const [dx, dz] = gravityPullOffset(well.pos, enemy.pos, well.radius, dt*wonderModuleEffects("wonder_singularity",well.ownerId===this.selfId?this.wonderModuleId:undefined).pullMul);
         if (!dx && !dz) continue;
         if (!this.hasLineOfSight(well.pos, [enemy.pos[0], enemy.pos[1] + 1, enemy.pos[2]])) continue;
         const dest: Vec3 = [enemy.pos[0] + dx, enemy.pos[1], enemy.pos[2] + dz];
@@ -7612,8 +10543,9 @@ export class FPSEngine {
       if (this.reloading || !this.alive || heat <= 0) return;
       if (this.sprinting && this.activePerkId !== "field_loader") return;
       this.reloading = true;
+      this.fpReloadRecoveryUntil=0;
       this.reloadStartedAt = performance.now();
-      this.reloadDurationMs = special.ventSeconds * 1000 * reloadDurationMultiplier(this.activePerkId);
+      this.reloadDurationMs = (effectiveHeatConfig(weaponById(this.weaponId),this.getCurrentAttachments()) ?? special).ventSeconds * 1000 * reloadDurationMultiplier(this.activePerkId);
       this.reloadEndsAt = this.reloadStartedAt + this.reloadDurationMs;
       this.sound.play("reload", { volume: 0.55 });
       this.socket?.emit("message", { t: "reload" });
@@ -7627,22 +10559,26 @@ export class FPSEngine {
     // Melee weapons don't reload.
     if (weaponById(this.weaponId).category === "melee") return;
     this.reloading = true;
+    this.fpReloadRecoveryUntil=0;
     this.reloadRoundInserted = false;
+    this.reloadShellCycleIndex=0;
     const currentWeapon = weaponById(this.weaponId);
     // Shotguns and bolt-action rifles load one round at a time. Attachment
     // reload modifiers are applied to each shell/round, not the whole magazine.
-    let duration = currentWeapon.stats.reloadStyle === "incremental"
+    let duration = currentWeapon.stats.reloadStyle === "incremental" && !this.isAkimboActive()
       ? (currentWeapon.stats.reloadPerRound ?? this.eff.reloadTime / this.eff.magSize) *
         this.eff.reloadTime / Math.max(0.01, currentWeapon.stats.reloadTime)
       : this.eff.reloadTime;
-    if (special?.kind === "bolt" && this.boltCharges > 0) {
-      this.boltCharges--;
-      duration = special.quickReloadSeconds;
+    if (special?.kind === "bolt") {
+      const reclaimed = this.boltCharges > 0;
+      if (reclaimed) this.boltCharges--;
+      duration = crossbowReloadCycleMs(this.eff.reloadTime, special.quickReloadSeconds, reclaimed) / 1000;
     }
     this.reloadStartedAt = performance.now();
-    this.reloadDurationMs = duration * 1000 * reloadDurationMultiplier(this.activePerkId);
+    this.reloadDurationMs = duration * 1000 * reloadDurationMultiplier(this.activePerkId) *
+      (this.opts.mode==="survival"?survivalReloadMultiplier(this.survivalUpgradeRanks,performance.now()-this.survivalLastKillAt):1);
     this.reloadEndsAt = this.reloadStartedAt + this.reloadDurationMs;
-    this.sound.play("reload", { volume: 0.55 });
+    this.sound.play(this.weaponId==="pistol_bastion" ? "revolver_reload" : "reload", { volume: 0.55 });
     this.socket?.emit("message", { t: "reload" });
   }
 
@@ -7651,15 +10587,75 @@ export class FPSEngine {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.loop);
     this.timer.update();
-    const dt = Math.min(0.05, this.timer.getDelta());
+    const elapsed=this.timer.getDelta();
+    const dt = Math.min(0.05, elapsed);
     const frameStart=performance.now();
+    if(elapsed>0&&elapsed<.5)this.frameSamples.add(elapsed*1000);
+    this.renderer.info.reset();
+    this.botRouteBudget.beginWindow(frameStart,this.isCityMap()?1:2);
     this.update(dt);
     if(this.cityInteriorDetailGroups.length)this.updateCityDetailVisibility(performance.now());
-    this.renderer.render(this.scene, this.camera);
-    this.updateCityRenderBudget(frameStart,dt*1000);
+    this.worldLightBudget?.update(frameStart,this.camera.position);
+    const renderStart=performance.now();
+    this.updateSamples.add(renderStart-frameStart);
+    // Desaturate only the NVG lens. Other optics and hipfire keep the original render.
+    const nvgBlend = nvgScopeBlend(this.sightDef.overlay, this.adsProgress, this.alive);
+    if (nvgBlend > 0) {
+      if (!this.nvgScopePass) this.nvgScopePass = new NvgScopePass();
+      this.nvgScopePass.render(this.renderer, this.scene, this.camera, nvgBlend);
+    } else {
+      this.renderer.render(this.scene, this.camera);
+    }
+    this.renderSamples.add(performance.now()-renderStart);
+    this.updateRenderBudget(frameStart,elapsed*1000);
   };
 
   private update(dt: number) {
+    this.updateWonderWorld(performance.now());
+    const survivalPaused=this.opts.mode==="survival"&&
+      (this.opts.online?this.survivalServerPaused:(this.survivalMenuPaused||!!this.survivalUpgradeOffer));
+    if(survivalPaused&&!this.matchEnded&&!this.lobbyActive){
+      if(this.survivalPauseStartedAt===0)this.survivalPauseStartedAt=performance.now();
+      // Keep rendering the HUD, but do not simulate movement, AI, combat or timers.
+      this.camera.position.set(this.pos.x,this.pos.y+EYE_HEIGHT,this.pos.z);
+      this.camera.rotation.set(this.pitch,this.yaw+Math.PI,0,"YXZ");
+      this.positionViewmodel();
+      const now=performance.now();
+      if(now-this.lastHudAt>80){this.lastHudAt=now;this.emitHud(now);}
+      return;
+    }
+    if(this.survivalPauseStartedAt && this.survivalPauseStartedAt>0){
+      // Keep wall-clock-based combat timers from expiring during a local pause.
+      const delay=performance.now()-this.survivalPauseStartedAt;
+      this.matchStartedAt+=delay;
+      this.lastDamageAt+=delay;
+      this.lastSprintAt+=delay;
+      if(Number.isFinite(this.survivalLastKillAt))this.survivalLastKillAt+=delay;
+      if(Number.isFinite(this.survivalLastHeadshotKillAt))this.survivalLastHeadshotKillAt+=delay;
+      if(this.reloadEndsAt>0)this.reloadEndsAt+=delay;
+      if(this.reloadStartedAt>0)this.reloadStartedAt+=delay;
+      for(const boss of this.survivalBossTimers.values()){boss.nextPhaseAt+=delay;boss.nextSkillAt+=delay;}
+      this.survivalPauseStartedAt=0;
+    }
+    this.tickDeployCovers();
+    this.updateFlashAudio(performance.now());
+    // Cinematic finish: keep recently killed operatives visible but never
+    // simulate another combat tick or change match results after the verdict.
+    if (this.matchEnded) {
+      const now = performance.now();
+      this.updateCombatantMeshes(dt * MATCH_FINALE_PLAYBACK_RATE, now);
+      this.explosionEffects?.update(
+        this.finaleStartedAt + (now - this.finaleStartedAt) * MATCH_FINALE_PLAYBACK_RATE,
+        this.camera.position,
+      );
+      this.camera.position.set(this.pos.x, this.pos.y + EYE_HEIGHT, this.pos.z);
+      this.camera.rotation.set(this.pitch, this.yaw + Math.PI, 0, "YXZ");
+      if (now - this.lastHudAt > 80) {
+        this.lastHudAt = now;
+        this.emitHud(now);
+      }
+      return;
+    }
     this.tickDeathBombs();
     this.tickBulletSpitters();
     if (this.opts.mode === "killconfirmed") this.animateKillConfirmedTags(performance.now());
@@ -7733,7 +10729,7 @@ export class FPSEngine {
         if (this.timeLeft <= 0) {
           this.timeLeft = 0;
           if (this.opts.mode === "ctf" && this.teamScores.red === this.teamScores.blue)
-            this.ctfOvertime = true;
+            this.beginCtfOvertime();
           else this.finalizeMatchLocal();
         }
       }
@@ -7759,10 +10755,11 @@ export class FPSEngine {
       // Keep the camera at the death position (don't follow movement — there is none).
       this.camera.position.set(this.pos.x, this.pos.y + EYE_HEIGHT, this.pos.z);
       this.camera.rotation.set(this.pitch, this.yaw + Math.PI, 0, "YXZ");
-      // Hide the viewmodel — dead players don't hold a gun up.
-      for (const p of this.vmParts) p.obj.visible = false;
-      if (this.fpActionHand) this.fpActionHand.visible = false;
-      if (this.fpActionProp) this.fpActionProp.visible = false;
+      // Hide the entire first-person rig. In particular the articulated
+      // support ARM is a separate camera child, not a vmPart: hiding only
+      // the glove left a detached raised forearm after combat/lava deaths.
+      hideFirstPersonRigOnDeath(this.vmParts,this.fpActionHand,
+        this.fpActionProp,this.fpSupportArm?.root ?? null);
       this.equipmentAction = null;
       // Clear all active tracers + rocket projectiles so the death screen isn't
       // cluttered with lingering bullet lines (which previously stayed visible
@@ -7773,6 +10770,8 @@ export class FPSEngine {
         (t.line.material as THREE.Material).dispose();
       }
       this.tracers = [];
+      for(const k of this.thrownKnives??[]){this.scene.remove(k.mesh);k.mesh.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();(o.material as THREE.Material).dispose();}});}
+      this.thrownKnives=[];
       for (const p of this.projectiles) {
         this.scene.remove(p.mesh);
         p.mesh.traverse((child) => {
@@ -7808,14 +10807,21 @@ export class FPSEngine {
     }
     // Health regen: recover HP after a few seconds out of combat. This prevents the
     // "one bad engagement = dead" feel and lets players reset between fights.
-    if (!this.opts.online && this.alive && this.health < MAX_HEALTH && !this.matchEnded) {
+    if (!this.opts.online && this.alive && !this.survivalDowned && this.health < MAX_HEALTH && !this.matchEnded) {
       const since = performance.now() - this.lastDamageAt;
-      if (since > regenDelayMs(this.activePerkId)) {
-        this.health = Math.min(MAX_HEALTH, this.health + FPSEngine.REGEN_RATE * dt);
+      const ranks=this.opts.mode==="survival"?this.survivalUpgradeRanks:{};
+      if (since > regenDelayMs(this.activePerkId)*survivalRegenDelayMultiplier(ranks)) {
+        this.health = Math.min(MAX_HEALTH, this.health + FPSEngine.REGEN_RATE * dt *survivalRegenRateMultiplier(ranks));
       }
     }
     // A fatal hit interrupts any uncommitted deploy without consuming charges.
     if (!this.alive) this.equipmentAction = null;
+    if(!this.opts.online&&this.alive){
+      const def=equipmentById(this.opts.loadout.equipmentId);
+      const stock=rechargeTactical({charges:this.equipmentCharges,nextAt:this.equipmentNextRechargeAt},
+        performance.now(),this.activePerkId,def.charges);
+      this.equipmentCharges=stock.charges;this.equipmentNextRechargeAt=stock.nextAt;
+    }
     this.updateEquipmentAction(performance.now());
     this.updateEquipmentPreview();
     this.updateSpecialResources(dt, performance.now());
@@ -7826,7 +10832,7 @@ export class FPSEngine {
       this.turretDeployFailedAt = performance.now();
     }
     this.shotBloom = Math.max(0, this.shotBloom - dt * 0.52);
-    if (this.reloading && weaponById(this.weaponId).stats.reloadStyle === "incremental") {
+    if (this.reloading && weaponById(this.weaponId).stats.reloadStyle === "incremental" && !this.isAkimboActive()) {
       // Credit each shell at the actual insertion frame, not at the end of
       // the recovery animation. This updates both HUD ammo and the saved slot
       // before the player can interrupt the ongoing reload.
@@ -7842,31 +10848,99 @@ export class FPSEngine {
       this.reloadRoundInserted = step.inserted;
       if (step.magazineFull) {
         this.reloading = false;
+        // The shell already counts for gameplay. Finish just its visual
+        // return-to-grip stroke unless another action interrupts it.
+        this.fpReloadRecoveryUntil=this.reloadStartedAt+this.reloadDurationMs;
+        this.fpReloadRecoveryWeaponId=this.weaponId;
       } else if (step.cycleComplete) {
         this.reloadStartedAt = performance.now();
         this.reloadEndsAt = this.reloadStartedAt + this.reloadDurationMs;
         this.reloadRoundInserted = false;
+        this.reloadShellCycleIndex++;
       }
     } else if (this.reloading && performance.now() >= this.reloadEndsAt) {
       this.reloading = false;
       if (weaponById(this.weaponId).special?.kind === "heat") this.heatStates.set(this.weaponId, freshHeat());
       else this.ammoInMag = this.eff.magSize;
+      if(this.weaponId==="pistol_bastion")this.sound.play("revolver_close",{volume:.54});
+      if(this.isAkimboActive())this.refillCurrentAkimboAmmo();
       this.saveAmmoToSlot(this.currentSlot);
     }
     // A new trigger press interrupts an incremental reload as soon as there is
     // ammo to fire. Already-inserted shells remain available after a swap.
     if (this.reloading && weaponById(this.weaponId).stats.reloadStyle === "incremental" &&
-        this.ammoInMag > 0 && (this.mousePressedThisFrame || this.touchPressedThisFrame)) {
+        !this.isAkimboActive() && this.ammoInMag > 0 && (this.mousePressedThisFrame || this.touchPressedThisFrame)) {
       this.reloading = false;
     }
-    const wantFire = !this.inputSuspended && ((this.mouseDown && this.pointerLocked) || (this.touchMode && this.touchFiring));
+    const refreshedKnives=tickThrowingKnives(this.throwingKnifeState,performance.now(),this.opts.mode==="gungame");
+    if(refreshedKnives!==this.throwingKnifeState){
+      this.throwingKnifeState=refreshedKnives;
+      this.meleeAmmoInMag=refreshedKnives.charges;
+      if(isThrowingKnife(this.weaponId))this.ammoInMag=refreshedKnives.charges;
+    }
+    const akimbo=this.isAkimboActive();
+    const wantFire = !this.inputSuspended && ((this.mouseDown&&this.pointerLocked) ||
+      (akimbo&&!this.mechActive&&this.akimboRightDown&&this.pointerLocked) ||
+      (this.touchMode&&(this.touchFiring||(akimbo&&this.touchAkimboRight))));
     const inputActive = !this.inputSuspended && (this.pointerLocked || this.touchMode);
     // Effective aim: manually held ADS (RMB / ADS button) OR auto-ADS-while-firing.
-    const allowSprintAds = allowsAdsWhileSprinting(this.getCurrentAttachments().grip);
-    const wantsAds = this.manualAiming || (this.weaponId!==RIOT_SHIELD_ID && this.autoAdsOnFire && wantFire && this.alive);
+    const fanHammer=isFanHammer(this.weaponId,this.getCurrentAttachments().grip);
+    const wantsAds = !this.mechActive && !fanHammer && !akimbo && (this.manualAiming || (this.weaponId!==RIOT_SHIELD_ID && this.autoAdsOnFire && wantFire && this.alive));
     // Shift / mobile auto-sprint takes priority: ADS cannot silently cancel sprint.
-    this.aiming = !this.equipmentAction && !this.reloading && wantsAds && (!this.sprinting || allowSprintAds);
-    if (!this.equipmentAction && (wantFire || this.burstShotsLeft > 0)) {
+    this.aiming = !this.equipmentAction && !this.reloading && wantsAds &&
+      !isTaserAdsBlocked(this.equipmentAdsBlockedUntil,performance.now()) &&
+      !this.sprinting;
+    if(this.mechActive){
+      const now=performance.now();
+      if(wantFire)this.fireMech("minigun",now);
+      if((this.mechRightDown&&this.pointerLocked)||(this.touchMode&&this.touchAiming))this.fireMech("secondary",now);
+      this.mousePressedThisFrame=false;this.touchPressedThisFrame=false;this.mechRightPressed=false;
+      this.akimboRightPressedThisFrame=false;this.touchAkimboRightPressedThisFrame=false;
+    } else if(akimbo&&!this.equipmentAction&&!this.inputSuspended&&inputActive){
+      // Independent left/right triggers. Process BOTH ready edges within the same
+      // frame: neither hand is blocked by the other hand's firing timestamp.
+      const now=performance.now(),w=weaponById(this.weaponId);
+      if(!this.reloading){
+        if(this.mousePressedThisFrame||this.touchPressedThisFrame)this.akimboPending.left=now;
+        if(this.akimboRightPressedThisFrame||this.touchAkimboRightPressedThisFrame)
+          this.akimboPending.right=now;
+      }else this.akimboPending.left=this.akimboPending.right=-Infinity;
+      const hands=(["left","right"] as const).filter(hand=>
+        now-this.akimboPending[hand]<520 &&
+        akimboHandReady(this.akimboAmmo[hand],this.akimboLastHandShot[hand],
+          now,this.eff.fireRate));
+      if(hands.length && !this.reloading&&!this.sprinting&&this.alive&&
+         !this.matchEnded&&now>=this.swapReadyAt){
+        // Sample each direction from the SAME pre-recoil camera when both are
+        // pressed together; apply the accumulated kick only after both shots.
+        const originalYaw=this.yaw,originalPitch=this.pitch;
+        let recoilYaw=0,recoilPitch=0;
+        for(const hand of hands){
+          this.yaw=originalYaw;this.pitch=originalPitch;
+          this.fireOneShot(w,hand);
+          recoilYaw+=this.yaw-originalYaw;
+          recoilPitch+=this.pitch-originalPitch;
+          this.akimboPending[hand]=-Infinity;
+        }
+        this.yaw=originalYaw+recoilYaw;this.pitch=originalPitch+recoilPitch;
+      }
+      for(const hand of ["left","right"] as const){
+        const pressed=hand==="left"
+          ?this.mousePressedThisFrame||this.touchPressedThisFrame
+          :this.akimboRightPressedThisFrame||this.touchAkimboRightPressedThisFrame;
+        if(pressed&&this.akimboAmmo[hand]===0){
+          this.akimboPending[hand]=-Infinity;
+          this.sound.play("empty_click",{volume:.25,throttleMs:130});
+        }
+      }
+      // Keep the surviving cylinder usable; automatically reload only when BOTH
+      // cylinders are empty (or when the player explicitly presses R).
+      if(this.ammoInMag===0&&!this.reloading&&
+        (this.mousePressedThisFrame||this.touchPressedThisFrame||
+         this.akimboRightPressedThisFrame||this.touchAkimboRightPressedThisFrame))this.startReload();
+      this.mousePressedThisFrame=false;this.touchPressedThisFrame=false;
+      this.akimboRightPressedThisFrame=false;this.touchAkimboRightPressedThisFrame=false;
+    } else if (!this.equipmentAction && (wantFire || this.burstShotsLeft > 0)) {
       const w = weaponById(this.weaponId);
       const now = performance.now();
       // Semi-auto and burst weapons used to skip fireOneShot at zero ammo.
@@ -7876,14 +10950,19 @@ export class FPSEngine {
         this.sound.play("empty_click",{volume:.36});
         this.startReload();
       }
+      // A depleted Juggernaut remote still responds to a trigger press.
+      if (w.wonder?.kind === "mech" && wantFire &&
+          (this.mousePressedThisFrame || this.touchPressedThisFrame) && this.ammoInMag <= 0) {
+        this.sound.play("wonder_error", { volume: .7, throttleMs: 240 });
+      }
       // ---- Burst-fire in progress: continue the burst even after trigger release ----
       if (this.burstShotsLeft > 0 && now >= this.burstNextAt && this.ammoInMag > 0) {
         this.fireOneShot(w);
         this.burstShotsLeft -= 1;
         if (this.burstShotsLeft > 0) {
-          // Next shot in the burst fires at the intra-burst cadence (much faster than the
-          // weapon's stated fireRate — the fireRate is the BETWEEN-burst cadence).
-          this.burstNextAt = now + 1000 / Math.max(1, this.eff.fireRate * 3);
+          // Shared burst cadence is faster than inter-burst recovery, but DMRs
+          // deliberately space precision shots further apart.
+          this.burstNextAt = now + burstShotIntervalMs(this.eff.fireRate, w.category);
         } else {
           // Burst complete — enforce a longer inter-burst delay (the weapon's stated fireRate).
           this.burstEndsAt = now + 1000 / Math.max(1, this.eff.fireRate);
@@ -7907,32 +10986,65 @@ export class FPSEngine {
             this.burstEndsAt = Infinity;  // locked until burst completes
           }
         } else if (isSemi) {
-          // Semi-auto (P-9, sniper, DMR, launcher): fires ONCE per trigger pull.
-          if ((this.mousePressedThisFrame || this.touchPressedThisFrame) && this.ammoInMag > 0
-              && now - this.lastShotAt > 1000 / Math.max(1, this.eff.fireRate) * 0.9) {
-            this.fireOneShot(w);
+          // For an ordinary single-bolt crossbow the reload itself controls
+          // cadence. Heavy arrows still obey their slower fire-rate limit.
+          const singleBolt = w.special?.kind === "bolt" &&
+            crossbowReloadControlsCadence(this.eff.magSize);
+          const ready = singleBolt ||
+            now-this.lastShotAt > 1000/Math.max(w.special?.kind==="bolt" ? .1 : 1,this.eff.fireRate) *
+              (w.special?.kind==="bolt" ? 1 : .9);
+          if(w.wonder?.kind==="rail"){
+            // Railgun must be deliberately charged by holding fire. No accidental instant shot.
+            if(this.ammoInMag<=0||this.reloading){
+              this.railChargeAt=0;this.railShotLocked=false;
+              if(this.mousePressedThisFrame||this.touchPressedThisFrame)this.sound.play("empty_click",{volume:.36});
+            }else if(!this.railChargeAt)this.railChargeAt=now;
+            if(!this.railShotLocked&&this.railChargeAt>0&&now-this.railChargeAt>=650&&this.ammoInMag>0&&ready){
+              this.fireOneShot(w);this.railShotLocked=true;
+            }
+          }else{
+            const chronoRecall=w.wonder?.kind==="chrono"&&!!this.chronoAnchor&&this.chronoAnchor.expiresAt>Date.now();
+            if((this.mousePressedThisFrame||this.touchPressedThisFrame)&&
+                (this.ammoInMag>0||chronoRecall)&&ready)this.fireOneShot(w);
           }
         }
       }
       // Clear the press-edge flags after they've been consumed this frame.
       this.mousePressedThisFrame = false;
       this.touchPressedThisFrame = false;
+      this.akimboRightPressedThisFrame=false;
+      this.touchAkimboRightPressedThisFrame=false;
     } else {
       // Trigger released — clear press-edge flags too so they don't queue a shot on next press.
       this.mousePressedThisFrame = false;
       this.touchPressedThisFrame = false;
+      this.akimboRightPressedThisFrame=false;
+      this.touchAkimboRightPressedThisFrame=false;
+      this.akimboPending.left=-Infinity;
+      this.railChargeAt=0;this.railShotLocked=false;
     }
     if (this.alive && inputActive && !this.survivalDowned) this.updateMovement(dt);
     this.interactEnvironment();
 
     // ADS smoothing
     const targetAds = this.aiming ? 1 : 0;
-    this.adsProgress += (targetAds - this.adsProgress) * Math.min(1, dt * 12);
+    // Quick-Ready raises sights faster ONLY for a short sprint-exit window.
+    this.adsProgress += (targetAds - this.adsProgress) * Math.min(1,
+      dt * sprintRecoveryAdsRate(performance.now(),this.lastSprintAt,
+        this.getCurrentAttachments().grip));
     // The optical zoom field determines actual magnification across all player FOV settings.
     // 1x sights retain their familiar ADS framing; HUD renders the matching scope overlay.
-    this.camera.fov = this.weaponId===RIOT_SHIELD_ID?this.baseFov:adsFieldOfView(this.baseFov, this.sightDef, this.adsProgress);
-    this.camera.updateProjectionMatrix();
+    syncFirstPersonCameraFov(this.camera, this.baseFov, this.sightDef,
+      this.adsProgress, this.weaponId === RIOT_SHIELD_ID);
     this.positionViewmodel();
+    // An equipment throw can pose the left arm above the camera. Akimbo hides
+    // the offhand once that throw is done; the sleeve must stay hidden too.
+    syncFirstPersonSupportArmVisibility(this.fpSupportArm?.root ?? null,this.fpActionHand,!!this.mechActive);
+    if(this.mechActive){
+      if(this.fpActionHand)this.fpActionHand.visible=false;
+      if(this.fpActionProp)this.fpActionProp.visible=false;
+      if(this.riotShieldModel)this.riotShieldModel.visible=false;
+    }
     // Update the laser indicator (visible only when a laser sight is equipped)
     this.updateLaserIndicator();
     // Thermal/NVG: brighten the scene lights while ADS with NVG; thermal uses a HUD overlay only.
@@ -7944,10 +11056,15 @@ export class FPSEngine {
       this.dirLight.intensity += (targetDir - this.dirLight.intensity) * Math.min(1, dt * 8);
     }
 
-    if (performance.now() > this.muzzleFlashUntil) {
-      (this.muzzleFlash.material as THREE.MeshBasicMaterial).opacity *= 0.6;
-      this.muzzleLight.intensity *= 0.6;
+    if(performance.now()>this.muzzleFlashUntil){
+      (this.muzzleFlash.material as THREE.MeshBasicMaterial).opacity*=.6;
+      this.muzzleLight.intensity*=.6;
     }
+    if(this.akimboLeftFlash&&this.akimboLeftLight&&performance.now()>this.akimboLeftFlashUntil){
+      (this.akimboLeftFlash.material as THREE.MeshBasicMaterial).opacity*=.6;
+      this.akimboLeftLight.intensity*=.6;
+    }
+    this.akimboKick.left*=.78;this.akimboKick.right*=.78;
     // Decay viewmodel recoil each frame.
     this.vmRecoilZ *= 0.82;
     this.vmRecoilPitch *= 0.82;
@@ -7960,19 +11077,43 @@ export class FPSEngine {
       return true;
     });
 
+    this.ballisticParticles=this.ballisticParticles.filter(p=>{
+      const age=now-p.born;
+      if(age>=p.life){
+        this.scene.remove(p.mesh);p.mesh.geometry.dispose();(p.mesh.material as THREE.Material).dispose();
+        return false;
+      }
+      const seconds=Math.min(.05,dt);
+      p.mesh.position.addScaledVector(p.velocity,seconds);
+      p.velocity.y-=9.8*seconds;
+      (p.mesh.material as THREE.MeshBasicMaterial).opacity=1-age/p.life;
+      return true;
+    });
+
+    this.thrownKnives=this.thrownKnives.filter(knife=>{
+      const t=Math.min(1,(now-knife.born)/knife.travelMs);
+      if(t>=1){this.scene.remove(knife.mesh);knife.mesh.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();(o.material as THREE.Material).dispose();}});return false;}
+      knife.mesh.position.copy(knife.start).addScaledVector(knife.dir,knife.distance*t);
+      knife.mesh.quaternion.copy(knife.rotation).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),t*Math.PI*2));
+      return true;
+    });
     // ---- Update rocket projectiles: animate from start to end, spawn explosion on arrival ----
     this.projectiles = this.projectiles.filter((p) => {
       const age = now - p.born;
+      const ownerId=p.ownerId??this.selfId,ownerTeam=p.ownerTeam??(this.opts.team as string);
+      const botOwner=this.combatants.get(ownerId);
       if (age >= p.travelMs) {
+        // Owner-credited mine blast occurs before this launcher's own splash.
+        if (p.applyLocalSplash && p.mineTarget) this.detonateOfflineMine(p.mineTarget);
         // Projectile reached the impact point — spawn explosion + remove.
         const rawExplosionKind = weaponById(p.weaponId).wonder?.kind;
         const explosionKind = rawExplosionKind === "singularity" || rawExplosionKind === "corrosion" ? rawExplosionKind : undefined;
         if (explosionKind === "singularity") {
           if (p.applyLocalSplash) {
             const at = Date.now();
-            this.addGravityWell(`offline_gravity_${at}_${Math.random()}`, this.selfId, this.opts.team,
+            this.addGravityWell(`offline_gravity_${at}_${Math.random()}`, ownerId, ownerTeam,
               [p.end.x, p.end.y, p.end.z], p.splashRadius,
-              at, at + GRAVITY_WELL_DURATION_MS, true, undefined, p.weaponId);
+              at, at + GRAVITY_WELL_DURATION_MS*wonderModuleEffects(p.weaponId,this.wonderModuleId).durationMul, true, undefined, p.weaponId);
           }
         } else {
           this.spawnExplosion(p.end, explosionKind, p.splashRadius,p.weaponId);
@@ -7988,32 +11129,19 @@ export class FPSEngine {
         // a rocket that narrowly missed an enemy but hit a wall 20m behind them
         // dealt ZERO damage. Now the closest point on the trajectory line is used,
         // so near-misses deal partial damage (the rocket's value is area denial).
-        // The local player is NOT hit by their own rocket (no self-damage).
+        // Self-damage is determined only by proximity to the detonation, never flight path.
         if (p.applyLocalSplash && explosionKind !== "singularity") {
-          // Trajectory segment: p.start → p.end (both THREE.Vector3 in world space).
-          const segDx = p.end.x - p.start.x;
-          const segDy = p.end.y - p.start.y;
-          const segDz = p.end.z - p.start.z;
-          const segLenSq = segDx * segDx + segDy * segDy + segDz * segDz || 1e-9;
+          const shotOrigin:Vec3=[p.start.x,p.start.y,p.start.z];
+          const impact:Vec3=[p.end.x,p.end.y,p.end.z];
           for (const c of this.combatants.values()) {
             if (!c.alive) continue;
-            if (this.opts.mode !== "ffa" && this.opts.mode !== "gungame" && c.team === this.opts.team) continue;
+            if (!blastCanDamage(ownerId,ownerTeam,c.id,c.team,this.opts.mode)) continue;
             const cx = c.pos[0], cy = c.pos[1] + PLAYER_HEIGHT / 2, cz = c.pos[2];
-            // Project the combatant's center onto the trajectory segment.
-            // t = clamp(dot(AP, AB) / dot(AB, AB), 0, 1) gives the closest point.
-            const apx = cx - p.start.x, apy = cy - p.start.y, apz = cz - p.start.z;
-            let t = (apx * segDx + apy * segDy + apz * segDz) / segLenSq;
-            t = Math.max(0, Math.min(1, t));
-            const closestX = p.start.x + segDx * t;
-            const closestY = p.start.y + segDy * t;
-            const closestZ = p.start.z + segDz * t;
-            const corrosion = weaponById(p.weaponId).wonder?.kind === "corrosion";
-            // Plagueheart poisons an area around the actual impact only.
-            // Rockets alone retain proximity damage along their flight path.
-            const d = corrosion
-              ? corrosionImpactDistance([p.end.x,p.end.y,p.end.z],[cx,cy,cz])
-              : Math.hypot(cx-closestX,cy-closestY,cz-closestZ);
-            if (d <= p.splashRadius) {
+            const corrosion=weaponById(p.weaponId).wonder?.kind==="corrosion";
+            // Bot owners are only hurt by the detonation, not by their own flight-path near miss.
+            const contact=launcherSplashContact(shotOrigin,impact,[cx,cy,cz],corrosion||c.id===ownerId);
+            const d=contact.distance;
+            if(d<=p.splashRadius&&this.hasLineOfSight(contact.visibilityOrigin,[cx,cy,cz])) {
               // Quadratic falloff: 100% damage at center (d=0), ~30% at half-radius,
               // ~10% at edge. This rewards direct hits much more than near-misses,
               // making the rocket feel powerful when it connects but not OP when it whiffs.
@@ -8021,15 +11149,25 @@ export class FPSEngine {
               // closest point, apply full damage + 20% bonus (guaranteed kill on 100HP).
               const falloff = launcherSplashFactor(p.weaponId,d,p.splashRadius);
               const splashDmg = corrosion ? corrosionImpactDamage(p.damage, falloff) : p.damage * falloff;
-              this.applyDamageLocal(c, splashDmg, false, p.weaponId);
+              if(botOwner)this.damageFromOfflineBotTactical(botOwner,c,splashDmg,"frag",false,p.weaponId,true);
+              else this.applyDamageLocal(c,splashDmg,false,p.weaponId);
               if (corrosion && c.alive) {
                 // Repeated hits refresh the poison, never stack instant rocket damage.
                 this.poisonByVictim.set(c.id, { expiresAt: now + CORROSION_DURATION_MS,
-                  tickAt: now + CORROSION_TICK_MS, weaponId: p.weaponId,
+                  tickAt: now + CORROSION_TICK_MS, weaponId: p.weaponId, ownerId,
                   damagePerTick: corrosionTickDamage(p.damage) });
               }
             }
           }
+          const selfDistance=blastDistance(impact,[this.pos.x,this.pos.y+PLAYER_HEIGHT/2,this.pos.z]);
+          const blastLosOrigin=launcherBlastVisibilityOrigin(impact,shotOrigin);
+          if(this.alive&&blastCanDamage(ownerId,ownerTeam,this.selfId,this.opts.team as string,this.opts.mode)&&selfDistance<=p.splashRadius&&this.hasLineOfSight(
+            blastLosOrigin,[this.pos.x,this.pos.y+PLAYER_HEIGHT/2,this.pos.z])){
+            const factor=launcherSplashFactor(p.weaponId,selfDistance,p.splashRadius);
+            const dmg=explosionKind==="corrosion"?corrosionImpactDamage(p.damage,factor):p.damage*factor;
+            this.takeDamage(dmg,botOwner?.name??this.opts.playerName,botOwner?.team??(this.opts.team as string),false,p.weaponId,botOwner?.pos);
+          }
+          this.damageLocalBallisticCoverExplosion([p.end.x,p.end.y,p.end.z],p.splashRadius,p.damage,p.weaponId);
           this.hitMarkerAt = performance.now();
         }
         this.scene.remove(p.mesh);
@@ -8052,10 +11190,15 @@ export class FPSEngine {
 
     // combatants mesh sync + humanoid animation
     this.updateCombatantMeshes(dt, now);
+    this.updateTacticalVisuals(now);
 
     if (!this.opts.online && !this.matchEnded) {
+      // Rebuild once, then keep positions current as each bot moves.
+      this.actorIndex.rebuild(this.combatants.values());
       for (const c of this.combatants.values()) {
-        if (!this.opts.firingRange && c.isBot && c.alive && c.ai) this.updateBotAI(c, dt, now);
+        if (!this.opts.firingRange && c.isBot && c.alive && c.ai) {
+          this.updateBotAI(c, dt, now);this.actorIndex.update(c);
+        }
       }
     }
     this.updateRemoteFootsteps(now);
@@ -8066,10 +11209,13 @@ export class FPSEngine {
     if (!this.opts.online && !this.matchEnded)this.tickOrbitalPickup();
     if (!this.opts.online && this.opts.mode === "ctf" && !this.matchEnded) this.tickOfflineCtf();
     if (this.opts.online && this.socket?.connected && this.alive) {
-      this.socket.emit("message", {
+      const state:Extract<C2S,{t:"state"}>={
         t: "state", pos: [this.pos.x, this.pos.y, this.pos.z] as Vec3, yaw: this.yaw, pitch: this.pitch,
         aiming: this.aiming, firing: this.mouseDown, reloading: this.reloading, alive: this.alive, sprinting: this.sprinting,
-      });
+      };
+      if(this.movementSendBudget.shouldSend(now,state)){
+        this.socket.emit("message",state);this.movementPackets++;
+      }
     }
 
     if (!this.alive && this.respawnAt === 0 && !this.opts.online) {
@@ -8082,7 +11228,7 @@ export class FPSEngine {
     // Physics remains exact; ease only the first-person camera across stair risers.
     if(this.cameraFeetY===null||Math.abs(this.cameraFeetY-this.pos.y)>3)this.cameraFeetY=this.pos.y;
     else this.cameraFeetY+=(this.pos.y-this.cameraFeetY)*Math.min(1,dt*11);
-    this.camera.position.set(this.pos.x,this.cameraFeetY+EYE_HEIGHT,this.pos.z);
+    this.camera.position.set(this.pos.x,this.cameraFeetY+(this.mechActive?2.75:this.survivalDowned?0.45:EYE_HEIGHT),this.pos.z);
     // The game's yaw convention: forward = (sin yaw, 0, cos yaw) [see aimDir / updateMovement fwd].
     // Three.js camera local -Z is forward, so camera.rotation "YXZ" with yaw θ makes the
     // camera look toward (-sin θ, 0, -cos θ) — the OPPOSITE of our convention.
@@ -8167,18 +11313,35 @@ export class FPSEngine {
       fx = new THREE.Group();
       fx.userData.status = status;
       const burning=status==="burn";
-      const aura = new THREE.Mesh(new THREE.SphereGeometry(0.72, 12, 10),
-        new THREE.MeshBasicMaterial({ color: burning?0xff4715:0x49ff68,
-          transparent: true, opacity: burning?.21:.16, depthWrite: false }));
-      aura.position.y = 0.98;
+      // The flame cannot rely on an emissive skin material: much of an
+      // operative's body consists of separate armor meshes. Use a highly
+      // visible, unlit envelope plus multiple moving tongues and embers.
+      const aura = new THREE.Mesh(new THREE.SphereGeometry(burning?.73:.72, 12, 10),
+        new THREE.MeshBasicMaterial({ color: burning?0xff5a0d:0x49ff68,
+          transparent: true, opacity: burning?.25:.16, depthWrite: false,
+          depthTest: true }));
+      aura.position.y = burning?1.03:.98;
       fx.add(aura);
-      const geo = burning ? new THREE.ConeGeometry(.065,.21,6) : new THREE.SphereGeometry(0.105, 8, 6);
-      const mat = new THREE.MeshBasicMaterial({ color: burning?0xffad2d:0x80ff61,
-        transparent: true, opacity: burning?.9:.78, depthWrite: false });
-      for (let i = 0; i < 9; i++) {
-        const bubble = new THREE.Mesh(geo, mat);
-        bubble.userData.poisonBubble = i;
-        fx.add(bubble);
+      const geo = burning ? new THREE.ConeGeometry(.10,.35,7) : new THREE.SphereGeometry(.105,8,6);
+      const fireMaterials = burning ? [0xffb01c,0xff6117,0xffd357].map(color =>
+        new THREE.MeshBasicMaterial({color,transparent:true,opacity:.86,depthWrite:false,depthTest:true}))
+        : [];
+      const poisonMat = burning ? null : new THREE.MeshBasicMaterial({color:0x80ff61,
+        transparent:true,opacity:.78,depthWrite:false});
+      for(let i=0;i<(burning?14:9);i++){
+        const flame=new THREE.Mesh(geo,burning?fireMaterials[i%3]:poisonMat!);
+        flame.userData.poisonBubble=i;
+        fx.add(flame);
+      }
+      if(burning){
+        const emberGeo=new THREE.SphereGeometry(.044,7,5);
+        const emberMat=new THREE.MeshBasicMaterial({color:0xffdc70,
+          transparent:true,opacity:.98,depthWrite:false,depthTest:true});
+        for(let i=0;i<6;i++){
+          const ember=new THREE.Mesh(emberGeo,emberMat);
+          ember.userData.burnEmber=i;
+          fx.add(ember);
+        }
       }
       this.scene.add(fx);
       this.poisonBubbles.set(id, fx);
@@ -8192,11 +11355,27 @@ export class FPSEngine {
       }
       const i = index - 2;
       const burning=status==="burn";
-      const t = (now * (burning?0.0013:0.00055) + i * 0.173) % 1;
-      const angle = i * 2.39996 + now * 0.0008;
-      child.position.set(Math.cos(angle) * (0.35 + i % 3 * 0.14), 0.18 + t * 1.7,
-        Math.sin(angle) * (0.35 + i % 3 * 0.14));
-      child.scale.setScalar((burning?.42:.6) + .6 * (1 - t));
+      if(burning){
+        const ember=child.userData.burnEmber!==undefined;
+        const phase=ember ? child.userData.burnEmber : i;
+        const t=(now*(ember?.0019:.00125)+phase*.163)%1;
+        const angle=phase*2.39996+now*.0011;
+        const radius=ember ? .25+(phase%3)*.19 : .28+(phase%4)*.14;
+        child.position.set(Math.cos(angle)*radius,
+          (ember?.42:.27)+t*(ember?1.68:1.53),
+          Math.sin(angle)*radius);
+        child.scale.setScalar(ember?.72+(.55*(1-t)):.59+(.53*(1-t)));
+        if(!ember){
+          child.rotation.z=Math.sin(now*.008+phase)*.25;
+          child.rotation.x=Math.cos(now*.007+phase)*.17;
+        }
+      }else{
+        const t=(now*.00055+i*.173)%1;
+        const angle=i*2.39996+now*.0008;
+        child.position.set(Math.cos(angle)*(.35+i%3*.14),.18+t*1.7,
+          Math.sin(angle)*(.35+i%3*.14));
+        child.scale.setScalar(.6+.6*(1-t));
+      }
     }
   }
 
@@ -8205,21 +11384,55 @@ export class FPSEngine {
     // combatants emit a bright amber glow so they're visible through walls
     // (like a real thermal scope). Also brighten the scene for NVG.
     const isThermalAds = this.aiming && this.adsProgress > 0.3 && this.sightDef.overlay === "thermal";
-    const isNvgAds = this.aiming && this.adsProgress > 0.3 && this.sightDef.overlay === "nvg";
+    const isNvgAds = this.adsProgress > 0.3 && this.sightDef.overlay === "nvg";
     for (const id of this.poisonBubbles.keys()) {
       if (!this.combatants.has(id)) this.updatePoisonVisual(id, [0, 0, 0], null, now);
     }
+    for (const [id,fx] of this.frozenFx) if(!this.combatants.has(id)){
+      fx.removeFromParent();fx.traverse(o=>{if(o instanceof THREE.Mesh){
+        o.geometry.dispose();(o.material as THREE.Material).dispose();
+      }});this.frozenFx.delete(id);this.frozenUntil.delete(id);
+    }
     for (const c of this.combatants.values()) {
+      const frozen=c.alive&&(this.frozenUntil.get(c.id)??0)>now;
+      if(frozen&&c.group&&!this.frozenFx.has(c.id)){
+        const frost=new THREE.Group();frost.name="whiteout_frozen_crystals";
+        const ice=new THREE.MeshBasicMaterial({color:0x9deeff,transparent:true,opacity:.52,depthWrite:false});
+        for(let j=0;j<14;j++){
+          const angle=j*2.39996,height=.20+(j%5)*.37;
+          const shard=new THREE.Mesh(new THREE.ConeGeometry(.055+(j%3)*.013,.28+(j%4)*.11,5),ice);
+          shard.position.set(Math.cos(angle)*(.25+j%3*.035),height,Math.sin(angle)*(.25+j%3*.035));
+          shard.rotation.z=.3*Math.sin(angle);
+          frost.add(shard);
+        }
+        c.group.add(frost);this.frozenFx.set(c.id,frost);
+      }
+      const frost=this.frozenFx.get(c.id);if(frost)frost.visible=frozen;
       const poisoned = c.alive && ((this.onlinePoisoned.get(c.id) ?? 0) > Date.now()
         || (this.poisonByVictim.get(c.id)?.expiresAt ?? 0) > now);
-      const burning = c.alive && ((this.onlineBurning.get(c.id) ?? 0) > Date.now()
-        || (this.localBurning.get(c.id) ?? 0) > now);
+      // Death immediately ends the flames, regardless of remaining DoT expiry.
+      // The downed death-animation mesh never carries a burning overlay.
+      const burning = c.alive &&
+        ((this.onlineBurning.get(c.id) ?? 0) > Date.now() ||
+         (this.localBurning.get(c.id) ?? 0) > now);
       this.updatePoisonVisual(c.id, c.pos, burning ? "burn" : poisoned ? "poison" : null, now);
       if (!c.group) continue;
+      const dx=c.pos[0]-this.pos.x,dz=c.pos[2]-this.pos.z;
+      // Only tiny cosmetic attachments and unreadable labels use distance LOD.
+      // Scoped aiming restores them; body/weapon silhouettes remain intact.
+      const detailsVisible=this.adsProgress>.3 || dx*dx+dz*dz<90*90;
+      for(const detail of c.remoteWeaponDetails??[])detail.visible=detailsVisible;
+      // The Juggernaut's oversized mech replaces its pilot silhouette.
+      const inMech=[...this.mechDrops.values()].some(d=>d.enteredBy===c.id&&d.expiresAt>Date.now());
+      if(inMech){c.group.visible=false;continue;}
+      if(c.alive)c.group.visible=true;
       // Thermal vision: override body material emissive for living enemies.
       if (c.skinMaterial && c.alive) {
         const isEnemy = c.team !== this.opts.team || this.opts.mode === "ffa" || this.opts.mode === "gungame";
-        if (burning) {
+        if (frozen) {
+          c.skinMaterial.emissive.setHex(0x8defff);
+          c.skinMaterial.emissiveIntensity=.72;
+        } else if (burning) {
           c.skinMaterial.emissive.setHex(0xff4b12);
           c.skinMaterial.emissiveIntensity = 1.1;
         } else if (poisoned) {
@@ -8234,14 +11447,15 @@ export class FPSEngine {
           c.skinMaterial.emissive.setHex(0xff6600);
           c.skinMaterial.emissiveIntensity = 1.2;
         } else if (isNvgAds && isEnemy && !c.isSelf) {
-          // Green tint for NVG
-          c.skinMaterial.emissive.setHex(0x33ff66);
-          c.skinMaterial.emissiveIntensity = 0.4;
+          // Bright green signature survives the scope's selective color grading;
+          // remains depth-tested, so enemies never glow through solid cover.
+          c.skinMaterial.emissive.setHex(0x22ff55);
+          c.skinMaterial.emissiveIntensity = 1.15;
         } else {
           // Reset to original skin emissive
           const skin = playerSkinById(c.playerSkinId);
-          c.skinMaterial.emissive.set(skin.emissive ? skin.emissive : "#000000");
-          c.skinMaterial.emissiveIntensity = skin.emissive ? 0.4 : 0;
+          c.skinMaterial.emissive.set(c.bossVisual ? "#000000" : (skin.emissive ?? "#000000"));
+          c.skinMaterial.emissiveIntensity = c.bossVisual ? 0 : skin.emissive ? 0.4 : 0;
         }
       }
       // Thermal ADS reveals exposed heat signatures through weather, not through
@@ -8261,8 +11475,10 @@ export class FPSEngine {
       c.group.rotation.y = c.yaw;
       // ---- Death animation: fall forward over ~900ms before hiding ----
       if (!c.alive && c.deathAnimAt && c.deathAnimDur) {
-        const age = now - c.deathAnimAt;
-        const p = Math.min(1, age / c.deathAnimDur);
+        const ageAtFinale = this.finaleDeathAges.get(c.id);
+        const p = this.matchEnded && ageAtFinale !== undefined
+          ? finaleDeathProgress(ageAtFinale, c.deathAnimDur, now - this.finaleStartedAt)
+          : Math.min(1, (now - c.deathAnimAt) / c.deathAnimDur);
         if (p >= 1) {
           c.group.visible = false;
           if (c.nameSprite) c.nameSprite.visible = false;
@@ -8272,6 +11488,13 @@ export class FPSEngine {
           if (c.shieldMesh) c.shieldMesh.visible = false;
         } else {
           c.group.visible = true;
+          // IK is only updated while alive. Without a death-specific arm
+          // pose, the left support hand remains extended at the weapon grip
+          // throughout lava/fire/spike deaths and ordinary combat deaths.
+          if (c.parts) {
+            c.deathPoseStart ??= captureThirdPersonDeathPose(c.parts);
+            applyThirdPersonDeathPose(c.parts, c.deathPoseStart, p);
+          }
           const ease = 1 - Math.pow(1 - p, 3);
           c.group.rotation.x = ease * (Math.PI / 2);
           c.group.position.y = c.pos[1] - ease * 0.4;
@@ -8290,14 +11513,22 @@ export class FPSEngine {
         if (c.friendlyMarker) c.friendlyMarker.visible = false;
         if (c.shieldMesh) c.shieldMesh.visible = false;
       } else {
-        c.group.rotation.x = 0;
+        // Server respawns and offline respawns both reset the entire rig.
+        // Otherwise the weapon can reappear at the fallen position for a frame.
+        if (c.deathPoseStart) {
+          if (c.parts) resetThirdPersonDeathPose(c.parts);
+          c.deathPoseStart = undefined;
+        }
+        // Downed co-op operatives lie prone (visual-only; no collision change).
+        c.group.rotation.x = c.downed ? Math.PI/2 : 0;
+        c.group.position.y = c.pos[1] + (c.downed ? 0.22 : 0);
         c.group.rotation.z = 0;
         c.group.visible = true;
-        if (c.nameSprite) c.nameSprite.visible = true;
-        if (c.healthBarBg) c.healthBarBg.visible = this.showHealthBars;
+        if (c.nameSprite) c.nameSprite.visible = detailsVisible;
+        if (c.healthBarBg) c.healthBarBg.visible = this.showHealthBars&&detailsVisible;
         if (c.healthBar) {
-          c.healthBar.visible = this.showHealthBars;
-          const pct = Math.max(0, Math.min(1,c.health / (c.bossMaxHealth ?? MAX_HEALTH)));
+          c.healthBar.visible = this.showHealthBars&&detailsVisible;
+          const pct = Math.max(0, Math.min(1,c.health / (c.bossMaxHealth ?? c.eliteMaxHealth ?? MAX_HEALTH)));
           (c.healthBar as THREE.Mesh).scale.x = pct;
           (c.healthBar as THREE.Mesh).position.x = -0.45 * (1 - pct);
           (c.healthBar.material as THREE.MeshBasicMaterial).color.setHex(pct > 0.5 ? 0x33dd66 : pct > 0.25 ? 0xffaa33 : 0xff3333);
@@ -8335,8 +11566,21 @@ export class FPSEngine {
           c.shieldMesh.scale.setScalar(s);
         }
       }
-      // animate humanoid (only when alive — death animation overrides)
-      if (c.alive) this.animateHumanoid(c, dt, now);
+      // Offscreen/distant IK does not need sixty full rig solves each second.
+      // This is presentation-only: positions, weapon hits and AI update normally.
+      if (c.alive) {
+        const last=this.botAnimationAt.get(c.id)??now-dt*1000;
+        const dx=c.pos[0]-this.pos.x,dz=c.pos[2]-this.pos.z;
+        const far=Math.abs(dx)>90||Math.abs(dz)>90;
+        // Do not solve cosmetic limb IK at 60 Hz behind the player.
+        const behind=dx*dx+dz*dz>225 &&
+          dx*Math.sin(this.yaw)+dz*Math.cos(this.yaw)<-6;
+        const interval=botAnimationIntervalMs(this.renderMode(),far,behind);
+        if(!interval||now-last>=interval){
+          this.animateHumanoid(c,interval?Math.min(.27,(now-last)/1000):dt,now);
+          this.botAnimationAt.set(c.id,now);
+        }
+      }
     }
   }
 
@@ -8389,7 +11633,6 @@ export class FPSEngine {
   }
 
   private updateMovement(dt: number) {
-    if (performance.now() < this.equipmentStunUntil) return;
     // Maintain mobile sprint hysteresis so small joystick fluctuations do not
     // repeatedly cancel sprint. The touch overlay uses the same shared rule.
     const touchAutoSprint = this.touchMode && shouldTouchAutoSprint(
@@ -8423,22 +11666,25 @@ export class FPSEngine {
     // Can't sprint with a sniper/sniper-equivalent out at full ADS — must release.
     // ALSO gated on stamina: can't start a sprint with 0 stamina; must regen above
     // STAMINA_RESUME first (prevents stutter-sprint at the empty threshold).
-    const reaperMovement=this.orbitalWeaponActive&&orbitalReaperEquipped(this.map.id,this.weaponId);
-    const staminaAllowsSprint = this.stamina > FPSEngine.STAMINA_RESUME || (this.sprinting && this.stamina > 0);
+    const reaperMovement=this.orbitalWeaponActive&&orbitalReaperEquipped(this.map,this.weaponId);
+    const staminaAllowsSprint = this.stamina > SPRINT_STAMINA.resumeThreshold || (this.sprinting && this.stamina > 0);
     const wasSprinting = this.sprinting;
-    const sprintAdsPerk = allowsAdsWhileSprinting(this.getCurrentAttachments().grip);
-    this.sprinting = isSprintKey && movingForward && (!this.aiming || sprintAdsPerk) && !this.mouseDown && this.alive && this.onGround && staminaAllowsSprint;
+    // Sprint ADS has been removed: all weapons must lower their sights during
+    // sprint and stop sprinting before firing, on mouse and touch alike.
+    const firingInput=this.mouseDown||this.touchFiring||this.akimboRightDown||this.touchAkimboRight;
+    this.sprinting = !this.mechActive && isSprintKey && movingForward && !this.aiming &&
+      !firingInput && this.alive && this.onGround && staminaAllowsSprint;
     if (this.sprinting && this.reloading && this.activePerkId !== "field_loader") {
       this.reloading = false; // interrupted; keep partial mag
     }
-    if (this.sprinting && !sprintAdsPerk) this.aiming = false;
+    if (this.sprinting) this.aiming = false;
     if (this.sprinting && !wasSprinting) {
       // Just started sprinting — play a subtle ADS-out SFX for feedback.
       this.sound.play("ads_out", { volume: 0.3 });
     }
     // ---- Stamina drain / regen ----
     if (this.sprinting) {
-      this.stamina = Math.max(0, this.stamina - FPSEngine.STAMINA_DRAIN * sprintDrainMultiplier(this.activePerkId) *
+      this.stamina = Math.max(0, this.stamina - SPRINT_STAMINA.drainPerSecond * sprintDrainMultiplier(this.activePerkId) *
         (reaperMovement?ORBITAL_REAPER_STAMINA_DRAIN_MULTIPLIER:1) * dt);
       this.lastSprintAt = performance.now();
       if (this.stamina <= 0) {
@@ -8447,8 +11693,8 @@ export class FPSEngine {
       }
     } else {
       const sinceSprint = performance.now() - this.lastSprintAt;
-      if (sinceSprint > FPSEngine.STAMINA_DELAY) {
-        this.stamina = Math.min(100, this.stamina + FPSEngine.STAMINA_REGEN * dt);
+      if (sinceSprint > SPRINT_STAMINA.regenerationDelayMs) {
+        this.stamina = Math.min(SPRINT_STAMINA.maximum, this.stamina + SPRINT_STAMINA.regenerationPerSecond * dt);
       }
     }
     // Speed multipliers.
@@ -8458,7 +11704,10 @@ export class FPSEngine {
     else if (this.sprinting) speedMul = MOVEMENT.sprintMultiplier;  // was 1.6 — higher sprint speed for better map traversal
     // Momentum is intentionally preserved in the air; ground stopping and
     // direction changes are tuned independently below.
-    if (this.activePerkId === "lightweight") speedMul *= 1.12;
+    if(this.mechActive)speedMul*=mechTuning(this.mechActive.moduleId).movement;
+    else if(this.activePerkId === "lightweight") speedMul *= 1.12;
+    if(this.localCryoSlowUntil>performance.now())speedMul*=CRYO_SLOW_FACTOR;
+    if(this.opts.mode==="survival")speedMul*=survivalMovementMultiplier(this.survivalUpgradeRanks,performance.now()-this.survivalLastKillAt);
     const carryingFlag=this.opts.mode==="ctf" && (this.ctfFlags.red.carrierId===this.selfId||this.ctfFlags.blue.carrierId===this.selfId);
     if(reaperMovement&&!carryingFlag)speedMul*=ORBITAL_REAPER_SPEED_MULTIPLIER;
     if(carryingFlag)speedMul*=CTF_SPEED_MULTIPLIER;
@@ -8472,14 +11721,19 @@ export class FPSEngine {
       if (performance.now() - this.lastFootstepAt > stepInterval) {
         this.lastFootstepAt = performance.now();
         if (this.activePerkId !== "silent_steps") {
-          this.sound.play(water.flooded?"water_footstep":"footstep", { volume: water.flooded?(this.sprinting?.98:.84):(this.sprinting?.43:.3) });
+          this.sound.play(water.flooded?"water_footstep":"footstep", { volume: water.flooded?(this.sprinting?.48:.34):(this.sprinting?.43:.3) });
           if(!this.opts.online&&!this.opts.firingRange)
             this.publishBotNoise({sourceId:this.selfId,pos:[this.pos.x,this.pos.y,this.pos.z],
               at:performance.now(),kind:"footstep",sprinting:this.sprinting});
         }
       }
     }
-    if (move.lengthSq() > 0) move.normalize().multiplyScalar(baseSpeed);
+    if (move.lengthSq() > 0) move.normalize();
+    if (isTaserAdsBlocked(this.equipmentAdsBlockedUntil,performance.now()) && this.alive) {
+      const twitch=taserMovementJitter(performance.now());
+      move.x+=twitch.x;move.z+=twitch.z;
+    }
+    move.multiplyScalar(baseSpeed);
     // Exponential response is stable across variable frame times. Separate
     // acceleration, braking, reversal, and aerial steering behavior.
     [this.vel.x, this.vel.z] = responsiveHorizontalVelocity(
@@ -8496,7 +11750,7 @@ export class FPSEngine {
     this.wasJumpHeld = jumpHeld;
     this.touchJumpQueued = false;
     if (this.onGround) this.lastGroundedAt = now;
-    const wantJump = canUseBufferedJump(
+    const wantJump = !this.mechActive && canUseBufferedJump(
       now, this.lastJumpPressedAt, this.lastGroundedAt, this.onGround,
     );
     if (wantJump) {
@@ -8510,10 +11764,10 @@ export class FPSEngine {
         this.vel.x, this.vel.z, move.x, move.z, this.sprinting,
         reaperMovement?ORBITAL_REAPER_JUMP_MOMENTUM_MULTIPLIER:1,
       );
-      if (this.activePerkId !== "silent_steps") this.sound.play(water.flooded?"water_footstep":"footstep", { volume: water.flooded?.9:.4 });
+      if (this.activePerkId !== "silent_steps") this.sound.play(water.flooded?"water_footstep":"footstep", { volume: water.flooded?.34:.4 });
     }
     // Gravity: slightly stronger so jumps don't feel floaty.
-    this.vel.y -= MOVEMENT.gravity * orbitalGravity(this.map.id,
+    this.vel.y -= MOVEMENT.gravity * orbitalGravity(this.map,
       reaperMovement?this.weaponId:undefined) * dt;
 
     const next = this.pos.clone();
@@ -8528,7 +11782,7 @@ export class FPSEngine {
           well.ownerId === this.selfId ||
           (this.opts.mode !== "ffa" && this.opts.mode !== "gungame" && well.ownerTeam === this.opts.team)) continue;
       if (!this.hasLineOfSight(well.pos, [this.pos.x, this.pos.y + 1, this.pos.z])) continue;
-      const [dx, dz] = gravityPullOffset(well.pos, [this.pos.x, this.pos.y, this.pos.z], well.radius, dt);
+      const [dx, dz] = gravityPullOffset(well.pos, [this.pos.x, this.pos.y, this.pos.z], well.radius, dt*wonderModuleEffects("wonder_singularity",well.ownerId===this.selfId?this.wonderModuleId:undefined).pullMul);
       next.x += dx;
       next.z += dz;
     }
@@ -8536,7 +11790,20 @@ export class FPSEngine {
 
     // ---- Horizontal collision against cover (with step-up for short boxes) ----
     const r = PLAYER_RADIUS;
-    for (const cov of this.coverAlong([this.pos.x,0,this.pos.z],[next.x,0,next.z],3)) {
+    const nearbyCover = this.coverAlong([this.pos.x,0,this.pos.z],[next.x,0,next.z],3);
+    // Stop rising into the underside of a floor before resolving side contact.
+    if (next.y > this.pos.y) {
+      for (const cov of nearbyCover) {
+        if (cov.kind === "accent") continue;
+        const underside = cov.pos[1] - cov.size[1];
+        if (this.pos.y + PLAYER_HEIGHT > underside || next.y + PLAYER_HEIGHT <= underside) continue;
+        if (Math.abs(next.x - cov.pos[0]) >= cov.size[0] + r ||
+            Math.abs(next.z - cov.pos[2]) >= cov.size[2] + r) continue;
+        next.y = underside - PLAYER_HEIGHT - 0.001;
+        this.vel.y = 0;
+      }
+    }
+    for (const cov of nearbyCover) {
       const cx = cov.pos[0], cz = cov.pos[2];
       const hx = cov.size[0], hz = cov.size[2];
       const minY = cov.pos[1] - cov.size[1], maxY = cov.pos[1] + cov.size[1];
@@ -8577,13 +11844,11 @@ export class FPSEngine {
 
     // ---- Dynamic spread factor (drives HUD crosshair size) ----
     // 0 = perfectly accurate (still + ADS). 1 = max bloom (sprinting + jumping + firing).
-    let spread = 0;
-    if (this.sprinting) spread += 0.85;
-    else if (!this.onGround) spread += 0.5;
-    else if (this.vel.lengthSq() > 4) spread += 0.3;  // moving fast
-    if (this.mouseDown || this.touchFiring) spread += 0.15;
-    if (this.aiming) spread *= 0.3;  // ADS tightens everything
-    this.currentSpread = Math.min(1, spread + this.shotBloom * (this.aiming ? 0.22 : 0.45));
+    this.currentSpread = firingMotionFactor({
+      sprinting: this.sprinting, airborne: !this.onGround, movingFast: this.vel.lengthSq() > 4,
+      firing: this.mouseDown || this.touchFiring, aiming: this.aiming, bloom: this.shotBloom,
+      tasered: isTaserAdsBlocked(this.equipmentAdsBlockedUntil,performance.now()),
+    });
     // Advance the sprint-sway phase so the viewmodel bobs left/right while sprinting.
     if (this.sprinting) {
       this.sprintPhase += dt * 11;
@@ -8592,12 +11857,181 @@ export class FPSEngine {
     }
   }
 
+  /** Bot Wonder attacks use the existing projectile, chain and deployable
+   * simulations. Damage is always attributed to the bot owner. */
+  private botWonderTargets(owner:Combatant):Combatant[]{
+    const targets:Combatant[]=[...this.combatants.values()];
+    if(this.alive)targets.push({
+      id:this.selfId,name:this.opts.playerName,team:this.opts.team as string,
+      isBot:false,isSelf:true,pos:[this.pos.x,this.pos.y,this.pos.z],
+      yaw:this.yaw,pitch:this.pitch,health:this.health,alive:true,
+      weaponId:this.weaponId,weaponSkinId:"default",playerSkinId:"default",
+      kills:this.kills,deaths:this.deaths,score:0,
+    });
+    return targets.filter(c=>c.alive&&c.id!==owner.id&&
+      (this.opts.mode==="ffa"||this.opts.mode==="gungame"||c.team!==owner.team)&&
+      !(c.spawnProtectedUntil&&c.spawnProtectedUntil>Date.now()));
+  }
+
+  private botWonderDamage(owner:Combatant,victim:Combatant,damage:number,weaponId:string):void{
+    const amount=this.opts.mode==="survival"
+      ?damage*0.65*survivalWaveDamageMul(this.survivalWave)*
+        survivalWaveMutators(this.survivalTier,this.survivalWave).damageMul
+      :damage;
+    this.damageFromOfflineBotTactical(owner,victim,amount,"frag",false,weaponId);
+  }
+
+  private fireOfflineBotWonder(owner:Combatant,w:WeaponDef,origin:Vec3,dir:Vec3):void{
+    const targets=this.botWonderTargets(owner);
+    const rules=w.wonder!;
+    const kind=rules.kind;
+    if(kind==="drone"){
+      for(const [id,d] of this.harbingerDrones)if(d.ownerId===owner.id)this.removeHarbinger(id);
+      const hit=closestCoverHit(this.coverForRay(origin,dir,14),origin,dir,14,rayBox);
+      const pos=harbingerPlacement(origin,dir,hit?.distance??14,this.map.size),tune=harbingerTuning();
+      this.addHarbinger("bot_harbinger_"+(++this.localWonderSequence),owner.id,owner.team,pos,
+        Date.now()+tune.durationMs,tune.health,"",true);
+    }else if(kind==="turret"){
+      const candidate=turretDeployPosition(owner.pos,owner.yaw,this.map.cover,this.map.size);
+      const pos:Vec3=[candidate[0],botGroundHeight(this.map.cover,candidate[0],candidate[2],candidate[1]),candidate[2]];
+      for(const [id,t] of this.bulletSpitters)if(t.ownerId===owner.id)this.removeBulletSpitter(id);
+      this.placeBulletSpitter("bot_spitter_"+owner.id+"_"+Date.now(),owner.id,pos,owner.yaw,
+        Date.now()+TURRET_LIFETIME_MS,true);
+    }else if(kind==="cluster"){
+      this.addClusterVolley({id:"bot_cluster_"+(++this.localWonderSequence),ownerId:owner.id,
+        ownerTeam:owner.team,launchedAt:Date.now(),
+        shots:clusterShots(origin,dir,this.map.cover,this.map)},true);
+    }else if(kind==="singularity"||kind==="corrosion"){
+      this.spawnRocketProjectile(origin,dir,owner.weaponSkinId,w.stats.damage,true,w.id,owner);
+    }else if(kind==="smart"){
+      const matches=targets.filter(c=>
+        Math.hypot(c.pos[0]-origin[0],c.pos[2]-origin[2])<=w.stats.range&&
+        this.hasLineOfSight(origin,[c.pos[0],c.pos[1]+1.05,c.pos[2]]))
+        .sort((a,b)=>Math.hypot(a.pos[0]-origin[0],a.pos[2]-origin[2])-
+          Math.hypot(b.pos[0]-origin[0],b.pos[2]-origin[2])).slice(0,SMART_MAX_TAGS);
+      for(const victim of matches){
+        const to:Vec3=[victim.pos[0],victim.pos[1]+1.05,victim.pos[2]];
+        this.spawnWonderBeam(origin,to,"smart");
+        this.botWonderDamage(owner,victim,w.stats.damage,w.id);
+      }
+    }else if(kind==="flame"){
+      this.spawnFlameSpray(origin,dir);
+      for(const victim of targets){
+        const to:Vec3=[victim.pos[0],victim.pos[1]+1,victim.pos[2]];
+        if(inFlameCone(origin,dir,to,HELLFIRE_RANGE)&&this.hasLineOfSight(origin,to))
+          this.botWonderDamage(owner,victim,w.stats.damage,w.id);
+      }
+    }else if(kind==="sludge"){
+      const victim=targets.find(c=>this.hasLineOfSight(origin,[c.pos[0],c.pos[1]+1,c.pos[2]]));
+      if(!victim)return;
+      const at:Vec3=[victim.pos[0],victim.pos[1]+.12,victim.pos[2]];
+      this.addWonderField("bot_sludge_"+(++this.localWonderSequence),owner.id,owner.team,w.id,
+        "sludge",at,rules.radius,Date.now()+8500,true);
+      for(const target of targets)if(
+        Math.hypot(target.pos[0]-at[0],target.pos[2]-at[2])<=rules.radius&&
+        this.hasLineOfSight([at[0],at[1]+.5,at[2]],[target.pos[0],target.pos[1]+1,target.pos[2]]))
+        this.botWonderDamage(owner,target,w.stats.damage,w.id);
+    }else if(kind==="storm"){
+      const counts=new Map<string,number>();
+      for(const pelletDir of stormPelletDirections(dir)){
+        const impact=traceStormPellet(origin,pelletDir,w.stats.range,this.coverForRay(origin,pelletDir,w.stats.range),
+          this.stormVictims(owner.id,owner.team));
+        if(impact.victim){
+          const victim=targets.find(c=>c.id===impact.victim!.id);
+          if(!victim)continue;
+          const hits=counts.get(victim.id)??0;
+          if(hits<STORM_MAX_DIRECT_HITS_PER_TARGET){
+            this.botWonderDamage(owner,victim,STORM_DIRECT_DAMAGE,w.id);
+            counts.set(victim.id,hits+1);
+          }
+          this.spawnWonderBeam(origin,[victim.pos[0],victim.pos[1]+1.05,victim.pos[2]],"storm");
+          this.chainStormOffline(victim,STORM_DIRECT_DAMAGE,STORM_CHAIN_JUMPS,counts,owner.id,owner.team);
+        }else{
+          const at=stormMinePosition(impact.point,this.map.cover);
+          const own=[...this.stormMines].filter(([,m])=>m.ownerId===owner.id&&m.offline);
+          if(own.length>=STORM_MAX_MINES_PER_OWNER)this.removeStormMine(own[0][0]);
+          this.addStormMine("bot_storm_"+(++this.localWonderSequence),at,
+            Date.now()+STORM_MINE_LIFETIME_MS,true,owner.id,owner.team);
+        }
+      }
+    }else if(kind==="shield"){
+      owner.riotShieldRaised=false;
+      this.botFireRay(owner,origin,dir,computeEffectiveStats(w,
+        owner.ai?.attachments??{sight:null,barrel:null,grip:null,magazine:null}),w.stats.headshotMult);
+    }
+    if(kind!=="turret"&&kind!=="sludge"&&kind!=="cluster"&&
+       kind!=="singularity"&&kind!=="corrosion"&&kind!=="flame")
+      this.spawnTracer(origin,dir,owner.weaponSkinId,0,w.stats.range);
+    this.playEnemyFireSound(owner.pos,w.id,false);
+  }
+  private tryOfflineBotWonder(owner:Combatant,target:Combatant,now:number):boolean{
+    const ai=owner.ai;
+    if(!ai||owner.perkId!=="wonder_weapon"||!owner.botWonderId||
+       ai.wonderEquippedUntil||this.orbitalBotHolders.has(owner.id))return false;
+    const w=weaponById(owner.botWonderId);
+    if(!w.wonder||w.disabled||
+       Math.hypot(target.pos[0]-owner.pos[0],target.pos[2]-owner.pos[2])>w.stats.range)return false;
+    if(w.wonder.kind==="shield"){
+      const shield=tickRiotShield(owner.riotShieldHp??0,owner.riotShieldReadyAt??0,now);
+      owner.riotShieldHp=shield.hp;owner.riotShieldReadyAt=shield.readyAt;
+      if(!shield.hp){
+        if(!owner.riotShieldReadyAt)owner.riotShieldReadyAt=now+RIOT_SHIELD_RECHARGE_MS;
+        return false;
+      }
+    }else{
+      const state=this.botWonderCharges.get(owner.id)??drainedWonderCharges(w.wonder,now);
+      const paid=spendWonderCharge(state,w.wonder,now);
+      if(!paid){
+        this.botWonderCharges.set(owner.id,tickWonderCharges(state,w.wonder,now));
+        return false;
+      }
+      this.botWonderCharges.set(owner.id,paid);
+    }
+    const origin:Vec3=[owner.pos[0],owner.pos[1]+1.5,owner.pos[2]];
+    const delta:Vec3=[target.pos[0]-origin[0],target.pos[1]+1.05-origin[1],target.pos[2]-origin[2]];
+    const len=Math.hypot(...delta)||1;
+    const dir:Vec3=[delta[0]/len,delta[1]/len,delta[2]/len];
+    ai.wonderReturnWeaponId=owner.weaponId;
+    owner.weaponId=w.id;owner.riotShieldRaised=false;
+    this.rebuildCombatantMesh(owner);
+    this.fireOfflineBotWonder(owner,w,origin,dir);
+    owner.riotShieldRaised=w.wonder.kind==="shield" && (owner.riotShieldHp??0)>0;
+    owner.lastFireRecoil=now;
+    ai.wonderEquippedUntil=now+850;
+    ai.nextShotAt=now+1200;ai.burstEndsAt=ai.nextShotAt;ai.burstShotsLeft=0;
+    owner.spawnProtectedUntil=0;
+    return true;
+  }
+
   // ---- Bot AI (offline) ----
   // Bots use the same ground-height logic as the player so they can climb
   // stairs/ramps and reach elevated positions on vertical maps.
   private updateBotAI(c: Combatant, dt: number, now: number) {
     const ai = c.ai!;
-    this.hearBotNoise(c,now);
+    const perk=c.perkId;
+    if(ai.wonderEquippedUntil && now>=ai.wonderEquippedUntil){
+      ai.wonderEquippedUntil=0;c.riotShieldRaised=false;
+      c.weaponId=ai.wonderReturnWeaponId??c.weaponId;
+      this.rebuildCombatantMesh(c);
+    }
+    if(perk==="well_prepared" && ai.secondaryWeaponId &&
+       !this.orbitalBotHolders.has(c.id) && !ai.wonderEquippedUntil &&
+       now>=(ai.nextWeaponSwitchAt??0) && ai.ammoInMag<=1 &&
+       (ai.secondaryAmmoInMag??0)>0){
+      const next=c.weaponId===ai.secondaryWeaponId?(ai.primaryWeaponId??c.weaponId):ai.secondaryWeaponId;
+      const oldAmmo=ai.ammoInMag;
+      ai.ammoInMag=ai.secondaryAmmoInMag??weaponById(next).stats.magSize;
+      ai.secondaryAmmoInMag=oldAmmo;
+      c.weaponId=next;
+      ai.attachments=botActiveAttachments(ai.primaryWeaponId??next,next,
+        ai.primaryAttachments??emptyBotAttachments(),ai.secondaryWeaponId,ai.secondaryAttachments);
+      ai.nextWeaponSwitchAt=now+1800;ai.nextShotAt=now+450;
+      ai.reloadingUntil=0;
+      this.rebuildCombatantMesh(c);
+    }
+    const flashBlinded=(this.botFlashUntil.get(c.id)??0)>now;
+    if(flashBlinded){ai.targetId=null;ai.lastSighting=null;ai.lastAlert=null;}
+    else this.hearBotNoise(c,now);
     const floodAge=this.map.id==="floodgate"&&this.floodgateBreachAt!==null
       ?this.environmentTime-this.floodgateBreachAt:null;
     const boss=this.survivalBossTimers.get(c.id);
@@ -8622,17 +12056,29 @@ export class FPSEngine {
       }
     }
     const w = weaponById(c.weaponId);
-    const eff = computeEffectiveStats(w, this.opts.mode === "gungame" ? this.getCurrentAttachments() : ai.attachments);
+    if(isThrowingKnife(w.id)){
+      const next=tickThrowingKnives({charges:ai.ammoInMag,nextAt:ai.knifeNextAt??0},now,this.opts.mode==="gungame");
+      ai.ammoInMag=next.charges;ai.knifeNextAt=next.nextAt;
+    }
+    const eff = computeEffectiveStats(w, botActiveAttachments(
+      ai.primaryWeaponId??c.weaponId,c.weaponId,ai.primaryAttachments??ai.attachments,
+      ai.secondaryWeaponId,ai.secondaryAttachments));
     // Fix any pre-existing penetration before movement, including bad legacy spawns.
     c.pos = this.clamp(this.collideBots(c.pos, c.pos[1]));
-    const rival=this.nearestEnemy(c);
+    // Taser also produces small, collision-safe involuntary footwork in offline bots.
+    if(isTaserAdsBlocked(this.botTacticalAdsBlockedUntil.get(c.id)??0,now)){
+      const twitch=taserMovementJitter(now);
+      const offset:Vec3=[c.pos[0]+twitch.x*.06,c.pos[1],c.pos[2]+twitch.z*.06];
+      c.pos=this.clamp(this.collideBots(offset,c.pos[1]));
+    }
+    const rival=flashBlinded?null:this.nearestEnemy(c);
     const hostiles=[...this.bulletSpitters.entries()].filter(([,t])=>t.offline &&
       t.ownerId!==c.id && turretCanAttack(this.opts.mode,c.team,this.opts.team as string,false) &&
       Math.hypot(c.pos[0]-t.pos[0],c.pos[2]-t.pos[2])<25 &&
       this.hasLineOfSight([c.pos[0],c.pos[1]+1.45,c.pos[2]],[t.pos[0],t.pos[1]+TURRET_MUZZLE_HEIGHT,t.pos[2]]))
       .sort((a,b)=>Math.hypot(a[1].pos[0]-c.pos[0],a[1].pos[2]-c.pos[2])-
         Math.hypot(b[1].pos[0]-c.pos[0],b[1].pos[2]-c.pos[2]));
-    if(hostiles.length && (!rival || Math.hypot(rival.pos[0]-c.pos[0],rival.pos[2]-c.pos[2])>17) &&
+    if(!flashBlinded && hostiles.length && (!rival || Math.hypot(rival.pos[0]-c.pos[0],rival.pos[2]-c.pos[2])>17) &&
       now>=ai.nextShotAt && now>ai.reloadingUntil && ai.ammoInMag>0){
       const [id,t]=hostiles[0],origin:Vec3=[c.pos[0],c.pos[1]+1.45,c.pos[2]];
       const diff:Vec3=[t.pos[0]-origin[0],t.pos[1]+TURRET_MUZZLE_HEIGHT-origin[1],t.pos[2]-origin[2]];
@@ -8642,9 +12088,21 @@ export class FPSEngine {
       this.spawnTracer(origin,[diff[0]/len,diff[1]/len,diff[2]/len],"default");
       if(t.hp<=0)this.removeBulletSpitter(id);
     }
+    const scout=[...this.harbingerDrones.values()].find(d=>d.offline&&d.ownerId!==c.id&&
+      (this.opts.mode==="ffa"||this.opts.mode==="gungame"||d.ownerTeam!==c.team)&&
+      Math.hypot(c.pos[0]-d.pos[0],c.pos[2]-d.pos[2])<22&&
+      this.hasLineOfSight([c.pos[0],c.pos[1]+1.45,c.pos[2]],d.pos));
+    if(!flashBlinded&&scout&&(!rival||Math.hypot(rival.pos[0]-c.pos[0],rival.pos[2]-c.pos[2])>17)&&
+      now>=ai.nextShotAt&&now>ai.reloadingUntil&&ai.ammoInMag>0){
+      const origin:Vec3=[c.pos[0],c.pos[1]+1.45,c.pos[2]];
+      const dir=this.normalize([scout.pos[0]-origin[0],scout.pos[1]-origin[1],scout.pos[2]-origin[2]]);
+      scout.hp-=Math.max(5,eff.damage*.55);ai.ammoInMag--;ai.lastFiredAt=now;
+      ai.nextShotAt=now+1000/Math.max(.5,eff.fireRate);this.spawnTracer(origin,dir,"default");
+      if(scout.hp<=0)for(const [id,d] of this.harbingerDrones)if(d===scout)this.removeHarbinger(id);
+    }
     if (now > ai.nextDecisionAt) {
       ai.nextDecisionAt = now + botDecisionDelay(ai.difficulty, Math.random());
-      const enemy = this.nearestEnemy(c);
+      const enemy = flashBlinded?null:this.nearestEnemy(c);
       if(enemy)ai.lastSighting=botRememberSighting(enemy.id,enemy.pos,now);
       const remembered=ai.lastSighting;
       const rememberedEnemy=remembered
@@ -8682,16 +12140,16 @@ export class FPSEngine {
         carryingFlag:this.ctfFlags.red.carrierId===b.id||this.ctfFlags.blue.carrierId===b.id,
         hasReward:this.orbitalBotHolders.has(b.id),
       }));
-      const orbitalObjective=orbitalBotShouldContest(this.map.id,this.orbitalCharge,
+      const orbitalObjective=orbitalBotShouldContest(this.map,this.orbitalCharge,
         roster.find(b=>b.id===c.id)!,roster,threatDistance)
-        ?orbitalBotDeckGoal(c.pos,c.team):null;
-      const ctfIntent = !orbitalObjective && this.opts.mode === "ctf" && (c.team === "red" || c.team === "blue") && !ctfEngageThreat(threatDistance,c.weaponId)
+        ?orbitalBotDeckGoal(c.pos,c.team,this.map):null;
+      const ctfIntent = !orbitalObjective && this.opts.mode === "ctf" && (c.team === "red" || c.team === "blue") && !ctfEngageThreat(threatDistance,c.weaponId,this.ctfOvertime)
         ? ctfBotIntent(this.ctfFlags,c.team,c.id,c.pos,c.weaponId,
             [...this.combatants.values()].filter(p=>p.isBot&&p.team===c.team).map(p=>p.id),
             Object.fromEntries([...this.combatants.values()].filter(p=>p.alive).map(p=>[p.id,p.pos]).concat(
-              this.alive?[[this.selfId,[this.pos.x,this.pos.y,this.pos.z] as Vec3]]:[])),this.map.id)
+              this.alive?[[this.selfId,[this.pos.x,this.pos.y,this.pos.z] as Vec3]]:[])),this.map,Date.now(),this.ctfOvertime)
         : null;
-      const ctfObjective = ctfIntent ? ctfStairWaypoint(ctfIntent.goal,c.pos,this.map.id) : null;
+      const ctfObjective = ctfIntent ? ctfStairWaypoint(ctfIntent.goal,c.pos,this.map) : null;
       ai.ctfGuarding=!!ctfIntent && ctfIntent.role.startsWith("defend");
       const ctfCritical=ctfIntent?.role==="recover"||ctfIntent?.role==="escort";
       const base=c.team==="red"||c.team==="blue"?ctfBase(c.team,this.map.id):null;
@@ -8747,9 +12205,9 @@ export class FPSEngine {
             }
           }
           if(ai.highGroundPatrol)ai.wanderTarget=[...ai.highGroundPatrol.roof] as Vec3;
-          else if(Math.hypot(ai.wanderTarget[0]-c.pos[0],ai.wanderTarget[2]-c.pos[2])<2.5)
+          else if(botPatrolDistance(c.pos,ai.wanderTarget)<2.5)
             ai.wanderTarget=chooseBotPatrolPoint(c.team,this.opts.mode,c.pos,
-              this.map.spawns.red,this.map.spawns.blue,this.map.spawns.ffa);
+              this.map.spawns.red,this.map.spawns.blue,this.map.spawns.ffa,Math.random,this.map.id);
         }
       }
       if (Math.random() < 0.4) ai.strafeDir = -ai.strafeDir;
@@ -8764,7 +12222,7 @@ export class FPSEngine {
     };
     const candidate = targetIsSelf ? selfCombatant : target;
     const candidateDist=candidate?Math.hypot(candidate.pos[0]-c.pos[0],candidate.pos[2]-c.pos[2]):Infinity;
-    const tgt=candidate?.alive &&
+    const tgt=!flashBlinded && candidate?.alive &&
       candidateDist<=Math.min(botDetectionRange(ai.difficulty,w.category),
         this.map.id==="whiteout_depot"?whiteoutVisibility(this.environmentTime,c.pos):Infinity) &&
       this.hasLineOfSight([c.pos[0],c.pos[1]+PLAYER_HEIGHT/2,c.pos[2]],
@@ -8772,6 +12230,7 @@ export class FPSEngine {
       ? candidate : null;
     if(tgt)ai.lastSighting=botRememberSighting(tgt.id,tgt.pos,now);
     else if(ai.targetId){ai.targetId=null;ai.nextDecisionAt=0;}
+    if(tgt && !boss && this.opts.mode!=="gungame")this.tryOfflineBotTacticalUse(c,tgt,now);
     // Bots receive each shell only after its insert time. They can return fire
     // after the first completed shell if threatened.
     if (w.stats.reloadStyle === "incremental" &&
@@ -8818,14 +12277,14 @@ export class FPSEngine {
       const stance = botCombatDecision(w.category, dist, clearShot,
         reactionReady, aimSettled, ai.ammoInMag > 0, now < ai.reloadingUntil,ai.difficulty,ai.archetype);
       ai.sprinting = stance.sprinting;
-      ai.aiming = stance.aiming;
+      ai.aiming = stance.aiming && !isTaserAdsBlocked(this.botTacticalAdsBlockedUntil.get(c.id)??0,now);
       if(now>=(ai.nextCombatJumpAt??0)&&botWantsCombatJump(ai.difficulty,w.category,dist,clearShot,
         ai.envJumpVelocityY===undefined&&botHasJumpClearance(this.coverNear(c.pos[0],c.pos[2],2.5),c.pos),now,ai.nextCombatJumpAt??0,Math.random())){
         ai.envJumpVelocityY=MOVEMENT.jumpVelocity;ai.envLaunchX=0;ai.envLaunchZ=0;ai.nextCombatJumpAt=now+botTactics(ai.difficulty).jumpCooldown;
       }
       const botCarryingFlag=this.opts.mode==="ctf"&&(this.ctfFlags.red.carrierId===c.id||this.ctfFlags.blue.carrierId===c.id);
-      const speed = (botCarryingFlag ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * ctfCarrierWeaponSpeed(eff.moveSpeed,botCarryingFlag) *
-        (orbitalReaperEquipped(this.map.id,c.weaponId)&&!botCarryingFlag?ORBITAL_REAPER_SPEED_MULTIPLIER:1) * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame") * floodgateWaterEffect(c.pos[0],c.pos[1],c.pos[2],floodAge,this.map.cover).speedMultiplier;
+      const speed = (botCarryingFlag ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * botMovementPerkMultiplier(perk,ai.sprinting)/botMovementPerkMultiplier(perk) * ctfCarrierWeaponSpeed(eff.moveSpeed,botCarryingFlag) *
+        (orbitalReaperEquipped(this.map,c.weaponId)&&!botCarryingFlag?ORBITAL_REAPER_SPEED_MULTIPLIER:1) * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame") * floodgateWaterEffect(c.pos[0],c.pos[1],c.pos[2],floodAge,this.map.cover).speedMultiplier;
       const ideal=w.category==="melee" ? Math.max(.7,w.stats.range-.15) : stance.idealDistance;
       const chaseThreshold=w.category==="melee" ? ideal : ideal+3;
       // Determine the desired movement vector for this frame.
@@ -8838,11 +12297,11 @@ export class FPSEngine {
           (Math.abs(tgt.pos[1] - c.pos[1]) > 1.3 || this.opts.mapId==="bunker" ||
           this.botMoveBlocked(c.pos,[c.pos[0]+mvx*6,c.pos[1],c.pos[2]+mvz*6],c.pos[1]) ||
           floodgateRouteNeedsDetour(c.pos,tgt.pos,floodAge,this.map.cover))) {
-        if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
-          ai.routeWaypoint=botNextWaypoint(c.pos,tgt.pos,this.map.cover,this.map.size,3,floodgatePathHazards(this.map,this.floodgateBreachAt!==null),
-            this.map.regions,this.coverIndex()??undefined,this.coverIndex()?280:1000,floodAge) ??
+        if(now>=(ai.nextRouteAt??0)&&this.botRouteBudget.take()){
+          ai.routeWaypoint=botNextWaypoint(c.pos,botMapRouteGoal(this.map.id,c.pos,tgt.pos),this.map.cover,this.map.size,3,floodgatePathHazards(this.map,this.floodgateBreachAt!==null),
+            this.map.regions,this.coverIndex()??undefined,this.isCityMap()?280:1000,floodAge) ??
             botHighGroundWaypoint(c.pos,tgt.pos,this.map.cover);
-          ai.nextRouteAt=now+850;
+          ai.nextRouteAt=now+850+botRouteJitter(c.id);
         }
         const waypoint=ai.routeWaypoint;
         if(waypoint){const wx=waypoint[0]-c.pos[0],wz=waypoint[2]-c.pos[2],len=Math.hypot(wx,wz);
@@ -8919,25 +12378,43 @@ export class FPSEngine {
       const missChance = (1 - ai.skill) * 0.45 + 0.03;
       const missThisShot = Math.random() < missChance;
       const missSpread = missThisShot ? eff.spread * 8 + 0.04 : 0;
-      const mechanicalSpread = botShotSpread(eff, !!ai.aiming);
+      const botTaserSpread=isTaserAdsBlocked(this.botTacticalAdsBlockedUntil.get(c.id)??0,now)?
+        TASER_HIPFIRE_SPREAD_MULTIPLIER:1;
+      const mechanicalSpread = botShotSpread(eff, !!ai.aiming, w.category)*botTaserSpread;
+      const botShotgun = w.category === "shotgun" && !w.wonder && (eff.pellets ?? 1) > 1;
+      const baseAimJitter = botShotgun ? 0 : mechanicalSpread * 2;
+
+      if(clearShot&&reacted&&!ai.sprinting&&now>ai.nextShotAt&&now>ai.reloadingUntil)
+        this.tryOfflineBotWonder(c,tgt,now);
 
       if (!ai.sprinting && clearShot && reacted && now > ai.nextShotAt && ai.ammoInMag > 0 && now > ai.reloadingUntil && !burstPaused && (w.id!==ORBITAL_REAPER_ID||dist<=ORBITAL_PULSE_RADIUS)) {
         const origin: Vec3 = [c.pos[0], c.pos[1] + 1.5, c.pos[2]];
         // Final aim = bot yaw/pitch + weapon spread + spray drift + distance spread + (miss boost)
-        const aimYaw = c.yaw + ai.sprayDriftYaw + (Math.random() - 0.5) * (mechanicalSpread * 2 + distSpread + missSpread);
-        const aimPitch = c.pitch + ai.sprayDriftPitch + (Math.random() - 0.5) * (mechanicalSpread * 2 + distSpread + missSpread);
+        const aimYaw = c.yaw + ai.sprayDriftYaw + (Math.random() - 0.5) * (baseAimJitter + distSpread + missSpread);
+        const aimPitch = c.pitch + ai.sprayDriftPitch + (Math.random() - 0.5) * (baseAimJitter + distSpread + missSpread);
         const dir = this.dirFromYawPitch(aimYaw, aimPitch);
-        if(w.category==="melee"){
+        if(isThrowingKnife(w.id)){
+          const spent=spendThrowingKnife({charges:ai.ammoInMag,nextAt:ai.knifeNextAt??0},now,this.opts.mode==="gungame");
+          if(spent){
+            ai.ammoInMag=spent.charges;ai.knifeNextAt=spent.nextAt;
+            this.spawnThrowingKnifeProjectile(origin,dir);
+            this.botFireRay(c,origin,dir,eff,w.stats.headshotMult);
+          }
+        }else if(w.category==="melee"){
           if(w.id===ORBITAL_REAPER_ID)this.offlineOrbitalBotSwing(c);
           else this.offlineBotMeleeSwing(c,w.id);
+        }else if(w.explosive){
+          this.spawnRocketProjectile(origin,dir,c.weaponSkinId,eff.damage,true,w.id,c);
         }else{
           const pellets = eff.pellets ?? 1;
           for (let i = 0; i < pellets; i++) {
-            const pdir = pellets > 1 ? this.normalize(this.add(dir, this.randSpread(mechanicalSpread))) : dir;
+            const pdir = botShotgun
+              ? shotgunPelletDirection(dir, {...eff,spread:eff.spread*botTaserSpread}, !!ai.aiming, undefined, i)
+              : pellets > 1 ? this.normalize(this.add(dir, this.randSpread(mechanicalSpread))) : dir;
             this.botFireRay(c, origin, pdir, eff, w.stats.headshotMult);
           }
         }
-        if(w.category!=="melee")this.spawnTracer(origin, dir, c.weaponSkinId);
+        if(w.category!=="melee"&&!w.explosive)this.spawnTracer(origin,dir,c.weaponSkinId,eff.coverPenetration??0,eff.range);
         c.lastFireRecoil = now;
         ai.lastFiredAt = now;
         if(w.category!=="melee")ai.ammoInMag--;
@@ -8953,7 +12430,7 @@ export class FPSEngine {
         // but the check is wired correctly so a future loadout pass would Just Work.
         if(w.category!=="melee")this.playEnemyFireSound(c.pos, c.weaponId, ai.attachments.barrel === "barrel_suppressor");
         // Accumulate spray drift from this shot (recovers when not firing).
-        const driftKick = eff.recoil * 0.0042 * (1 - ai.skill * 0.5);
+        const driftKick = eff.recoil * recoilMultiplier(perk) * 0.0042 * (1 - ai.skill * 0.5);
         ai.sprayDriftPitch += driftKick;  // climb up
         ai.sprayDriftYaw += (Math.random() - 0.5) * driftKick * 0.8;  // horizontal wander
         // Clamp drift so it doesn't spiral to infinity
@@ -8984,12 +12461,12 @@ export class FPSEngine {
       const lowAmmo = ai.ammoInMag <= Math.max(1, Math.floor(eff.magSize * 0.3));
       const wantSmartReload = lowAmmo && !enemyVisible && ai.skill > 0.4 &&
         canStartWeaponReload(w.stats, ai.ammoInMag) && Math.random() < 0.02;
-      if (!ai.sprinting && (ai.ammoInMag <= 0 || wantSmartReload) && now > ai.reloadingUntil) {
+      if (!isThrowingKnife(w.id) && (!ai.sprinting || perk==="field_loader") && (ai.ammoInMag <= 0 || wantSmartReload) && now > ai.reloadingUntil) {
         const durationMs = w.stats.reloadStyle === "incremental"
           ? Math.max(300, (w.stats.reloadPerRound ?? eff.reloadTime / eff.magSize) *
               eff.reloadTime / Math.max(0.01, w.stats.reloadTime) * 1000)
           : eff.reloadTime * 1000;
-        ai.reloadingUntil = now + durationMs;
+        ai.reloadingUntil = now + durationMs * reloadDurationMultiplier(perk);
         if (w.stats.reloadStyle !== "incremental") ai.ammoInMag = eff.magSize;
         ai.burstShotsLeft = 0;
         ai.burstEndsAt = now + durationMs;
@@ -8998,11 +12475,16 @@ export class FPSEngine {
       const patrolGoal=ai.highGroundPatrol;
       const patrolPoint=patrolGoal?cityHighGroundStep(c.pos,patrolGoal,
         this.coverNear(c.pos[0],c.pos[2],35)):ai.wanderTarget;
-      const dx=patrolPoint[0]-c.pos[0],dz=patrolPoint[2]-c.pos[2];
+      const navPoint=botMapRouteGoal(this.map.id,c.pos,patrolPoint);
+      const dx=navPoint[0]-c.pos[0],dz=navPoint[2]-c.pos[2];
       const d=Math.hypot(dx,dz);
-      ai.aiming=ai.archetype==="marksman" && d<=2.5;
-      ai.sprinting = botPatrolSprint(d,ai.difficulty,ai.archetype);
-      if(d<=1.5){
+      const floorMismatch=Math.abs(navPoint[1]-c.pos[1])>1.15;
+      ai.aiming=ai.archetype==="marksman" && d<=2.5 &&
+        !isTaserAdsBlocked(this.botTacticalAdsBlockedUntil.get(c.id)??0,now);
+      // Sudden death calls for direct objective pressure, not leisurely patrols.
+      ai.sprinting = (this.opts.mode==="ctf" && this.ctfOvertime && d>6) ||
+        botPatrolSprint(d,ai.difficulty,ai.archetype);
+      if(d<=1.5&&!floorMismatch){
         if(ai.investigationLookAt){
           const last=ai.investigationLookAt;
           const dx=last[0]-c.pos[0],dz=last[2]-c.pos[2];
@@ -9015,22 +12497,22 @@ export class FPSEngine {
           c.yaw=this.lerpAngle(c.yaw,ai.idleLookYaw+Math.sin(now/2300+c.id.length)*.5,.1);
         }
       }else ai.idleLookYaw=undefined;
-      if(d>(patrolGoal?.38:1.5)){
+      if(d>(patrolGoal?.38:1.5)||floorMismatch){
         // Task 16-a: wall-ahead lookahead. Probe 2 units forward in the
         // movement direction. If blocked, rotate the movement direction by
         // ±35° (sign from ai.strafeDir) so the bot angles around the obstacle
         // instead of headbutting it. The yaw is set to the rotated direction
         // so the bot faces where it's going.
-        let fx = dx / d, fz = dz / d;
+        let fx = d>.001?dx/d:0, fz = d>.001?dz/d:0;
         const patrolBlocked = this.botMoveBlocked(c.pos, [c.pos[0]+fx*4,c.pos[1],c.pos[2]+fz*4],c.pos[1]);
         if((patrolBlocked || (patrolGoal&&d>5) ||
-            Math.abs(patrolPoint[1]-c.pos[1])>1.3 || this.opts.mapId==="bunker" ||
+            floorMismatch || this.opts.mapId==="bunker" ||
             floodgateRouteNeedsDetour(c.pos,patrolPoint,floodAge,this.map.cover)) &&
             (!patrolGoal||d>4.5)){
-          if(now>(ai.nextRouteAt??0)||!ai.routeWaypoint){
-            ai.routeWaypoint=botNextWaypoint(c.pos,patrolPoint,this.map.cover,this.map.size,3,
-              floodgatePathHazards(this.map,this.floodgateBreachAt!==null),this.map.regions,this.coverIndex()??undefined,this.coverIndex()?280:1000,floodAge);
-            ai.nextRouteAt=now+(this.coverIndex()?1500:850);
+          if(now>=(ai.nextRouteAt??0)&&this.botRouteBudget.take()){
+            ai.routeWaypoint=botNextWaypoint(c.pos,navPoint,this.map.cover,this.map.size,3,
+              floodgatePathHazards(this.map,this.floodgateBreachAt!==null),this.map.regions,this.coverIndex()??undefined,this.isCityMap()?280:1000,floodAge);
+            ai.nextRouteAt=now+(this.isCityMap()?1500:850)+botRouteJitter(c.id);
           }
           const waypoint=ai.routeWaypoint;
           if(waypoint){const wx=waypoint[0]-c.pos[0],wz=waypoint[2]-c.pos[2],wd=Math.hypot(wx,wz);
@@ -9062,7 +12544,7 @@ export class FPSEngine {
         // Task 16-a: substepped, collision-aware movement (brings the wander
         // path to parity with the engage path so bots can't clip into walls
         // mid-wander). SUBSTEP=0.15, with slide-along-wall + 45° diagonal.
-        const moveSpeed = (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === c.id || this.ctfFlags.blue.carrierId === c.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 5 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * dt * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame") * floodgateWaterEffect(c.pos[0],c.pos[1],c.pos[2],floodAge,this.map.cover).speedMultiplier;
+        const moveSpeed = (this.opts.mode === "ctf" && (this.ctfFlags.red.carrierId === c.id || this.ctfFlags.blue.carrierId === c.id) ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 5 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * dt * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame") * floodgateWaterEffect(c.pos[0],c.pos[1],c.pos[2],floodAge,this.map.cover).speedMultiplier * ((this.botCryoSlowUntil.get(c.id)??0)>performance.now()?CRYO_SLOW_FACTOR:1);
         const mvx = fx * moveSpeed * cornerSpeed;
         const mvz = fz * moveSpeed * cornerSpeed;
         const moveLen = Math.hypot(mvx, mvz);
@@ -9109,10 +12591,12 @@ export class FPSEngine {
     c.pos = this.clamp(this.collideBots(c.pos, c.pos[1]));
     if (c.ai?.envJumpVelocityY !== undefined) {
       const vy = c.ai.envJumpVelocityY;
-      c.pos = [c.pos[0] + (c.ai.envLaunchX ?? 0) * dt,
-        c.pos[1] + vy * dt,
-        c.pos[2] + (c.ai.envLaunchZ ?? 0) * dt];
-      c.ai.envJumpVelocityY = vy - 22 * orbitalGravity(this.map.id,c.weaponId) * dt;
+      const launchDx=(c.ai.envLaunchX ?? 0)*dt,launchDz=(c.ai.envLaunchZ ?? 0)*dt;
+      const airCover=this.coverAlong(c.pos,
+        [c.pos[0]+launchDx,c.pos[1],c.pos[2]+launchDz],2.5);
+      const airborne=botAirStep(airCover,c.pos,launchDx,vy*dt,launchDz);
+      c.pos=airborne.pos;
+      c.ai.envJumpVelocityY=airborne.hitCeiling?0:vy-22*orbitalGravity(this.map,c.weaponId)*dt;
       const ground = botGroundHeight(this.coverNear(c.pos[0],c.pos[2],2.5), c.pos[0], c.pos[2], c.pos[1]);
       if (c.ai.envJumpVelocityY <= 0 && c.pos[1] <= ground) {
         c.pos[1] = ground;
@@ -9141,7 +12625,7 @@ export class FPSEngine {
       if (ai.stuckSince > 0 && now - ai.stuckSince > 1200) {
         // Reset stuck patrol toward enemy territory, not the same team spawn.
         ai.wanderTarget = chooseBotPatrolPoint(c.team, this.opts.mode, c.pos,
-          this.map.spawns.red, this.map.spawns.blue, this.map.spawns.ffa);
+          this.map.spawns.red, this.map.spawns.blue, this.map.spawns.ffa,Math.random,this.map.id);
         ai.highGroundPatrol=null;ai.highGroundExpiresAt=now+4500;
         ai.targetId = null;        // wander instead of engaging
         ai.lastSighting=null;ai.investigationLookAt=null;
@@ -9157,12 +12641,184 @@ export class FPSEngine {
     }
     // Record this tick's position for next tick's stuck measurement.
     const stepDistance=Math.hypot(c.pos[0]-ai.lastPosX,c.pos[2]-ai.lastPosZ);
-    if(stepDistance>.08&&now-(ai.lastNoiseStepAt??0)>(ai.sprinting?280:390)){
+    if(perk!=="silent_steps"&&stepDistance>.08&&now-(ai.lastNoiseStepAt??0)>(ai.sprinting?280:390)){
       ai.lastNoiseStepAt=now;
       this.publishBotNoise({sourceId:c.id,pos:c.pos,at:now,kind:"footstep",sprinting:!!ai.sprinting});
     }
     ai.lastPosX = c.pos[0];
     ai.lastPosZ = c.pos[2];
+  }
+
+  /** Offline tactical AI uses the same selection, cadence and physical throw
+   * planner as the authoritative server. Match progression never credits the
+   * local player for another bot's equipment damage.
+   */
+  private tryOfflineBotTacticalUse(bot:Combatant,target:Combatant,now:number):void {
+    const ai=bot.ai;
+    if(!ai||!bot.alive)return;
+    let state=this.botTacticalState.get(bot.id);
+    if(!state){
+      const id=this.opts.mode==="survival"
+        ?survivalBotTactical(Math.floor(Math.random()*2))
+        :botTacticalForArchetype(ai.archetype,Math.floor(Math.random()*2));
+      state={id,charges:equipmentById(id).charges,nextAt:now+3500+Math.random()*3000};
+      this.botTacticalState.set(bot.id,state);
+    }
+    const def=equipmentById(state.id);
+    const recharged=rechargeTactical({charges:state.charges,nextAt:state.rechargeAt??0},
+      now,bot.perkId,def.charges);
+    state.charges=recharged.charges;state.rechargeAt=recharged.nextAt;
+    if(now<state.nextAt)return;
+    const distance=Math.hypot(target.pos[0]-bot.pos[0],target.pos[2]-bot.pos[2]);
+    const nearTarget=[...this.combatants.values()].some(c=>c.alive&&c.id!==bot.id&&
+      this.opts.mode!=="ffa"&&c.team===bot.team&&
+      Math.hypot(c.pos[0]-target.pos[0],c.pos[2]-target.pos[2])<def.radius+1)||
+      (this.alive&&this.opts.mode!=="ffa"&&bot.team===this.opts.team&&
+       Math.hypot(this.pos.x-target.pos[0],this.pos.z-target.pos[2])<def.radius+1);
+    const allowed=botTacticalCanUse({equipmentId:state.id,distance,visible:true,
+      targetProtected:target.id===this.selfId?this.selfSpawnProtectedUntil>Date.now():
+        (target.spawnProtectedUntil??0)>Date.now(),
+      friendlyAtImpact:(state.id==="frag"||state.id==="flashbang")&&nearTarget,
+      charges:state.charges,now,readyAt:state.nextAt,targetAgeMs:now-ai.acquiredTargetAt,
+      guarding:!!ai.ctfGuarding,lowHealth:bot.health<=45});
+    state.nextAt=now+650;
+    if(!allowed)return;
+    const plan=planBotTacticalThrow(bot.pos,target.pos,state.id,this.map.cover,this.map.id,ai.difficulty);
+    if(!plan)return;
+    const unsafe=(state.id==="frag"||state.id==="flashbang")&&
+      ([...this.combatants.values()].some(c=>c.alive&&c.id!==bot.id&&this.opts.mode!=="ffa"&&
+        c.team===bot.team&&Math.hypot(c.pos[0]-plan.path.impact[0],c.pos[2]-plan.path.impact[2])<def.radius+1)||
+        (this.alive&&this.opts.mode!=="ffa"&&bot.team===this.opts.team&&
+         Math.hypot(this.pos.x-plan.path.impact[0],this.pos.z-plan.path.impact[2])<def.radius+1));
+    if(unsafe)return;
+    const spent=spendTactical({charges:state.charges,nextAt:state.rechargeAt??0},
+      now,bot.perkId,def.charges);
+    state.charges=spent.charges;state.rechargeAt=spent.nextAt;
+    state.nextAt=now+7300+Math.random()*3200;
+    ai.nextShotAt=Math.max(ai.nextShotAt,now+560);
+    bot.spawnProtectedUntil=0;
+    bot.yaw=plan.yaw;bot.pitch=plan.pitch;
+    const path=plan.path,id=state.id;
+    if(id==="mine"){
+      const position=groundMineImpact(path.impact,bot.pos[1],this.map.cover);
+      this.offlineMines.push({pos:position,mesh:this.makeMineMarker(position),
+        ownerId:bot.id,ownerTeam:bot.team});
+      this.playEquipmentCue(id,"placed",position);
+      return;
+    }
+    this.playEquipmentCue(id,"release",path.points[0]);
+    this.animateEquipmentPath(path.points,id,path.flightMs,()=>{
+      if(this.disposed||this.matchEnded)return;
+      const impact=path.impact;
+      this.playEquipmentCue(id,"impact",impact);
+      const targets=[...this.combatants.values()].filter(c=>c.alive&&c.id!==bot.id&&
+        (this.opts.mode==="ffa"||c.team!==bot.team)&&
+        !(c.spawnProtectedUntil&&c.spawnProtectedUntil>Date.now()));
+      if(this.alive&&bot.team!==this.opts.team||this.alive&&this.opts.mode==="ffa"){
+        targets.push({id:this.selfId,name:this.opts.playerName,team:this.opts.team as string,
+          isBot:false,isSelf:true,pos:[this.pos.x,this.pos.y,this.pos.z],yaw:this.yaw,pitch:this.pitch,
+          health:this.health,alive:this.alive,weaponId:this.weaponId,weaponSkinId:"default",
+          playerSkinId:"default",kills:this.kills,deaths:this.deaths,score:this.kills});
+      }
+      if(def.type==="knife"||def.type==="poison"||def.type==="taser"){
+        let nearest:{c:Combatant;t:number}|null=null;
+        for(const c of targets){
+          const center:Vec3=[c.pos[0],c.pos[1]+1,c.pos[2]];
+          for(let i=1;i<path.points.length;i++){
+            const a=path.points[i-1],b=path.points[i],v:Vec3=[b[0]-a[0],b[1]-a[1],b[2]-a[2]];
+            const d2=v[0]*v[0]+v[1]*v[1]+v[2]*v[2]||1;
+            const t=Math.max(0,Math.min(1,((center[0]-a[0])*v[0]+(center[1]-a[1])*v[1]+(center[2]-a[2])*v[2])/d2));
+            const miss=Math.hypot(center[0]-a[0]-v[0]*t,center[1]-a[1]-v[1]*t,center[2]-a[2]-v[2]*t);
+            if(miss<.78&&(!nearest||i+t<nearest.t))nearest={c,t:i+t};
+          }
+        }
+        if(nearest){
+          this.damageFromOfflineBotTactical(bot,nearest.c,def.damage,id,def.type==="knife");
+          if(def.type==="taser" && (nearest.c.id===this.selfId?this.alive:nearest.c.alive)){
+            const until=performance.now()+TASER_ADS_BLOCK_MS;
+            if(nearest.c.id===this.selfId){
+              this.equipmentAdsBlockedUntil=Math.max(this.equipmentAdsBlockedUntil,until);
+              this.aiming=false;
+            }else{
+              this.botTacticalAdsBlockedUntil.set(nearest.c.id,Math.max(this.botTacticalAdsBlockedUntil.get(nearest.c.id)??0,until));
+              if(nearest.c.ai)nearest.c.ai.aiming=false;
+            }
+            this.spawnTacticalStatusVisual(nearest.c.id,"stun",TASER_ADS_BLOCK_MS);
+          }
+          if(def.type==="poison"&&nearest.c.alive){
+            const victimId=nearest.c.id,deathCount=this.deaths,victimDeaths=nearest.c.deaths;
+            for(let i=1;i<=9;i++)setTimeout(()=>{
+              if(this.disposed||this.matchEnded)return;
+              if(victimId===this.selfId){
+                if(this.alive&&this.deaths===deathCount)this.takeDamage(2,bot.name,bot.team,false,"equipment_poison_dart",bot.pos);
+              }else{
+                const victim=this.combatants.get(victimId);
+                if(victim?.alive && victim.deaths===victimDeaths)
+                  this.damageFromOfflineBotTactical(bot,victim,2,"poison_dart");
+              }
+            },i*500);
+          }
+        }
+      }else{
+        for(const c of targets){
+          const d=Math.hypot(c.pos[0]-impact[0],c.pos[2]-impact[2]);
+          if(d>def.radius||!this.hasLineOfSight([impact[0],impact[1]+.3,impact[2]],[c.pos[0],c.pos[1]+1,c.pos[2]]))continue;
+          if(def.type==="blast")this.damageFromOfflineBotTactical(bot,c,fragDamage(d),id);
+          else if(def.type==="flash"){
+            const duration=flashDurationMs(d),now=performance.now();
+            const eye:[number,number,number]=[c.pos[0],c.pos[1]+1,c.pos[2]];
+            const visibleMs=Math.round(duration*flashFacingExposure(eye,c.id===this.selfId?this.yaw:c.yaw,impact));
+            if(c.id===this.selfId){
+              this.equipmentFlashAudioUntil=Math.max(this.equipmentFlashAudioUntil,now+duration);
+              if(visibleMs>0)this.equipmentFlashUntil=Math.max(this.equipmentFlashUntil,now+visibleMs);
+            }else if(visibleMs>0){
+              this.botFlashUntil.set(c.id,Math.max(this.botFlashUntil.get(c.id)??0,now+visibleMs));
+              if(c.ai){c.ai.targetId=null;c.ai.lastSighting=null;c.ai.lastAlert=null;c.ai.nextDecisionAt=0;}
+              this.spawnTacticalStatusVisual(c.id,"flash",visibleMs);
+            }
+          }
+        }
+        if(def.type==="blast"){
+          this.damageLocalBallisticCoverExplosion(impact,def.radius,def.damage,def.id);
+          this.spawnExplosion(new THREE.Vector3(...impact),undefined,def.radius);
+        } else this.spawnEquipmentVisual(impact,0xffffff);
+        this.spawnTacticalBlastRing(impact,def.radius,def.type==="flash");
+      }
+    },path.timesMs);
+  }
+
+  private damageFromOfflineBotTactical(attacker:Combatant,victim:Combatant,damage:number,id:EquipmentId,directLethal=false,sourceWeaponId="equipment_"+id,allowSelf=false):void {
+    if(!victim.alive||(victim.id===attacker.id&&!allowSelf))return;
+    if(victim.id===this.selfId){
+      // Survival defensive upgrades may reduce incoming damage, so a direct
+      // knife or mine hit must stay lethal after that reduction.
+      if(directLethal)damage=Math.max(damage,this.health*8);
+      this.takeDamage(damage,attacker.name,attacker.team,false,sourceWeaponId,attacker.pos);
+      return;
+    }
+    if((victim.spawnProtectedUntil??0)>Date.now())return;
+    if(directLethal)damage=tacticalDirectDamage(damage,victim.health,!!victim.bossMaxHealth);
+    damage=survivalNonLethalTaserDamage(damage,victim.health,this.opts.mode,attacker.isBot,sourceWeaponId);
+    victim.health-=damage;
+    if(victim.health>0)return;
+    victim.alive=false;victim.deaths++;
+    victim.deathAnimAt=performance.now();victim.deathAnimDur=900;
+    this.offlineAssistDamage.delete(victim.id);
+    if(this.opts.mode==="ffa"||attacker.team!==victim.team)this.recordOrbitalKill(victim.pos,attacker.pos);
+    this.releaseOrbitalBotWeapon(victim);
+    if(this.opts.mode==="ctf")this.dropOfflineCtfCarrier(victim.id,[...victim.pos] as Vec3);
+    if(attacker.id!==victim.id)attacker.kills++;
+    if(this.opts.mode!=="killconfirmed"&&this.opts.mode!=="ctf")attacker.score=attacker.kills;
+    if(this.opts.mode==="tdm"&&attacker.id!==victim.id)this.teamScores[attacker.team as "red"|"blue"]++;
+    if(this.opts.mode==="killconfirmed")this.dropLocalKillConfirmedTag(victim.id,victim.team,victim.pos);
+    const entry:KillFeedEntry={killer:attacker.name,victim:victim.name,weapon:sourceWeaponId,
+      headshot:false,killerTeam:attacker.team,victimTeam:victim.team};
+    this.killFeed.unshift(entry);if(this.killFeed.length>6)this.killFeed.pop();
+    this.opts.onKillFeed(entry);
+    if(attacker.perkId==="scavenger"&&attacker.ai)attacker.ai.ammoInMag=
+      botMagazineCapacity(attacker.weaponId,attacker.ai.attachments);
+    this.scheduleRespawn(victim);
+    this.checkWin();
   }
 
   private nearestEnemy(c: Combatant): Combatant | null {
@@ -9172,7 +12828,19 @@ export class FPSEngine {
       pos: [this.pos.x, this.pos.y, this.pos.z], yaw: 0, pitch: 0, health: this.health, alive: this.alive,
       weaponId: this.weaponId, weaponSkinId: "", playerSkinId: "", kills: 0, deaths: 0, score: 0,
     };
-    const candidates = [...this.combatants.values(), selfC];
+    // Reuse a very short-lived perception decision across render frames. Actual
+    // attack checks below still test line of sight on the current positions.
+    const now=performance.now();
+    const cached=this.botEnemySearchCache.get(c.id);
+    if(cached&&now<cached.nextAt){
+      if(cached.targetId===null)return null;
+      const target=cached.targetId===this.selfId?selfC:this.combatants.get(cached.targetId);
+      if(target?.alive)return target;
+    }
+    const radius=Math.min(botDetectionRange(c.ai?.difficulty??"normal",weaponById(c.weaponId).category)*botAwarenessPerkMultiplier(c.perkId),
+      this.map.id==="whiteout_depot"?whiteoutVisibility(this.environmentTime,c.pos):Infinity);
+    const candidates = [...(this.actorIndex.size
+      ?this.actorIndex.near(c.pos[0],c.pos[2],radius):this.combatants.values()), selfC];
     // Bots require LINE OF SIGHT to acquire a target (no longer omniscient).
     // If no visible enemy exists, the bot wanders. This makes bots feel less
     // psychic — you can break LoS to escape them.
@@ -9182,7 +12850,7 @@ export class FPSEngine {
       const d = Math.hypot(e.pos[0] - c.pos[0], e.pos[2] - c.pos[2]);
       if (d >= bestD) continue;
       // Only acquire targets within engagement range AND with clear LoS.
-      if (d > Math.min(botDetectionRange(c.ai?.difficulty??"normal",weaponById(c.weaponId).category),
+      if (d > Math.min(botDetectionRange(c.ai?.difficulty??"normal",weaponById(c.weaponId).category)*botAwarenessPerkMultiplier(c.perkId),
         this.map.id==="whiteout_depot"?whiteoutVisibility(this.environmentTime,c.pos):Infinity)) continue;
       const fromY = c.pos[1] + PLAYER_HEIGHT / 2;
       const toY = e.pos[1] + PLAYER_HEIGHT / 2;
@@ -9190,6 +12858,8 @@ export class FPSEngine {
       bestD = d;
       best = e;
     }
+    this.botEnemySearchCache.set(c.id,{targetId:best?.id??null,
+      nextAt:now+130+botRouteJitter(c.id,90)});
     return best;
   }
 
@@ -9210,7 +12880,7 @@ export class FPSEngine {
   }
 
   private botFireRay(attacker: Combatant, origin: Vec3, dir: Vec3, eff: EffectiveStats, headshotMult: number) {
-    let nearest: { victim: Combatant; t: number; head: boolean; shield?:boolean } | null = null;
+    const contacts: BodyRayContact<Combatant>[] = [];
     const selfC: Combatant = {
       id: this.selfId, name: this.opts.playerName, team: this.opts.team as string, isBot: false, isSelf: true,
       pos: [this.pos.x, this.pos.y, this.pos.z], yaw: 0, pitch: 0, health: this.health, alive: this.alive,
@@ -9221,35 +12891,47 @@ export class FPSEngine {
     for (const e of candidates) {
       if (e.id === attacker.id || !e.alive) continue;
       if (e.team === attacker.team && this.opts.mode !== "ffa" && this.opts.mode !== "gungame") continue;
-      const panel=rayRiotShield(origin,dir,e);
-      if(panel!==null&&panel<=maxWeaponHitRange(eff.range,eff)&&(!nearest||panel<nearest.t))nearest={victim:e,t:panel,head:false,shield:true};
-      const hit = rayCombatantHit(origin, dir, e.pos);
-      if (hit && hit.t <= maxWeaponHitRange(eff.range, eff)) {
-        if (!nearest || hit.t < nearest.t) nearest = { victim: e, t: hit.t, head: hit.head };
-      }
+      const panel = rayRiotShield(origin, dir, e);
+      const body = rayCombatantHit(origin, dir, e.pos);
+      const shieldFirst = panel !== null && panel >= 0 && (!body || panel < body.t);
+      const t = shieldFirst ? panel! : body?.t;
+      if (t !== undefined) contacts.push({ target: e, t, head: shieldFirst ? false : !!body?.head,
+        shield: shieldFirst, protected: e.id === this.selfId
+          ? this.selfSpawnProtectedUntil > Date.now() : (e.spawnProtectedUntil ?? 0) > Date.now() });
     }
-    let blockedT = Infinity;
-    for (const cov of this.map.cover) {
-      const t = rayBox(origin, dir, cov.pos, cov.size);
-      if (t !== null && t < blockedT) blockedT = t;
+    const maxDistance = maxWeaponHitRange(eff.range, eff);
+    const resolved=resolveMaterialPenetrationShot(contacts,this.coverForRay(origin,dir,maxDistance),origin,dir,maxDistance,
+      eff.bodyPenetration,eff.coverPenetration);
+    const hits=resolved.hits;
+    if (!isThrowingKnife(attacker.weaponId) && this.offlineMines.length) {
+      const coverStop = traceCoverPenetration(this.coverForRay(origin,dir,maxDistance), origin, dir, maxDistance,
+        eff.coverPenetration ?? 0).blockedAt;
+      const firstBody = hits.reduce((min, hit) => Math.min(min, hit.t), Infinity);
+      if (this.shootOfflineMine(origin, dir,
+        Math.min(maxDistance, coverStop ?? Infinity, resolved.stoppedAt, firstBody))) return;
     }
-    if (nearest && nearest.t < blockedT) {
+    if(!isThrowingKnife(attacker.weaponId))
+      this.damageLocalBallisticCover(origin,dir,maxDistance,eff.coverPenetration??0,eff.damage,
+        resolved.stoppedAt);
+    for (const hit of hits) {
+      const nearest = { victim: hit.target, t: hit.t, head: hit.head, shield: hit.shield };
+      if (hit.protected) break;
       if(nearest.shield){
         if(nearest.victim.id===this.selfId){
           if(this.selfSpawnProtectedUntil>Date.now())return;
-          const next=hitRiotShield(this.riotShieldHp,this.riotShieldReadyAt,eff.damage,performance.now());
+          const next=hitRiotShield(this.riotShieldHp,this.riotShieldReadyAt,eff.damage * hit.damageScale,performance.now());
           this.riotShieldHp=next.hp;this.riotShieldReadyAt=next.readyAt;
           this.riotShieldHitFlashAt=performance.now();
           this.sound.play("melee_hit",{volume:.35,throttleMs:90});
         }else{
           const next=hitRiotShield(nearest.victim.riotShieldHp??RIOT_SHIELD_HP,
-            nearest.victim.riotShieldReadyAt??0,eff.damage,performance.now());
+            nearest.victim.riotShieldReadyAt??0,eff.damage * hit.damageScale,performance.now());
           nearest.victim.riotShieldHp=next.hp;nearest.victim.riotShieldReadyAt=next.readyAt;
         }
-        return;
+        break;
       }
       const baseDmg = eff.damage * (nearest.head ? headshotMult : 1);
-      let dmg = damageAtRange(baseDmg, nearest.t, eff.range, eff);
+      let dmg = damageAtRange(baseDmg, nearest.t, eff.range, eff) * hit.damageScale;
       // Survival: bots hit harder as waves progress, BUT base damage is reduced
       // by 35% to give players more survivability (Round 18-b balance fix).
       // Net: wave 1 = 65% damage, wave 8 = 65%*1.42 = 92%, wave 14 = 65%*1.78 = 116%.
@@ -9258,7 +12940,7 @@ export class FPSEngine {
         dmg *= 0.65 * survivalWaveDamageMul(this.survivalWave) * survivalWaveMutators(this.survivalTier,this.survivalWave).damageMul;
       // Round 20h: Check local player spawn protection — skip damage if protected.
       if (nearest.victim.id === this.selfId && this.selfSpawnProtectedUntil > Date.now()) {
-        return; // player is spawn-protected — no damage
+        break; // player is spawn-protected — bullet absorbed
       }
       if (nearest.victim.id === this.selfId) {
         const dx = this.pos.x - attacker.pos[0];
@@ -9296,7 +12978,8 @@ export class FPSEngine {
             this.assists++;
           this.offlineAssistDamage.delete(nearest.victim.id);
           nearest.victim.alive = false; nearest.victim.deaths += 1;
-          if(attacker.team!==nearest.victim.team)
+          nearest.victim.deathAnimAt = performance.now(); nearest.victim.deathAnimDur = 900;
+          if(this.opts.mode==="ffa"||this.opts.mode==="gungame"||attacker.team!==nearest.victim.team)
             this.recordOrbitalKill(nearest.victim.pos,attacker.pos);
           this.releaseOrbitalBotWeapon(nearest.victim);
           if (this.opts.mode === "ctf") this.dropOfflineCtfCarrier(nearest.victim.id, [...nearest.victim.pos] as Vec3);
@@ -9308,6 +12991,8 @@ export class FPSEngine {
           const entry: KillFeedEntry = { killer: attacker.name, victim: nearest.victim.name, weapon: attacker.weaponId, headshot: nearest.head, killerTeam: attacker.team, victimTeam: nearest.victim.team };
           this.killFeed.unshift(entry); if (this.killFeed.length > 6) this.killFeed.pop();
           this.opts.onKillFeed(entry);
+          if(attacker.perkId==="scavenger"&&attacker.ai)attacker.ai.ammoInMag=
+      botMagazineCapacity(attacker.weaponId,attacker.ai.attachments);
           // Gun Game: advance the bot attacker's tier. If they were on the
           // knife tier, this kill wins the match for them.
           if (this.opts.mode === "gungame") {
@@ -9325,18 +13010,57 @@ export class FPSEngine {
     dmg:number,attackerName:string,attackerTeam:string,head:boolean,
     weaponId="rifle_ar",attackerPos?:Vec3,
   ) {
-    if (!this.alive || this.selfSpawnProtectedUntil > Date.now()) return;
+    if (!this.alive || this.survivalDowned || (weaponId !== LAVA_DEATH_SOURCE && this.selfSpawnProtectedUntil > Date.now())) return;
+    if(!this.opts.online&&this.opts.mode==="survival"&&weaponId!==LAVA_DEATH_SOURCE)
+      dmg*=survivalIncomingMultiplier(this.survivalUpgradeRanks,{
+        healthFraction:this.health/MAX_HEALTH,
+        explosive:!!weaponById(weaponId).explosive,
+        sprinting:this.sprinting,
+      });
+    dmg=survivalNonLethalTaserDamage(dmg,this.health,this.opts.mode,
+      this.opts.mode==="survival"&&attackerTeam==="red",weaponId);
+    if(this.mechActive&&!this.opts.online&&weaponId!==LAVA_DEATH_SOURCE){
+      const front=attackerPos&&Math.atan2(attackerPos[0]-this.pos.x,attackerPos[2]-this.pos.z);
+      const frontal=front!==undefined&&Math.cos(front-this.yaw)>0;
+      if(this.mechActive.moduleId==="guardian_protocol"&&frontal)dmg*=.64;
+      this.mechActive.armor=Math.max(0,this.mechActive.armor-dmg);
+      this.damageFlashAt=performance.now();
+      if(this.mechActive.armor<=0){
+        if(this.mechActive.moduleId==="emergency_ejection")this.health=Math.max(30,this.health);
+        this.showMechExitFx(new THREE.Vector3(this.pos.x,this.pos.y+1,this.pos.z));
+        this.removeMechDrop(this.mechActive.id);this.mechActive=null;this.clearMechCockpit();
+      }
+      return;
+    }
     this.health -= dmg;
     this.damageFlashAt = performance.now();
     this.lastDamageAt = performance.now();
     // Hit-taken SFX (sharp low thud). Throttled so a burst doesn't spam.
     this.sound.play("hit_taken", { volume: 0.55, throttleMs: 80 });
     if (this.health <= 0) {
+      if(this.opts.mode==="survival" && weaponId!==LAVA_DEATH_SOURCE &&
+         canUseSelfRevive(this.survivalUpgradeRanks,this.survivalSelfReviveUsedWave,this.survivalWave)){
+        this.survivalSelfReviveUsedWave=this.survivalWave;
+        this.survivalDowned=true;
+        for (const mine of [...this.offlineMines]) if (mine.ownerId === this.selfId) this.removeOfflineMine(mine);
+        this.survivalDownedUntil=performance.now()+SURVIVAL_SELF_REVIVE_MS;
+        this.health=1;this.alive=true;this.deaths++;
+        this.currentNoDeathStreak=0;
+        this.saveAmmoToSlot(this.currentSlot);
+        this.sprinting=false;this.reloading=false;
+        this.currentSlot="secondary";this.weaponId=this.secondaryWeaponId;
+        this.eff=this.secondaryEff;this.sightDef=this.secondarySight;
+        this.ammoInMag=this.secondaryAmmoInMag;this.buildViewmodel();
+        this.sound.play("death",{volume:.7});
+        return;
+      }
       this.health = 0; this.alive = false; this.deaths += 1;
+      for (const mine of [...this.offlineMines]) if (mine.ownerId === this.selfId) this.removeOfflineMine(mine);
       this.currentNoDeathStreak = 0;
       // Falling, environmental hazards and friendly damage must not charge
       // the reactor; only a legitimate opposing-team kill contributes.
-      if ((attackerTeam==="red"||attackerTeam==="blue")&&attackerTeam!==this.opts.team)
+      if ((attackerTeam==="red"||attackerTeam==="blue"||attackerTeam==="ffa"&&attackerPos!==undefined)&&
+          (this.opts.mode==="ffa"||this.opts.mode==="gungame"||attackerTeam!==this.opts.team))
         this.recordOrbitalKill([this.pos.x,this.pos.y,this.pos.z],attackerPos);
       this.grantOrbitalReaper(false);
       if (this.opts.mode === "ctf") this.dropOfflineCtfCarrier(this.selfId, [this.pos.x,this.pos.y,this.pos.z]);
@@ -9373,7 +13097,7 @@ export class FPSEngine {
 
   private emitHud(now: number) {
     const orbitalWarning=this.orbitalSnapshotSeen
-      ?orbitalServerWarning(this.map.id,this.opts.online,this.orbitalServerVersion)
+      ?orbitalServerWarning(this.map,this.opts.online,this.orbitalServerVersion)
       :undefined;
     const radarNow = Date.now();
     for (const [id, ping] of this.radarPings) if (ping.expiresAt <= radarNow) this.radarPings.delete(id);
@@ -9389,14 +13113,32 @@ export class FPSEngine {
       scoreboard.push({ id: this.selfId, name: this.opts.playerName, team: this.opts.team as string, kills: this.kills, deaths: this.deaths, score: this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills, isBot: false, isSelf: true });
     }
     scoreboard.sort((a, b) => b.score - a.score || b.kills - a.kills);
+    const mechEnterAvailable=!this.mechActive&&this.alive&&this.opts.mode!=="gungame"&&
+      !(this.opts.mode==="ctf"&&(this.ctfFlags.red.carrierId===this.selfId||this.ctfFlags.blue.carrierId===this.selfId))&&
+      [...this.mechDrops.values()].some(d=>d.landed&&!d.enteredBy&&d.expiresAt>Date.now()&&
+        Math.hypot(this.pos.x-d.pos[0],this.pos.z-d.pos[2])<=3.2);
     this.opts.onHud({
+      mechArmor:this.mechActive?.armor,
+      mechArmorMax:this.mechActive?mechTuning(this.mechActive.moduleId).armor:undefined,
+      mechMinigunAmmo:this.mechActive?.minigunAmmo,
+      mechSecondaryAmmo:this.mechActive?.secondaryAmmo,
+      mechSecondaryName:this.mechActive?(mechTuning(this.mechActive.moduleId).secondary==="swarm"?"Swarm-3":"Shotgun"):undefined,
+      mechEnterAvailable,
+      railChargePercent:this.weaponId==="wonder_phasebreaker"&&this.ammoInMag>0&&this.railChargeAt?Math.max(0,Math.min(100,Math.round((now-this.railChargeAt)/650*100))):undefined,
+      chronoRecallMs:this.chronoAnchor?Math.max(0,this.chronoAnchor.expiresAt-Date.now()):undefined,
       health: Math.max(0, Math.round(this.health)),
       maxHealth: MAX_HEALTH,
       ammo: this.ammoInMag,
       magSize: this.eff.magSize,
+      akimbo:this.isAkimboActive(),
+      akimboLeftAmmo:this.isAkimboActive()?this.akimboAmmo.left:undefined,
+      akimboRightAmmo:this.isAkimboActive()?this.akimboAmmo.right:undefined,
+      akimboHandMagSize:this.isAkimboActive()?akimboHandCapacity(this.eff.magSize):undefined,
       heat: weaponById(this.weaponId).special?.kind === "heat" ? (this.heatStates.get(this.weaponId)?.heat ?? 0) : undefined,
       overheated: this.heatStates.get(this.weaponId)?.locked ?? false,
       boltCharges: this.weaponId === "crossbow_reclaimer" ? this.boltCharges : undefined,
+      knifeRechargeMs: isThrowingKnife(this.weaponId)?throwingKnifeRemainingMs(this.throwingKnifeState,now,this.opts.mode==="gungame"):undefined,
+      meleeKnifeCharges: isThrowingKnife(this.meleeWeaponId)||isThrowingKnife(this.weaponId)?this.throwingKnifeState.charges:undefined,
       perkName: perkById(this.opts.loadout.perkId).name,
       scavengerFeedbackAt: this.scavengerFeedbackAt,
       scavengerAmmoGained: this.scavengerAmmoGained,
@@ -9405,8 +13147,11 @@ export class FPSEngine {
             Math.hypot(this.pos.x - p.pos[0], this.pos.z - p.pos[2]) <= 45).length : 0,
       matchEnding: this.matchFinishingLabel ?? undefined,
       quickMeleeAt: this.quickMeleeFeedbackAt,
+      equipmentName: this.opts.mode === "gungame" ? undefined : equipmentById(this.opts.loadout.equipmentId).name,
       equipmentCharges: this.opts.mode === "gungame" ? 0 : this.equipmentCharges,
+      equipmentRechargeMs:Math.max(0,this.equipmentNextRechargeAt-now),
       flashRemainingMs: Math.max(0,this.equipmentFlashUntil-now),
+      taserRemainingMs: Math.max(0,this.equipmentAdsBlockedUntil-now),
       reloading: this.reloading,
       weaponName: weaponById(this.weaponId).name,
       weaponId: this.weaponId,
@@ -9418,11 +13163,12 @@ export class FPSEngine {
       teamScores: this.teamScores,
       playerTeam: this.opts.team as string,
       ctfFlags: this.opts.mode === "ctf" ? this.ctfFlags : undefined,
-      orbitalCharge:this.map.id==="orbital_nexus"?this.orbitalCharge:undefined,
-      orbitalReaper:this.map.id==="orbital_nexus"?this.orbitalWeaponActive:undefined,
+      orbitalKillsRequired:reactorObjective(this.map)?.killsRequired,
+      orbitalCharge:reactorObjective(this.map)?this.orbitalCharge:undefined,
+      orbitalReaper:reactorObjective(this.map)?this.orbitalWeaponActive:undefined,
       orbitalWarning,
       mapEvent:this.map.id==="floodgate"
-        ?(this.opts.online&&this.floodgateServerRulesVersion!==5
+        ?(this.opts.online&&this.floodgateServerRulesVersion!==6
           ?{phase:"warning" as const,label:"FLOODGATE SERVER OUTDATED · redeploy to enable flood event",secondsLeft:0}
           :undefined)
         :this.map.id==="whiteout_depot"?whiteoutWeatherStatus(this.environmentTime):undefined,
@@ -9435,7 +13181,7 @@ export class FPSEngine {
         ? "Multiplayer server has outdated CTF scoring rules. Restart/update the game server."
         : this.opts.mode === "ctf" && (this.opts.team === "red" || this.opts.team === "blue") &&
           (this.ctfFlags.red.carrierId === this.selfId || this.ctfFlags.blue.carrierId === this.selfId) &&
-          ctfWithin([this.pos.x,this.pos.y,this.pos.z],this.ctfBases[this.opts.team],4.7,3) &&
+          ctfWithin([this.pos.x,this.pos.y,this.pos.z],this.ctfBases[this.opts.team],teamObjective(this.map,"capture_zone",this.opts.team)?.radius??4.7,teamObjective(this.map,"capture_zone",this.opts.team)?.verticalTolerance??3) &&
           !flagAtHome(this.ctfFlags[this.opts.team])
           ? "RETURN YOUR STOLEN OR DROPPED FLAG BEFORE SCORING" : undefined),
       scoreLimit: this.scoreLimit,
@@ -9467,6 +13213,12 @@ export class FPSEngine {
           x:radarToPercent(r.x-r.w/2,this.map.size),z:radarToPercent(r.z-r.d/2,this.map.size),
           w:r.w/(2*this.map.size)*100,h:r.d/(2*this.map.size)*100,
         })) : undefined,
+        lava: this.map.environment?.filter(o => o.type === "lava").map(o => ({
+          x: radarToPercent(o.pos[0] - o.size[0], this.map.size),
+          z: radarToPercent(o.pos[2] - o.size[2], this.map.size),
+          w: o.size[0] / this.map.size * 100,
+          h: o.size[2] / this.map.size * 100,
+        })),
         cover: this.map.cover.filter(c => c.kind !== "accent" && c.kind !== "stair").slice(0, 100).map(c => ({
           x: radarToPercent(c.pos[0] - c.size[0], this.map.size),
           z: radarToPercent(c.pos[2] - c.size[2], this.map.size),
@@ -9493,18 +13245,22 @@ export class FPSEngine {
       },
       aiming: this.aiming,
       sightType: weaponById(this.weaponId).category === "melee" ? "iron" : this.sightDef.type,
+      sightAttachmentId: this.getCurrentAttachments().sight,
       adsProgress: weaponById(this.weaponId).category === "melee" ? 0 : this.adsProgress,
       // `scoped` is true only when the player is meaningfully ADS-ing with a
       // sniper-class weapon (adsProgress past ~50% so the scope has actually
       // reached the eye). This drives the dedicated sniper-scope HUD overlay.
-      scoped: this.aiming && this.adsProgress > 0.5 && weaponById(this.weaponId).category === "sniper",
+      scoped: this.aiming && this.adsProgress > 0.5 && weaponById(this.weaponId).category === "sniper" && this.sightDef.zoom > 1,
       // Round 20h: Local player spawn protection (for first-person shield overlay).
       selfSpawnProtected: this.selfSpawnProtectedUntil > Date.now(),
       // Crosshair reflects both inherent hipfire inaccuracy and accumulated
       // firing/movement bloom. High-spread weapons no longer show a misleading
       // pin-point reticle just because the player is standing still.
       spreadFactor: Math.min(2, this.currentSpread + Math.min(2,
-        shotSpread(this.eff, weaponById(this.weaponId).category, this.aiming, 0, this.shotBloom, true) / 0.12
+        (weaponById(this.weaponId).category === "shotgun" && !weaponById(this.weaponId).wonder && (this.eff.pellets ?? 1) > 1
+          ? shotgunConeRadians({...this.eff,spread:this.eff.spread*
+              (isTaserAdsBlocked(this.equipmentAdsBlockedUntil,now)?TASER_HIPFIRE_SPREAD_MULTIPLIER:1)},this.aiming)
+          : shotSpread(this.eff, weaponById(this.weaponId).category, this.aiming, 0, this.shotBloom, true)) / 0.12
       ) * (this.aiming ? 0.12 : 0.8)),
       // Sprinting flag (HUD shows sprint indicator + tighter weapon-sway logic).
       sprinting: this.sprinting,
@@ -9515,31 +13271,57 @@ export class FPSEngine {
       // Sprint stamina (0..100) + regen cooldown (0 = regen active; >0 = ms until regen starts).
       stamina: Math.round(this.stamina),
       staminaCooldownMs: !this.sprinting && this.stamina < 100
-        ? Math.max(0, FPSEngine.STAMINA_DELAY - (now - this.lastSprintAt))
+        ? Math.max(0, SPRINT_STAMINA.regenerationDelayMs - (now - this.lastSprintAt))
         : 0,
       // Equipped weapon slot + per-slot weapon names (for the HUD slot strip).
       weaponSlot: this.currentSlot,
       primaryName: weaponById(this.primaryWeaponId).name,
       secondaryName: weaponById(this.secondaryWeaponId).name,
       meleeName: weaponById(this.meleeWeaponId).name,
+      ...(this.wonderWeaponId ? {wonderName:weaponById(this.wonderWeaponId).name,wonderWeaponId:this.wonderWeaponId} : {}),
       primaryWeaponId: this.primaryWeaponId,
       secondaryWeaponId: this.secondaryWeaponId,
       meleeWeaponId: this.meleeWeaponId,
+      ...(this.wonderWeaponId===RIOT_SHIELD_ID ? {
+        wonderShieldHp:this.riotShieldHp,
+        wonderShieldRechargeMs:riotShieldCooldownMs(this.riotShieldHp,this.riotShieldReadyAt,now),
+      }:{}),
+      ...(this.wonderWeaponId && usesWonderCharges(weaponById(this.wonderWeaponId)) ? {
+        wonderCharges:this.wonderStates.get(this.wonderWeaponId)?.charges??0,
+        wonderChargeMax:weaponById(this.wonderWeaponId).wonder!.maxCharges,
+        wonderSlotCooldownMs:wonderCooldownMs(this.ensureWonderState(this.wonderWeaponId,weaponById(this.wonderWeaponId).wonder!,now),
+          {...weaponById(this.wonderWeaponId).wonder!,rechargeMs:weaponById(this.wonderWeaponId).wonder!.rechargeMs*wonderModuleEffects(this.wonderWeaponId,this.wonderModuleId).rechargeMul},now),
+        wonderSlotChargeTotalMs:weaponById(this.wonderWeaponId).wonder!.rechargeMs*wonderModuleEffects(this.wonderWeaponId,this.wonderModuleId).rechargeMul,
+      }:{}),
       ...(this.weaponId === "wonder_turret" ? {
         turretDeployPending: this.turretDeployPending,
         turretDeployFailed: this.turretDeployFailedAt > 0 && now - this.turretDeployFailedAt < 2000,
       } : {}),
       ...(this.weaponId===RIOT_SHIELD_ID?{riotShieldHp:this.riotShieldHp,riotShieldRaised:this.shieldRaised(),riotShieldRechargeMs:riotShieldCooldownMs(this.riotShieldHp,this.riotShieldReadyAt,now)}:{}),
-      ...(usesWonderCharges(weaponById(this.weaponId)) ? { wonderRechargeMs: wonderCooldownMs(this.wonderStates.get(this.weaponId) ?? fullWonderCharges(weaponById(this.weaponId).wonder!), weaponById(this.weaponId).wonder!, now) } : {}),
+      ...(usesWonderCharges(weaponById(this.weaponId)) ? { wonderRechargeMs: wonderCooldownMs(this.ensureWonderState(this.weaponId,weaponById(this.weaponId).wonder!,now), weaponById(this.weaponId).wonder!, now) } : {}),
       ...(this.opts.mode === "survival" ? {
         survivalWave: this.survivalWave,
         survivalTier: this.survivalTier,
+        survivalUpgradeOffer:this.survivalUpgradeOffer,
+        survivalPaused:this.opts.online?this.survivalServerPaused:(this.survivalMenuPaused||!!this.survivalUpgradeOffer),
+        survivalUpgradePendingCount:this.opts.online?this.survivalUpgradePendingCount:(this.survivalUpgradeOffer?1:0),
+        survivalUpgradeSecondsLeft:this.survivalUpgradeSecondsLeft,
+        survivalUpgradeRanks:this.survivalUpgradeRanks,
+        survivalPlayerRanks:this.opts.online
+          ?this.survivalPlayerRanks
+          :{[this.selfId]:this.survivalUpgradeRanks},
+        survivalDownedLeft:this.survivalDownedUntil>0
+          ?Math.ceil(Math.max(0,(this.survivalDownedUntil-
+            (this.opts.online?Date.now():performance.now()))/1000))
+          :undefined,
         survivalModifierNames: survivalWaveMutators(this.survivalTier,this.survivalWave).names,
         survivalBossWave: survivalWaveMutators(this.survivalTier,this.survivalWave).boss,
         survivalEnemiesLeft: this.survivalEnemiesLeft,
         survivalReinforcements: this.survivalReinforcements,
         survivalMaxReinforcements: this.survivalMaxReinforcements,
         survivalDowned: this.survivalDowned,
+        survivalWaitingForWave: this.opts.online && !this.alive && !this.matchEnded &&
+          this.lastDeath?.weaponId === LAVA_DEATH_SOURCE,
         survivalPrepLeft: Math.max(0, Math.ceil(this.survivalPrepLeft)),
         survivalWaveActive: this.survivalWaveActive,
         // Round 18-b: wave banner timestamp (ms since page load). The HUD shows
@@ -9607,7 +13389,11 @@ export class FPSEngine {
     const minDistSq = minDist * minDist;
     const yTol = PLAYER_HEIGHT * 0.8;
     const others: { pos: Vec3; alive: boolean }[] = [];
-    for (const c of this.combatants.values()) {
+    // Include the maximum possible accumulated push of this ordered pass.
+    // Dense crowds retain the original solver's behavior as well as its order.
+    const radius=minDist*(1+(this.combatants.size+1)/4);
+    const neighbors=this.actorIndex.size?this.actorIndex.near(bot.pos[0],bot.pos[2],radius):this.combatants.values();
+    for (const c of neighbors) {
       if (c.id === bot.id) continue;
       others.push({ pos: c.pos, alive: c.alive });
     }
@@ -9639,12 +13425,9 @@ export class FPSEngine {
   // "bot clips into wall then pops out" flicker, and prevents tunneling at
   // high speeds). The check is conservative — it samples the destination only.
   private botMoveBlocked(from: Vec3, to: Vec3, currentY: number): boolean {
-    if (blocksBotMotion(this.coverAlong(from,to,2), from, to, currentY)) return true;
-    for (const o of this.map.environment ?? []) {
-      if (o.type !== "fire" && !(o.type === "spikes" && spikesActive(o, this.environmentTime))) continue;
-      if (!withinEnvironment(o, from) && withinEnvironment(o, to)) return true;
-    }
-    return false;
+    const cover = this.coverAlong(from, to, 2);
+    return blocksBotMotion(cover, from, to, currentY) ||
+      botEntersHazard(cover, this.map.environment, from, to, this.environmentTime);
   }
   private lerpAngle(a: number, b: number, t: number): number {
     let diff = b - a; while (diff > Math.PI) diff -= Math.PI * 2; while (diff < -Math.PI) diff += Math.PI * 2;
@@ -9659,12 +13442,62 @@ export class FPSEngine {
   private randSpread(s: number): Vec3 { return [(Math.random() - 0.5) * s, (Math.random() - 0.5) * s, (Math.random() - 0.5) * s]; }
 
   dispose() {
+    this.clearMechCockpit();
+    for(const f of this.ripperFlights){
+      f.group.removeFromParent();
+      f.group.traverse(o=>{if(o instanceof THREE.Mesh){
+        o.geometry.dispose();(o.material as THREE.Material).dispose();
+      }});
+    }
+    this.ripperFlights=[];
+    for(const f of this.radialShockwaves){
+      f.mesh.removeFromParent();f.mesh.geometry.dispose();(f.mesh.material as THREE.Material).dispose();
+    }
+    this.radialShockwaves=[];
+    for(const fx of this.frozenFx.values()){
+      fx.removeFromParent();fx.traverse(o=>{if(o instanceof THREE.Mesh){
+        o.geometry.dispose();(o.material as THREE.Material).dispose();
+      }});
+    }
+    this.frozenFx.clear();this.frozenUntil.clear();
+    for(const id of [...this.mechDrops.keys()])this.removeMechDrop(id);
+    for(const id of [...this.phantomDecoys.keys()])this.clearPhantom(id);
+    for(const id of [...this.harbingerDrones.keys()])this.removeHarbinger(id);
+    if(this.chronoMarker){this.chronoMarker.removeFromParent();this.chronoMarker.geometry.dispose();(this.chronoMarker.material as THREE.Material).dispose();this.chronoMarker=null;}
+    for(const fx of this.wonderVisualFx)fx.dispose();
+    this.wonderVisualFx=[];
+    if (this.finaleTimer) { clearTimeout(this.finaleTimer); this.finaleTimer = null; }
     for (const id of [...this.poisonBubbles.keys()]) this.updatePoisonVisual(id, [0, 0, 0], null, 0);
+    for(const id of [...this.tacticalStatusVisuals.keys()])this.removeTacticalStatusVisual(id);
+    for(const fx of this.tacticalBlastRings){
+      this.scene.remove(fx.mesh);fx.mesh.geometry.dispose();(fx.mesh.material as THREE.Material).dispose();
+    }
+    this.tacticalBlastRings=[];
     for (const id of [...this.kcTags.keys()]) this.removeKillConfirmedTag(id);
     this.disposed = true;
     for (const id of [...this.deathBombs.keys()]) this.removeDeathBomb(id);
     for (const id of [...this.bulletSpitters.keys()]) this.removeBulletSpitter(id);
     for (const id of [...this.gravityWells.keys()]) this.removeGravityWell(id);
+    // Leaving during a throw must not retain its geometry/materials in WebGL.
+    for(const knife of this.thrownKnives){
+      this.scene.remove(knife.mesh);
+      knife.mesh.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();(o.material as THREE.Material).dispose();}});
+    }
+    this.thrownKnives=[];
+    for(const mesh of this.rangeSignMeshes){
+      this.scene.remove(mesh);
+      mesh.geometry.dispose();
+      const material=mesh.material as THREE.MeshBasicMaterial;
+      material.map?.dispose();
+      material.dispose();
+    }
+    this.rangeSignMeshes=[];
+    for(const item of this.ballisticParticles){
+      this.scene.remove(item.mesh);item.mesh.geometry.dispose();(item.mesh.material as THREE.Material).dispose();
+    }
+    this.ballisticParticles=[];
+    for(const id of [...this.ballisticDecals.keys()])this.hideBrokenBallisticCover(id);
+    this.ballisticMeshes.clear();this.ballisticOriginals.clear();
     cancelAnimationFrame(this.raf);
     this.timer.dispose();
     window.removeEventListener("resize", this.onResize);
@@ -9678,6 +13511,18 @@ export class FPSEngine {
     // Clean up the laser indicator meshes (if any)
     if (this.laserBeam) { this.scene.remove(this.laserBeam); (this.laserBeam.geometry as THREE.BufferGeometry).dispose(); (this.laserBeam.material as THREE.Material).dispose(); this.laserBeam = null; }
     if (this.laserDot) { this.scene.remove(this.laserDot); (this.laserDot.geometry as THREE.BufferGeometry).dispose(); (this.laserDot.material as THREE.Material).dispose(); this.laserDot = null; }
+    if(this.akimboLeftLaserBeam){
+      this.scene.remove(this.akimboLeftLaserBeam);
+      this.akimboLeftLaserBeam.geometry.dispose();
+      (this.akimboLeftLaserBeam.material as THREE.Material).dispose();
+      this.akimboLeftLaserBeam=null;
+    }
+    if(this.akimboLeftLaserDot){
+      this.scene.remove(this.akimboLeftLaserDot);
+      this.akimboLeftLaserDot.geometry.dispose();
+      (this.akimboLeftLaserDot.material as THREE.Material).dispose();
+      this.akimboLeftLaserDot=null;
+    }
     for (const g of this.environmentMeshes.values()) {
       this.scene.remove(g);
       g.traverse(child => {
@@ -9709,6 +13554,7 @@ export class FPSEngine {
     if(this.riotShieldModel)this.disposeRiotModel(this.riotShieldModel);
     this.weaponAudio.dispose();
     this.explosionEffects?.dispose();
+    this.worldLightBudget?.dispose();
     if(this.gardenMaterial){
       this.gardenMaterial.map?.dispose();
       this.gardenMaterial.dispose();
@@ -9721,6 +13567,8 @@ export class FPSEngine {
       }
       this.surfaceMaterials=null;
     }
+    this.nvgScopePass?.dispose();
+    this.nvgScopePass = null;
     this.renderer.dispose();
     // Promptly free the graphics context between matches and dev remounts.
     this.renderer.forceContextLoss();

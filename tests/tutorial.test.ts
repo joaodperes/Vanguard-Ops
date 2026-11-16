@@ -1,8 +1,35 @@
 import { describe, expect, test } from "bun:test";
-import { advancePractice, newTutorialProgress, parseTutorialProgress, shouldOfferTutorial, tutorialStorageKey, type PracticeSample, type PracticeState } from "../src/lib/tutorial";
+import { advancePractice, COMPETITIVE_MODE_GUIDES, COMPETITIVE_MODE_IDS, TUTORIAL_CHAPTERS, TUTORIAL_PHASES, newTutorialProgress, parseTutorialProgress, shouldOfferTutorial, tutorialStorageKey, type PracticeSample, type PracticeState } from "../src/lib/tutorial";
+import matchModes from "../src/data/catalogs/match-modes.json";
 
 const sample: PracticeSample = { x: 0, z: -32, aiming: false, kills: 0, ammo: 30, reloading: false, weaponId: "rifle_ar" };
 describe("new-player tutorial", () => {
+  test("chapter picker covers onboarding and reference guides without duplicates",()=>{
+    expect(TUTORIAL_CHAPTERS.map(c=>c.id)).toEqual([...TUTORIAL_PHASES]);
+    expect(new Set(TUTORIAL_CHAPTERS.map(c=>c.id)).size).toBe(TUTORIAL_CHAPTERS.length);
+    expect(TUTORIAL_CHAPTERS.every(c=>c.label.length>0&&c.description.length>0)).toBe(true);
+    expect(TUTORIAL_CHAPTERS.find(c=>c.id==="ballistics")?.label).toBe("Penetration");
+    expect(TUTORIAL_CHAPTERS.find(c=>c.id==="progression")?.label).toBe("Progression");
+    // A direct chapter open is still valid persistent progress, including
+    // when the player has already completed or skipped onboarding.
+    for(const phase of TUTORIAL_PHASES){
+      for(const status of ["in_progress","completed","skipped"] as const){
+        const progress={...newTutorialProgress(),phase,status,practiceStep:5};
+        expect(parseTutorialProgress(JSON.stringify(progress))).toEqual(progress);
+      }
+    }
+  });
+
+  test("competitive briefings cover every shipped PvP mode", () => {
+    const shippedCompetitiveModes = Object.keys(matchModes).filter(id => id !== "survival").sort();
+    expect([...COMPETITIVE_MODE_IDS].sort()).toEqual(shippedCompetitiveModes);
+    for (const id of COMPETITIVE_MODE_IDS) {
+      expect(COMPETITIVE_MODE_GUIDES[id].label).toBe(matchModes[id].label);
+      expect(COMPETITIVE_MODE_GUIDES[id].objective.length).toBeGreaterThan(50);
+      expect(COMPETITIVE_MODE_GUIDES[id].tip.length).toBeGreaterThan(20);
+    }
+  });
+
   test("new players are offered training; existing, completed and skipped profiles are left alone", () => {
     expect(shouldOfferTutorial({ xp: 0, matchesPlayed: 0 }, null)).toBe(true);
     expect(shouldOfferTutorial({ xp: 100, matchesPlayed: 0 }, null)).toBe(false);
@@ -15,7 +42,7 @@ describe("new-player tutorial", () => {
     const saved = { ...newTutorialProgress(), phase: "practice", practiceStep: 3 };
     expect(parseTutorialProgress(JSON.stringify(saved))).toEqual(saved);
     expect(tutorialStorageKey("guest_a")).not.toBe(tutorialStorageKey("account_b"));
-    for (const raw of [null, "oops", "{}", JSON.stringify({ ...saved, version: 99 }), JSON.stringify({ ...saved, phase: "forged" }), JSON.stringify({ ...saved, practiceStep: -1 }), JSON.stringify({ ...saved, practiceStep: 6 }), JSON.stringify({ ...saved, status: "unknown" })])
+    for (const raw of [null, "oops", "{}", JSON.stringify({ ...saved, version: 99 }), JSON.stringify({ ...saved, phase: "forged" }), JSON.stringify({ ...saved, practiceStep: -1 }), JSON.stringify({ ...saved, practiceStep: 7 }), JSON.stringify({ ...saved, status: "unknown" })])
       expect(parseTutorialProgress(raw)).toBeNull();
   });
   test("live movement, ADS, a fresh elimination, a completed reload and swapping finish the drill in order", () => {
@@ -37,6 +64,10 @@ describe("new-player tutorial", () => {
     expect(state.step).toBe(4);
     state = advancePractice(state, { ...sample, kills: 1, ammo: 15, weaponId: "pistol_side" });
     expect(state.step).toBe(5);
+    state = advancePractice(state, { ...sample, kills: 1, ammo: 15, weaponId: "pistol_side", equipmentCharges: 2 });
+    expect(state.step).toBe(5);
+    state = advancePractice(state, { ...sample, kills: 1, ammo: 15, weaponId: "pistol_side", equipmentCharges: 1 });
+    expect(state.step).toBe(6);
     expect(advancePractice(state, sample)).toBe(state);
   });
   test("cancelling reload by swapping cannot complete reload training", () => {

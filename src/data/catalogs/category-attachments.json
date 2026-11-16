@@ -22,7 +22,8 @@
       "mag_extended",
       "mag_quickdraw",
       "mag_drum",
-      "mag_balanced"
+      "mag_balanced",
+      "mag_penetrator"
     ]
   },
   "smg": {
@@ -65,6 +66,7 @@
       "barrel_muzzle_brake"
     ],
     "grip": [
+      "grip_akimbo",
       "grip_angled",
       "grip_laser",
       "grip_runner_ads",
@@ -72,6 +74,7 @@
     ],
     "magazine": [
       "mag_quickdraw",
+      "mag_shell_carrier",
       "mag_slug",
       "mag_pellets",
       "mag_dragons_breath",
@@ -89,19 +92,20 @@
       "barrel_suppressor",
       "barrel_heavy",
       "barrel_match",
-      "barrel_ported"
+      "barrel_lightweight"
     ],
     "grip": [
       "grip_precision",
       "grip_stability",
-      "grip_runner_ads",
-      "grip_angled"
+      "grip_marksman_quick",
+      "grip_patrol"
     ],
     "magazine": [
       "mag_extended",
       "mag_quickdraw",
       "mag_balanced",
-      "mag_lightweight"
+      "mag_lightweight",
+      "mag_penetrator"
     ]
   },
   "sniper": {
@@ -120,14 +124,15 @@
     "grip": [
       "grip_precision",
       "grip_stability",
-      "grip_runner_ads",
-      "grip_angled"
+      "grip_marksman_quick",
+      "grip_patrol"
     ],
     "magazine": [
       "mag_extended",
       "mag_quickdraw",
       "mag_balanced",
-      "mag_lightweight"
+      "mag_lightweight",
+      "mag_penetrator"
     ]
   },
   "lmg": {
@@ -153,7 +158,8 @@
       "mag_extended",
       "mag_drum",
       "mag_balanced",
-      "mag_quickdraw"
+      "mag_quickdraw",
+      "mag_penetrator"
     ]
   },
   "pistol": {
@@ -170,6 +176,7 @@
       "barrel_compensator"
     ],
     "grip": [
+      "grip_akimbo",
       "grip_laser",
       "grip_precision",
       "grip_runner_ads",
@@ -228,10 +235,10 @@
       "grip_launcher_carry"
     ],
     "magazine": [
-      "mag_extended",
-      "mag_quickdraw",
-      "mag_balanced",
-      "mag_launcher_reinforced"
+      "mag_launcher_quickload",
+      "mag_launcher_reinforced",
+      "mag_launcher_light_payload",
+      "mag_launcher_longreach"
     ]
   }
 }

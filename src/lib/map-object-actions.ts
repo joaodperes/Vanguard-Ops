@@ -44,6 +44,7 @@ export function legacyEnvironmentToHazard(obj:EnvironmentObject,id:string):MapHa
     w:obj.size[0]*2,h:obj.size[1]*2,d:obj.size[2]*2};
   switch(obj.type){
     case "fire":return {...common,type:"fire",dps:obj.dps};
+    case "lava":return {...common,type:"lava"};
     case "spikes":return {...common,type:"spikes",damage:obj.damage,period:obj.period,
       activeFor:obj.activeFor,offset:obj.offset,warningFor:obj.warningFor,visual:obj.visual};
     case "jump_pad":return {...common,type:"jump_pad",

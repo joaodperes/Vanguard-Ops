@@ -3,7 +3,8 @@ import {
   WEAPONS, weaponById, compatibleAttachments, computeEffectiveStats, damageAtRange, maxWeaponHitRange,
 } from "../src/lib/game-data";
 import { attachmentChallenge } from "../src/lib/armory-challenges";
-import { canStartWeaponReload } from "../src/lib/weapon-mechanics";
+import { canStartWeaponReload, crossbowReloadCycleMs, crossbowReloadControlsCadence } from "../src/lib/weapon-mechanics";
+import { hitsToEliminate, idealTimeToKillMs } from "../src/lib/weapon-balance";
 
 describe("weapon range and damage falloff", () => {
   test("close shots do full damage and shots at the far edge use each weapon's floor", () => {
@@ -33,12 +34,163 @@ describe("weapon range and damage falloff", () => {
   });
 });
 
+describe("2026 magazine kill-potential tuning", () => {
+  test("VK-12 and Behemoth carry 24 rounds, Burst Pistol carries six complete bursts", () => {
+    const cases = [
+      ["rifle_ar", 24, 3, 8],
+      ["rifle_heavy", 24, 3, 8],
+      ["pistol_burst", 18, 3, 6],
+    ] as const;
+    for (const [weaponId, magazine, bodyHits, bodyKillPotential] of cases) {
+      const weapon = weaponById(weaponId);
+      const base = computeEffectiveStats(weapon, { sight:null, barrel:null, grip:null, magazine:null });
+      expect(weapon.stats.magSize).toBe(magazine);
+      expect(base.magSize).toBe(magazine);
+      expect(hitsToEliminate(base)).toBe(bodyHits);
+      expect(Math.floor(base.magSize / bodyHits)).toBe(bodyKillPotential);
+      if (base.burst) expect(base.magSize % base.burst).toBe(0);
+    }
+  });
+
+  test("magazine attachments scale from the new baseline without incomplete pistol bursts", () => {
+    const empty = { sight:null, barrel:null, grip:null, magazine:null };
+    expect(computeEffectiveStats(weaponById("rifle_ar"), { ...empty, magazine:"mag_extended" }).magSize).toBe(31);
+    expect(computeEffectiveStats(weaponById("rifle_heavy"), { ...empty, magazine:"mag_extended" }).magSize).toBe(31);
+    for (const mag of compatibleAttachments("pistol_burst", "magazine")) {
+      const effective = computeEffectiveStats(weaponById("pistol_burst"), { ...empty, magazine:mag });
+      expect(effective.magSize % 3).toBe(0);
+    }
+  });
+});
+
 describe("Marksman DMR magazine balance", () => {
   test("smaller 12-round base magazine still benefits from extended magazines", () => {
     const weapon = weaponById("rifle_dm");
     expect(weapon.stats.magSize).toBe(12);
     const extended = computeEffectiveStats(weapon, { sight: null, barrel: null, grip: null, magazine: "mag_extended" });
-    expect(extended.magSize).toBe(18);
+    expect(extended.magSize).toBe(15);
+    expect(extended.reloadTime).toBeGreaterThan(weapon.stats.reloadTime);
+  });
+});
+
+describe("distinct DMR roles at 100 HP", () => {
+  test("Scout Tactical is the fast-handling three-body-hit DMR, unlike Whisper", () => {
+    const scout = weaponById("dmr_scout");
+    const whisper = weaponById("dmr_whisper");
+    expect(scout.stats.magSize).toBe(14);
+    expect(whisper.stats.magSize).toBe(12);
+    expect(scout.stats.auto).toBe(false);
+    expect(hitsToEliminate(scout.stats)).toBe(3);
+    expect(hitsToEliminate(scout.stats, 0, 1)).toBe(2);
+    expect(idealTimeToKillMs(scout, scout.stats)).toBeCloseTo(2000 / scout.stats.fireRate, 5);
+    expect(hitsToEliminate(whisper.stats)).toBe(2);
+    expect(scout.stats.adsTime).toBeLessThan(whisper.stats.adsTime);
+    expect(scout.stats.moveSpeed).toBeGreaterThan(whisper.stats.moveSpeed);
+    expect(scout.stats.range).toBeLessThan(whisper.stats.range);
+    expect(scout.stats.adsSpread).toBeGreaterThan(whisper.stats.adsSpread);
+    expect(scout.stats.recoil).toBeGreaterThan(whisper.stats.recoil);
+  });
+
+  test("Whisper is the longest-ranged and steadiest conventional DMR", () => {
+    const whisper = weaponById("dmr_whisper");
+    const otherRifles = ["dmr_scout", "rifle_dm", "dmr_cyclone", "dmr_heavy"]
+      .map(weaponById);
+    expect(whisper.stats.damage * whisper.stats.headshotMult).toBeLessThan(100);
+    expect(whisper.stats.magSize).toBe(12);
+    expect(Math.floor(whisper.stats.magSize / hitsToEliminate(whisper.stats)!)).toBe(6);
+    expect(hitsToEliminate(whisper.stats, 0, 1)).toBe(2);
+    for (const other of otherRifles) {
+      expect(whisper.stats.range).toBeGreaterThan(other.stats.range);
+      expect(whisper.stats.adsSpread).toBeLessThan(other.stats.adsSpread);
+      expect(whisper.stats.recoil).toBeLessThan(other.stats.recoil);
+    }
+  });
+
+  test("Marksman rewards a single headshot, whereas Executioner adds penetration and en-bloc discipline", () => {
+    const marksman = weaponById("rifle_dm");
+    const executioner = weaponById("dmr_heavy");
+    expect(hitsToEliminate(marksman.stats, 0, 1)).toBe(1);
+    expect(hitsToEliminate(executioner.stats, 0, 1)).toBe(1);
+    expect(hitsToEliminate(marksman.stats)).toBe(2);
+    expect(hitsToEliminate(executioner.stats)).toBe(2);
+    expect(marksman.stats.fireRate).toBeGreaterThan(executioner.stats.fireRate);
+    expect(marksman.stats.adsTime).toBeLessThan(executioner.stats.adsTime);
+    expect(executioner.stats.coverPenetration!).toBeGreaterThan(marksman.stats.coverPenetration!);
+    expect(executioner.stats.bodyPenetration?.maxTargets).toBe(2);
+    expect(executioner.stats.reloadOnlyWhenEmpty).toBe(true);
+  });
+
+  test("Cyclone is the only burst DMR; its 20-round magazine is ten two-round bursts", () => {
+    const cyclone = weaponById("dmr_cyclone");
+    expect(cyclone.stats.burst).toBe(2);
+    expect(cyclone.stats.magSize / cyclone.stats.burst!).toBe(10);
+    expect(hitsToEliminate(cyclone.stats)).toBe(3);
+    expect(hitsToEliminate(cyclone.stats, 0, 2)).toBe(2);
+    for (const id of ["dmr_scout", "dmr_whisper", "rifle_dm", "dmr_heavy"]) {
+      expect(weaponById(id).stats.burst).toBeUndefined();
+    }
+  });
+
+  test("Reclaimer is the recoverable single-bolt headshot specialist, not a rapid-fire rifle", () => {
+    const reclaimer = weaponById("crossbow_reclaimer");
+    expect(reclaimer.special?.kind).toBe("bolt");
+    expect(reclaimer.stats.magSize).toBe(1);
+    expect(reclaimer.stats.headshotMult).toBe(1.85);
+    expect(hitsToEliminate(reclaimer.stats, 0, 1)).toBe(1);
+    expect(hitsToEliminate(reclaimer.stats)).toBe(2);
+    expect(idealTimeToKillMs(reclaimer, reclaimer.stats)).toBeNull();
+    // The automatic quiver trades precision lethality for sustained fire.
+    const quiver = computeEffectiveStats(reclaimer, { sight:null, barrel:null, grip:null, magazine:"mag_bolt_quiver" });
+    expect(quiver.auto).toBe(true);
+    expect(quiver.damage * quiver.headshotMult).toBeLessThan(100);
+    // Recovered heavy arrows are powerful, but cannot be replenished by a normal reload.
+    const heavy = computeEffectiveStats(reclaimer, { sight:null, barrel:null, grip:null, magazine:"mag_bolt_heavy" });
+    expect(heavy.magSize).toBe(2);
+    expect(heavy.damage).toBeGreaterThan(reclaimer.stats.damage);
+  });
+});
+
+describe("Reclaimer Crossbow baseline tempo", () => {
+  test("stock single-bolt firing is deliberate but no longer waits 2.1 seconds to re-nock", () => {
+    const w = weaponById("crossbow_reclaimer");
+    const bolt = w.special;
+    expect(bolt?.kind).toBe("bolt");
+    if (bolt?.kind !== "bolt") return;
+    expect(w.stats.magSize).toBe(1);
+    expect(w.stats.reloadTime).toBe(1.65);
+    expect(w.stats.fireRate).toBe(0.65);
+    expect(bolt.pickupRadius).toBe(3);
+    expect(hitsToEliminate(w.stats, 0, 1)).toBe(1);
+    expect(crossbowReloadCycleMs(w.stats.reloadTime,bolt.quickReloadSeconds,false)).toBe(1650);
+    expect(crossbowReloadCycleMs(w.stats.reloadTime,bolt.quickReloadSeconds,true)).toBe(650);
+  });
+
+  test("retrieval improves the next nock, while loadouts keep their distinctive limits", () => {
+    const w=weaponById("crossbow_reclaimer");
+    if(w.special?.kind!=="bolt")throw Error("crossbow lost recovery special");
+    const t=w.special.quickReloadSeconds;
+    expect(crossbowReloadCycleMs(w.stats.reloadTime,t,true))
+      .toBeLessThan(crossbowReloadCycleMs(w.stats.reloadTime,t,false)*.5);
+    const none={sight:null,barrel:null,grip:null,magazine:null} as const;
+    const light=computeEffectiveStats(w,{...none,magazine:"mag_bolt_light_quiver"});
+    expect(light.magSize).toBe(1);
+    expect(crossbowReloadControlsCadence(light.magSize)).toBe(true);
+    expect(light.auto).toBe(false);
+    expect(light.reloadTime).toBeCloseTo(1.65*.85,5);
+    expect(crossbowReloadCycleMs(light.reloadTime,t,false)).toBeCloseTo(1402.5,3);
+    expect(crossbowReloadCycleMs(light.reloadTime,t,false,.8)).toBeCloseTo(1122,3);
+    const quiver=computeEffectiveStats(w,{...none,magazine:"mag_bolt_quiver"});
+    const heavy=computeEffectiveStats(w,{...none,magazine:"mag_bolt_heavy"});
+    expect(quiver.auto).toBe(true);
+    expect(quiver.magSize).toBe(10);
+    expect(quiver.damage * quiver.headshotMult).toBeLessThan(100);
+    expect(heavy.magSize).toBe(2);
+    expect(crossbowReloadControlsCadence(heavy.magSize)).toBe(false);
+    expect(heavy.auto).toBe(false);
+    const extended=computeEffectiveStats(w,{...none,magazine:"mag_extended"});
+    expect(extended.magSize).toBe(2);
+    expect(crossbowReloadControlsCadence(extended.magSize)).toBe(false);
+    expect(extended.reloadTime).toBeGreaterThan(w.stats.reloadTime);
   });
 });
 

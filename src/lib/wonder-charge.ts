@@ -1,5 +1,6 @@
-/** A Wonder Weapon has NO reserve ammo. Each spent charge refills only after
- * its own timer; the timer survives death and can be shortened by ordinary kills.
+/** Charge-based Wonder Weapons have no reserve ammo or manual reload.
+ * Ordinary kills accelerate charges; time advances across death and while holstered.
+ * Matches and loadout changes begin empty with a fresh cooldown; deaths do not refill.
  * Functions are deterministic, shared by client, server and tests.
  */
 export interface WonderChargeState { charges: number; nextAt: number }
@@ -10,6 +11,11 @@ export interface WonderChargeRules {
 }
 export function fullWonderCharges(rules: WonderChargeRules): WonderChargeState {
   return { charges: rules.maxCharges, nextAt: 0 };
+}
+
+/** On a genuine in-match loadout change, the new Wonder must recharge from zero. */
+export function drainedWonderCharges(rules: WonderChargeRules, now: number): WonderChargeState {
+  return { charges: 0, nextAt: now + rules.rechargeMs };
 }
 export function tickWonderCharges(state: WonderChargeState, rules: WonderChargeRules, now: number): WonderChargeState {
   let { charges, nextAt } = state;
@@ -35,6 +41,13 @@ export function accelerateWonderCharge(state: WonderChargeState, rules: WonderCh
   return tickWonderCharges(
     { ...current, nextAt: Math.max(now, current.nextAt - rules.killBonusMs) }, rules, now,
   );
+}
+/** Refund an already-spent shot on a confirmed precision headshot.
+ * Preserve the next recharge deadline unless this restores full capacity. */
+export function refundWonderCharge(state: WonderChargeState, rules: WonderChargeRules, now: number): WonderChargeState {
+  const current=tickWonderCharges(state,rules,now);
+  const charges=Math.min(rules.maxCharges,current.charges+1);
+  return {charges,nextAt:charges===rules.maxCharges?0:current.nextAt};
 }
 export function wonderCooldownMs(state: WonderChargeState, rules: WonderChargeRules, now: number): number {
   const current = tickWonderCharges(state, rules, now);

@@ -44,7 +44,7 @@ describe("Orbital Nexus CTF map",()=>{
   });
 });
 
-import {ORBITAL_REAPER_ID,ORBITAL_KILLS_REQUIRED,ORBITAL_CHARGE_RADIUS,ORBITAL_RULES_VERSION,orbitalServerWarning,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalPulseTargets,ORBITAL_PULSE_RADIUS,ORBITAL_PULSE_DAMAGE,ORBITAL_REAPER_STAMINA_DRAIN_MULTIPLIER,ORBITAL_REAPER_SPEED_MULTIPLIER,ORBITAL_REAPER_JUMP_MOMENTUM_MULTIPLIER,orbitalReaperEquipped} from "../src/lib/orbital-reactor";
+import {ORBITAL_REAPER_ID,ORBITAL_KILLS_REQUIRED,ORBITAL_CHARGE_RADIUS,ORBITAL_RULES_VERSION,orbitalChargeLabel,orbitalServerWarning,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalPulseTargets,ORBITAL_PULSE_RADIUS,ORBITAL_PULSE_DAMAGE,ORBITAL_REAPER_STAMINA_DRAIN_MULTIPLIER,ORBITAL_REAPER_SPEED_MULTIPLIER,ORBITAL_REAPER_JUMP_MOMENTUM_MULTIPLIER,orbitalReaperEquipped} from "../src/lib/orbital-reactor";
 import {WEAPONS,ACHIEVEMENTS,weaponById} from "../src/lib/game-data";
 describe("Orbital Nexus reactor",()=>{
  test("stale multiplayer server protocol is unmistakable, never silently 0/5",()=>{
@@ -77,6 +77,14 @@ describe("Orbital Nexus reactor",()=>{
   expect(orbitalRecordKill(0,[0,0,0],"forest_warfare",[0,0,0])).toBe(0);
   expect(orbitalRecordKill(0,[Infinity,0,0],"orbital_nexus",[0,0,0])).toBe(0);
   expect(orbitalRecordKill(0,[0,0],"orbital_nexus",[0,0,0])).toBe(0);
+ });
+ test("HUD reactor wording shows fully charged when the kill requirement is met",()=>{
+  expect(orbitalChargeLabel(0)).toBe("Reactor 0/10");
+  expect(orbitalChargeLabel(9)).toBe("Reactor 9/10");
+  expect(orbitalChargeLabel(10)).toBe("Reactor fully charged");
+  expect(orbitalChargeLabel(11)).toBe("Reactor fully charged");
+  expect(orbitalChargeLabel(3,4)).toBe("Reactor 3/4");
+  expect(orbitalChargeLabel(4,4)).toBe("Reactor fully charged");
  });
  test("charge always caps at ten and center-platform claim resets it separately",()=>{
   let n=0;

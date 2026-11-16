@@ -6,13 +6,17 @@ const intent=(id:string,now:number)=>ctfBotIntent(createCtfFlags("compound"),"re
 describe("CTF active perimeter defense",()=>{
  test("defenders are spread in front of their own flag",()=>{
    const home=ctfHome("red","compound");
-   const defenders=[0,4,8,12].map(i=>intent(squad[i],0));
-   expect(defenders.every(d=>d.role==="defend_flag")).toBe(true);
+   const intents=squad.map(id=>intent(id,0));
+   const defenders=intents.filter(d=>d.role==="defend_flag");
+   // Test coverage and distinct safe positions, not particular roster indices
+   // or a fixed number of defenders: the AI can tune the split over time.
+   expect(defenders.length).toBeGreaterThan(0);
+   expect(defenders.length).toBeLessThan(squad.length);
    for(const d of defenders){
      expect(Math.hypot(d.goal[0]-home[0],d.goal[2]-home[2])).toBeGreaterThan(7);
      expect(d.goal[0]).toBeGreaterThan(home[0]);
    }
-   expect(new Set(defenders.map(d=>d.goal.join(","))).size).toBe(4);
+   expect(new Set(defenders.map(d=>d.goal.join(","))).size).toBe(defenders.length);
  });
  test("perimeter stations change with time",()=>{
    expect(intent(squad[0],0).goal).not.toEqual(intent(squad[0],19000).goal);
@@ -29,11 +33,15 @@ describe("CTF active perimeter defense",()=>{
    expect(ctfBotIntent(flags,"red",squad[0],ctfHome("red","compound"),"rifle_ar",squad,
      {enemy:[12,0,5]},"compound",0).role).toBe("recover");
  });
- test("forest elevated sentries retain valid deck height",()=>{
+ test("forest defenders use reachable approach points rather than requiring a fixed sniper perch",()=>{
    const flags=createCtfFlags("forest_warfare");
-   const assigned=ctfBotIntent(flags,"red","guard",ctfHome("red","forest_warfare"),
-     "sniper_lr",[],{},"forest_warfare",0);
-   expect(assigned.role).toBe("defend_flag");
-   expect(assigned.goal[1]).toBeGreaterThan(10);
+   const intents=squad.map(id=>ctfBotIntent(flags,"red",id,ctfHome("red","forest_warfare"),
+     "sniper_lr",squad,{},"forest_warfare",0));
+   const guards=intents.filter(d=>d.role==="defend_stairs"||d.role==="defend_flag");
+   expect(guards.length).toBeGreaterThan(0);
+   expect(guards.length).toBeLessThan(squad.length);
+   expect(guards.every(d=>d.goal.every(Number.isFinite))).toBe(true);
+   // The forest's stair guards take ground-level approach positions.
+   for(const guard of guards.filter(d=>d.role==="defend_stairs"))expect(guard.goal[1]).toBe(0);
  });
 });

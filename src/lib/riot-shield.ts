@@ -2,11 +2,22 @@
 import type { Vec3 } from "./game-protocol";
 export const RIOT_SHIELD_ID = "wonder_riot_shield";
 export const RIOT_SHIELD_HP = 250;
+/** F only, when the intact shield is the active fourth-slot weapon. */
+export const RIOT_BASH_DAMAGE = 50;
+export const RIOT_BASH_REACH = 2;
+export const RIOT_BASH_COOLDOWN_MS = 900;
+export const RIOT_BASH_ARC_DEGREES = 40;
+export const RIOT_BASH_KNOCKBACK = 1.2;
+export function riotBashProfile() {
+  return { damage:RIOT_BASH_DAMAGE,reach:RIOT_BASH_REACH,
+    cooldownMs:RIOT_BASH_COOLDOWN_MS,halfArcDegrees:RIOT_BASH_ARC_DEGREES,
+    swingMs:440 };
+}
 /** The shield rebuilds in one step after destruction, independently of
  * P-9 ammo. All owner kills shorten cooldown, even Bulwark P-9 kills.
- * Death/respawn still restores durability immediately. */
-export const RIOT_SHIELD_RECHARGE_MS = 27_000;
-export const RIOT_SHIELD_KILL_BONUS_MS = 3_000;
+ * The rebuild timer persists through death; new matches start with no shield durability. */
+export const RIOT_SHIELD_RECHARGE_MS = 55_000;
+export const RIOT_SHIELD_KILL_BONUS_MS = 2_000;
 export interface RiotShieldDurability { hp: number; readyAt: number }
 export function hitRiotShield(hp: number, readyAt: number, damage: number, now: number): RiotShieldDurability {
   if (hp <= 0 || damage <= 0) return { hp, readyAt };

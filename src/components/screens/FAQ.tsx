@@ -106,6 +106,7 @@ export function FAQ() {
             </FaqItem>
             <FaqItem q="How do attachments work?">
               <p>Each weapon supports a specific set of attachment slots (sight, barrel, grip, magazine) — not all weapons support all slots. For example, snipers don&rsquo;t have a grip slot, and the knife has no attachments at all.</p>
+              <p className="mt-2"><strong>Akimbo:</strong> Available on the Sidearm P-9, Ghost-18, Magnum .50, Bastion .45, Breacher and Mauler CS. It does not work with the Burst Pistol or Arc Pistol. Each hand has its own magazine and trigger: left-click fires the left weapon, right-click the right; pressing both fires simultaneously. ADS is disabled, and hipfire spread is much higher (especially on dual shotguns). Press R to reload both weapons together: they dip out of sight and return in unison. Breacher pumps independently after each shot. Touch controls provide individual left/right buttons. Sights, lasers and barrel hardware appear on both guns; the HUD shows each magazine separately. Akimbo uses the grip slot, so it cannot be combined with Fan the Hammer.</p>
               <p className="mt-2">Attachments are <strong>unlocked per-weapon</strong> — buying a suppressor for your assault rifle doesn&rsquo;t give you one for your SMG. Visit a weapon in the Armory to see its compatible attachments and unlock them with credits. Attachments modify weapon stats: suppressors reduce damage but tighten spread, compensators cut recoil, extended mags add capacity, etc.</p>
             </FaqItem>
             <FaqItem q="How do weapon skins work?">
@@ -124,8 +125,8 @@ export function FAQ() {
             <FaqItem q="What do the handling stats mean?">
               <p>Each weapon card shows these stats:</p>
               <div className="mt-2 space-y-1 text-xs">
-                <StatLine label="HIP" desc="Standing hipfire accuracy — lower dispersion produces a higher %. Movement and sustained firing make shots less accurate." />
-                <StatLine label="ADS" desc="Steady aimed accuracy — higher % = tighter while aiming. ADS reduces spread but does not eliminate it." />
+                <StatLine label="HIP" desc="Base hipfire spread; lower means tighter shots. Movement, firing bloom and category-specific limits affect actual accuracy." />
+                <StatLine label="ADS" desc="Base aimed spread; lower means tighter shots. Aiming generally reduces spread but does not eliminate it." />
                 <StatLine label="RECOIL" desc="Camera kick per shot — lower is steadier. Automatic fire also accumulates temporary accuracy bloom." />
                 <StatLine label="ADS-t" desc="Time to aim down sights (seconds) — lower is faster." />
                 <StatLine label="HS×" desc="Headshot damage multiplier — 1.5× means a headshot does 50% more damage." />

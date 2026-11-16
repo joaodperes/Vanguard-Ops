@@ -31,6 +31,18 @@
       "grip_precision",
       "grip_runner_ads",
       "grip_angled"
+    ],
+    "barrel": [
+      "barrel_heat_sink",
+      "barrel_heat_focus",
+      "barrel_heat_compact",
+      "barrel_heat_insulated"
+    ],
+    "magazine": [
+      "mag_heat_reservoir",
+      "mag_heat_quickvent",
+      "mag_heat_coolant",
+      "mag_heat_lightweight"
     ]
   },
   "pistol_arc": {
@@ -64,7 +76,8 @@
       "mag_extended",
       "mag_quickdraw",
       "mag_balanced",
-      "mag_lightweight"
+      "mag_lightweight",
+      "mag_penetrator"
     ]
   },
   "sniper_scout": {
@@ -84,7 +97,8 @@
       "mag_extended",
       "mag_quickdraw",
       "mag_balanced",
-      "mag_lightweight"
+      "mag_lightweight",
+      "mag_penetrator"
     ]
   },
   "sniper_heavy": {
@@ -105,6 +119,33 @@
       "mag_antimaterial_fastbolt",
       "mag_antimaterial_lightchamber",
       "mag_antimaterial_stabilizer"
+    ]
+  },
+  "pistol_bastion": {
+    "sight": [
+      "sight_red_dot",
+      "sight_laser",
+      "sight_holo",
+      "sight_compact_reflex"
+    ],
+    "barrel": [
+      "barrel_ported",
+      "barrel_compensator",
+      "barrel_lightweight",
+      "barrel_heavy"
+    ],
+    "grip": [
+      "grip_akimbo",
+      "grip_fan_hammer",
+      "grip_precision",
+      "grip_angled",
+      "grip_laser"
+    ],
+    "magazine": [
+      "mag_rev_speedloader",
+      "mag_rev_match",
+      "mag_rev_hollow",
+      "mag_rev_light"
     ]
   }
 }

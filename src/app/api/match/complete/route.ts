@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { applyMatchResult, type MatchResultInput } from "@/lib/player-service";
 import { resolvePlayerKey } from "@/lib/auth";
 import { normalizeSurvivalTier } from "@/lib/survival";
-import { WEAPONS } from "@/lib/game-data";
+import { WEAPONS, ATTACHMENTS } from "@/lib/game-data";
+import { MAPS } from "@/lib/game-protocol";
 import { WEAPON_CONDITION_METRICS, type WeaponConditionStats } from "@/lib/armory-challenges";
 
 export const dynamic = "force-dynamic";
@@ -65,6 +66,20 @@ export async function POST(req: NextRequest) {
       if (Object.keys(sanitized).length) perWeaponActions[wid] = sanitized;
     }
   }
+  // Per-attachment tallies are subsets of total kills; one kill may legitimately
+  // count for multiple equipped attachments. Unknown IDs and invalid counts are discarded.
+  const perAttachmentKills: Record<string, number> = {};
+  const validAttachments = new Set(ATTACHMENTS.map(a => a.id));
+  const rawAttachmentKills = input.perAttachmentKills;
+  if (rawAttachmentKills && typeof rawAttachmentKills === "object" && !Array.isArray(rawAttachmentKills)) {
+    for (const [attachmentId, count] of Object.entries(rawAttachmentKills)) {
+      if (!validAttachments.has(attachmentId) || typeof count !== "number" || !Number.isFinite(count)) continue;
+      const value = Math.max(0, Math.min(kills, Math.floor(count)));
+      if (value) perAttachmentKills[attachmentId] = value;
+    }
+  }
+  const mapId = typeof input.mapId === "string" && Object.prototype.hasOwnProperty.call(MAPS, input.mapId)
+    ? input.mapId : undefined;
   const result = await applyMatchResult({
     playerKey,
     kills,
@@ -107,6 +122,8 @@ export async function POST(req: NextRequest) {
     // FFA/TDM challenge progression where perWeaponKills isn't sent).
     perWeaponKills: perWeaponKillsSum >= 0 && Object.keys(perWeaponKills).length > 0 ? perWeaponKills : undefined,
     perWeaponActions,
+    perAttachmentKills,
+    mapId,
   });
   return NextResponse.json(result);
 }

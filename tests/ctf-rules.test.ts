@@ -118,12 +118,67 @@ describe("Capture the Flag objective rules", () => {
     expect(flags.red.dropped).toBe(false);
   });
 
+  test("small CTF teams raid rather than leaving a solo permanent defender", () => {
+    const flags=createCtfFlags();
+    for (const ids of [["solo"],["a","b"],["a","b","c","sniper"]]) {
+      for (const id of ids) {
+        const role=ctfBotIntent(flags,"red",id,ctfHome("red"),
+          id==="sniper"?"sniper_lr":"rifle_ar",ids,{},"forest_warfare",45000).role;
+        expect(role).toBe("attack");
+      }
+    }
+  });
+
+  test("rotating overwatch moves forward, keeping most bots on the attack", () => {
+    const flags=createCtfFlags();
+    const ids=Array.from({length:10},(_,i)=>`bot-${i}`);
+    const assignments=(now:number)=>ids.map(id=>ctfBotIntent(
+      flags,"red",id,ctfHome("red"),"sniper_lr",ids,{},"forest_warfare",now));
+    const first=assignments(45000), second=assignments(90000);
+    const guarding=(roles:ReturnType<typeof assignments>)=>
+      roles.filter(intent=>intent.role.startsWith("defend")).length;
+    expect(guarding(first)).toBe(2);
+    expect(guarding(second)).toBe(2);
+    expect(ids.filter((_,i)=>first[i].role.startsWith("defend")))
+      .not.toEqual(ids.filter((_,i)=>second[i].role.startsWith("defend")));
+    expect(first.filter(intent=>intent.role==="attack")).toHaveLength(8);
+    // Overwatch sits outside the own flag room, closer to midfield.
+    const home=ctfHome("red");
+    expect(first.filter(intent=>intent.role.startsWith("defend"))
+      .every(intent=>Math.hypot(intent.goal[0]-home[0],intent.goal[2]-home[2])>12)).toBe(true);
+  });
+
+  test("overtime sends every available bot toward captures or stolen-flag interception", () => {
+    const flags=createCtfFlags();
+    const ids=Array.from({length:12},(_,i)=>`bot-${i}`);
+    for(const id of ids) {
+      const intent=ctfBotIntent(flags,"red",id,ctfHome("red"),
+        "sniper_lr",ids,{},"forest_warfare",45000,true);
+      expect(intent.role).toBe("attack");
+      // Far-away attackers use the forest flank approach rather than
+      // crossing directly through the elevated flag's tree.
+      expect(intent.goal[0]).toBeGreaterThan(ctfHome("red")[0]+40);
+      expect(intent.goal[0]).toBeLessThanOrEqual(ctfHome("blue")[0]);
+    }
+    ctfTouch(flags,{id:"red-runner",team:"red",pos:ctfHome("blue")});
+    ctfTouch(flags,{id:"blue-thief",team:"blue",pos:ctfHome("red")});
+    expect(ctfBotIntent(flags,"red","red-runner",ctfHome("blue"),
+      "rifle_ar",ids,{"blue-thief":[0,0,8]},"forest_warfare",45000,true))
+      .toEqual({role:"escort",goal:ctfBase("red")});
+    for(const id of ids) {
+      const intent=ctfBotIntent(flags,"red",id,ctfHome("red"),
+        "rifle_ar",ids,{"blue-thief":[0,0,8]},"forest_warfare",45000,true);
+      expect(intent.role).toBe("recover");
+      expect(Math.hypot(intent.goal[0],intent.goal[2]-8)).toBeLessThan(24);
+    }
+  });
+
   test("defenders, escorts, and all-hands flag recovery respect CTF objectives", () => {
     const flags=createCtfFlags();
     const ids=["a","b","c","sniper"];
-    expect(ctfBotIntent(flags,"red","sniper",[-94,0,0],"sniper_lr",ids).role).toBe("defend_flag");
+    expect(ctfBotIntent(flags,"red","sniper",[-94,0,0],"sniper_lr",ids).role).toBe("attack");
     expect(ctfBotIntent(flags,"red","b",[-94,0,0],"rifle_ar",ids).role).toBe("attack");
-    expect(ctfBotIntent(flags,"red","a",[-94,0,0],"rifle_ar",ids).role).toBe("defend_stairs");
+    expect(ctfBotIntent(flags,"red","a",[-94,0,0],"rifle_ar",ids).role).toBe("attack");
     ctfTouch(flags,{id:"blue-thief",team:"blue",pos:ctfHome("red")});
     const intercepts=ids.map(id=>ctfBotIntent(flags,"red",id,ctfHome("red"),"sniper_lr",ids,{"blue-thief":[-31,0,8]}));
     expect(intercepts.every(intent=>intent.role==="recover")).toBe(true);
@@ -143,6 +198,11 @@ describe("Capture the Flag objective rules", () => {
     expect(ctfEngageThreat(54,"sniper_lr")).toBe(true);
     expect(ctfEngageThreat(28,"shotgun_auto")).toBe(false);
     expect(ctfEngageThreat(Infinity,"rifle_ar")).toBe(false);
+    // Overtime only interrupts a capture run for immediate combat.
+    expect(ctfEngageThreat(16,"rifle_ar",true)).toBe(true);
+    expect(ctfEngageThreat(30,"rifle_ar",true)).toBe(false);
+    expect(ctfEngageThreat(50,"sniper_lr",true)).toBe(false);
+    expect(ctfEngageThreat(50,"sniper_lr")).toBe(true);
   });
 
   test("both teams capture at the new visible circle, never at the obsolete zone", () => {

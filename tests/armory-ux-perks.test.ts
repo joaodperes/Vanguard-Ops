@@ -13,11 +13,15 @@ describe("level-ordered passive perk unlocks", () => {
   });
 
   test("perk choices arrive every three levels and end with the new perks", () => {
-    expect(PERKS.map(p => p.unlockLevel)).toEqual([1,4,7,10,13,16,19,22,25,28,31]);
-    expect(PERKS[PERKS.length - 3].id).toBe("explonando");
-    expect(PERKS[PERKS.length - 2].id).toBe("well_prepared");
-    expect(PERKS[PERKS.length - 1].id).toBe("silent_steps");
-    for (let i = 1; i < PERKS.length; i++) {
+    // Validate the progression rule rather than an outdated fixed-size list.
+    const expected=[1,1,...Array.from({length:PERKS.length-2},(_,i)=>4+i*3)];
+    expect(PERKS.map(p => p.unlockLevel)).toEqual(expected);
+    expect(PERKS[1].id).toBe("wonder_weapon");
+    expect(PERKS.at(-3)?.id).toBe("well_prepared");
+    expect(PERKS.at(-2)?.id).toBe("silent_steps");
+    expect(PERKS.at(-1)?.id).toBe("tactician");
+    for (let i = 2; i < PERKS.length; i++) {
+      if(i===2){expect(PERKS[i].unlockLevel-PERKS[i-1].unlockLevel).toBe(3);continue;}
       expect(PERKS[i].unlockLevel - PERKS[i-1].unlockLevel).toBe(3);
       expect(perkUnlocked(PERKS[i].id, PERKS[i].unlockLevel - 1)).toBe(false);
       expect(perkUnlocked(PERKS[i].id, PERKS[i].unlockLevel)).toBe(true);
@@ -71,7 +75,7 @@ describe("Explonando and Well Prepared gameplay rules", () => {
   test("death charge has a two-second fuse and falloff", () => {
     expect(EXPLO_FUSE_MS).toBe(2000);
     expect(explonandoDamage(0)).toBeGreaterThan(explonandoDamage(2));
-    expect(explonandoDamage(5)).toBe(0);
+    expect(explonandoDamage(6.5)).toBe(0);
     expect(explonandoDamage(Infinity)).toBe(0);
   });
   test("death charges do not hit owner or allies", () => {

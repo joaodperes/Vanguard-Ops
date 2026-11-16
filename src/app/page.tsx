@@ -1,4 +1,5 @@
 "use client";
+import {formatCredits} from "@/lib/format-credits";
 
 import { achievementTitle, achievementRequirement, titledDisplayName } from "@/lib/achievement-titles";
 import { useEffect, useRef, useState } from "react";
@@ -103,6 +104,8 @@ export default function Page() {
           killDifficulties: r.killDifficulties ?? [],
           perWeaponKills: r.perWeaponKills,
           perWeaponActions: r.perWeaponActions,
+          perAttachmentKills: r.perAttachmentKills,
+          mapId: r.mapId,
         }),
       });
       const rewards = await res.json();
@@ -115,7 +118,7 @@ export default function Page() {
         for (const a of rewards.newAchievements) {
           const title = achievementTitle(a.id);
           const requirement = achievementRequirement(a.id, a.description);
-          toast.success(`Achievement: ${a.title}`, { description: `${requirement ? `${requirement} · ` : ""}+${a.rewardXp} XP · +${a.rewardCredits} CR${title ? ` · Title unlocked: ${title}` : ""}` });
+          toast.success(`Achievement: ${a.title}`, { description: `${requirement ? `${requirement} · ` : ""}+${a.rewardXp} XP · +${formatCredits(a.rewardCredits)} CR${title ? ` · Title unlocked: ${title}` : ""}` });
         }
       }
       if (rewards.newPrestiges?.length) {
@@ -127,7 +130,7 @@ export default function Page() {
         }
       }
       if (rewards.challengeAwards?.length) {
-        for (const c of rewards.challengeAwards) toast.success(`Challenge Complete: ${c.title}`, { description: `+${c.rewardXp} XP · +${c.rewardCredits} CR` });
+        for (const c of rewards.challengeAwards) toast.success(`Challenge Complete: ${c.title}`, { description: `+${c.rewardXp} XP · +${formatCredits(c.rewardCredits)} CR` });
       }
     } catch {
       setMatchResult({ ...r });
@@ -159,9 +162,14 @@ export default function Page() {
     ? {
         weaponId: profile.loadout.weapon.id,
         perkId: profile.loadout.perkId,
+        wonderWeaponId: profile.loadout.perkId === "wonder_weapon" ? profile.loadout.wonderWeaponId : undefined,
+        wonderModuleId: profile.loadout.wonderModuleId,
+        wonderSkinId: profile.loadout.wonderSkinId,
+        wonderKillEffectId: profile.loadout.wonderKillEffectId,
         secondaryWeaponId: profile.loadout.perkId === "well_prepared" || !isPrimaryWeaponCategory(profile.loadout.secondary?.category ?? "sidearm")
           ? (profile.loadout.secondary?.id ?? "pistol_side") : "pistol_side",
         meleeWeaponId: profile.loadout.melee?.id ?? "knife_tactical",
+        equipmentId: profile.loadout.equipmentId,
         weaponSkinId: profile.loadout.weaponSkin.id,
         secondaryWeaponSkinId: profile.loadout.secondaryWeaponSkin?.id ?? "default",
         meleeWeaponSkinId: profile.loadout.meleeWeaponSkin?.id ?? "default",

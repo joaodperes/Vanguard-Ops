@@ -11,7 +11,7 @@ import {useGame} from "../src/lib/game-store";
 
 describe("mode availability and spawn capacity",()=>{
  test("TDM and Kill Confirmed each have nine maps, with opposite Afterlight variants removed",()=>{
-  expect(MAP_LIST).toHaveLength(10);
+  expect(MAP_LIST).toHaveLength(11);
   expect(MAP_LIST.filter(m=>mapAllowedForMode("tdm",m.id))).toHaveLength(9);
   expect(MAP_LIST.filter(m=>mapAllowedForMode("killconfirmed",m.id))).toHaveLength(9);
   expect(mapAllowedForMode("tdm","arena_neon")).toBe(false); // Afterlight City (night)
@@ -19,11 +19,22 @@ describe("mode availability and spawn capacity",()=>{
   expect(mapAllowedForMode("killconfirmed","terminal")).toBe(false);
   expect(mapAllowedForMode("killconfirmed","arena_neon")).toBe(true);
   for(const map of MAP_LIST){
-   if(map.id!=="arena_neon")expect(mapAllowedForMode("tdm",map.id)).toBe(true);
-   if(map.id!=="terminal")expect(mapAllowedForMode("killconfirmed",map.id)).toBe(true);
+   expect(mapAllowedForMode("tdm",map.id)).toBe(map.id!=="arena_neon"&&map.id!=="emberhold");
+   expect(mapAllowedForMode("killconfirmed",map.id)).toBe(map.id!=="terminal"&&map.id!=="emberhold");
   }
   for(const id of ["forest_warfare","orbital_nexus","floodgate","whiteout_depot"]){expect(mapAllowedForMode("ffa",id)).toBe(false);expect(mapAllowedForMode("survival",id)).toBe(false);}
   expect(MAP_LIST.filter(m=>mapAllowedForMode("ctf",m.id))).toHaveLength(6);
+ });
+ test("Emberhold takes Afterlight Day's slot in FFA, Survival and Gun Game",()=>{
+  for(const mode of ["ffa","survival","gungame"] as const){
+   expect(MAP_LIST.filter(m=>mapAllowedForMode(mode,m.id))).toHaveLength(6);
+   expect(mapAllowedForMode(mode,"emberhold")).toBe(true);
+   expect(mapAllowedForMode(mode,"terminal")).toBe(false);
+   expect(mapAllowedForMode(mode,"arena_neon")).toBe(true);
+  }
+  expect(mapAllowedForMode("ctf","emberhold")).toBe(false);
+  expect(roomCapacity("ffa",teamSizesForMap("emberhold","ffa").at(-1)!)).toBe(24);
+  expect(roomCapacity("gungame",teamSizesForMap("emberhold","gungame").at(-1)!)).toBe(24);
  });
  test("Blacksite mode caps and UI transitions agree",()=>{
   expect(teamSizesForMap("bunker","tdm")).toEqual([3,5]);expect(teamSizesForMap("bunker","ffa")).toEqual([3,4]);
@@ -40,7 +51,7 @@ describe("mode availability and spawn capacity",()=>{
     expect(teamSizesForMap(id,"tdm")).toEqual([5,7,9,16]);
     expect(teamSizesForMap(id,"ffa")).toEqual([5,7,9,16]);
     expect(recommendedTeamSize(id,"tdm")).toBe(9);
-    expect(recommendedTeamSize(id,"ffa")).toBe(7);
+    expect(recommendedTeamSize(id,"ffa")).toBe(9);
   }
   expect(teamSizesForMap("floodgate","tdm")).toEqual([5,7,9,16]);
   expect(recommendedTeamSize("floodgate")).toBe(7);
@@ -55,7 +66,10 @@ describe("mode availability and spawn capacity",()=>{
    const map=makeEnvironmentMap(getMap(base.id,mode)),max=teamSizesForMap(map.id,mode).at(-1)!;
    for(const team of mode==="ffa"||mode==="gungame"?["ffa"] as const:["red","blue"] as const){
     const safe=map.spawns[team].filter(p=>spawnClear(map,p)),count=new Set(safe.map(p=>p.join(","))).size;
-    if(count<(team==="ffa"?max*2:max))throw Error(`${map.id}/${mode}/${team}: only ${count} safe spawns`);
+    if(count<(team==="ffa"?max*2:max)){
+     const unsafe=map.spawns[team].filter(p=>!spawnClear(map,p)).map(p=>p.join(",")).join("; ");
+     throw Error(`${map.id}/${mode}/${team}: only ${count} safe spawns; unsafe coordinates: ${unsafe || "none (duplicates)"}`);
+    }
    }
   }
  });

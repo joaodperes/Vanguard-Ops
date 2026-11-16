@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import {
-  MOVEMENT, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity,
+  MOVEMENT, SPRINT_STAMINA, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity,
+  isQuickReadyGrip, sprintRecoverySpreadMultiplier, sprintRecoveryAdsRate,
+  SPRINT_RECOVERY_QUICK_MS, SPRINT_RECOVERY_STANDARD_MS,
 } from "../src/lib/movement-rules";
+import { sprintDrainMultiplier } from "../src/lib/perks";
 
 describe("Movement V2 — horizontal response", () => {
   test("accelerates quickly without overshooting the target", () => {
@@ -86,4 +89,55 @@ test("temporary Reaper jump boost transfers greater horizontal momentum without 
   expect(reaper[0]).toBeGreaterThan(normal[0]+1);
   expect(runJumpTakeoffVelocity(0,0,15,0,true,1.55)).toEqual([0,0]);
   expect(runJumpTakeoffVelocity(15,0,-15,0,true,1.55)).toEqual([15,0]);
+});
+
+describe("Quick-Ready grip replacing Sprint ADS",()=>{
+  test("retains the original attachment ID for saved loadouts",()=>{
+    expect(isQuickReadyGrip("grip_runner_ads")).toBe(true);
+    expect(isQuickReadyGrip("grip_vertical")).toBe(false);
+    expect(isQuickReadyGrip(null)).toBe(false);
+  });
+  test("hipfire settles over 300ms normally but within 95ms with the grip",()=>{
+    expect(SPRINT_RECOVERY_STANDARD_MS).toBe(300);
+    expect(SPRINT_RECOVERY_QUICK_MS).toBe(95);
+    expect(sprintRecoverySpreadMultiplier(1000,0,null)).toBe(1);
+    expect(sprintRecoverySpreadMultiplier(1000,2000,null)).toBe(1);
+    expect(sprintRecoverySpreadMultiplier(1000,1000,null)).toBeCloseTo(1.35);
+    expect(sprintRecoverySpreadMultiplier(1150,1000,null)).toBeCloseTo(1.175);
+    expect(sprintRecoverySpreadMultiplier(1150,1000,"grip_runner_ads")).toBe(1);
+    expect(sprintRecoverySpreadMultiplier(1095,1000,"grip_runner_ads")).toBe(1);
+    expect(sprintRecoverySpreadMultiplier(1300,1000,null)).toBe(1);
+    expect(sprintRecoverySpreadMultiplier(1040,1000,"grip_runner_ads"))
+      .toBeLessThan(sprintRecoverySpreadMultiplier(1040,1000,null));
+  });
+  test("sight raise accelerates only just after sprint, not at rest or while sprinting",()=>{
+    expect(sprintRecoveryAdsRate(1200,1000,"grip_runner_ads")).toBe(20);
+    expect(sprintRecoveryAdsRate(1200,1000,"grip_vertical")).toBe(12);
+    expect(sprintRecoveryAdsRate(1400,1000,"grip_runner_ads")).toBe(12);
+    expect(sprintRecoveryAdsRate(100,0,"grip_runner_ads")).toBe(12);
+  });
+});
+
+
+describe("sprint stamina balance", () => {
+  test("base sprint lasts 6.5 seconds; Athlete doubles that to 13 seconds", () => {
+    const base = SPRINT_STAMINA.maximum / (SPRINT_STAMINA.drainPerSecond * sprintDrainMultiplier(null));
+    const athlete = SPRINT_STAMINA.maximum / (SPRINT_STAMINA.drainPerSecond * sprintDrainMultiplier("athlete"));
+    expect(base).toBeCloseTo(6.5, 6);
+    expect(athlete).toBeCloseTo(13, 6);
+  });
+
+  test("stamina starts recovering after 750ms and fills in 2.5 seconds", () => {
+    expect(SPRINT_STAMINA.regenerationDelayMs).toBe(750);
+    expect(SPRINT_STAMINA.maximum / SPRINT_STAMINA.regenerationPerSecond).toBeCloseTo(2.5, 6);
+    expect(SPRINT_STAMINA.regenerationDelayMs / 1000 +
+      SPRINT_STAMINA.maximum / SPRINT_STAMINA.regenerationPerSecond).toBeCloseTo(3.25, 6);
+  });
+
+  test("exhaustion requires a 25% refill (about 1.38s including the delay)", () => {
+    expect(SPRINT_STAMINA.resumeThreshold).toBe(25);
+    const resumeAfterSeconds = SPRINT_STAMINA.regenerationDelayMs / 1000 +
+      SPRINT_STAMINA.resumeThreshold / SPRINT_STAMINA.regenerationPerSecond;
+    expect(resumeAfterSeconds).toBeCloseTo(1.375, 6);
+  });
 });

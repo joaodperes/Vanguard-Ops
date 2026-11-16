@@ -2,6 +2,7 @@ import {describe,expect,test} from "bun:test";
 import * as THREE from "three";
 import {ExplosionEffects,MAX_EXPLOSION_EFFECTS} from "../src/lib/explosion-effects";
 import {FPSEngine} from "../src/lib/fps-engine";
+import {makeEngineStub} from "./helpers/engine-stub";
 import {CLUSTER_MAX_DAMAGE} from "../src/lib/cluster-grenades";
 
 const listener=new THREE.Vector3();
@@ -68,7 +69,7 @@ test("exhausting the cosmetic budget never drops offline cluster damage",()=>{
  const run=(fill:boolean)=>{
   const scene=new THREE.Scene(),fx=new ExplosionEffects(scene),now=performance.now();
   if(fill)for(let i=0;i<MAX_EXPLOSION_EFFECTS;i++)fx.spawn(new THREE.Vector3(1,0,0),"ordinary",6,now,listener);
-  const e:any=Object.create(FPSEngine.prototype),damage:number[]=[];
+  const e:any=makeEngineStub(),damage:number[]=[];
   Object.assign(e,{opts:{mode:"tdm"},camera:new THREE.PerspectiveCamera(),yaw:0,explosionEffects:fx,
    weaponAudio:{play(){}},clusterVolleys:new Map(),bulletSpitters:new Map(),matchEnded:false,
    combatants:new Map([["target",{id:"target",pos:[20,0,0],alive:true,team:"blue"}]]),

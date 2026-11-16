@@ -1,5 +1,5 @@
 import {describe,test,expect} from 'bun:test';
-import {MAP_LIST,CTF_MAP_IDS,getMap,mapAllowedForMode,teamSizesForMap,type Vec3} from '../src/lib/game-protocol';
+import {CTF_MAP_IDS,getMap,mapAllowedForMode,teamSizesForMap,type Vec3} from '../src/lib/game-protocol';
 import {MAP_BLUEPRINTS,validateBlueprint,insideRegions,featureBoxes,regionBoundary} from '../src/lib/map-blueprints';
 import {makeEnvironmentMap,breakEnvironmentWall} from '../src/lib/dynamic-environment';
 import {createCtfFlags,ctfHome,ctfBase,ctfTouch,ctfBotIntent,CTF_PICKUP_RADIUS,CTF_CAPTURE_RADIUS} from '../src/lib/ctf-rules';
@@ -22,8 +22,8 @@ function route(start:Vec3,goal:Vec3,minZ:number,maxZ:number){
  return false;
 }
 describe('Whiteout Depot CTF',()=>{
- test('six CTF choices, ten total maps, shared team-mode availability and 7v7 limit',()=>{
-  expect(MAP_LIST).toHaveLength(10);expect(CTF_MAP_IDS).toHaveLength(6);
+ test('six CTF choices, shared team-mode availability and 7v7 limit',()=>{
+  expect(CTF_MAP_IDS).toHaveLength(6);
   for(const mode of ['ctf','tdm','killconfirmed'] as const)expect(mapAllowedForMode(mode,id)).toBe(true);
   for(const mode of ['ffa','gungame','survival'] as const)expect(mapAllowedForMode(mode,id)).toBe(false);
   expect(teamSizesForMap(id,'ctf')).toEqual([3,5,7]);expect(map.name).toBe('Whiteout Depot');

@@ -42,7 +42,8 @@
     "reticle": "mildot",
     "adsFovReduction": 33,
     "adsSensMul": 0.58,
-    "description": "2x low-magnification scope. Fast target acquisition with modest long-range precision."
+    "adsSpreadFloor": 0.0015,
+    "description": "2x low-magnification scope. Faster ADS than the 6x sniper scope, with less precise aimed shots."
   },
   "thermal": {
     "type": "thermal",

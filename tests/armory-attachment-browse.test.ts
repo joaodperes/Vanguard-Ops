@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { WEAPONS, compatibleAttachments, weaponAttachmentSlots } from "../src/lib/game-data";
 import { attachmentChallenge, armoryChallengeProgress, WEAPON_CONDITION_METRICS } from "../src/lib/armory-challenges";
-import { attachmentViewPermissions, showPendingAttachmentChallenge } from "../src/lib/armory-attachment-browse";
+import { attachmentViewPermissions, showPendingAttachmentChallenge, attachmentEffectLabel } from "../src/lib/armory-attachment-browse";
 
 describe("Armory attachment browsing permissions", () => {
   test("owned but unequipped weapons may browse and buy, but cannot equip attachments", () => {
@@ -44,5 +44,13 @@ describe("Armory attachment browsing permissions", () => {
     }
     for (const count of Object.values(covered)) expect(count).toBeGreaterThan(0);
     expect(showPendingAttachmentChallenge(false, undefined)).toBe(false);
+  });
+});
+
+describe("Armory modifier labels",()=>{
+  test("fireRate uses the user-facing fire rate label",()=>{
+    expect(attachmentEffectLabel("fireRate")).toBe("fire rate");
+    expect(attachmentEffectLabel("adsSpread")).toBe("ADS spread");
+    expect(attachmentEffectLabel("spread")).toBe("hipfire");
   });
 });

@@ -1,4 +1,5 @@
 "use client";
+import {formatCredits} from "@/lib/format-credits";
 import { useGame } from "@/lib/game-store";
 import { displayLabel, weaponCategoryLabel } from "@/lib/display-labels";
 import { WEAPONS, weaponById, attachmentById, RARITY_COLORS, rankForLevel, nextRank } from "@/lib/game-data";
@@ -65,7 +66,7 @@ export function MainMenu() {
                   </div>
                   <div className="text-2xl font-bold text-white truncate">{profile?.name ?? "Recruit"}</div>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-white/50">
-                    <span className="flex items-center gap-1"><Zap className="w-3 h-3 text-amber-400" /> <span className="text-amber-300 font-semibold">{profile?.credits ?? 0}</span> CR</span>
+                    <span className="flex items-center gap-1"><Zap className="w-3 h-3 text-amber-400" /> <span className="text-amber-300 font-semibold">{formatCredits(profile?.credits ?? 0)}</span> CR</span>
                     <span className="flex items-center gap-1"><Target className="w-3 h-3 text-emerald-400" /> <span className="text-white/80">{profile?.kills ?? 0}</span> kills</span>
                     <span className="flex items-center gap-1"><Trophy className="w-3 h-3 text-rose-400" /> <span className="text-white/80">{profile?.matchesWon ?? 0}</span> wins</span>
                     <span className="flex items-center gap-1"><Skull className="w-3 h-3 text-white/40" /> <span className="text-white/80">{profile?.deaths ?? 0}</span> deaths</span>

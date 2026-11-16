@@ -11,6 +11,7 @@
  * Server map collision never imports Three.js or this module.
  */
 import * as THREE from "three";
+import {mapTexture} from "./map-textures";
 import type { MapDef } from "./game-protocol";
 import type { SurfacePattern, SurfaceRecipe, SurfaceSlot } from "./map-visuals";
 
@@ -154,7 +155,17 @@ function patternCanvas(pattern:SurfacePattern,color:number):HTMLCanvasElement {
   return c;
 }
 export function createPatternedMaterial(color:number,recipe:SurfaceRecipe):THREE.MeshStandardMaterial {
-  const tex=new THREE.CanvasTexture(patternCanvas(recipe.pattern,color));
+  const canvas=patternCanvas(recipe.pattern,color);
+  const tex=new THREE.CanvasTexture(canvas);
+  const asset=mapTexture(recipe.textureId);
+  if(asset){
+    let disposed=false;tex.addEventListener("dispose",()=>{disposed=true;});
+    const image=new Image();
+    image.onload=()=>{if(disposed)return;const g=canvas.getContext("2d");if(!g)return;
+      g.imageSmoothingEnabled=false;g.clearRect(0,0,128,128);g.drawImage(image,0,0,128,128);tex.needsUpdate=true;};
+    // Keep the procedural surface if a local resource cannot be loaded.
+    image.src=asset.path;
+  }
   tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
   tex.colorSpace=THREE.SRGBColorSpace;
   tex.magFilter=THREE.NearestFilter;

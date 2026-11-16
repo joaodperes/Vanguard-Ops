@@ -1,19 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Weapon challenges",
-  "description": "Catalog authored in Vanguard Ops. Run bun run content:validate for cross-catalog checks.",
   "type": "array",
   "items": {
     "type": "object",
-    "required": [
-      "id",
-      "weaponId",
-      "skinId",
-      "goal",
-      "metric",
-      "title",
-      "description"
-    ],
     "properties": {
       "id": {
         "type": "string",
@@ -32,13 +21,30 @@
         "exclusiveMinimum": 0
       },
       "metric": {
-        "type": "string"
+        "type": "string",
+        "enum": [
+          "kills",
+          "headshots",
+          "bare_kills",
+          "fully_equipped_kills",
+          "ads_kills",
+          "hipfire_kills",
+          "airborne_kills",
+          "close_range_kills",
+          "long_range_kills",
+          "multikill_kills",
+          "suppressed_kills",
+          "critical_health_kills",
+          "comeback_kills"
+        ]
       },
       "title": {
-        "type": "string"
+        "type": "string",
+        "minLength": 1
       },
       "description": {
-        "type": "string"
+        "type": "string",
+        "minLength": 1
       },
       "requirements": {
         "type": "array",
@@ -46,7 +52,22 @@
           "type": "object",
           "properties": {
             "metric": {
-              "type": "string"
+              "type": "string",
+              "enum": [
+                "kills",
+                "headshots",
+                "bare_kills",
+                "fully_equipped_kills",
+                "ads_kills",
+                "hipfire_kills",
+                "airborne_kills",
+                "close_range_kills",
+                "long_range_kills",
+                "multikill_kills",
+                "suppressed_kills",
+                "critical_health_kills",
+                "comeback_kills"
+              ]
             },
             "goal": {
               "type": "number",
@@ -61,6 +82,16 @@
         }
       }
     },
+    "required": [
+      "id",
+      "weaponId",
+      "skinId",
+      "goal",
+      "metric",
+      "title",
+      "description"
+    ],
     "additionalProperties": false
-  }
+  },
+  "title": "Vanguard Ops weapon-challenges catalog"
 }

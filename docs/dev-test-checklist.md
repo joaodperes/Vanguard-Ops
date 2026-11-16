@@ -22,6 +22,8 @@ git pull --ff-only origin dev
 bun install --frozen-lockfile
 bun run db:generate
 bun run content:validate
+bun run schema:catalogs:check
+bun run schema:map-theme:check
 bun run test:smoke
 bun run typecheck
 bun run build
@@ -35,6 +37,29 @@ GitHub Actions:
 - Inspect the status and logs of runs for the **candidate commit**, including failures and skipped jobs. Workflow availability on `main` begins once the workflow edits have been merged there.
 - GitHub-hosted runs consume Actions allowance; check repository/org billing settings if required.
 
+## 2a. Regression-test maintenance strategy
+
+- Run **focused unit tests** while iterating (for example,
+  `bun test tests/throwing-knives.test.ts tests/bot-tactical.test.ts`).
+  Run the full suite and build as integration gates; CI still runs them on
+  `dev`/`main`, so this does not weaken release safety.
+- Assert **player-observable behavior, security and gameplay contracts**,
+  not exact catalog counts or internal implementation state. Explicit
+  quantities are appropriate only when they are protected game design rules.
+- Avoid shadow configuration: derive dependent range, charge and allowed-value
+  constants from their canonical catalog or shared contract.
+- Keep a behavioral regression in its **owning feature test file**; do not
+  duplicate that same rule in an unrelated tactical, UI or map test. A
+  duplicate assertion increases maintenance without increasing coverage.
+- Prefer pure logic and real public APIs; for the few prototype-created
+  FPSEngine test doubles, use `tests/helpers/engine-stub.ts` so new default
+  engine collections don't require updates to every test.
+- Classify failures as **actual regression**, **deliberate behavior change**,
+  **outdated test fixture**, or **unrelated failure** before editing tests.
+  Implement the behavior and corresponding test together.
+- Don't delete regression coverage, skip tests or silently weaken meaningful
+  checks to make CI green. Automated tests don't replace live map/bot review.
+
 ## 3. Manual controls and combat
 
 Test desktop keyboard/mouse **and** touch/mobile:
@@ -44,17 +69,18 @@ Test desktop keyboard/mouse **and** touch/mobile:
 - Shotguns and relevant snipers insert rounds incrementally; verify interruption, remaining ammo and online/server parity.
 - Confirm damage falloff, accuracy, weapon attachments, per-weapon skins, ownership, saved loadouts, challenges, achievement rewards, Wonder recharge and deaths/respawns across match boundaries.
 - Test weapon-specific behaviors: grenade/launcher splash, Bullet Spitter acquisition and destruction, Event Horizon, Plagueheart poison, Deadlock, Hellfire, Stormweaver and Bogfather. Cover and team rules must agree offline/online.
+- **Multilevel explosive LOS:** On Emberhold's keep, dungeon and stair landings and on Afterlight roofs, detonate frag, flashbang, mine, death charge, RL-7, Breach, Swarm and cluster shots above/below operators. A spherical 3D radius must end vertically as well as horizontally, and a concrete floor/wall/ceiling blocks effects even when the horizontal distance is small. Confirm both offline and authoritative multiplayer (including bots and owner self-damage). Check a near-miss rocket still works with a clear path but never hits through a wall; Plagueheart remains detonation-only. A blast that destroys glass/wood/light cover must not retroactively hit a victim protected by that panel, and the next blast should pass through the newly opened space.
 - At the Firing Range, inspect iron, red-dot and holographic ADS on the burst pistol, Hydra, Reclaimer, Plagueheart and LMGs: optics must stay attached to the receiver, the physical housing must agree with the HUD reticle, and the aim point must remain unobstructed. Confirm all gun bodies rise just below the crosshair without hiding targets.
 - Fire Plagueheart at the furthest practice bot. Only targets within 2.75m of the *impact* should be poisoned; targets merely close to the flight path must remain unaffected. Repeat on an online room with latency.
 - Confirm Stormweaver identifies as Shotgun in HUD/loadouts; seven pellets group tightly at short range, lightning arcs begin at a struck victim and jump between actual targets (never from the muzzle), and missed pellets become floor mines. Verify server/local hit parity.
 - Inspect Event Horizon default Eventide-inspired finish and explicit skin overrides, Deadlock's targeting modules, Hellfire red/orange/yellow chassis and forward-directed muzzle flames. Check axe blade silhouette and melee reach visually, then compare LMG vertical recoil while hipfiring and ADS.
 - Save, rename, equip and delete named loadouts in the Armory; Profile must not contain a duplicate edit surface. Browse attachments on unequipped weapons; completed attachment challenges should no longer show their requirement block but should retain the purchase action. Verify weapon-card purchase/equip buttons align at desktop and mobile widths. Enter the Firing Range from its dedicated Armory button, not individual weapon cards.
-- On a new guest and a new account, complete the tutorial's movement, ADS, target, reload and swap drills using desktop and touch controls. Escape must expose tutorial buttons; cancel a reload by swapping and verify it does not complete the reload task. Confirm the range awards no stats/XP/credits and does not change the equipped loadout.
+- On a new guest and a new account, complete the tutorial's movement, ADS, target, reload and swap drills using desktop and touch controls. Escape must expose tutorial buttons; cancel a reload by swapping and verify it does not complete the reload task. Confirm the range awards no stats/XP/credits and does not change the equipped loadout. In the Firing Range editor, choose a Wonder from Primary: its attachment panel must show only modules compatible with that Wonder, and its in-game firing key remains 4. Check that the wider modal stays inside a short viewport, the separate optional Visual customization tab has weapon finishes/reticles/primary and secondary charms but no operative skin or melee charm, and switching tabs does not reset selections. Equip a Juggernaut, exhaust its ammo, then exit with X or the HUD button: armor and weapons disappear, normal controls return and online opponents also see the suit removed. Inspect charm clearance from the left support glove on pistols, SMGs, rifles, snipers and LMGs during idle, ADS, recoil, reload and weapon swap.
 - Skip, finish, save/leave and reload the tutorial; verify per-player checkpoints, resume from Profile, replay after completion and no repeated menu prompts. Confirm existing players are not forced into training, the Guide is absent, the Deploy area is gone, Play still works and account logout is inside Profile.
 
 ## 4. Map and bot acceptance
 
-Check all nine playable map IDs: six general-purpose maps (including both Afterlight lighting editions) and three Capture the Flag-only maps:
+Check all eleven playable maps in their supported modes.
 
 | Map ID | Current map / primary risk |
 | --- | --- |
@@ -67,7 +93,8 @@ Check all nine playable map IDs: six general-purpose maps (including both Afterl
 | `forest_warfare` | Forest Warfare — **CTF / TDM / KC**; raised treetop flag positions, climbable access and flag-carrier paths |
 | `orbital_nexus` | Orbital Nexus — **CTF / TDM / KC**; opposing flag routes, launch pads, reactor objective and platform clearance |
 | `whiteout_depot` | Whiteout Depot — **CTF / TDM / KC, up to 7v7**; twelve spawns per team, boxcar lanes, freight sheds, service gallery, breach hatch and snow visibility |
-| `floodgate` | Floodgate — **CTF / TDM / KC, up to 16v16**; covered turbine hall, maintenance-yard flanks, pressure purge warning/damage and sheltered spawns |
+| `floodgate` | Floodgate — **CTF / TDM / KC, up to 16v16**; covered turbine hall, pressure grates, destructible dam, advancing flood and sheltered spawns |
+| `emberhold` | Emberhold Castle — **FFA / Survival / Gun Game** with four moat crossings, stairs to the battlements and lava that kills on contact |
 
 For each, exercise relevant modes with and without bots, including 3v3/5v5/7v7 where supported:
 - Verify useful flanks, spawn clearance, time to first encounter, collision-backed cover, open passage through destroyed doors, hazard telegraphing and jump-pad landings where present.
@@ -77,7 +104,8 @@ For each, exercise relevant modes with and without bots, including 3v3/5v5/7v7 w
 - On Ridgefall, inspect actual factory routes and freight/security gate. Old snowfield, rocky-outpost and outdoor-cliff checklists are historical, not release criteria.
 - For Forest Warfare and Orbital Nexus, test flag pickup, return, capture, carrier paths, timed drops and team-wide feedback. On Orbital Nexus also verify the reactor objective and launch pads in online and offline CTF matches.
 - On Floodgate, test 3v3 through 16v16, all three lanes in both directions, ground-level flags, carrier delivery and the optional maintenance shutter. Vents warn at 30 seconds, purge at 36–42 seconds and repeat every 48 seconds of active match time. Compare HUD, vent lights, damage and late joins against the authoritative environment clock. Confirm bots keep moving and covered lanes remain open during a purge. See [Floodgate](floodgate.md).
-- For authored changes, export Map Studio content and validate `src/data/map-blueprints.json`, matching theme JSON and client/server geometry. See [Map Studio](map-studio.md).
+- On Emberhold, cross all four bridges, check the battlement stairs, and fall into the moat in offline and online matches. Check that lava grants no kill or Gun Game tier. In co-op Survival, clear a wave after one player falls and confirm they respawn on safe ground.
+- For authored changes, export the versioned map document from Map Studio and validate client/server geometry. See [Map Studio](map-studio.md).
 
 ## 5. Survival, rewards and persistence
 
@@ -109,8 +137,28 @@ For each, exercise relevant modes with and without bots, including 3v3/5v5/7v7 w
 - [ ] Database backup/migration and rollback are approved, if applicable
 - [ ] `main` deployment/branch validation completed after merge
 
+## Map Studio connected construction
+
+- Place each wall/room/rooftop recipe in 2D and 3D; verify ghosts and grid intervals agree with the committed geometry.
+- Attach stairs at every edge of 5u and 10u platforms; walk both ways, then move, resize, rotate, copy and undo the assembly. Test an elevated lower floor and missing headroom.
+- Reproduce a tiny wall gap and a buried stair landing; verify measured markers, object selection and Close gap. Keep intentional openings available.
+- Edit exact bottom/top faces of inherited boxes and stair groups without changing thickness.
+- Place red/blue containers, recolor/resize one copy, save it to My assets, export/import its recipe library and confirm fresh instance IDs.
+- Roundtrip the unified map documents, including Orbital Nexus, Floodgate, Whiteout Depot and Emberhold. Confirm both Afterlight editions serialize their shared geometry and individual lighting.
+- Verify new editor/browser changes on touch and small screens. Walk actual player routes and check multiplayer reactor/client-server parity before promotion.
+
+## Map objective authoring regression review
+
+- On a non-CTF map draft, place both flags and both capture zones, enable CTF and playtest with bots. Steal, drop, return and capture at the saved zones. Move a base and change its radius/Y; verify the visible ring and scoring agree.
+- Place/move a reactor away from the world origin, alter kills required and charge radius, then test offline and online on a rebuilt server. Only eligible kills in the saved zone charge it; claim uses its saved elevation and radius. Confirm a single winner on simultaneous contact and temporary reward loss on death.
+- Test the optional reactor in a non-CTF mode, including HUD progress, enemy eligibility, melee pulse and bot behavior. Verify removed reactors do not award rewards or render effects.
+- Inspect entrance/upper landing routing and walk the physical stairs after moving markers. Check 2D/3D selection, exact position/rule edits, undo/redo, export/import, explicit removals and migration of old drafts.
+- Confirm unchanged Forest Warfare tree routes and Orbital Nexus CTF/gravity/reactor behavior, plus pointer/touch and performance review. Automated validation does not replace this live sign-off.
+
 ## Map compatibility and spawn changes
 
 Run `bun test tests/map-mode-layouts.test.ts` for mode availability, Blacksite limits, UI configuration clamping, usable unique spawn counts and physical CTF pickup/capture routes. Follow the human playtest list in [map modes and spawns](map-modes-and-spawns.md), especially the two CTF trial conversions and TDM/KC reactor/purge HUD behavior.
 
 Run `bun test tests/whiteout-depot.test.ts` and the [Whiteout Depot](whiteout-depot.md) human playtests when changing its layout. Confirm six CTF cards at desktop and a usable single-column picker on phones.
+
+On the synchronized editor branch, verify Floodgate steam appearance/warning edits, mode-specific trial spawn overrides and selected-mode draft playtests. Repeat live online event/weapon checks after redeploying the combined client and server; prior dev gameplay sign-off does not sign off this merge.
