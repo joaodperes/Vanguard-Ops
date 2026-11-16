@@ -121,8 +121,16 @@ export type OperationProgress=Record<string,OperationRecord>;
 export function operationUnlocked(id:string,p:OperationProgress):boolean {
  const i=OPERATIONS.findIndex(m=>m.id===id);return i>=0&&!!p[id]?.completions||i===0||i>0&&!!p[OPERATIONS[i-1].id]?.completions;
 }
+export function operationStarCriteria(s:OperationState,deaths:number):{label:string;earned:boolean}[] {
+ const won=s.status==='won';
+ return [
+  {label:'Complete the mission',earned:won},
+  {label:'Recover the optional intel',earned:won&&s.intel},
+  {label:'Complete on Veteran without dying',earned:won&&s.difficulty==='veteran'&&deaths===0},
+ ];
+}
 export function operationStars(m:OperationMission,s:OperationState,deaths:number):number {
- return s.status==='won'?1+Number(s.intel)+Number(deaths===0&&s.difficulty==='veteran'):0;
+ return operationStarCriteria(s,deaths).filter(criterion=>criterion.earned).length;
 }
 export function recordOperation(p:OperationProgress,s:OperationState,deaths:number):OperationProgress {
  const m=operationById(s.missionId);if(!m||s.status!=='won')return p;
