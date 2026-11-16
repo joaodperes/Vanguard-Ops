@@ -172,9 +172,7 @@ Survival adds specialist enemies and rotating relay, supply and terminal objecti
 
 ### Playing together
 
-Quick Play joins a public match in your selected mode or starts one with bots.
-Rooms stay together through results, with map voting, host-controlled rematches
-and a **Copy room link** invitation in the lobby and results screen.
+Create Room lets you configure a match, while Browse Rooms lists available public and private lobbies. Rooms stay together through results, with map voting, host-controlled rematches and a **Copy room link** invitation in the lobby and results screen.
 See [room and match flow](docs/match-flow.md) for rules and deployment notes.
 
-Operations campaign: see [mission rules and authoring notes](docs/operations.md) for the twelve-mission solo/co-op campaign, ratings and persistent campaign rooms.
+Operations campaign: see [mission rules and authoring notes](docs/operations.md) for the twelve-mission solo campaign, account-backed progress and first-clear rewards.

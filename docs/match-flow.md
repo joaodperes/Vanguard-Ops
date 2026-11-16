@@ -1,10 +1,9 @@
 # Room and match flow
 
-Quick Play uses the selected one of the existing six modes. It joins a public,
-non-full room, preferring active matches and then the largest human roster.
-If none exists, it creates a public room with recommended capacity, normal bots,
-and default rules and starts immediately. Quick Play Survival uses the default
-tier; custom limits, passwords, difficulty and tiers remain in Create Room.
+Online matches use explicit rooms: create a room with the desired mode, map,
+capacity, bot fill and rules, or browse available public rooms and join one.
+Private rooms require their password. The room browser does not automatically
+match players or create a room on their behalf.
 
 Rooms retain their ID, password, roster, teams and host through the results
 screen. The room connection belongs to the client session rather than the 3D
@@ -30,23 +29,23 @@ the recipient sees the invited room in the browser and uses the ordinary team
 and password dialog. Full, expired and between-round rooms display an unavailable
 message with refresh available. Clipboard failure exposes a selectable link.
 
-Protocol additions: `quickPlay`, `voteMap`, `readyNextRound`, `roomStatus`, and
-`roundLaunched`. Deploy frontend and game server together and restart the server.
-No catalogs or database schema change. Rooms remain in-memory and do not survive
-a server restart. Losing a results connection requires returning to match setup
-to rejoin an available room.
+The room protocol includes `createRoom`, `listRooms`, `joinRoom`, `voteMap`,
+`readyNextRound`, `roomStatus` and `roundLaunched`. Deploy frontend and game
+server together and restart the server. No catalogs or database schema change.
+Rooms remain in-memory and do not survive a server restart. Losing a results
+connection requires returning to match setup to rejoin an available room.
 
 ## Verification
 
-- `tests/room-flow.test.ts`: matchmaking filters, compatible map choices,
-  vote replacement/ties and invitation URLs.
+- `tests/room-flow.test.ts`: compatible room maps, vote replacement/ties and
+  invitation URLs.
 - `tests/room-session.test.ts`: isolated client process checks connection
   retention, round transitions, passwords and leaving.
 - `tests/room-flow-online.test.ts`: real Socket.IO clients and a temporary SQLite
   database exercise private joining, host-only launch, idempotent reattachment,
   retention beyond 15 seconds, voting, readiness, round reset, host departure,
-  Quick Play and all six modes. Only the isolated server's simulation interval
-  is accelerated; its cleanup grace period uses real time.
+  explicit room creation and all six modes. Only the isolated server's simulation
+  interval is accelerated; its cleanup grace period uses real time.
 
 Manual browser QA: create a private lobby in two tabs, follow its invitation,
 change votes, finish a match, verify the results roster and rewards, start another
