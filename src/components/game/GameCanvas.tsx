@@ -178,9 +178,9 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, operationId
 
   const showStartOverlay = ready && isTouch && !touchStarted;
   const lobbyActive = !!lobby?.active;
-  const upgradePending=mode==="survival" && !!hud?.survivalUpgradeOffer &&
+  const upgradePending=mode==="survival" && !hud?.operation && !!hud?.survivalUpgradeOffer &&
     !lobbyActive && !menuOpen && !hud?.matchEnding;
-  const upgradeWaiting=mode==="survival" && !hud?.survivalUpgradeOffer &&
+  const upgradeWaiting=mode==="survival" && !hud?.operation && !hud?.survivalUpgradeOffer &&
     !!hud?.survivalPaused && (hud?.survivalUpgradePendingCount??0)>0 &&
     !lobbyActive && !menuOpen && !hud?.matchEnding;
   upgradePendingRef.current=upgradePending||upgradeWaiting;
