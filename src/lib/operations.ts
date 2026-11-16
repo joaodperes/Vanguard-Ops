@@ -84,7 +84,7 @@ export function tickOperation(s:OperationState,map:Pick<MapDef,'spawns'>,actors:
  }
  if(!n.intel&&living.some(a=>near(a.pos,operationSite(map,m.optionalObjective.site),2.5)))n.intel=true;
  const g=m.objectives[s.stage];if(!g)return {...n,status:'won'};
- if(g.kind==='defend')n.pulse=Math.min(7,Math.floor(n.stageElapsed/15));
+ if(g.kind==='defend')n.pulse=Math.floor(n.stageElapsed/15);
  if(g.kind==='deliver'&&!living.some(a=>a.id===n.carrierId)){
   const fallen=actors.find(a=>a.id===n.carrierId);n.packagePos=fallen?.pos??n.packagePos;n.carrierId=undefined;
   const pickup=n.packagePos??operationSite(map,m.objectives[Math.max(0,s.stage-1)].site);
