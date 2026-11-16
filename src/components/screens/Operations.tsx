@@ -1,7 +1,7 @@
 "use client";
 import {useEffect,useRef,useState} from 'react';
 import {useGame} from '@/lib/game-store';
-import {OPERATIONS,operationUnlocked,operationFirstClearReward,operationTimePerformance,formatOperationTime,type OperationProgress,type OperationMission} from '@/lib/operations';
+import {OPERATIONS,operationUnlocked,operationFirstClearReward,operationTimePerformance,formatOperationTime,operationActSummary,type OperationProgress,type OperationMission} from '@/lib/operations';
 import {syncOperationProgress} from '@/lib/operations-client';
 import {getMap,recommendedTeamSize,type BotDifficulty,type CreateRoomConfig} from '@/lib/game-protocol';
 import {waitForAttachmentSaves} from '@/lib/attachment-save-queue';
@@ -47,7 +47,7 @@ export function Operations(){
   {!loaded&&<p role="status" className="text-amber-200 mb-4">{loadError?<>Unable to load campaign progress. <button onClick={()=>setReload(n=>n+1)} className="underline">Retry</button></>:"Loading player campaign progress…"}</p>}
   <div className="grid gap-6 lg:grid-cols-[1fr_1.1fr]">
    <section aria-label="Campaign missions" className="space-y-5">
-    {[1,2,3].map(act=><div key={act}><h2 className="text-sm font-bold text-white/70 mb-2">ACT {act} · {['Trace the Signal','Break the Network','Shut It Down'][act-1]}</h2>
+    {[1,2,3].map(act=><div key={act}><div className="flex items-center justify-between gap-3 mb-2"><h2 className="text-sm font-bold text-white/70">ACT {act} · {['Trace the Signal','Break the Network','Shut It Down'][act-1]}</h2><span className="text-[10px] tabular-nums text-white/45">{operationActSummary(act,progress).completed}/{operationActSummary(act,progress).total} cleared · {operationActSummary(act,progress).stars}/{operationActSummary(act,progress).maxStars} ★</span></div><div className="h-1 rounded-full bg-white/10 mb-2 overflow-hidden"><div className="h-full bg-amber-400/80 transition-[width]" style={{width:`${operationActSummary(act,progress).maxStars?operationActSummary(act,progress).stars/operationActSummary(act,progress).maxStars*100:0}%`}} /></div>
      <div className="grid sm:grid-cols-2 gap-2">{OPERATIONS.filter(m=>m.act===act).map(m=>{
       const available=operationUnlocked(m.id,progress),record=progress[m.id];
       return <button key={m.id} aria-pressed={selected===m.id} onClick={()=>setSelected(m.id)} className={`text-left rounded-lg border p-3 transition-colors ${selected===m.id?'border-amber-400 bg-amber-500/15':'border-white/10 bg-white/5 hover:bg-white/10'}`}>
