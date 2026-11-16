@@ -1,7 +1,7 @@
 # Operations campaign
 
-Operations is a solo-only menu destination with twelve linked missions in three
-acts. The standard six-mode selection grid and room browser remain separate from
+Operations is a campaign destination with twelve linked missions in three
+acts. Deploy solo or host a two-player co-op room; a partner can join from the room browser or invitation link. The standard six-mode selection grid and room browser remain separate from
 the campaign. Missions reuse shipped jungle, factory, city (day/night), snow depot,
 castle, dam and orbital geometry.
 
@@ -27,7 +27,7 @@ Every stage requires its encounter to be defeated. Timers never despawn living
 opponents. Terminal/defence progress is retained when enemies contest the site;
 extraction resets. Enemy budgets grow with mission intensity and objective number.
 The existing Survival specialists, arsenal, elite, healing, damage and self-revive
-systems supply combat. Bot awareness is raised outside the opening stealth approach.
+systems supply combat. Co-op deployments scale encounter size with the active squad. Bot awareness is raised outside the opening stealth approach.
 Bot difficulty can be selected per deployment; the Veteran
 setting is required for the third campaign star. Later missions introduce engineers and disruptors sooner;
 campaign objectives replace standard Survival's rotating objectives. Operations does not use the Survival run-upgrade selection system.
