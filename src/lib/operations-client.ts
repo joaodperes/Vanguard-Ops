@@ -4,7 +4,7 @@ import {loadOperationProgress,normalizeOperationProgress,type OperationState,typ
 type Pending={runId:string;state:OperationState;deaths:number};
 type SyncResult={progress:OperationProgress;firstClearRewards:OperationFirstClearReward[]};
 const queueKey=(key:string)=>'vanguard_operations_pending_'+key;
-function pending(key:string):Pending[]{try{const p=JSON.parse(localStorage.getItem(queueKey(key))??'[]');return Array.isArray(p)?p:[];}catch{return [];}}
+function pending(key:string):Pending[]{try{const p=JSON.parse(localStorage.getItem(queueKey(key))??'[]');return Array.isArray(p)?p.filter(v=>v&&typeof v.runId==='string'&&v.state&&typeof v.state==='object').map(v=>({...v,state:{...v.state,difficulty:['easy','normal','hard','veteran','mixed'].includes(v.state.difficulty)?v.state.difficulty:'normal'}})):[];}catch{return [];}}
 async function send(key:string,payload:object):Promise<SyncResult>{
  if(useGame.getState().playerKey!==key)throw Error('Player account changed; sync cancelled.');
  const r=await fetch('/api/operations/progress',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({playerKey:key,...payload})});
