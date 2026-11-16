@@ -1,5 +1,5 @@
 import {describe,expect,test} from 'bun:test';
-import {OPERATIONS,OPERATION_DEADLINE_SECONDS,operationFirstClearReward,createOperationState,operationById,nextOperation,operationConfigValid,operationSite,operationTarget,tickOperation,operationEncounter,operationAwarenessMultiplier,operationStars,recordOperation,operationUnlocked,loadOperationProgress,type OperationActor,type OperationState} from '../src/lib/operations';
+import {OPERATIONS,OPERATION_DEADLINE_SECONDS,operationFirstClearReward,createOperationState,operationById,nextOperation,operationConfigValid,operationSite,operationTarget,tickOperation,operationEncounter,operationAwarenessMultiplier,operationStars,operationStarCriteria,recordOperation,operationUnlocked,loadOperationProgress,type OperationActor,type OperationState} from '../src/lib/operations';
 import {getMap,type Vec3} from '../src/lib/game-protocol';
 import {makeEnvironmentMap} from '../src/lib/dynamic-environment';
 import {botPositionEmbedded} from '../src/lib/bot-physics';
@@ -129,6 +129,15 @@ describe('Operations campaign',()=>{
   const m=OPERATIONS[0];expect(operationEncounter(m,0,'veteran').difficulty).toBe('veteran');expect(operationEncounter(m,0,'easy').difficulty).toBe('easy');expect(operationEncounter(m,0,'mixed').difficulty).toBeUndefined();
   expect(operationEncounter(m,0,'normal',2).count).toBe(Math.ceil(operationEncounter(m,0,'normal',1).count*1.6));
   const won={...createOperationState(m.id,'veteran'),status:'won' as const,intel:true,elapsed:600};expect(operationStars(m,won,0)).toBe(3);expect(operationStars(m,{...won,difficulty:'hard'},0)).toBe(2);expect(operationStars(m,won,1)).toBe(2);
+ });
+ test('star criteria explain exactly which campaign objectives were earned',()=>{
+  const base={...createOperationState(first.id,'veteran'),status:'won' as const,intel:true,elapsed:600};
+  expect(operationStarCriteria(base,0).map(c=>c.earned)).toEqual([true,true,true]);
+  expect(operationStarCriteria({...base,difficulty:'hard'},0).map(c=>c.earned)).toEqual([true,true,false]);
+  expect(operationStarCriteria(base,1).map(c=>c.earned)).toEqual([true,true,false]);
+  expect(operationStarCriteria({...base,intel:false},0).map(c=>c.earned)).toEqual([true,false,true]);
+  expect(operationStarCriteria({...base,status:'failed'},0).map(c=>c.earned)).toEqual([false,false,false]);
+  expect(operationStars(first,base,0)).toBe(3);
  });
  test('first-clear payouts scale by campaign act',()=>{
   expect(operationFirstClearReward(OPERATIONS[0])).toEqual({xp:150,credits:75});
