@@ -1,7 +1,7 @@
 import {NextRequest,NextResponse} from 'next/server';
 import {resolvePlayerKey} from '@/lib/auth';
 import {db} from '@/lib/db';
-import {operationById,normalizeOperationProgress,type OperationState} from '@/lib/operations';
+import {operationById,normalizeOperationProgress,OPERATION_DEADLINE_SECONDS,type OperationState} from '@/lib/operations';
 import {readOperationProgress,writeOperationProgress} from '@/lib/operations-progress';
 export const dynamic='force-dynamic';
 async function identity(req:NextRequest,key?:string){
@@ -21,6 +21,6 @@ export async function POST(req:NextRequest){
  const key=await identity(req,body.playerKey);if(!key)return NextResponse.json({error:'Player session required'},{status:401});
  if(body.kind==='import')return NextResponse.json(await writeOperationProgress(key,{progress:normalizeOperationProgress(body.progress)}));
  const s=body.state as OperationState,m=operationById(s?.missionId);
- if(body.kind!=='complete'||!m||s.status!=='won'||s.stage!==m.objectives.length||!Number.isFinite(s.elapsed)||s.elapsed<=0||s.elapsed>m.parSeconds*2||typeof s.intel!=='boolean'||!Number.isInteger(body.deaths)||body.deaths<0||body.deaths>1000||typeof body.runId!=='string'||!/^[a-zA-Z0-9_-]{16,100}$/.test(body.runId))return NextResponse.json({error:'Invalid campaign completion'},{status:400});
+ if(body.kind!=='complete'||!m||s.status!=='won'||s.stage!==m.objectives.length||!Number.isFinite(s.elapsed)||s.elapsed<=0||s.elapsed>OPERATION_DEADLINE_SECONDS||typeof s.intel!=='boolean'||!Number.isInteger(body.deaths)||body.deaths<0||body.deaths>1000||typeof body.runId!=='string'||!/^[a-zA-Z0-9_-]{16,100}$/.test(body.runId))return NextResponse.json({error:'Invalid campaign completion'},{status:400});
  return NextResponse.json(await writeOperationProgress(key,{runId:body.runId,state:s,deaths:body.deaths}));
 }

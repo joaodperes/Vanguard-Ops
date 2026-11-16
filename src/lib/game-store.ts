@@ -44,7 +44,7 @@ export interface RoomConfig {
 // When joining/creating a room, the engine needs to know how to connect:
 // either create a fresh room or join an existing one by id.
 export interface RoomConnect {
-  kind: "create" | "join" | "quick";
+  kind: "create" | "join";
   config?: CreateRoomConfig;   // for kind === "create"
   roomId?: string;             // for kind === "join"
   password?: string | null;    // for kind === "join"
@@ -60,6 +60,8 @@ export interface SessionInfo {
 
 export interface MatchResultView {
   operation?: import("./operations").OperationState;
+  operationFirstClearRewards?: import("./operations").OperationFirstClearReward[];
+  operationRewardSyncPending?: boolean;
   kills: number; deaths: number; headshots: number; assists?: number; won: boolean; score: number; mode: GameMode;
   standings: { id: string; name: string; team: string; kills: number; deaths: number; score: number; assists?: number; isBot: boolean }[];
   rewards?: {

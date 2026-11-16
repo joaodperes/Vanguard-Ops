@@ -1,10 +1,9 @@
 import {describe,expect,test} from 'bun:test';
-import {OPERATIONS,createOperationState,operationById,nextOperation,operationConfigValid,operationSite,operationTarget,tickOperation,operationEncounter,operationStars,recordOperation,operationUnlocked,loadOperationProgress,type OperationActor,type OperationState} from '../src/lib/operations';
+import {OPERATIONS,OPERATION_DEADLINE_SECONDS,operationFirstClearReward,createOperationState,operationById,nextOperation,operationConfigValid,operationSite,operationTarget,tickOperation,operationEncounter,operationStars,recordOperation,operationUnlocked,loadOperationProgress,type OperationActor,type OperationState} from '../src/lib/operations';
 import {getMap,type Vec3} from '../src/lib/game-protocol';
 import {makeEnvironmentMap} from '../src/lib/dynamic-environment';
 import {botPositionEmbedded} from '../src/lib/bot-physics';
 import {survivalRoleForSlot} from '../src/lib/survival-encounters';
-import {roomMapCandidates,quickPlayRoom} from '../src/lib/room-flow';
 import {makeEngineStub} from './helpers/engine-stub';
 const actor=(pos:Vec3,id='human',alive=true):OperationActor=>({id,pos,alive});
 const first=OPERATIONS[0],map=getMap(first.mapId,'survival');
@@ -19,12 +18,12 @@ describe('Operations campaign',()=>{
    expect(getMap(m.mapId).id).toBe(m.mapId);const compiled=makeEnvironmentMap(getMap(m.mapId,'survival'));
    expect(m.objectives.at(-1)?.kind).toBe('extract');
    for(const g of [...m.objectives,{site:15}]){const p=operationSite(compiled,g.site);expect(p.every(Number.isFinite)).toBe(true);expect(botPositionEmbedded(compiled.cover,p)).toBe(false);}
-   expect(operationEncounter(m,0,2).count).toBeGreaterThan(operationEncounter(m,0,1).count);
+   expect(operationEncounter(m,0).count).toBe(4+m.intensity);
   }
   expect(operationById('__proto__')).toBeUndefined();expect(operationConfigValid({operationId:'missing',mode:'survival',mapId:'compound'})).toBe(false);
  });
  test('later campaign encounters reuse all specialist behaviours',()=>{
-  const m=operationById('zero_hour')!,e=operationEncounter(m,0,2);
+  const m=operationById('zero_hour')!,e=operationEncounter(m,0);
   const roles=new Set(Array.from({length:e.count},(_,i)=>survivalRoleForSlot(e.roleWave,i)).filter(Boolean));
   expect(roles.has('engineer')).toBe(true);expect(roles.has('disruptor')).toBe(true);
  });
@@ -34,27 +33,23 @@ describe('Operations campaign',()=>{
   expect(advance(s,[actor(p)],[actor(p,'guard')]).progress).toBe(0);expect(advance(s,[actor(p)],[],45).stage).toBe(2);
   expect(advance(s,[actor(p)],[actor([p[0]+40,p[1],p[2]],'guard')],50).stage).toBe(1);
  });
- test('packages need the carrier and a partner can recover a death drop',()=>{
+ test('solo carrier can recover their own dropped package and deliver it',()=>{
   let s={...createOperationState(first.id),stage:2};const pickup=operationTarget(s,map)!;
-  s=advance(s,[actor(pickup,'carrier')],[],5);expect(s.stage).toBe(3);expect(s.carrierId).toBe('carrier');const delivery=operationTarget(s,map)!;
-  s=advance(s,[actor(pickup,'carrier'),actor(delivery,'partner')],[],10);expect(s.stage).toBe(3);expect(s.progress).toBe(0);
-  s=advance(s,[actor(pickup,'carrier',false),actor(pickup,'partner')]);expect(s.carrierId).toBe('partner');
-  s=advance(s,[actor(delivery,'partner')],[],8);expect(s.stage).toBe(4);expect(s.carrierId).toBeUndefined();
+  s=advance(s,[actor(pickup,'solo')],[],5);expect(s.stage).toBe(3);expect(s.carrierId).toBe('solo');
+  s=advance(s,[actor(pickup,'solo',false)]);expect(s.carrierId).toBeUndefined();expect(s.packagePos).toEqual(pickup);
+  s=advance(s,[actor(pickup,'solo')]);expect(s.carrierId).toBe('solo');
+  const delivery=operationTarget(s,map)!;s=advance(s,[actor(delivery,'solo')],[],8);expect(s.stage).toBe(4);expect(s.carrierId).toBeUndefined();
  });
- test('a disconnected carrier leaves the package at their last position',()=>{
-  let s={...createOperationState(first.id),stage:3,carrierId:'carrier'};const p:Vec3=[22,0,11];
-  s=advance(s,[actor(p,'carrier')]);s=advance(s,[actor([80,0,80],'partner')]);expect(s.carrierId).toBeUndefined();expect(s.packagePos).toEqual(p);
-  s=advance(s,[actor(p,'partner')]);expect(s.carrierId).toBe('partner');
- });
- test('extraction needs all survivors and an uninterrupted timer',()=>{
+ test('solo extraction needs the operator at the site for an uninterrupted timer',()=>{
   let s={...createOperationState(first.id),stage:4};const p=operationTarget(s,map)!,away:Vec3=[p[0]+20,p[1],p[2]];
-  expect(advance(s,[actor(p),actor(away,'p2')],[],20).status).toBe('active');s=advance(s,[actor(p),actor(p,'p2')],[],6);expect(s.progress).toBe(6);
-  s=advance(s,[actor(p),actor(away,'p2')]);expect(s.progress).toBe(0);s=advance(s,[actor(p),actor(away,'p2',false)],[],12);expect(s.status).toBe('won');expect(tickOperation(s,map,[],[],1)).toBe(s);
+  expect(advance(s,[actor(away)],[],20).status).toBe('active');s=advance(s,[actor(p)],[],6);expect(s.progress).toBe(6);
+  s=advance(s,[actor(away)]);expect(s.progress).toBe(0);s=advance(s,[actor(p)],[],12);expect(s.status).toBe('won');
+  expect(tickOperation(s,map,[],[],1)).toBe(s);
  });
- test('every mission has a valid solo and co-op completion path',()=>{
-  for(const mission of OPERATIONS)for(const count of [1,2]){
+ test('every mission has a valid solo completion path',()=>{
+  for(const mission of OPERATIONS){
    const m=getMap(mission.mapId,'survival');let s=createOperationState(mission.id),budget=2000;
-   while(s.status==='active'&&budget-->0){const p=operationTarget(s,m)!;s=tickOperation(s,m,Array.from({length:count},(_,i)=>actor(p,'p'+i)),[],1);}
+   while(s.status==='active'&&budget-->0){const p=operationTarget(s,m)!;s=tickOperation(s,m,[actor(p,'solo')],[],1);}
    expect(s.status).toBe('won');expect(s.stage).toBe(mission.objectives.length);
   }
  });
@@ -66,8 +61,17 @@ describe('Operations campaign',()=>{
   expect(tickOperation({...createOperationState(m.id),stage:2,stageElapsed:200},mp,[],[],1).pulse).toBe(3);
  });
  test('abort deadlines cannot award unlocks or stars',()=>{
-  const s=tickOperation({...createOperationState(first.id),elapsed:first.parSeconds*2},map,[actor([0,0,0])],[actor([20,0,0],'guard')],1);
+  const s=tickOperation({...createOperationState(first.id),elapsed:OPERATION_DEADLINE_SECONDS},map,[actor([0,0,0])],[actor([20,0,0],'guard')],1);
   expect(s.status).toBe('failed');expect(operationStars(first,s,0)).toBe(0);expect(recordOperation({},s,0)).toEqual({});
+ });
+ test('first-clear payouts scale by campaign act',()=>{
+  expect(operationFirstClearReward(OPERATIONS[0])).toEqual({xp:150,credits:75});
+  expect(operationFirstClearReward(OPERATIONS[4])).toEqual({xp:200,credits:100});
+  expect(operationFirstClearReward(OPERATIONS[8])).toEqual({xp:250,credits:125});
+ });
+ test('all missions share a fixed 30-minute active deadline',()=>{
+  expect(OPERATION_DEADLINE_SECONDS).toBe(1800);
+  for(const mission of OPERATIONS){const m=getMap(mission.mapId,'survival');const s=tickOperation({...createOperationState(mission.id),elapsed:OPERATION_DEADLINE_SECONDS},m,[actor([0,0,0])],[],1);expect(s.status).toBe('failed');}
  });
  test('best ratings persist and only completed missions unlock successors',()=>{
   expect(operationUnlocked(first.id,{})).toBe(true);expect(operationUnlocked(OPERATIONS[1].id,{})).toBe(false);
@@ -84,10 +88,6 @@ describe('Operations campaign',()=>{
    expect(loadOperationProgress('p')[first.id].stars).toBe(3);expect(loadOperationProgress('other')).toEqual({});storage.set('vanguard_operations_p',JSON.stringify({[first.id]:{stars:99,bestSeconds:-2,completions:1}}));expect(loadOperationProgress('p')).toEqual({});
 
   }finally{if(original)Object.defineProperty(globalThis,'localStorage',original);else Reflect.deleteProperty(globalThis,'localStorage');}
- });
- test('campaign maps stay fixed and Quick Play cannot select campaign rooms',()=>{
-  expect(roomMapCandidates('survival','orbital_nexus',5,0,'orbital_blackout')).toEqual(['orbital_nexus']);
-  expect(quickPlayRoom([{id:'campaign',mode:'survival',operationId:first.id,humans:1,capacity:2,hasPassword:false,state:'playing'} as any],'survival')).toBeUndefined();
  });
  test('offline play cannot auto-clear a mission after the last guard dies',()=>{
   const e=makeEngineStub();Object.assign(e,{opts:{mode:'survival',online:false},operation:{...createOperationState(first.id),stage:1},map,survivalWaveActive:true,survivalPrepLeft:0,survivalDowned:false,combatants:new Map(),selfId:'p',alive:true,survivalWave:2,matchEnded:false,bulletSpitters:new Map()});

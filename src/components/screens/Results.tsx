@@ -112,7 +112,24 @@ export function Results() {
           </div>
         )}
 
-        {/* rewards */}
+        {mission ? (
+          <div className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-5 mb-4">
+            <h3 className="text-amber-200 text-xs uppercase tracking-widest mb-3 flex items-center gap-1.5"><Coins className="w-3 h-3" /> First Clear Rewards</h3>
+            {r.operationFirstClearRewards?.length ? (
+              <div className="space-y-2">
+                {r.operationFirstClearRewards.map(reward => {
+                  const rewardMission = operationById(reward.missionId);
+                  return <div key={reward.missionId} className="flex items-center justify-between gap-3 rounded-lg bg-white/5 px-3 py-2">
+                    <span className="text-sm text-white/80">{rewardMission?.title ?? "Mission"}</span>
+                    <span className="text-sm font-bold text-amber-200 text-right">+{reward.xp} XP · +{formatCredits(reward.credits)} CR</span>
+                  </div>;
+                })}
+              </div>
+            ) : (
+              <p className="text-white/55 text-sm">{r.operationRewardSyncPending ? "Campaign progress is waiting to sync. Return to Operations to retry the pending completion." : r.won ? "First-clear rewards are granted only on a mission’s first successful completion." : "Complete this mission to earn its first-clear reward."}</p>
+            )}
+          </div>
+        ) : (
         <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-5 mb-4">
           <h3 className="text-white/50 text-xs uppercase tracking-widest mb-3 flex items-center gap-1.5"><Coins className="w-3 h-3" /> Rewards Earned</h3>
           {rewards ? (
@@ -272,6 +289,7 @@ export function Results() {
             <div className="text-white/40 text-sm flex items-center gap-2"><TrendingUp className="w-4 h-4" /> Rewards applied to your profile.</div>
           )}
         </div>
+        )}
 
         {/* standings */}
         <div className="rounded-2xl border border-white/10 bg-zinc-900/60 overflow-hidden mb-6">

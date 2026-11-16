@@ -4,7 +4,7 @@ import {mkdtemp,rm,writeFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {join,resolve} from "node:path";
 import {createServer} from "node:net";
-import type {C2S,S2C,LoadoutWire,GameMode} from "../src/lib/game-protocol";
+import {recommendedTeamSize,type C2S,type S2C,type LoadoutWire,type GameMode,type CreateRoomConfig} from "../src/lib/game-protocol";
 const loadout:LoadoutWire={weaponId:"rifle_ar",weaponSkinId:"default",playerSkinId:"default",attachments:{sight:null,barrel:null,grip:null,magazine:null}};
 
 test("real sockets retain a private group across voting, results, rematches and host departure",async()=>{
@@ -53,10 +53,11 @@ test("real sockets retain a private group across voting, results, rematches and 
     await wait(host,"matchEnd");const oldHostId=host.id;host.disconnect();
     const transfer=(await wait(guest,"roomStatus",m=>m.status.hostSocketId===guest.id)).status;expect(transfer.players.some(p=>p.id===oldHostId)).toBe(false);
     send(guest,{t:"readyNextRound"});send(guest,{t:"startMatch"});expect((await wait(guest,"roundLaunched")).roomId).toBe(id);
-    const quick1=await connect(),quick2=await connect();
-    send(quick1,{t:"quickPlay",playerKey:quick1.id!,name:"Quick 1",loadout,mode:"tdm"});const quickJoined=await wait(quick1,"roomJoined");expect(quickJoined.matchId).not.toBe(id);await wait(quick1,"matchStarted");
-    send(quick2,{t:"quickPlay",playerKey:quick2.id!,name:"Quick 2",loadout,mode:"tdm"});expect((await wait(quick2,"roomJoined")).matchId).toBe(quickJoined.matchId);
-    expect((await wait(quick2,"roomStatus",m=>m.status.players.length===2)).status.room.hasPassword).toBe(false);
-    for(const mode of ["ffa","killconfirmed","ctf","survival","gungame"] as GameMode[]){const s=await connect();send(s,{t:"quickPlay",playerKey:s.id!,name:mode,loadout,mode});expect((await wait(s,"roomJoined")).mode).toBe(mode);expect((await wait(s,"roundLaunched")).mode).toBe(mode);await wait(s,"matchStarted");s.disconnect();}
+    for(const mode of ["ffa","killconfirmed","ctf","survival","gungame"] as GameMode[]){
+      const s=await connect(),mapId=mode==="ctf"?"forest_warfare":"compound";
+      const config:CreateRoomConfig={mode,mapId,teamSize:recommendedTeamSize(mapId,mode),fillWithBots:mode!=="survival",password:null,roomName:mode,botDifficulty:"normal",survivalPlayers:1,survivalTier:"default",...(mode==="ctf"?{scoreLimit:3,timeLimit:0}:{})};
+      send(s,{t:"createRoom",playerKey:s.id!,name:mode,loadout,config});expect((await wait(s,"roomJoined")).mode).toBe(mode);
+      send(s,{t:"startMatch"});expect((await wait(s,"roundLaunched")).mode).toBe(mode);await wait(s,"matchStarted");s.disconnect();
+    }
   }finally{clients.forEach(s=>s.disconnect());server.kill();await server.exited;await rm(dir,{recursive:true,force:true});}
 },120000);

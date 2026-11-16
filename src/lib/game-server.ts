@@ -21,8 +21,8 @@ import { wonderModuleEffects, validWonderModule, validWonderFinish, validWonderK
 import { harbingerTuning, harbingerTargets, harbingerRayHit, harbingerPlacement, HARBINGER_INTERVAL_MS, HARBINGER_SCAN_INTERVAL_MS } from "./harbinger-drone";
 import { wonderConeHit, seismicPulseHit, seismicPushPosition, ripperSegments, CHRONO_ANCHOR_MS, PHANTOM_DURATION_MS, CRYO_SLOW_MS, CRYO_SLOW_FACTOR, mechTuning, phantomSpawnPosition, phantomTravelPosition, juggernautDropPoint, crushesAtLanding, JUGGERNAUT_DROP_MS, JUGGERNAUT_ACTIVE_MS, JUGGERNAUT_MINIGUN_RATE, JUGGERNAUT_SHOTGUN_RATE, JUGGERNAUT_SWARM_RATE } from "./wonder-abilities";
 import { db } from "./db";
-import { roomMapCandidates, winningRoomMap, quickPlayRoom } from "./room-flow";
-import { recommendedTeamSize, MAP_LIST, type RoomStatus } from "./game-protocol";
+import { roomMapCandidates, winningRoomMap } from "./room-flow";
+import { recommendedTeamSize, type RoomStatus } from "./game-protocol";
 import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,ORBITAL_RULES_VERSION,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,orbitalPulseTargets,orbitalReaperEquipped,ORBITAL_REAPER_SPEED_MULTIPLIER} from "./orbital-reactor";
 import { advanceMatchElapsed } from "./match-clock";
 import { fullWonderCharges, drainedWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, refundWonderCharge, type WonderChargeState } from "./wonder-charge";
@@ -521,72 +521,7 @@ function makeBotAI(sp: Vec3, _weaponId: string, difficulty: Exclude<BotDifficult
   };
 }
 
-function createRoom(mode: GameMode, botCount: number, mapId: MapId): Room {
-  const id = genId("match");
-  const config = DEFAULT_CONFIG(mode, botCount);
-  const map = makeEnvironmentMap(getMap(mapAllowedForMode(mode,mapId)?mapId:mode==="ctf"?"forest_warfare":"compound",mode));
-  const isSurvival = mode === "survival";
-  const isGungame = mode === "gungame";
-  // Gun Game: the score limit IS the progression length — first player to
-  // cycle through every weapon (and get a kill with the knife) wins.
-  if (isGungame) { config.scoreLimit = 0; config.timeLimit = 0; }
-  // Legacy quick-match rooms: derive lobby metadata from botCount.
-  const teamSize: TeamSize = teamSizesForMap(map.id,mode).find(n=>n>=Math.min(botCount,teamSizesForMap(map.id,mode).at(-1)!))!;
-  const capacity = roomCapacity(mode, teamSize);
-  const room: Room = {
-    id, mode, config, map,
-    operation:config.operationId ? createOperationState(config.operationId):undefined,
-    players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(), pendingLoadouts: new Map(), playerKeys: new Map(),
-    assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(map), overtime: false, orbitalCharge:0, orbitalHolders:new Set<string>(), tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
-    startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
-    state: "playing",
-    tick: null, respawnTimers: new Map(), chat: [],
-    wave: 0, waveActive: false, prepLeft: isSurvival ? 2 : 0,
-    reinforcements: 0, reinforcementsMax: 0, downed: new Set(),
-    survivalRanks:new Map(), survivalOffers:new Map(), survivalUpgradeDeadline:null, survivalPauseStartedAt:null, survivalMenuPaused:false, survivalSelfReviveUntil:new Map(), survivalSelfReviveUsedWave:new Map(), survivalRerolls:new Map(), survivalLastKillAt:new Map(), survivalLastHeadshotKillAt:new Map(),
-    name: "Quick Match", hostName: "Server", hostSocketId: "",
-    teamSize, fillWithBots: true, password: null, capacity,
-    botDifficulty: "normal",
-    gungameProgress: new Map(),
-    gungameWeapons: [],
-    gungamePreset: "all", gungameMultiplier: 1, sprintState: new Map(), sprintLastAt: new Map(),
-    preMatchCountdown: 5,
-    environmentTime: 0,
-    floodgateBreachAt:null,
-    environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
-    materialCoverHp: new Map(), materialCoverDestroyed: new Set(),
-    environmentCooldown: new Map(),
-    specialHeat: new Map(), wonderCharges: new Map(), chronoAnchors:new Map(),phantomDecoys:new Map(),cryoSlowUntil:new Map(),mechDrops:new Map(),playerMechs:new Map(), clusterVolleys: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormMines: new Map(), stormMineCooldown: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), harbingerDrones: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), burning: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentBotNextAt: new Map(), equipmentMines: new Map(), equipmentRechargeAt: new Map(), deployedCovers: new Map(), equipmentFlashUntil: new Map(), equipmentAdsBlockedUntil: new Map(), quickMeleeAt: new Map(), throwingKnives: new Map(), reloadingPlayers: new Map(), akimboLastHandShot:new Map(), autoBloom: new Map(), shotPosture: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
-    burstState: new Map(),
-  };
-  room.map = {...room.map, cover:[...room.map.cover]}; // isolate per-room barricades from map catalog
-  rooms.set(id, room);
-  // ---- Gun Game: resolve the per-match weapon list BEFORE spawning bots ----
-  // (so bots spawn with the correct first-tier weapon).
-  if (isGungame) {
-    room.gungameWeapons = resolveGungameWeapons(room.gungamePreset, room.gungameMultiplier);
-    room.config.scoreLimit = 0; // progression, never raw kill count
-    room.timeLeft = 0;
-  }
-  if (!isSurvival) spawnBots(room);
-  room.tick = setInterval(() => tickRoom(room), 1000 / 20);
-  return room;
-}
-
-function findOpenRoom(mode: GameMode, mapId: MapId): Room | null {
-  for (const r of rooms.values()) {
-    // Quick-match only joins rooms already in the "playing" state (lobby rooms
-    // are joined explicitly via joinRoom).
-    if (!r.config.operationId && r.mode === mode && r.map.id === mapId && !r.password && !r.ended && r.state === "playing") {
-      // survival caps at 2 humans; others at 7
-      const cap = mode === "survival" ? 2 : r.capacity;
-      if (r.players.size < cap) return r;
-    }
-  }
-  return null;
-}
-
-// ---- Room lobby system -------------------------------------------------------
+// ---- Room lobby system// ---- Room lobby system -------------------------------------------------------
 // Builds a public RoomSummary for the browser. Omits the password.
 function roomSummary(r: Room): RoomSummary {
   return {
@@ -2464,7 +2399,7 @@ function startSurvivalWave(room: Room,reinforcement=false) {
   }
   const mutators=survivalWaveMutators(room.config.survivalTier ?? "default",room.wave);
   const baseCount=survivalEnemyCount(room.wave, room.players.size, survivalWaveBotCount);
-  const encounter=room.operation ? operationEncounter(operationById(room.operation.missionId)!,room.operation.stage,room.players.size):undefined;
+  const encounter=room.operation ? operationEncounter(operationById(room.operation.missionId)!,room.operation.stage):undefined;
   const count=(reinforcement ? encounter?.reinforcementCount : encounter?.count) ?? Math.min(40,Math.ceil(baseCount*mutators.spawnMul))+(mutators.boss ? 1 : 0);
   const hpMul = survivalWaveHealthMul(room.wave)*mutators.healthMul;
   // Match archetypes to any eligible standard weapon, not a legacy fixed list.
@@ -4499,26 +4434,9 @@ async function handle(socket: any, msg: C2S) {
       !["chooseSurvivalUpgrade","rerollSurvivalUpgrade","setSurvivalPause","leaveRoom","leaveMatch","chat","queueLoadout"].includes(msg.t))
     return; // Ignore client state/shot/equipment intents during an authoritative pause.
   if (pauseRoom && pauseRoom.state !== "playing" &&
-      !["listRooms","createRoom","joinRoom","quickPlay","startMatch","voteMap","readyNextRound","leaveRoom","leaveMatch","chat"].includes(msg.t)) return;
+      !["listRooms","createRoom","joinRoom","startMatch","voteMap","readyNextRound","leaveRoom","leaveMatch","chat"].includes(msg.t)) return;
   switch (msg.t) {
-    case "quickPlay": {
-      if (!["ffa","tdm","killconfirmed","ctf","survival","gungame"].includes(msg.mode)) return;
-      const target = quickPlayRoom([...rooms.values()].filter(r => !r.ended).map(roomSummary), msg.mode);
-      if (target) {
-        await handle(socket, { ...msg, t: "joinRoom", roomId: target.id, password: null });
-      } else {
-        const mapId = MAP_LIST.find(m => mapAllowedForMode(msg.mode,m.id))!.id;
-        await handle(socket, { ...msg, t: "createRoom", config: {
-          mode: msg.mode, mapId, teamSize: recommendedTeamSize(mapId,msg.mode),
-          fillWithBots: true, password: null, botDifficulty: "normal", roomName: "Quick Play",
-          survivalPlayers: 2, survivalTier: "default",
-        }});
-        const room = rooms.get(socketToRoom.get(socket.id) ?? "");
-        if (room && room.hostSocketId === socket.id && room.state === "lobby") launchRoomRound(room,socket.id);
-      }
-      break;
-    }
-    case "voteMap": {
+    case "voteMap": {    case "voteMap": {
       if (!pauseRoom || pauseRoom.state === "playing" || !pauseRoom.players.has(socket.id)) return;
       const candidates = pauseRoom.mapCandidates ?? roomMapCandidates(pauseRoom.mode,pauseRoom.map.id,pauseRoom.teamSize,pauseRoom.roundNumber,pauseRoom.config.operationId);
       if (!candidates.includes(msg.mapId)) return;
@@ -4532,59 +4450,7 @@ async function handle(socket: any, msg: C2S) {
       broadcastRoomStatus(pauseRoom);
       break;
     }
-    case "joinMatch": {
-      const loadout = await validatedMatchLoadout(msg.playerKey, msg.loadout);
-      if (socket.connected === false) return;
-      const mapId: MapId = (msg.mapId ?? "compound") as MapId;
-      let room = findOpenRoom(msg.mode, mapId);
-      if (!room) room = createRoom(msg.mode, Math.min(7, Math.max(1, msg.botCount)), mapId);
-      room.playerKeys.set(socket.id, msg.playerKey);
-      socketToRoom.set(socket.id, room.id);
-      socket.join(room.id);
-      const team = assignTeam(room.mode, room) as any;
-      const sp = pickSpawn(team, room);
-      // In gungame, joining players start on the first progression weapon.
-      const joinWeaponId = room.mode === "gungame" ? (room.gungameWeapons[0] ?? "pistol_side") : loadout.weaponId;
-      const p: PlayerNet = {
-        id: socket.id, name: msg.name?.slice(0, 52) || "Recruit", team, isBot: false,
-        pos: sp, yaw: 0, pitch: 0, health: MAX_HEALTH, alive: true,
-        weaponId: joinWeaponId, weaponSkinId: room.mode === "gungame" ? "default" : loadout.weaponSkinId, playerSkinId: room.mode === "gungame" ? "default" : loadout.playerSkinId,
-    charmId:room.mode==="gungame"?"none":loadout.primaryCharmId??"none",nameplateId:loadout.nameplateId??"standard",
-        kills: 0, deaths: 0, lastShotAt: 0,
-        spawnProtectedUntil: Date.now() + 3000,
-      };
-      room.players.set(socket.id, p);
-      room.sockets.set(socket.id, socket.id);
-      room.scores.set(socket.id, 0);
-      room.loadouts.set(socket.id, loadout);
-      // Late joiners start their own cooldown on entry, never with a ready Wonder.
-      if(room.state==="playing" && loadout.perkId==="wonder_weapon"){
-        const selected=WEAPONS.find(w=>w.id===loadout.wonderWeaponId&&!w.disabled);
-        const now=Date.now();
-        if(selected?.wonder && usesWonderCharges(selected))
-          room.wonderCharges.set(socket.id+":"+selected.id,drainedWonderCharges(selected.wonder,now));
-        if(selected?.id===RIOT_SHIELD_ID){
-          p.riotShieldHp=0;p.riotShieldReadyAt=now+RIOT_SHIELD_RECHARGE_MS;
-        }
-      }
-      if (room.mode === "gungame") room.gungameProgress.set(socket.id, 0);
-      // ensure bots count matches (in case room was reused)
-      spawnBots(room);
-      const joined: S2C = {
-        t: "joined", matchId: room.id, selfId: socket.id, mode: room.mode, team,
-        config: room.config, mapId: room.map.id, players: [...room.players.values(), ...room.bots.values()].map(p => toSnap(p,room.loadouts.get(p.id))),
-      };
-      socket.emit("message", joined);
-      socket.emit("message", snapshot(room));
-      // Late joiners must see mines deployed before they arrived. Mines no
-      // longer expire, so placement-only replication would leave them hidden.
-      for (const [mineId, mine] of room.equipmentMines) {
-        socket.emit("message", { t: "equipmentFx", equipmentId: "mine",
-          position: mine.pos, ownerId: mine.ownerId, mineId, mineState: "placed" } as S2C);
-      }
-      break;
-    }
-    case "leaveMatch": {
+    case "leaveMatch": {    case "leaveMatch": {
       const roomId = socketToRoom.get(socket.id);
       if (!roomId) return;
       const room = rooms.get(roomId);
@@ -5042,7 +4908,7 @@ async function handle(socket: any, msg: C2S) {
     case "listRooms": {
       const list: RoomSummary[] = [];
       for (const r of rooms.values()) {
-        if (r.ended) continue;
+        if (r.ended || r.config.operationId) continue;
         // Show both lobby and playing rooms in the browser. A room is "open" if
         // there's a human slot (or a bot to replace in a bot-filled room).
         const open = r.players.size < r.capacity || (r.fillWithBots && r.bots.size > 0);
@@ -5057,10 +4923,10 @@ async function handle(socket: any, msg: C2S) {
       const loadout = await validatedMatchLoadout(msg.playerKey, msg.loadout);
       if (socket.connected === false) return;
       const cfg = msg.config;
-      if(cfg.operationId!==undefined&&!operationConfigValid(cfg)){
-        socket.emit("message",{t:"roomError",message:"Invalid Operations mission configuration."} as S2C);break;
+      if(cfg.operationId!==undefined){
+        socket.emit("message",{t:"roomError",message:"Operations missions are solo-only and cannot be hosted online."} as S2C);break;
       }
-      if (!operationConfigValid(cfg)&&!mapAllowedForMode(cfg.mode,cfg.mapId)) {
+      if (!mapAllowedForMode(cfg.mode,cfg.mapId)) {
         socket.emit("message", { t: "roomError", message: "This map is not available in the selected mode." } as S2C);
         break;
       }
@@ -5112,6 +4978,7 @@ async function handle(socket: any, msg: C2S) {
       const loadout = await validatedMatchLoadout(msg.playerKey, msg.loadout);
       if (socket.connected === false) return;
       const targetRoom=rooms.get(msg.roomId);
+      if(targetRoom?.config.operationId){socket.emit("message",{t:"roomError",message:"Operations missions are solo-only and cannot be joined online."} as S2C);break;}
       if (targetRoom?.mode==="survival") {
         const tier=normalizeSurvivalTier(targetRoom.config.survivalTier);
         if(tier!=="default") {
