@@ -907,7 +907,7 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
                         <td className="text-center px-2 py-1.5 text-white tabular-nums">{r.kills}</td>
                         <td className="text-center px-2 py-1.5 text-white/50 tabular-nums">{r.deaths}</td>
                         <td className="text-center px-4 py-1.5 text-white font-bold tabular-nums">{r.score}</td>
-                        {mode==="survival" && (
+                        {mode==="survival" && !hud.operation && (
                           <td className="px-3 py-2">
                             <div className="flex max-w-[390px] flex-wrap gap-1">
                               {Object.entries(hud.survivalPlayerRanks?.[r.id]??
