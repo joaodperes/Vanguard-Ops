@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { weaponById, WEAPONS, WEAPON_SKINS, ATTACHMENTS, PLAYER_SKINS } from "@/lib/game-data";
 import { displayLabel } from "@/lib/display-labels";
 import { perkById } from "@/lib/perks";
-import { operationById, operationStars, operationStarCriteria, nextOperation } from "@/lib/operations";
+import { operationById, operationStars, operationStarCriteria, operationTimePerformance, formatOperationTime, nextOperation } from "@/lib/operations";
 import { SURVIVAL_TIER_INFO } from "@/lib/survival";
 
 function unlockedGearLabel(id: string): string {
@@ -92,6 +92,10 @@ export function Results() {
           <h2 className="text-xl font-bold text-amber-200">{r.won ? "OPERATION COMPLETE":leftEarly ? "OPERATION ABORTED":"OPERATION FAILED"}</h2>
           <p className="text-amber-300 text-2xl my-2" aria-label={`${operationStars(mission,r.operation,r.deaths)} of 3 stars`}>{"★".repeat(operationStars(mission,r.operation,r.deaths))}{"☆".repeat(3-operationStars(mission,r.operation,r.deaths))}</p>
           <p className="text-white/70">{r.won ? mission.debrief:"Regroup, adjust your loadout and try again. Completed missions remain available."}</p>
+          {(()=>{
+            const pace=operationTimePerformance(mission,r.operation!.elapsed);
+            return <p className="text-xs mt-2 ${pace.withinPar?'text-emerald-300':'text-amber-200'}">Mission time {formatOperationTime(pace.elapsedSeconds)} · Target {formatOperationTime(pace.parSeconds)} · {pace.withinPar?`${pace.deltaSeconds}s ahead`:`${pace.deltaSeconds}s over`}</p>;
+          })()}
           <div className="max-w-sm mx-auto mt-4 space-y-2 text-left">
             {operationStarCriteria(r.operation,r.deaths).map((criterion,index)=><div key={criterion.label} className="flex items-center gap-2 text-sm">
               <span className={criterion.earned?"text-amber-300":"text-white/25"}>{criterion.earned?"★":"☆"}</span>
