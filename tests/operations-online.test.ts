@@ -7,8 +7,8 @@ import {createServer} from 'node:net';
 import type {C2S,S2C,LoadoutWire,CreateRoomConfig} from '../src/lib/game-protocol';
 const loadout:LoadoutWire={weaponId:'rifle_ar',weaponSkinId:'default',playerSkinId:'default',attachments:{sight:null,barrel:null,grip:null,magazine:null}};
 
-test('Operations missions are solo-only and cannot be hosted in multiplayer rooms',async()=>{
- const dir=await mkdtemp(join(tmpdir(),'vanguard-operations-solo-'));
+test('Operations rooms support a two-player co-op campaign and preserve mission difficulty',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'vanguard-operations-coop-'));
  await writeFile(join(dir,'test.sqlite'),'');
  const env={...process.env,DATABASE_URL:`file:${join(dir,'test.sqlite')}`};
  const setup=Bun.spawn([process.execPath,'node_modules/prisma/build/index.js','db','push','--skip-generate'],{env,stdout:'pipe',stderr:'pipe'});
@@ -27,17 +27,21 @@ test('Operations missions are solo-only and cannot be hosted in multiplayer room
  }
  const send=(s:Socket,m:C2S)=>s.emit('message',m);
  try{
-  const host=await connect();
-  const campaign:CreateRoomConfig={mode:'survival',operationId:'orbital_blackout',mapId:'orbital_nexus',teamSize:5,fillWithBots:false,password:null,botDifficulty:'normal',survivalPlayers:1,survivalTier:'default'};
-  for(const players of [1,2] as const){
-   send(host,{t:'createRoom',playerKey:host.id!,name:'Host',loadout,config:{...campaign,survivalPlayers:players}});
-   expect((await wait(host,'roomError')).message).toContain('solo-only');
-  }
-  send(host,{t:'createRoom',playerKey:host.id!,name:'Host',loadout,config:{mode:'tdm',mapId:'compound',teamSize:3,fillWithBots:false,password:null,botDifficulty:'normal',survivalPlayers:1}});
+  const host=await connect(),partner=await connect();
+  const campaign:CreateRoomConfig={mode:'survival',operationId:'orbital_blackout',mapId:'orbital_nexus',teamSize:5,fillWithBots:false,password:null,botDifficulty:'veteran',survivalPlayers:2,survivalTier:'default'};
+  send(host,{t:'createRoom',playerKey:host.id!,name:'Host',loadout,config:campaign});
   const joined=await wait(host,'roomJoined');
+  expect(joined.config.operationId).toBe('orbital_blackout');
   send(host,{t:'listRooms'});
   const rooms=(await wait(host,'roomList')).rooms;
-  expect(rooms.some(room=>room.id===joined.matchId)).toBe(true);
-  expect(rooms.some(room=>room.operationId)).toBe(false);
+  expect(rooms.some(room=>room.id===joined.matchId&&room.operationId==='orbital_blackout'&&room.capacity===2)).toBe(true);
+  send(partner,{t:'joinRoom',playerKey:partner.id!,name:'Partner',loadout,roomId:joined.matchId,password:null});
+  const partnerJoined=await wait(partner,'roomJoined');
+  expect(partnerJoined.matchId).toBe(joined.matchId);
+  send(host,{t:'startMatch'});
+  const snapshot=await wait(host,'snapshot',m=>!!m.operation);
+  expect(snapshot.operation?.missionId).toBe('orbital_blackout');
+  expect(snapshot.operation?.difficulty).toBe('veteran');
+  expect(snapshot.players.filter(p=>!p.isBot)).toHaveLength(2);
  }finally{clients.forEach(s=>s.disconnect());server.kill();await server.exited;await rm(dir,{recursive:true,force:true});}
 },60000);
