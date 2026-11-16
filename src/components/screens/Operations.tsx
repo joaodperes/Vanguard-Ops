@@ -58,13 +58,26 @@ export function Operations(){
    </section>
    <section className="rounded-2xl border border-white/10 bg-gradient-to-br from-zinc-900 to-black p-6 self-start lg:sticky lg:top-20" aria-label="Mission briefing">
     <p className="text-xs text-amber-300 uppercase tracking-widest">Act {mission.act} · {getMap(mission.mapId).name}</p><h2 className="text-3xl font-black mt-2">{mission.title}</h2><p className="text-white/70 mt-4 leading-relaxed">{mission.briefing}</p>
-    <div className="text-sm text-white/65 my-5 space-y-3">
-     <p><strong className="text-white/85">◆ Main objectives</strong> {mission.objectives.map(g=>g.label).join(' → ')}</p>
-     <p><strong className="text-white/85">◇ Optional objective</strong> {mission.optionalObjective.label}.</p>
-     {mission.optionalChallenge&&<p><strong className="text-white/85">◇ Timed challenge</strong> {mission.optionalChallenge.label}: eliminate {mission.optionalChallenge.kills} enemies within {mission.optionalChallenge.seconds}s. Failure increases later enemy numbers.</p>}
-     <p>★ Complete the mission.</p>
-     <p>★ Recover the optional intel.</p>
-     <p>★ Complete on Veteran difficulty without dying.</p>
+    <div className="text-sm text-white/65 my-5 space-y-4">
+     <div>
+      <p className="text-white/85 font-semibold mb-2">◆ Main objectives</p>
+      <ol className="space-y-1.5 list-decimal list-inside">
+       {mission.objectives.map((objective,index)=><li key={index} className="leading-relaxed">{objective.label}</li>)}
+      </ol>
+     </div>
+     <div>
+      <p className="text-white/85 font-semibold mb-1">◇ Optional intel</p>
+      <p className="leading-relaxed">{mission.optionalObjective.label}.</p>
+     </div>
+     {mission.optionalChallenge&&<div>
+      <p className="text-white/85 font-semibold mb-1">◇ Optional challenge</p>
+      <p className="leading-relaxed">{mission.optionalChallenge.label}: eliminate {mission.optionalChallenge.kills} enemies within {mission.optionalChallenge.seconds}s. Failure increases later enemy numbers.</p>
+     </div>}
+     <div className="border-t border-white/10 pt-3 space-y-1.5">
+      <p>★ Complete the mission.</p>
+      <p>★ Recover the optional intel.</p>
+      <p>★ Complete on Veteran difficulty without dying.</p>
+     </div>
     </div>
     <div className="mb-5">
      <p className="text-xs uppercase tracking-widest text-white/50 font-bold mb-2">Bot difficulty</p>
