@@ -81,7 +81,7 @@ describe('Operations campaign',()=>{
    expect(s.status).toBe('won');expect(s.stage).toBe(mission.objectives.length);
   }
  });
- test('every defence objective holds for two minutes under seven reinforcement pulses',()=>{
+ test('every defence objective holds for two minutes with continuous 15-second reinforcement pulses',()=>{
   const stages=OPERATIONS.flatMap(m=>m.objectives.flatMap((objective,index)=>objective.kind==='defend'?[{mission:m,index}]:[]));
   expect(stages.length).toBeGreaterThan(0);
   for(const {mission,index} of stages){
@@ -93,10 +93,10 @@ describe('Operations campaign',()=>{
     expect(s.stage).toBe(index);
     expect(s.stageElapsed).toBe(second);
     expect(s.progress).toBe(second);
-    expect(s.pulse).toBe(Math.min(7,Math.floor(second/15)));
+    expect(s.pulse).toBe(Math.floor(second/15));
    }
-   expect([...pulses]).toEqual([0,1,2,3,4,5,6,7]);
-   expect(s.pulse).toBe(7);
+   expect([...pulses]).toEqual([0,1,2,3,4,5,6,7,8]);
+   expect(s.pulse).toBe(8);
    // The hold is complete, but a living defender still blocks stage completion.
    s=tickOperation(s,mp,[actor(p)],[guard],1);
    expect(s.stage).toBe(index);
