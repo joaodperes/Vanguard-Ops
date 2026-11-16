@@ -30,7 +30,7 @@ The existing Survival specialists, arsenal, elite, healing, damage and self-revi
 systems supply combat. Co-op deployments scale encounter size with the active squad. Bot awareness is raised outside the opening stealth approach.
 Bot difficulty can be selected per deployment; the Veteran
 setting is required for the third campaign star. Later missions introduce engineers and disruptors sooner;
-campaign objectives replace standard Survival's rotating objectives. Operations does not use the Survival run-upgrade selection system.
+campaign objectives replace standard Survival's rotating objectives. Freight Intercept also has a timed optional alarm challenge: eliminate four guards within 45 seconds or later encounters receive more enemies. Operations does not use the Survival run-upgrade selection system.
 
 ## Campaign and rewards
 
