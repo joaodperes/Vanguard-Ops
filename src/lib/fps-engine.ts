@@ -1509,7 +1509,7 @@ export class FPSEngine {
     this.survivalTier = normalizeSurvivalTier(opts.survivalTier);
     if(opts.operationId!==undefined){
       if(!operationConfigValid(opts))throw new Error("Invalid Operations configuration");
-      this.operation=createOperationState(opts.operationId);this.survivalTier="default";
+      this.operation=createOperationState(opts.operationId,this.botDifficulty);this.survivalTier="default";
     }
     // If we're creating a room, we know upfront that we're the host entering a
     // lobby. The server will confirm via roomJoined, but setting this early
@@ -6177,7 +6177,7 @@ export class FPSEngine {
     }
     const mutators=survivalWaveMutators(this.survivalTier,this.survivalWave);
     if(!reinforcement)this.survivalObjective=this.operation ? undefined : createSurvivalObjective(this.survivalWave,mutators.boss,this.map.spawns.ffa);
-    const encounter=this.operation ? operationEncounter(operationById(this.operation.missionId)!,this.operation.stage):undefined;
+    const encounter=this.operation ? operationEncounter(operationById(this.operation.missionId)!,this.operation.stage,this.operation.difficulty):undefined;
     const count=(reinforcement ? encounter?.reinforcementCount : encounter?.count) ?? Math.min(40,Math.ceil(survivalWaveBotCount(this.survivalWave)*mutators.spawnMul))+(mutators.boss ? 1 : 0);
     const hpMul=survivalWaveHealthMul(this.survivalWave)*mutators.healthMul;
     // Curated Survival arsenal; launchers are allowed, long-range snipers excluded.
@@ -6275,7 +6275,7 @@ export class FPSEngine {
         }
         const bossCleared=survivalWaveMutators(this.survivalTier,this.survivalWave).boss;
         if(bossCleared)this.survivalRerolls++;
-        if(this.operation||survivalUpgradeDue(this.survivalWave)||bossCleared){
+        if(!this.operation&&(survivalUpgradeDue(this.survivalWave)||bossCleared)){
           this.survivalPrepLeft=survivalPrepSeconds(this.survivalWave);
           this.survivalUpgradeOffer={wave:this.survivalWave,
             choices:generateSurvivalUpgradeChoices(this.survivalUpgradeRanks,Math.random,[],bossCleared),
