@@ -79,6 +79,10 @@ export function Operations(){
       <p>★ Complete on Veteran difficulty without dying.</p>
      </div>
     </div>
+    <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 mb-5">
+     <p className="text-xs uppercase tracking-widest text-white/65 font-bold mb-1">Two-player co-op</p>
+     <p className="text-xs leading-relaxed text-white/55">Enemy squads scale up for two operatives. Either player can work objectives and recover intel; every living operative must reach extraction. If the package carrier is downed, the other player can recover the dropped package.</p>
+    </div>
     <div className="mb-5">
      <p className="text-xs uppercase tracking-widest text-white/50 font-bold mb-2">Bot difficulty</p>
      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">{(['easy','normal','hard','veteran','mixed'] as BotDifficulty[]).map(level=><button key={level} type="button" aria-pressed={difficulty===level} onClick={()=>setDifficulty(level)} className={`rounded-lg border px-3 py-2 text-sm font-semibold capitalize ${difficulty===level?'border-amber-400 bg-amber-500/15 text-amber-200':'border-white/10 bg-black/30 text-white/65 hover:border-white/30'}`}>{level}</button>)}</div>
