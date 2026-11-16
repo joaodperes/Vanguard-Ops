@@ -22,6 +22,20 @@ describe('Operations campaign',()=>{
   }
   expect(operationById('__proto__')).toBeUndefined();expect(operationConfigValid({operationId:'missing',mode:'survival',mapId:'compound'})).toBe(false);
  });
+ test('every mission has a distinct authored optional intel objective at a valid site',()=>{
+  const labels=OPERATIONS.map(m=>m.optionalObjective.label);
+  expect(new Set(labels).size).toBe(OPERATIONS.length);
+  for(const mission of OPERATIONS){
+   expect(mission.optionalObjective.label.length).toBeGreaterThan(0);
+   const compiled=makeEnvironmentMap(getMap(mission.mapId,'survival'));
+   const site=operationSite(compiled,mission.optionalObjective.site);
+   expect(site.every(Number.isFinite)).toBe(true);
+   expect(botPositionEmbedded(compiled.cover,site)).toBe(false);
+   let state=createOperationState(mission.id);
+   state=tickOperation(state,compiled,[actor(site)],[],1);
+   expect(state.intel).toBe(true);
+  }
+ });
  test('later campaign encounters reuse all specialist behaviours',()=>{
   const m=operationById('zero_hour')!,e=operationEncounter(m,0);
   const roles=new Set(Array.from({length:e.count},(_,i)=>survivalRoleForSlot(e.roleWave,i)).filter(Boolean));
