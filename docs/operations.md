@@ -64,15 +64,15 @@ the existing guest API behaviour. Database changes are additive: run
 
 `src/lib/operations.ts` owns the typed mission roster, fixed deadline, first-clear
 reward schedule, `operationEncounter` and pure `tickOperation` reducer. Operations
-run locally with one player; multiplayer room creation and joining reject campaign
-mission IDs. Stable mission IDs persist in player campaign records. Sites reference
-collision-checked authored FFA spawn pads; these are mission beacons rather than
-new scenery assets. The campaign whitelist permits its CTF-only maps without adding
-them to standard Survival.
+run solo or in two-player networked co-op rooms. The room host controls mission
+selection and campaign continuation; both players retain account-bound campaign
+progress and earn their own star ratings based on personal deaths. Stable mission
+IDs persist in player campaign records. Sites reference collision-checked authored
+FFA spawn pads; these are mission beacons rather than new scenery assets. The
+campaign whitelist permits its CTF-only maps without adding them to standard Survival.
 
 Run the Operations tests, full smoke suite, typecheck, content validation and build.
-Real-socket checks cover the solo-only restriction and standard room creation;
-unit tests cover mission objectives, deadline, star-criteria breakdown, first-clear
-idempotency and account persistence. A real-socket check covers two-player co-op
-room creation, joining and difficulty preservation. Human playtests remain necessary for combat pacing and route feel under
+Real-socket checks cover two-player co-op room creation, joining and difficulty
+preservation. Unit tests cover mission objectives, deadline, star-criteria
+breakdown, first-clear idempotency and account persistence. Human playtests remain necessary for combat pacing and route feel under
 fire. There is no new map geometry or cinematic/NPC scripting system.
