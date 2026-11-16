@@ -344,13 +344,22 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
           : `Extract · all operatives at zone · ${progress}/${goal.seconds}s`;
         const timedObjective=goal.kind!=='clear'&&goal.kind!=='deliver'||goal.kind==='deliver'&&!!hud.operation.carrierId;
         const objectivePct=goal.seconds>0?Math.min(100,100*progress/goal.seconds):0;
-        return <div className={`absolute ${isTouch ? "left-3 top-14 w-[calc(100vw-10rem)] max-w-sm p-2":"left-1/2 -translate-x-1/2 top-20 w-full max-w-md p-3"} rounded-lg border border-amber-400/40 bg-black/80 text-center pointer-events-none`}>
-          <div className="text-[10px] text-amber-300 uppercase tracking-widest truncate">{mission.title} · {hud.operation.stage+1}/{mission.objectives.length}</div>
+        const deadlineLeft=Math.max(0,OPERATION_DEADLINE_SECONDS-hud.operation.elapsed);
+        const deadlinePct=Math.min(100,100*deadlineLeft/OPERATION_DEADLINE_SECONDS);
+        const deadlineUrgent=deadlineLeft<=60,deadlineWarning=deadlineLeft<=300;
+        const deadlineColor=deadlineUrgent?"text-rose-300":deadlineWarning?"text-amber-300":"text-white/65";
+        const deadlineClock=`${Math.floor(deadlineLeft/60)}:${String(Math.ceil(deadlineLeft%60)).padStart(2,"0")}`;
+        return <div className={`absolute ${isTouch ? "left-3 top-14 w-[calc(100vw-10rem)] max-w-sm p-2":"left-1/2 -translate-x-1/2 top-20 w-full max-w-md p-3"} rounded-lg border border-amber-400/40 bg-black/85 text-center pointer-events-none`}>
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <div className="text-[10px] text-amber-300 uppercase tracking-widest truncate">{mission.title} · {hud.operation.stage+1}/{mission.objectives.length}</div>
+            <div className={`shrink-0 text-xs font-black tabular-nums ${deadlineColor} ${deadlineUrgent?"animate-pulse":""}`}>ABORT IN {deadlineClock}</div>
+          </div>
+          <div className="h-1 rounded-full bg-white/10 mb-2 overflow-hidden"><div className={`h-full transition-[width] duration-500 ${deadlineUrgent?"bg-rose-400":deadlineWarning?"bg-amber-400":"bg-white/40"}`} style={{width:`${deadlinePct}%`}} /></div>
           <div className="text-white font-bold text-sm">{goal.label}</div>
           <div className="text-xs text-white/75 mt-1">{objectiveStatus} · {hud.survivalEnemiesLeft??0} hostiles</div>
           {timedObjective&&goal.seconds>0&&<div className="h-1 rounded-full bg-white/10 mt-2 overflow-hidden"><div className="h-full bg-amber-400 transition-[width] duration-200" style={{width:`${objectivePct}%`}} /></div>
           {w&&<div className="flex justify-center items-center gap-2 text-amber-200 text-xs mt-1"><span className="inline-block text-lg" style={{transform:`rotate(${-w.angle}rad)`}}>↑</span> ◆ {Math.round(w.distance)}m {Math.abs(w.vertical)>2.5 ? w.vertical>0 ? "· Above":"· Below":""}</div>}
-          <div className="text-[10px] text-white/50">{hud.operation.intel ? "◇ Intel recovered":"◇ Intel optional"} · {Math.max(0,Math.ceil(OPERATION_DEADLINE_SECONDS-hud.operation.elapsed))}s until abort</div>
+          <div className="text-[10px] text-white/50">{hud.operation.intel ? "◇ Intel recovered":"◇ Intel optional"}</div>
           {mission.optionalChallenge&&<div className={`text-[10px] mt-1 ${hud.operation.optionalChallengeStatus==='failed'?'text-rose-300':hud.operation.optionalChallengeStatus==='complete'?'text-emerald-300':'text-amber-200'}`}>{hud.operation.optionalChallengeStatus==='complete'?'◇ Alarm prevented':hud.operation.optionalChallengeStatus==='failed'?'◇ Alarm raised · later enemy numbers increased':`◇ ${mission.optionalChallenge.label}: ${hud.operation.optionalChallengeKills??0}/${mission.optionalChallenge.kills} · ${Math.max(0,Math.ceil(mission.optionalChallenge.seconds-(hud.operation.optionalChallengeElapsed??0)))}s`}</div>}
           {!isTouch&&hud.operation.carrierId&&<div className="text-[10px] text-amber-200">Package carried by squad · Bring carrier to ◆</div>}
         </div>;
