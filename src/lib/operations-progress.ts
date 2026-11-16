@@ -47,7 +47,7 @@ export async function writeOperationProgress(key:string,input:{progress:Operatio
    operationsRuns:JSON.stringify('runId' in input?[...runs,input.runId].slice(-512):runs),
    ...(xp>0?{xp:{increment:xp},credits:{increment:credits},level:levelForXp(p.xp+xp),careerXp:careerXpAfterMatch(p.careerXp,p.careerRank,p.xp,xp)}:{}),
   };
-  const updated=await db.player.updateMany({where:{id:p.id,operationsProgress:p.operationsProgress,operationsRuns:p.operationsRuns},data});
+  const updated=await db.player.updateMany({where:{id:p.id,operationsProgress:p.operationsProgress,operationsRuns:p.operationsRuns,xp:p.xp,careerXp:p.careerXp,careerRank:p.careerRank},data});
   if(updated.count)return {progress:next,firstClearRewards};
  }
  throw Error('Campaign progress was updated concurrently; retry the request.');
