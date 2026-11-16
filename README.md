@@ -172,7 +172,6 @@ Survival adds specialist enemies and rotating relay, supply and terminal objecti
 
 ### Playing together
 
-Quick Play joins a public match in your selected mode or starts one with bots.
 Rooms stay together through results, with map voting, host-controlled rematches
 and a **Copy room link** invitation in the lobby and results screen.
 See [room and match flow](docs/match-flow.md) for rules and deployment notes.

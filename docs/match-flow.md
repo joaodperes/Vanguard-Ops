@@ -1,11 +1,5 @@
 # Room and match flow
 
-Quick Play uses the selected one of the existing six modes. It joins a public,
-non-full room, preferring active matches and then the largest human roster.
-If none exists, it creates a public room with recommended capacity, normal bots,
-and default rules and starts immediately. Quick Play Survival uses the default
-tier; custom limits, passwords, difficulty and tiers remain in Create Room.
-
 Rooms retain their ID, password, roster, teams and host through the results
 screen. The room connection belongs to the client session rather than the 3D
 engine. Each round gets fresh server state and a fresh client engine so scores,
@@ -44,8 +38,8 @@ to rejoin an available room.
   retention, round transitions, passwords and leaving.
 - `tests/room-flow-online.test.ts`: real Socket.IO clients and a temporary SQLite
   database exercise private joining, host-only launch, idempotent reattachment,
-  retention beyond 15 seconds, voting, readiness, round reset, host departure,
-  Quick Play and all six modes. Only the isolated server's simulation interval
+  retention beyond 15 seconds, voting, readiness, round reset, host departure and 
+  all six modes. Only the isolated server's simulation interval
   is accelerated; its cleanup grace period uses real time.
 
 Manual browser QA: create a private lobby in two tabs, follow its invitation,

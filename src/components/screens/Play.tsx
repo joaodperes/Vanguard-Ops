@@ -267,7 +267,7 @@ export function Play() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <button onClick={()=>setScreen("operations")} className="mx-auto mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-5 py-3 text-amber-200">Operations campaign · Solo / 2-player co-op →</button>
+      {/* <button onClick={()=>setScreen("operations")} className="mx-auto mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-5 py-3 text-amber-200">Operations campaign · Solo / 2-player co-op →</button> */}
       {/* header */}
       <header className="border-b border-white/10 bg-black/40 backdrop-blur sticky top-14 z-30">
         <div className="max-w-[1680px] mx-auto px-4 sm:px-6 py-3 flex items-center gap-3">
@@ -328,7 +328,7 @@ export function Play() {
                 {/* Game mode */}
                 <Section className="h-full" icon={<Swords className="w-4 h-4 text-amber-400" />} title="Game Mode" hint="Choose the match type">
                   <Button onClick={handleQuickPlay} disabled={serverOnline !== true} className="w-full mb-3 bg-amber-600 hover:bg-amber-500">Quick Play · {MATCH_MODES[roomConfig.mode].label}</Button>
-                  <p className="text-xs text-white/50 mb-3">Join a public match in the selected mode, or start one with bots. Custom settings apply to Create Room.</p>
+                  {/* <p className="text-xs text-white/50 mb-3">Join a public match in the selected mode, or start one with bots. Custom settings apply to Create Room.</p> */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {(["ffa", "tdm", "killconfirmed", "ctf", "survival", "gungame"] as GameMode[]).map((m) => (
                       <ModePickCard key={m} mode={m} selected={roomConfig.mode === m} onSelect={(mode) => setRoomConfig({ mode, mapId: mapAllowedForMode(mode,roomConfig.mapId)?roomConfig.mapId:mode==="ctf"?"forest_warfare":"compound", scoreLimit: MATCH_MODES[mode].defaultScoreLimit, timeLimit: MATCH_MODES[mode].defaultTimeLimit * 60 })} />
@@ -415,7 +415,8 @@ export function Play() {
                 )}
                 {roomConfig.mode === "survival" && (
                   <div className="relative min-h-0">
-                    <Section className="lg:absolute lg:inset-0 lg:overflow-y-auto" icon={<Skull className="w-4 h-4 text-amber-400" />} title="Survival Difficulty" hint="Unlock tougher endless modes by clearing the preceding milestone">
+                    <Section className="lg:absolute lg:inset-0 lg:overflow-y-auto" icon={<Skull className="w-4 h-4 text-amber-400" />} title="Survival Difficulty" > 
+                    {/* hint="Unlock tougher endless modes by clearing the preceding milestone"> */}
                     <div className="grid sm:grid-cols-2 gap-3">
                       {SURVIVAL_TIERS.map(tier=>{
                         const info=SURVIVAL_TIER_INFO[tier];
@@ -540,7 +541,7 @@ export function Play() {
                     roomConfig.mode === "ffa" || roomConfig.mode === "gungame"
                       ? "Total combatants in the match (no teams)"
                       : roomConfig.mode === "survival"
-                      ? "Play solo or as a duo; duo waves spawn 1.75× as many enemies"
+                      ? "" //Play solo or as a duo; duo waves spawn 1.75× as many enemies
                       : "Players per team · red vs blue"
                   }
                 >

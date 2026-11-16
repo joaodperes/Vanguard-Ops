@@ -240,7 +240,7 @@ export function Profile() {
             {/* collection summary */}
             <div className="rounded-2xl border border-white/10 bg-zinc-900/40 p-5 mt-5">
               <h3 className="text-white font-bold tracking-wide uppercase text-sm mb-4 flex items-center gap-2"><Award className="w-4 h-4 text-amber-400" /> Collection Progress · {collector.percent}%</h3>
-              <p className="text-xs text-white/50 mb-3">Collector milestones at 10%, 25%, 50%, 75% and 100%. Wonder weapons and Career Token-exclusive cosmetics are excluded.</p>
+              {/* <p className="text-xs text-white/50 mb-3">Collector milestones at 10%, 25%, 50%, 75% and 100%. Wonder weapons and Career Token-exclusive cosmetics are excluded.</p> */}
               <div className="grid sm:grid-cols-2 gap-4">
                 <Progress label="Weapons" value={ownedW} total={totalWeapons} color="from-rose-500 to-amber-500" />
                 <Progress label="Owned Attachments" value={ownedA} total={totalAttachmentPairs} color="from-amber-500 to-yellow-500" sub="Owned per-weapon" />
