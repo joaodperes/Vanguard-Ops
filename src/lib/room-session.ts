@@ -72,11 +72,13 @@ export function releaseRoomSession() {
   const current = socket;
   // If the host is deliberately returning to Play, open the room browser even
   // if the disband notification races with the socket being closed.
-  if (current && useGame.getState().screen === "play" && status?.hostSocketId === current.id) {
+  if (current && status?.hostSocketId === current.id) {
     const url = new URL(window.location.href);
     url.searchParams.delete("room");
     url.searchParams.set("browse", "1");
     window.history.replaceState(window.history.state, "", url.toString());
+    // Host departure always returns the owner to the browser as well.
+    useGame.getState().setScreen("play");
   }
   socket = null; status = null;
   current?.emit("message", { t: "leaveRoom" } satisfies C2S);
