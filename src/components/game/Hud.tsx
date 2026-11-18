@@ -373,7 +373,7 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
           <div className="text-sm font-bold text-white">{hud.operationNotice.message}</div>
         </div>
       )}
-      {/* Lean, objective-only scoreboard. Mode identity remains in countdown / TAB scoreboard. */}}
+      {/* Lean, objective-only scoreboard. Mode identity remains in countdown / TAB scoreboard. */}
       <div className={`absolute left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-1 max-w-[96vw] ${isTouch ? "top-1.5" : "top-3"}`}>
         <div className={`flex items-center justify-center whitespace-nowrap ${isTouch ? "gap-1" : "gap-2"}`}>
           {mode === "survival" ? (
