@@ -6357,7 +6357,7 @@ export class FPSEngine {
       const owner=this.combatants.get(e.ownerId);if(!owner)continue;
       const effect=this.combatants.get(e.targetId??e.ownerId);
       if(effect)this.spawnEquipmentVisual([effect.pos[0],effect.pos[1]+1,effect.pos[2]],e.kind==="heal"?0x4ade80:e.kind==="pulse"?0xc084fc:0x38bdf8);
-      if(e.kind==="pulse")this.sound.play("wave_start",{volume:.2});
+      if(e.kind==="pulse")this.sound.play("equipment_taser",{volume:.2});
       if(e.kind==="heal"){const target=this.combatants.get(e.targetId!);if(target)target.health=Math.min(target.survivalMaxHealth??MAX_HEALTH,target.health+(e.amount??0));}
       if(e.kind==="sentry"){
         const candidate=turretDeployPosition(owner.pos,owner.yaw,this.map.cover,this.map.size);
