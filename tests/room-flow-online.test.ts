@@ -24,7 +24,9 @@ test("real sockets retain a private group across voting and rematches; host depa
   }
   async function wait<T extends S2C["t"]>(s:Socket,type:T,predicate:(m:Extract<S2C,{t:T}>)=>boolean=()=>true):Promise<Extract<S2C,{t:T}>>{
     const deadline=Date.now()+25000;
-    while(Date.now()<deadline){const rows=messages.get(s)!;const i=rows.findIndex(m=>m.t===type&&predicate(m as any));if(i>=0)return rows.splice(i,1)[0] as any;await Bun.sleep(10);}
+    while(Date.now()<deadline){const rows=messages.get(s)!;const i=rows.findIndex(m=>m.t===type&&predicate(m as any));if(i>=0)return rows.splice(i,1)[0] as any;
+      if(type!=="roomError"){const error=rows.find(m=>m.t==="roomError") as Extract<S2C,{t:"roomError"}>|undefined;if(error)throw new Error(`Server rejected the request while waiting for ${type}: ${error.message}`);}
+      await Bun.sleep(10);}
     throw new Error(`Timed out waiting for ${type}: ${messages.get(s)!.map(m=>m.t).join(",")}`);
   }
   function send(s:Socket,msg:C2S){s.emit("message",msg);}
