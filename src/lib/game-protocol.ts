@@ -1614,6 +1614,7 @@ export type S2C =
   | { t: "roomList"; rooms: RoomSummary[] }
   | { t: "roomJoined"; matchId: string; selfId: string; mode: GameMode; team: string; config: MatchConfig; mapId: MapId; players: SnapshotPlayer[]; roomName: string; state?: "lobby" | "playing"; isHost?: boolean }
   | { t: "roomError"; message: string }
+  | { t: "roomDisbanded"; message: string }
   | { t: "lobbySnapshot"; players: SnapshotPlayer[]; hostSocketId: string; state: "lobby" | "playing" }
   | { t: "matchStarted"; config: MatchConfig; gungameWeapons?: string[] }   // fired when the host starts the match
   // ---- Gun Game progression ----

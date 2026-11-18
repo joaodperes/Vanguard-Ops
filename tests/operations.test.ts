@@ -1,5 +1,5 @@
 import {describe,expect,test} from 'bun:test';
-import {OPERATIONS,OPERATION_DEADLINE_SECONDS,operationFirstClearReward,createOperationState,operationById,nextOperation,operationConfigValid,operationSite,operationTarget,tickOperation,operationEncounter,operationAwarenessMultiplier,operationStars,operationStarCriteria,operationTimePerformance,formatOperationTime,operationActSummary,recordOperation,operationUnlocked,loadOperationProgress,type OperationActor,type OperationState} from '../src/lib/operations';
+import {OPERATIONS,OPERATION_DEADLINE_SECONDS,operationFirstClearReward,createOperationState,operationById,nextOperation,operationConfigValid,operationSite,operationTarget,tickOperation,operationEncounter,operationAwarenessMultiplier,operationStars,operationStarCriteria,operationTimePerformance,formatOperationTime,operationActSummary,recordOperation,operationUnlocked,loadOperationProgress,operationFeedbackEvents,type OperationActor,type OperationState} from '../src/lib/operations';
 import {getMap,type Vec3} from '../src/lib/game-protocol';
 import {makeEnvironmentMap} from '../src/lib/dynamic-environment';
 import {botPositionEmbedded} from '../src/lib/bot-physics';
@@ -36,6 +36,21 @@ describe('Operations campaign',()=>{
    state=tickOperation(state,compiled,[actor(site)],[],1);
    expect(state.intel).toBe(true);
   }
+ });
+ test('operation transitions announce optional rewards and completed defence tasks',()=>{
+  const freight=operationById('freight_intercept')!;
+  const stageThree={...createOperationState(freight.id),stage:2};
+  expect(operationFeedbackEvents(stageThree,{...stageThree,stage:3})).toEqual([
+   {kind:'objective',message:'OBJECTIVE COMPLETE · NEXT: Recover the cargo manifest'},
+  ]);
+  expect(operationFeedbackEvents(stageThree,{...stageThree,progress:12})).toEqual([]);
+  expect(operationFeedbackEvents(stageThree,{...stageThree,intel:true})).toEqual([
+   {kind:'intel',message:'OPTIONAL INTEL RECOVERED'},
+  ]);
+  const challenge=createOperationState(freight.id);
+  expect(operationFeedbackEvents(challenge,{...challenge,optionalChallengeStatus:'complete'})).toEqual([
+   {kind:'challenge',message:'OPTIONAL CHALLENGE COMPLETE'},
+  ]);
  });
  test('later campaign encounters reuse all specialist behaviours',()=>{
   const m=operationById('zero_hour')!,e=operationEncounter(m,0);

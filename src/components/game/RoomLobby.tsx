@@ -1,5 +1,4 @@
 "use client";
-import { RoomRoundPanel } from "./RoomRoundPanel";
 import type { LobbyState } from "@/lib/fps-engine";
 import type { GameMode } from "@/lib/game-protocol";
 import { displayLabel } from "@/lib/display-labels";
@@ -127,7 +126,6 @@ export function RoomLobby({ state, mode, operationId, onStart, onLeave, socketCo
             )}
           </div>
 
-          <RoomRoundPanel />
           {/* actions */}
           <div className="flex items-center gap-3">
             <Button

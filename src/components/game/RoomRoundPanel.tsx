@@ -24,7 +24,7 @@ export function RoomRoundPanel({ results = false }: { results?: boolean }) {
   };
   return <section aria-label="Next round" className="rounded-xl border border-amber-500/25 bg-black/40 p-4 my-4 space-y-3">
     <div className="flex flex-wrap justify-between gap-2 items-center">
-      <div><div className="font-bold text-white">{mission ? `Operations · ${mission.title}`:results ? "Stay together · Next round":"Vote for the arena"}</div>
+      <div><div className="font-bold text-white">{mission ? `Operations · ${mission.title}`:results ? "Next round vote":"Vote for the arena"}</div>
         <p className="text-xs text-white/60">{status.players.length} operatives · {status.room.name}</p></div>
       <Button variant="outline" size="sm" onClick={copyInvite}>Copy room link</Button>
     </div>

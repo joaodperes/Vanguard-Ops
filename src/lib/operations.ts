@@ -55,6 +55,20 @@ export function operationConfigValid(c:{operationId?:unknown;mode:string;mapId:s
  const m=operationById(c.operationId);return !!m&&c.mode==='survival'&&c.mapId===m.mapId&&(c.survivalTier===undefined||c.survivalTier==='default');
 }
 export interface OperationState {missionId:string;difficulty:BotDifficulty;stage:number;progress:number;elapsed:number;stageElapsed:number;pulse:number;objectiveKillBaseline?:number;intel:boolean;optionalChallengeStatus?:'active'|'complete'|'failed';optionalChallengeElapsed?:number;optionalChallengeBaseline?:number;optionalChallengeKills?:number;carrierId?:string;packagePos?:Vec3;status:'active'|'won'|'failed'}
+export interface OperationFeedbackEvent {kind:"objective"|"intel"|"challenge";message:string}
+/** Discrete transitions only: callers can safely run this for every simulation snapshot. */
+export function operationFeedbackEvents(previous:OperationState,next:OperationState):OperationFeedbackEvent[] {
+ if(previous.missionId!==next.missionId)return [];
+ const events:OperationFeedbackEvent[]=[];
+ if(!previous.intel&&next.intel)events.push({kind:"intel",message:"OPTIONAL INTEL RECOVERED"});
+ if(previous.optionalChallengeStatus!=="complete"&&next.optionalChallengeStatus==="complete")
+  events.push({kind:"challenge",message:"OPTIONAL CHALLENGE COMPLETE"});
+ if(next.stage>previous.stage){
+  const nextGoal=operationById(next.missionId)?.objectives[next.stage];
+  events.push({kind:"objective",message:nextGoal ? "OBJECTIVE COMPLETE · NEXT: " + nextGoal.label : "OPERATION COMPLETE"});
+ }
+ return events;
+}
 export const createOperationState=(missionId:string,difficulty:BotDifficulty='normal'):OperationState=>({missionId,difficulty,stage:0,progress:0,elapsed:0,stageElapsed:0,pulse:0,intel:false,...(operationById(missionId)?.optionalChallenge?{optionalChallengeStatus:'active' as const,optionalChallengeElapsed:0,optionalChallengeKills:0}:{}),status:'active'});
 export interface OperationActor {id:string;pos:Vec3;alive:boolean;kills?:number}
 /** Use collision-cleared authored pads, with the same positions on both simulations. */

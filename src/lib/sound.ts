@@ -54,6 +54,9 @@ export type SfxName =
   | "revolver_close"
   | "death"
   | "level_up"
+  | "objective_assigned"
+  | "objective_complete"
+  | "intel_recovered"
   | "wave_start"
   | "hit_taken"
   | "footstep"
@@ -353,6 +356,9 @@ export class SoundManager {
       case "revolver_close": this.synthRevolverClose(vol); break;
       case "death": this.synthDeath(vol); break;
       case "level_up": this.synthLevelUp(vol); break;
+      case "objective_assigned": this.synthObjectiveAssigned(vol); break;
+      case "objective_complete": this.synthObjectiveComplete(vol); break;
+      case "intel_recovered": this.synthIntelRecovered(vol); break;
       case "wave_start": this.synthWaveStart(vol); break;
       case "hit_taken": this.synthHitTaken(vol); break;
       case "footstep": this.synthFootstep(vol); break;
@@ -790,6 +796,60 @@ export class SoundManager {
       g.gain.exponentialRampToValueAtTime(0.001, start + 0.4);
       osc.connect(g).connect(this.masterGain!);
       osc.start(start); osc.stop(start + 0.45);
+    });
+  }
+
+  /** A concise two-ping radio cue for a newly assigned task. */
+  private synthObjectiveAssigned(vol: number) {
+    const ctx = this.ctx!;
+    const t = ctx.currentTime;
+    [659, 880].forEach((frequency, index) => {
+      const at = t + index * 0.085;
+      const osc = ctx.createOscillator(); osc.type = "triangle";
+      osc.frequency.setValueAtTime(frequency, at);
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.0001, at);
+      gain.gain.linearRampToValueAtTime(vol * 0.24, at + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.001, at + 0.19);
+      osc.connect(gain).connect(this.masterGain!);
+      osc.start(at); osc.stop(at + 0.21);
+      osc.onended = () => { osc.disconnect(); gain.disconnect(); };
+    });
+  }
+
+  /** Rising major arpeggio: the current objective has been completed. */
+  private synthObjectiveComplete(vol: number) {
+    const ctx = this.ctx!;
+    const t = ctx.currentTime;
+    [523, 659, 784, 1046].forEach((frequency, index) => {
+      const at = t + index * 0.075;
+      const osc = ctx.createOscillator(); osc.type = "sine";
+      osc.frequency.setValueAtTime(frequency, at);
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.0001, at);
+      gain.gain.linearRampToValueAtTime(vol * 0.3, at + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, at + 0.32);
+      osc.connect(gain).connect(this.masterGain!);
+      osc.start(at); osc.stop(at + 0.34);
+      osc.onended = () => { osc.disconnect(); gain.disconnect(); };
+    });
+  }
+
+  /** Bright three-note confirmation for recovered optional intel. */
+  private synthIntelRecovered(vol: number) {
+    const ctx = this.ctx!;
+    const t = ctx.currentTime;
+    [784, 988, 1175].forEach((frequency, index) => {
+      const at = t + index * 0.08;
+      const osc = ctx.createOscillator(); osc.type = "triangle";
+      osc.frequency.setValueAtTime(frequency, at);
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.0001, at);
+      gain.gain.linearRampToValueAtTime(vol * 0.22, at + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.001, at + 0.24);
+      osc.connect(gain).connect(this.masterGain!);
+      osc.start(at); osc.stop(at + 0.26);
+      osc.onended = () => { osc.disconnect(); gain.disconnect(); };
     });
   }
 

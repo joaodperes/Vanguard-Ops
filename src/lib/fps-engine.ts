@@ -1,6 +1,6 @@
 import {DEFAULT_CONTROLS,canonicalKey,stick,type ControlSettings} from "./control-settings";
 import {squadIntent,validSquadOrder,squadOrderPoint,type SquadOrder,type SquadCommand} from "./squad-coordination";
-import { operationById, createOperationState, tickOperation, operationEncounter, operationConfigValid, operationTarget, operationSite, operationAwarenessMultiplier, type OperationState } from "./operations";
+import { operationById, createOperationState, tickOperation, operationEncounter, operationConfigValid, operationTarget, operationSite, operationAwarenessMultiplier, operationFeedbackEvents, type OperationState } from "./operations";
 import { survivalRoleForSlot, survivalRoleHealthMultiplier, survivalFrontalArmor, tickSurvivalSpecialists, createSurvivalObjective, tickSurvivalObjective, survivalObjectiveSite, survivalObjectiveText, SURVIVAL_ROLE_INFO, type SurvivalRole, type SurvivalActor, type SurvivalObjective } from "./survival-encounters";
 import { combatIdentity, tracerIdentity } from "./combat-identity";
 import { combatThreats, type CombatHazard, type CombatThreat } from "./combat-threats";
@@ -360,6 +360,7 @@ export interface HudState {
   survivalSpecialistHints?: string[];
   survivalWave?: number;
   operation?: OperationState;
+  operationNotice?: {kind:"objective"|"intel"|"challenge";message:string;at:number};
   operationWaypoint?: {x:number;z:number;distance:number;angle:number;vertical:number};
   operationIntel?: {x:number;z:number};
   survivalTier?: SurvivalTier;
@@ -1272,6 +1273,7 @@ export class FPSEngine {
   private survivalObjectiveMarkers:THREE.Group[]=[];
   private survivalObjectiveMarkerKey="";
   private operation: OperationState | undefined;
+  private operationNotice?: HudState["operationNotice"];
   private operationBeacons: THREE.Group[] = [];
   private survivalWave = 0;
   private survivalTier: SurvivalTier = "default";
@@ -6168,8 +6170,12 @@ export class FPSEngine {
     this.botWonderCharges.clear();
     this.survivalWave += 1;
     this.survivalWaveActive = true;
-    // Wave-start SFX: menacing horn to signal the next wave incoming.
-    this.sound.play("wave_start", { volume: 0.7 });
+    // Operations use clean mission-update cues rather than the low Survival horn.
+    if (this.operation) {
+      if (this.survivalWave === 1) this.announceOperationObjective();
+    } else {
+      this.sound.play("wave_start", { volume: 0.7 });
+    }
     // ---- Round 18-b: wave banner ----
     // Set the banner timestamp so the HUD shows "WAVE N — X enemies incoming"
     // for ~3.5 seconds after the wave starts.
@@ -6234,6 +6240,25 @@ export class FPSEngine {
     this.survivalEnemiesLeft = [...this.combatants.values()].filter(c=>c.isBot&&c.alive).length;
   }
 
+  private announceOperationObjective() {
+    const mission = this.operation ? operationById(this.operation.missionId) : undefined;
+    const goal = mission?.objectives[this.operation?.stage ?? 0];
+    if (!goal) return;
+    this.operationNotice = { kind: "objective", message: "NEW OBJECTIVE · " + goal.label, at: performance.now() };
+    this.sound.play("objective_assigned", { volume: 0.75, throttleMs: 250 });
+  }
+
+  private applyOperationFeedback(events: ReturnType<typeof operationFeedbackEvents>) {
+    if (!events.length) return;
+    this.operationNotice = {
+      kind: events.some(event => event.kind === "objective") ? "objective" : events[0].kind,
+      message: events.map(event => event.message).join(" · "),
+      at: performance.now(),
+    };
+    this.sound.play(events.some(event => event.kind === "objective") ? "objective_complete" : "intel_recovered",
+      { volume: 0.8, throttleMs: 180 });
+  }
+
   private updateSurvival(dt: number) {
     if (this.matchEnded) return;
     if(this.survivalDowned && this.survivalDownedUntil>0 &&
@@ -6253,7 +6278,8 @@ export class FPSEngine {
       const aliveBots = [...this.combatants.values()].filter((c) => c.isBot && c.alive).length;
       this.survivalEnemiesLeft = aliveBots;
       this.tickSurvivalEncounters(dt);
-      const previousStage=this.operation?.stage,previousPulse=this.operation?.pulse;
+      const previousOperation=this.operation;
+      const previousStage=previousOperation?.stage,previousPulse=previousOperation?.pulse;
       if(this.operation){
         const operationActors=[
           {id:this.selfId,pos:[this.pos.x,this.pos.y,this.pos.z] as Vec3,alive:this.alive&&!this.survivalDowned,kills:this.kills},
@@ -6261,6 +6287,7 @@ export class FPSEngine {
         ];
         this.operation=tickOperation(this.operation,this.map,operationActors,
           [...this.combatants.values()].filter(c=>c.isBot).map(c=>({id:c.id,pos:c.pos,alive:c.alive,kills:c.kills})),dt);
+        this.applyOperationFeedback(operationFeedbackEvents(previousOperation!,this.operation));
         if(this.operation.status!=="active"){this.survivalWaveActive=false;this.finalizeMatchLocal();return;}
         if(this.operation.stage===previousStage&&this.operation.pulse!==previousPulse)this.startSurvivalWave(true);
       }
@@ -7093,13 +7120,18 @@ export class FPSEngine {
         // or older server must not repeatedly reset the running elapsed clock.
         if (typeof msg.elapsedSeconds === "number" && Number.isFinite(msg.elapsedSeconds))
           this.elapsedSeconds = Math.max(this.elapsedSeconds, msg.elapsedSeconds);
-        if(msg.operation)this.operation=msg.operation;
+        if(msg.operation){
+          const previousOperation=this.operation;
+          this.operation=msg.operation;
+          if(previousOperation)this.applyOperationFeedback(operationFeedbackEvents(previousOperation,msg.operation));
+        }
         // Survival: sync wave/reinforcement state from the server.
         if (this.opts.mode === "survival") {
           const serverWave = (msg as any).wave ?? this.survivalWave;
           // Round 18-b: detect wave change to trigger the wave banner.
           if (serverWave > this.survivalWave) {
             this.survivalWaveBannerAt = performance.now();
+            if (this.operation && this.survivalWave === 0) this.announceOperationObjective();
           }
           this.survivalObjective=msg.survivalObjective;
           this.survivalWave = serverWave;
@@ -7429,7 +7461,7 @@ export class FPSEngine {
       case "survivalAbility": {
         const c=this.combatants.get(msg.targetId??msg.ownerId);
         if(c)this.spawnEquipmentVisual([c.pos[0],c.pos[1]+1,c.pos[2]],msg.kind==="heal"?0x4ade80:msg.kind==="pulse"?0xc084fc:0x38bdf8);
-        if(msg.kind==="pulse")this.sound.play("wave_start",{volume:.2});
+        if(msg.kind==="pulse")this.sound.play("equipment_taser",{volume:.2});
         break;
       }
       case "survivalUpgradeChosen":
@@ -7446,6 +7478,7 @@ export class FPSEngine {
           this.survivalDownedUntil=msg.selfReviveUntil??0;
           this.alive = true; this.health = 1; this.respawnAt = 0;
           this.sprinting = false; this.reloading = false;
+          this.burstShotsLeft = 0; this.burstNextAt = 0; this.burstEndsAt = 0;
           // Downed status disallows the normal swap action, so activate the
           // sidearm slot directly without sending a rejected swap packet.
           this.currentSlot = "secondary"; this.weaponId = this.secondaryWeaponId;
@@ -7468,6 +7501,8 @@ export class FPSEngine {
           this.lastPlayerRespawnAt = performance.now();
           this.pos.set(...msg.pos); this.vel.set(0,0,0);
           this.alive = true; this.health = msg.health; this.respawnAt = 0; this.lastDeath = undefined;
+          this.sprinting = false; this.reloading = false;
+          this.burstShotsLeft = 0; this.burstNextAt = 0; this.burstEndsAt = 0;
           this.currentSlot = "primary"; this.weaponId = this.primaryWeaponId;
           this.eff = this.primaryEff; this.sightDef = this.primarySight;
           // Survival wave recovery is also a fresh deployment with full ammo.
@@ -13579,6 +13614,7 @@ export class FPSEngine {
             survivalObjectiveSite(this.survivalObjective)[1]-this.pos.y,
             survivalObjectiveSite(this.survivalObjective)[2]-this.pos.z))+"m to marker":undefined,
         operation:this.operation,
+        operationNotice:this.operationNotice,
         ...(this.operation ? (()=>{
           const target=operationTarget(this.operation!,this.map),intel=operationSite(this.map,operationById(this.operation.missionId)!.optionalObjective.site);
           return {operationIntel:{x:radarToPercent(intel[0],this.map.size),z:radarToPercent(intel[2],this.map.size)},

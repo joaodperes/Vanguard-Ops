@@ -7,7 +7,7 @@ import {createServer} from "node:net";
 import {recommendedTeamSize,type C2S,type S2C,type LoadoutWire,type GameMode,type CreateRoomConfig} from "../src/lib/game-protocol";
 const loadout:LoadoutWire={weaponId:"rifle_ar",weaponSkinId:"default",playerSkinId:"default",attachments:{sight:null,barrel:null,grip:null,magazine:null}};
 
-test("real sockets retain a private group across voting, results, rematches and host departure",async()=>{
+test("real sockets retain a private group across voting and rematches; host departure disbands it",async()=>{
   const dir=await mkdtemp(join(tmpdir(),"vanguard-room-test-"));
   await writeFile(join(dir,"test.sqlite"),"");
   const env={...process.env,DATABASE_URL:`file:${join(dir,"test.sqlite")}`};
@@ -50,9 +50,20 @@ test("real sockets retain a private group across voting, results, rematches and 
     send(host,{t:"startMatch"});const rematch=await wait(host,"roundLaunched");expect(rematch.roomId).toBe(id);expect(rematch.mapId).toBe(ended.candidates[1]);
     const snap=await wait(host,"snapshot",m=>m.players.filter(p=>!p.isBot).length===2);
     expect(snap.players.filter(p=>!p.isBot)).toHaveLength(2);expect(snap.players.every(p=>p.kills===0&&p.deaths===0&&p.health===100)).toBe(true);expect(snap.teamScores).toEqual({red:0,blue:0});
-    await wait(host,"matchEnd");const oldHostId=host.id;host.disconnect();
-    const transfer=(await wait(guest,"roomStatus",m=>m.status.hostSocketId===guest.id)).status;expect(transfer.players.some(p=>p.id===oldHostId)).toBe(false);
-    send(guest,{t:"readyNextRound"});send(guest,{t:"startMatch"});expect((await wait(guest,"roundLaunched")).roomId).toBe(id);
+    await wait(host,"matchEnd");host.disconnect();
+    const disbanded=await wait(guest,"roomDisbanded");expect(disbanded.message).toContain("host");
+    send(guest,{t:"listRooms"});const afterDisband=await wait(guest,"roomList");
+    expect(afterDisband.rooms.some(room=>room.id===id)).toBe(false);
+
+    send(guest,{t:"createRoom",playerKey:guest.id!,name:"Castle Host",loadout,config:{mode:"tdm",mapId:"emberhold",teamSize:12,fillWithBots:false,password:null,botDifficulty:"normal",scoreLimit:0,timeLimit:0}});
+    const highCapacityId=(await wait(guest,"roomJoined")).matchId;
+    const highCapacityStatus=(await wait(guest,"roomStatus",m=>m.status.room.id===highCapacityId)).status;
+    expect(highCapacityStatus.candidates).toHaveLength(3);
+    const partner=await connect();enter(partner,highCapacityId,null);await wait(partner,"roomJoined");
+    send(guest,{t:"startMatch"});expect((await wait(partner,"roundLaunched")).roomId).toBe(highCapacityId);await wait(partner,"matchStarted");
+    send(guest,{t:"leaveMatch"});expect((await wait(partner,"roomDisbanded")).message).toContain("host");
+    send(partner,{t:"listRooms"});const afterLeave=await wait(partner,"roomList");
+    expect(afterLeave.rooms.some(room=>room.id===highCapacityId)).toBe(false);
     for(const mode of ["ffa","killconfirmed","ctf","survival","gungame"] as GameMode[]){
       const s=await connect(),mapId=mode==="ctf"?"forest_warfare":"compound";
       const config:CreateRoomConfig={mode,mapId,teamSize:recommendedTeamSize(mapId,mode),fillWithBots:mode!=="survival",password:null,roomName:mode,botDifficulty:"normal",survivalPlayers:1,survivalTier:"default",...(mode==="ctf"?{scoreLimit:3,timeLimit:0}:{})};

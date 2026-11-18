@@ -364,7 +364,16 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
           {hud.operation.carrierId&&<div className="text-[10px] text-amber-200">Package carrier: {hud.scoreboard.find(player=>player.id===hud.operation?.carrierId)?.name??"Squad operative"} · Bring them to ◆</div>}
         </div>;
       })()}
-      {/* Lean, objective-only scoreboard. Mode identity remains in countdown / TAB scoreboard. */}
+      {hud.operationNotice && performance.now() - hud.operationNotice.at < 4200 && (
+        <div key={hud.operationNotice.at} role="status" aria-live="polite"
+          className={"absolute left-1/2 -translate-x-1/2 z-20 max-w-[92vw] rounded-xl border border-amber-400/40 bg-black/85 px-5 py-3 text-center shadow-xl pointer-events-none " + (isTouch ? "top-[38%]" : "top-64")}>
+          <div className="text-[9px] font-black uppercase tracking-[0.2em] text-amber-300 mb-1">
+            {hud.operationNotice.kind === "intel" ? "Optional intel" : hud.operationNotice.kind === "challenge" ? "Optional challenge" : "Mission update"}
+          </div>
+          <div className="text-sm font-bold text-white">{hud.operationNotice.message}</div>
+        </div>
+      )}
+      {/* Lean, objective-only scoreboard. Mode identity remains in countdown / TAB scoreboard. */}}
       <div className={`absolute left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-1 max-w-[96vw] ${isTouch ? "top-1.5" : "top-3"}`}>
         <div className={`flex items-center justify-center whitespace-nowrap ${isTouch ? "gap-1" : "gap-2"}`}>
           {mode === "survival" ? (

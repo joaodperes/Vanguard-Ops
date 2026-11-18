@@ -25,6 +25,19 @@ export function acquireRoomSocket(): Socket {
   socket.on("message", (message: S2C) => {
     if (message.t === "roomError" && useGame.getState().screen === "results") toast.error(message.message);
     if (message.t === "roomStatus") { status = message.status; notify(); }
+    if (message.t === "roomDisbanded") {
+      status = null;
+      const state = useGame.getState();
+      state.setRoomConnect(null);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("room");
+      url.searchParams.set("browse", "1");
+      window.history.replaceState(window.history.state, "", url.toString());
+      state.setScreen("play");
+      toast.info(message.message || "The host left the room. Returning to the server browser.");
+      notify();
+      return;
+    }
     if (message.t === "roomJoined") {
       const state = useGame.getState();
       const previous = state.roomConnect;

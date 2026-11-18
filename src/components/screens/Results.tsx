@@ -4,7 +4,7 @@ import { achievementTitle, achievementRequirement } from "@/lib/achievement-titl
 import { useGame } from "@/lib/game-store";
 import { RoomRoundPanel } from "@/components/game/RoomRoundPanel";
 import { Button } from "@/components/ui/button";
-import { Trophy, RotateCcw, Home, Zap, Coins, TrendingUp, Star, Crown, Award, Target, Skull, Flame, Clock, Crosshair } from "lucide-react";
+import { Trophy, RotateCcw, Home, Zap, Coins, TrendingUp, Star, Crown, Award, Target, Skull, Flame, Clock, Crosshair, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { weaponById, WEAPONS, WEAPON_SKINS, ATTACHMENTS, PLAYER_SKINS } from "@/lib/game-data";
 import { displayLabel } from "@/lib/display-labels";
@@ -190,7 +190,12 @@ export function Results() {
               {!isSurvival && leftEarly && (
                 <p className="text-xs text-white/45">Early exit: no match completion or placement bonuses. Earned combat and objective rewards are retained.</p>
               )}
-              <div className="pt-2 text-xs uppercase tracking-widest text-white/50">Progression &amp; Unlocks</div>
+              <details className="group rounded-xl border border-white/10 bg-black/20 overflow-hidden">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-3 hover:bg-white/5">
+                  <span className="text-xs uppercase tracking-widest text-white/60">Progression &amp; Unlocks</span>
+                  <ChevronDown className="w-4 h-4 text-white/50 transition-transform group-open:rotate-180" />
+                </summary>
+                <div className="px-3 pb-3 space-y-3">
 
               {rewards.leveledUp && (
                 <div className="p-3 rounded-xl bg-gradient-to-r from-amber-500/15 to-rose-500/15 border border-amber-500/30 flex items-center gap-3">
@@ -296,6 +301,8 @@ export function Results() {
                   </div>
                 </div>
               )}
+                </div>
+              </details>
             </div>
           ) : (
             <div className="text-white/40 text-sm flex items-center gap-2"><TrendingUp className="w-4 h-4" /> Rewards applied to your profile.</div>

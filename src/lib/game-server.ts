@@ -21,7 +21,7 @@ import { wonderModuleEffects, validWonderModule, validWonderFinish, validWonderK
 import { harbingerTuning, harbingerTargets, harbingerRayHit, harbingerPlacement, HARBINGER_INTERVAL_MS, HARBINGER_SCAN_INTERVAL_MS } from "./harbinger-drone";
 import { wonderConeHit, seismicPulseHit, seismicPushPosition, ripperSegments, CHRONO_ANCHOR_MS, PHANTOM_DURATION_MS, CRYO_SLOW_MS, CRYO_SLOW_FACTOR, mechTuning, phantomSpawnPosition, phantomTravelPosition, juggernautDropPoint, crushesAtLanding, JUGGERNAUT_DROP_MS, JUGGERNAUT_ACTIVE_MS, JUGGERNAUT_MINIGUN_RATE, JUGGERNAUT_SHOTGUN_RATE, JUGGERNAUT_SWARM_RATE } from "./wonder-abilities";
 import { db } from "./db";
-import { roomMapCandidates, winningRoomMap } from "./room-flow";
+import { roomMapCandidates, roomTeamSizeForMap, winningRoomMap } from "./room-flow";
 import { recommendedTeamSize, type RoomStatus } from "./game-protocol";
 import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,ORBITAL_RULES_VERSION,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,orbitalPulseTargets,orbitalReaperEquipped,ORBITAL_REAPER_SPEED_MULTIPLIER} from "./orbital-reactor";
 import { advanceMatchElapsed } from "./match-clock";
@@ -604,7 +604,7 @@ function lobbyPlayers(room: Room): SnapshotPlayer[] {
 // Broadcast a lobby snapshot to every socket in the room. Sent whenever the
 // player list changes during the lobby state (join/leave/transfer).
 function broadcastRoomStatus(room: Room) {
-  room.mapCandidates ??= roomMapCandidates(room.mode,room.map.id,room.teamSize,room.roundNumber,room.config.operationId);
+  room.mapCandidates ??= roomMapCandidates(room.mode,room.map.id,room.teamSize,room.roundNumber,room.config.operationId,room.players.size,room.capacity===2?2:1);
   const status: RoomStatus = {
     room: roomSummary(room), phase: room.state, hostSocketId: room.hostSocketId,
     players: lobbyPlayers(room).filter(p => !p.isBot), candidates: room.mapCandidates,
@@ -713,13 +713,14 @@ function createLobbyRoom(
 function launchRoomRound(old: Room, socketId: string, advanceOperation=false): boolean {
   if (old.hostSocketId !== socketId || old.state === "playing" || old.players.size === 0) return false;
   if (old.state === "ended" && [...old.players.keys()].some(id => !old.resultsReady?.has(id))) return false;
-  const candidates = old.mapCandidates ?? roomMapCandidates(old.mode,old.map.id,old.teamSize,old.roundNumber,old.config.operationId);
+  const candidates = old.mapCandidates ?? roomMapCandidates(old.mode,old.map.id,old.teamSize,old.roundNumber,old.config.operationId,old.players.size,old.capacity===2?2:1);
   const advance=advanceOperation&&old.state==="ended"&&old.operation?.status==="won" ? nextOperation(old.operation.missionId):undefined;
   if(advanceOperation&&!advance)return false;
   const mapId=advance?.mapId ?? winningRoomMap(candidates,old.mapVotes??{},[...old.players.keys()]);
+  const nextTeamSize=advance ? recommendedTeamSize(mapId,"survival") : roomTeamSizeForMap(old.mode,mapId,old.teamSize,old.players.size,old.capacity===2?2:1) ?? old.teamSize;
   const host = old.players.get(socketId)!;
   const cfg: CreateRoomConfig = {
-    ...old.config,operationId:advance?.id ?? old.config.operationId, mode: old.mode, mapId, teamSize:advance ? recommendedTeamSize(mapId,"survival"):old.teamSize, fillWithBots: old.fillWithBots,
+    ...old.config,operationId:advance?.id ?? old.config.operationId, mode: old.mode, mapId, teamSize:nextTeamSize, fillWithBots: old.fillWithBots,
     password: old.password, roomName:advance ? `Operations · ${advance.title}`:old.name, botDifficulty: old.botDifficulty,
     gungamePreset: old.gungamePreset, gungameMultiplier: old.gungameMultiplier,
     survivalPlayers: old.capacity === 2 ? 2 : 1,
@@ -2054,6 +2055,11 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
           // One confirmed enemy kill restores the downed operative.
           room.survivalSelfReviveUntil.delete(attackerId);
           room.downed.delete(attackerId);
+          room.sprintState.set(attackerId,false);
+          room.sprintLastAt.delete(attackerId);
+          room.burstState.delete(attackerId);
+          room.reloadingPlayers.delete(attackerId);
+          room.adsStartedAt.delete(attackerId);
           attacker.weaponId=room.loadouts.get(attackerId)?.weaponId??"rifle_ar";
           attacker.alive=true;
           attacker.health=SURVIVAL_SELF_REVIVE_HP;
@@ -2099,6 +2105,13 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
           room.survivalSelfReviveUsedWave.get(victim.id)??-1,room.wave);
         if(!hasRescuer&&!canRevive){endMatch(room);return;}
         room.downed.add(victim.id);
+        // The downed client may not send another movement packet before recovery.
+        // Clear authoritative sprint/burst state so the operative can fire immediately after reviving.
+        room.sprintState.set(victim.id,false);
+        room.sprintLastAt.delete(victim.id);
+        room.burstState.delete(victim.id);
+        room.reloadingPlayers.delete(victim.id);
+        room.adsStartedAt.delete(victim.id);
         // One temporary secondary-only recovery per wave; hazards remain fatal.
         const selfReviveUntil=canRevive?Date.now()+SURVIVAL_SELF_REVIVE_MS:undefined;
         if(canRevive){
@@ -2301,6 +2314,29 @@ function scheduleEmptyRoomCleanup(room: Room) {
   }, 15000);
 }
 
+function disbandRoom(room: Room, message: string) {
+  if (room.cleanupTimer) clearTimeout(room.cleanupTimer);
+  if (room.tick) clearInterval(room.tick);
+  room.tick = null;
+  for (const timer of room.respawnTimers.values()) clearTimeout(timer as unknown as ReturnType<typeof setTimeout>);
+  room.respawnTimers.clear();
+  // Notify every connected operative before removing their shared room channel.
+  io.to(room.id).emit("message", { t: "roomDisbanded", message } satisfies S2C);
+  for (const playerId of room.players.keys()) {
+    socketToRoom.delete(playerId);
+    io.sockets.sockets.get(playerId)?.leave(room.id);
+  }
+  room.players.clear();
+  room.sockets.clear();
+  room.bots.clear();
+  room.loadouts.clear();
+  room.pendingLoadouts.clear();
+  room.playerKeys.clear();
+  room.ended = true;
+  room.state = "ended";
+  rooms.delete(room.id);
+}
+
 function endMatch(room: Room, reason: "other" | "gungame_victory" = "other") {
   // Prevent stale kill-count or timer handlers ending an active Gun Game.
   // A room with no humans may still be cleaned up normally.
@@ -2333,7 +2369,7 @@ function endMatch(room: Room, reason: "other" | "gungame_victory" = "other") {
     teamScores: { ...room.teamScores } } as S2C);
   room.resultsReady = new Set();
   room.mapVotes = {};
-  room.mapCandidates = roomMapCandidates(room.mode,room.map.id,room.teamSize,room.roundNumber,room.config.operationId);
+  room.mapCandidates = roomMapCandidates(room.mode,room.map.id,room.teamSize,room.roundNumber,room.config.operationId,room.players.size,room.capacity===2?2:1);
   broadcastRoomStatus(room);
   scheduleEmptyRoomCleanup(room);
 }
@@ -2479,6 +2515,11 @@ function recoverSurvivalPlayers(room: Room) {
     room.survivalSelfReviveUntil.delete(playerId);
     const p = room.players.get(playerId);
     if (!p) continue;
+    room.sprintState.set(playerId,false);
+    room.sprintLastAt.delete(playerId);
+    room.burstState.delete(playerId);
+    room.reloadingPlayers.delete(playerId);
+    room.adsStartedAt.delete(playerId);
     const pos = pickSpawn(p.team, room);
     p.pos = pos; p.health = MAX_HEALTH; p.alive = true;
     applyQueuedLoadout(room, p);
@@ -4350,6 +4391,11 @@ io.on("connection", (socket) => {
     const roomId = socketToRoom.get(socket.id);
     if (!roomId) return;
     const room = rooms.get(roomId);
+    if (room && room.hostSocketId === socket.id) {
+      disbandRoom(room, "The host left the room. Returning to the server browser.");
+      socketToRoom.delete(socket.id);
+      return;
+    }
     if (room) {
       if (room.mode === "ctf") dropCarriedFlag(room, socket.id, [...(room.players.get(socket.id)?.pos ?? [0,0,0])] as Vec3);
       room.players.delete(socket.id); removeMinesOwnedBy(room, socket.id);
@@ -4368,11 +4414,6 @@ io.on("connection", (socket) => {
       delete room.mapVotes?.[socket.id]; room.resultsReady?.delete(socket.id);
       scheduleEmptyRoomCleanup(room);
       socket.leave(roomId);
-      // If host leaves, transfer host to the next human (if any).
-      if (room.hostSocketId === socket.id && room.players.size > 0) {
-        const next = room.players.values().next().value;
-        if (next) { room.hostSocketId = next.id; room.hostName = next.name; }
-      }
       broadcastRoomStatus(room);
       if (room.state === "lobby") {
         // In lobby: refresh the player list for the remaining players. If the
@@ -4437,7 +4478,7 @@ async function handle(socket: any, msg: C2S) {
   switch (msg.t) {
     case "voteMap": {
       if (!pauseRoom || pauseRoom.state === "playing" || !pauseRoom.players.has(socket.id)) return;
-      const candidates = pauseRoom.mapCandidates ?? roomMapCandidates(pauseRoom.mode,pauseRoom.map.id,pauseRoom.teamSize,pauseRoom.roundNumber,pauseRoom.config.operationId);
+      const candidates = pauseRoom.mapCandidates ?? roomMapCandidates(pauseRoom.mode,pauseRoom.map.id,pauseRoom.teamSize,pauseRoom.roundNumber,pauseRoom.config.operationId,pauseRoom.players.size,pauseRoom.capacity===2?2:1);
       if (!candidates.includes(msg.mapId)) return;
       (pauseRoom.mapVotes ??= {})[socket.id] = msg.mapId;
       broadcastRoomStatus(pauseRoom);
@@ -4453,6 +4494,11 @@ async function handle(socket: any, msg: C2S) {
       const roomId = socketToRoom.get(socket.id);
       if (!roomId) return;
       const room = rooms.get(roomId);
+      if (room && room.hostSocketId === socket.id) {
+        disbandRoom(room, "The host left the room. Returning to the server browser.");
+        socketToRoom.delete(socket.id);
+        break;
+      }
       if (room) {
         if (room.mode === "ctf") dropCarriedFlag(room, socket.id, [...(room.players.get(socket.id)?.pos ?? [0,0,0])] as Vec3);
         room.players.delete(socket.id); removeMinesOwnedBy(room, socket.id);
@@ -5041,6 +5087,11 @@ async function handle(socket: any, msg: C2S) {
       const roomId = socketToRoom.get(socket.id);
       if (!roomId) return;
       const room = rooms.get(roomId);
+      if (room && room.hostSocketId === socket.id) {
+        disbandRoom(room, "The host left the room. Returning to the server browser.");
+        socketToRoom.delete(socket.id);
+        break;
+      }
       if (room) {
         if (room.mode === "ctf") dropCarriedFlag(room, socket.id, [...(room.players.get(socket.id)?.pos ?? [0,0,0])] as Vec3);
         room.players.delete(socket.id); removeMinesOwnedBy(room, socket.id);
@@ -5056,11 +5107,6 @@ async function handle(socket: any, msg: C2S) {
         socket.leave(roomId);
         delete room.mapVotes?.[socket.id]; room.resultsReady?.delete(socket.id);
         scheduleEmptyRoomCleanup(room);
-        // Transfer host if the leaving player was the host.
-        if (room.hostSocketId === socket.id && room.players.size > 0) {
-          const next = room.players.values().next().value;
-          if (next) { room.hostSocketId = next.id; room.hostName = next.name; }
-        }
         broadcastRoomStatus(room);
         if (room.state === "lobby") {
           if (room.players.size === 0) endMatch(room);

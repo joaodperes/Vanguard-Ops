@@ -104,7 +104,18 @@ function useLobby(active: boolean) {
 // ============================================================================
 export function Play() {
   const { profile, playerKey, setScreen, roomConfig, setRoomConfig, setRoomConnect, setPlayConfig } = useGame();
-  const [tab, setTab] = useState<"create" | "browse">(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).has("room") ? "browse" : "create");
+  const [tab, setTab] = useState<"create" | "browse">(() => {
+    if (typeof window === "undefined") return "create";
+    const params = new URLSearchParams(window.location.search);
+    return params.has("room") || params.get("browse") === "1" ? "browse" : "create";
+  });
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("browse") === "1") {
+      url.searchParams.delete("browse");
+      window.history.replaceState(window.history.state, "", url.toString());
+    }
+  }, []);
   const [mapPaceFilter, setMapPaceFilter] = useState<"all" | MapPace>("all");
   const lobby = useLobby(tab === "browse");
   const [survivalProgress,setSurvivalProgress]=useState<SurvivalProgress>(ZERO_SURVIVAL_PROGRESS);

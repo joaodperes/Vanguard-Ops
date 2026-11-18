@@ -103,12 +103,12 @@ export function Operations(){
       mixed:"Each enemy rolls a difficulty independently. Mixed deployments cannot earn the Veteran no-deaths star."
      } as Record<BotDifficulty,string>)[difficulty]}</p>
     </div>
-    <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 mb-4">
+    {!record?.completions&&!record?.firstClearRewarded&&<div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 mb-4">
      <p className="text-xs uppercase tracking-widest text-amber-300 font-bold mb-2">First clear rewards</p>
      <p className="text-sm text-white/85">+{firstClear.xp} XP</p>
      <p className="text-sm text-white/85">+{firstClear.credits} credits</p>
-     <p className="text-xs text-white/45 mt-2">{record?.firstClearRewarded?'Claimed':record?.completions?'Previously cleared':'Awarded once on your first successful clear'}</p>
-    </div>
+     <p className="text-xs text-white/45 mt-2">Awarded once on your first successful clear</p>
+    </div>}
     {!unlocked&&<p className="text-amber-200 mb-3">Complete the preceding mission to unlock this deployment.</p>}
     <div className="flex flex-wrap gap-2"><Button disabled={!loaded||!unlocked||launching||!profile} onClick={()=>deploy(mission)} className="bg-amber-500 hover:bg-amber-400 text-black font-bold">{launching?'Deploying…':'Deploy solo'}</Button><Button variant="outline" disabled={!loaded||!unlocked||launching||!profile} onClick={()=>deploy(mission,true)}>Host co-op</Button></div>
    </section>

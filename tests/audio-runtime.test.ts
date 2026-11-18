@@ -164,6 +164,17 @@ describe("SoundManager browser audio graph", () => {
     gun.dispose();
   });
 
+  test("operation alerts synthesize distinct positive UI cues", () => {
+    const sm = new SoundManager(); sm.resume();
+    const ctx = FakeAudioContext.last!;
+    sm.play("objective_assigned");
+    sm.play("objective_complete");
+    sm.play("intel_recovered");
+    expect(ctx.oscillators.length).toBeGreaterThanOrEqual(9);
+    expect(ctx.oscillators.every(osc => osc.startedAt !== null && osc.stoppedAt !== null)).toBe(true);
+    sm.dispose();
+  });
+
   test("no HTML audio element is ever constructed for background music", () => {
     const sm = new SoundManager(); sm.resume();
     sm.play("swap", { volume: 0.3 });
