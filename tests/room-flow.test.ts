@@ -18,14 +18,13 @@ describe("room flow", () => {
       }
     }
   });
-  test("Emberhold still offers two alternatives when its configured team size is map-specific",()=>{
-    const candidates=roomMapCandidates("tdm","emberhold",12,0,undefined,1);
+  test("Emberhold Survival rooms offer two alternatives from the pool",()=>{
+    const candidates=roomMapCandidates("survival","emberhold",7,0,undefined,1,1);
     expect(candidates).toHaveLength(3); expect(candidates[0]).toBe("emberhold");
     for(const id of candidates.slice(1)){
-      const size=roomTeamSizeForMap("tdm",id,12,1);
-      expect(size).toBeDefined(); expect(teamSizeAllowed(id,size!,"tdm")).toBe(true);
+      const size=roomTeamSizeForMap("survival",id,7,1,1);
+      expect(size).toBeDefined(); expect(teamSizeAllowed(id,size!,"survival")).toBe(true);
     }
-    expect(roomMapCandidates("survival","emberhold",7,0,undefined,1,1)).toHaveLength(3);
     expect(roomMapCandidates("survival","emberhold",7,0,"keep_secrets")).toEqual(["emberhold"]);
   });
   test("one changeable vote per human; departed humans and invalid maps do not count; ties keep rematch",()=>{

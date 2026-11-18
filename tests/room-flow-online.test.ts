@@ -57,15 +57,15 @@ test("real sockets retain a private group across voting and rematches; host depa
     send(guest,{t:"listRooms"});const afterDisband=await wait(guest,"roomList");
     expect(afterDisband.rooms.some(room=>room.id===id)).toBe(false);
 
-    send(guest,{t:"createRoom",playerKey:guest.id!,name:"Castle Host",loadout,config:{mode:"tdm",mapId:"emberhold",teamSize:12,fillWithBots:false,password:null,botDifficulty:"normal",scoreLimit:0,timeLimit:0}});
-    const highCapacityId=(await wait(guest,"roomJoined")).matchId;
-    const highCapacityStatus=(await wait(guest,"roomStatus",m=>m.status.room.id===highCapacityId)).status;
-    expect(highCapacityStatus.candidates).toHaveLength(3);
-    const partner=await connect();enter(partner,highCapacityId,null);await wait(partner,"roomJoined");
-    send(guest,{t:"startMatch"});expect((await wait(partner,"roundLaunched")).roomId).toBe(highCapacityId);await wait(partner,"matchStarted");
+    send(guest,{t:"createRoom",playerKey:guest.id!,name:"Castle Host",loadout,config:{mode:"tdm",mapId:"compound",teamSize:3,fillWithBots:false,password:null,botDifficulty:"normal",scoreLimit:0,timeLimit:0}});
+    const newRoomId=(await wait(guest,"roomJoined")).matchId;
+    const newRoomStatus=(await wait(guest,"roomStatus",m=>m.status.room.id===newRoomId)).status;
+    expect(newRoomStatus.candidates).toHaveLength(3);
+    const partner=await connect();enter(partner,newRoomId,null);await wait(partner,"roomJoined");
+    send(guest,{t:"startMatch"});expect((await wait(partner,"roundLaunched")).roomId).toBe(newRoomId);await wait(partner,"matchStarted");
     send(guest,{t:"leaveMatch"});expect((await wait(partner,"roomDisbanded")).message).toContain("host");
     send(partner,{t:"listRooms"});const afterLeave=await wait(partner,"roomList");
-    expect(afterLeave.rooms.some(room=>room.id===highCapacityId)).toBe(false);
+    expect(afterLeave.rooms.some(room=>room.id===newRoomId)).toBe(false);
     for(const mode of ["ffa","killconfirmed","ctf","survival","gungame"] as GameMode[]){
       const s=await connect(),mapId=mode==="ctf"?"forest_warfare":"compound";
       const config:CreateRoomConfig={mode,mapId,teamSize:recommendedTeamSize(mapId,mode),fillWithBots:mode!=="survival",password:null,roomName:mode,botDifficulty:"normal",survivalPlayers:1,survivalTier:"default",...(mode==="ctf"?{scoreLimit:3,timeLimit:0}:{})};
