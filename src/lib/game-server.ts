@@ -2412,7 +2412,18 @@ function offerSurvivalUpgrades(room:Room) {
 // ---- Survival wave spawning ----
 // Survival mode tier fully determines bot aim and wave modifiers.
 
+function resetOperationCombatInput(room: Room) {
+  for (const playerId of room.players.keys()) {
+    room.sprintState.set(playerId,false);
+    room.sprintLastAt.delete(playerId);
+    room.burstState.delete(playerId);
+    room.reloadingPlayers.delete(playerId);
+    room.adsStartedAt.delete(playerId);
+  }
+}
+
 function startSurvivalWave(room: Room,reinforcement=false) {
+  if (room.operation) resetOperationCombatInput(room);
   if(!reinforcement){
   // If a player was AFK during the break, award one of their offered picks.
   for(const [playerId,offer] of room.survivalOffers)
@@ -2794,6 +2805,7 @@ function tickRoomSimulation(room: Room) {
           if(room.operation.stage===previousStage&&room.operation.pulse!==previousPulse)startSurvivalWave(room,true);
         }
         if (room.operation ? room.operation.stage!==previousStage : aliveBots===0&&(!room.survivalObjective||room.survivalObjective.complete)) {
+          if (room.operation) resetOperationCombatInput(room);
           room.waveActive = false;
           if (room.config.survivalTier === "default" && room.wave >= 30) {
             endMatch(room);

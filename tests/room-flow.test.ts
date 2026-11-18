@@ -25,6 +25,7 @@ describe("room flow", () => {
       const size=roomTeamSizeForMap("tdm",id,12,1);
       expect(size).toBeDefined(); expect(teamSizeAllowed(id,size!,"tdm")).toBe(true);
     }
+    expect(roomMapCandidates("survival","emberhold",7,0,undefined,1,1)).toHaveLength(3);
     expect(roomMapCandidates("survival","emberhold",7,0,"keep_secrets")).toEqual(["emberhold"]);
   });
   test("one changeable vote per human; departed humans and invalid maps do not count; ties keep rematch",()=>{

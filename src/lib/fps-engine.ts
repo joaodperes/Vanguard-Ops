@@ -6250,6 +6250,15 @@ export class FPSEngine {
 
   private applyOperationFeedback(events: ReturnType<typeof operationFeedbackEvents>) {
     if (!events.length) return;
+    if (events.some(event => event.kind === "objective")) {
+      // A task transition can coincide with a sprint/burst/reload edge. Clear
+      // both local and server-side firing locks so the next task starts clean.
+      this.sprinting = false;
+      this.reloading = false;
+      this.burstShotsLeft = 0;
+      this.burstNextAt = 0;
+      this.burstEndsAt = 0;
+    }
     this.operationNotice = {
       kind: events.some(event => event.kind === "objective") ? "objective" : events[0].kind,
       message: events.map(event => event.message).join(" · "),
