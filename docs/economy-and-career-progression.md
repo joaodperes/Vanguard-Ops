@@ -33,8 +33,9 @@ tactical item, rank or operator skin). In particular:
   alternative to the starting VK-12. Level 4 still grants Field Loader.
 - **Level 25:** Executioner DMR, Explonando and Poison Dart remain; Sentinel-45
   moves to **level 33** (priced at 2300 CR in the epic tier) to fill the disabled Breacher Axe's old slot.
-- **Level 32:** Bastion .45 moves from level 18 into the level-32 unlock slot;
-  Cyclone DMR remains at level 18. **Level 37:** Hydra Twin.
+- **Level 23:** Bastion .45 unlocks ahead of Magnum .50, matching their Armory
+  order. **Level 32:** Magnum .50 moves from level 23 into the late-game sidearm
+  slot; Cyclone DMR remains at level 18. **Level 37:** Hydra Twin.
 - **Level 38:** Machine Pistol and Arc Pistol (the latter remains a paid level
   unlock for players who do not earn it from Operations Act 2).
 - **Level 39:** RL-7 Rocket Launcher; **level 40:** Ascendant Vanguard operator
