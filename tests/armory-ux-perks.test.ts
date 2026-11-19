@@ -29,14 +29,15 @@ describe("level-ordered passive perk unlocks", () => {
     expect(perkUnlocked("wonder_weapon",1,["wonder_weapon"])).toBe(true);
     expect(perkUnlocked("wonder_weapon",39,[])).toBe(false);
   });
-  test("level 32 receives Bastion .45 while Arc Pistol remains at level 38", () => {
-    expect(WEAPONS.find(w=>w.id==="pistol_bastion")?.unlockLevel).toBe(32);
+  test("Bastion .45 unlocks before Magnum .50 in Armory order", () => {
+    expect(WEAPONS.find(w=>w.id==="pistol_bastion")?.unlockLevel).toBe(23);
+    expect(WEAPONS.find(w=>w.id==="pistol_magnum")?.unlockLevel).toBe(32);
     expect(WEAPONS.find(w=>w.id==="pistol_arc")?.unlockLevel).toBe(38);
     expect(WEAPONS.find(w=>w.id==="rifle_hydra")?.unlockLevel).toBe(37);
   });
   test("common weapons unlock before rare, then epic and legendary", () => {
-    // Bastion .45 is a deliberate level-32 sidearm reward moved from the level-18 double unlock.
-    const weapons = WEAPONS.filter(w => !w.wonder && w.id !== "pistol_bastion");
+    // Magnum .50 is a deliberate level-32 late-game sidearm exception within the rare credit tier.
+    const weapons = WEAPONS.filter(w => !w.wonder && w.id !== "pistol_magnum");
     const group = (min: number, max: number) => weapons.filter(w => w.unlockCost >= min && w.unlockCost < max);
     const common = group(0,800), rare = group(800,2000), epic = group(2000,3500), legendary = group(3500,Infinity);
     expect(Math.max(...common.map(w=>w.unlockLevel))).toBeLessThan(Math.min(...rare.map(w=>w.unlockLevel)));
