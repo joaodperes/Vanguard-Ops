@@ -32,7 +32,7 @@ export interface RoomConfig {
   // Round 19i: Custom match limits (FFA/TDM only).
   scoreLimit: number;  // kills to win
   timeLimit: number;   // seconds (0 = no time limit)
-  tagLifetimeMs: number; // Kill Confirmed dogtag lifetime (milliseconds)
+  tagLifetimeMs: number; // Kill Confirmed dogtag lifetime in ms; -1 means infinite
   ctfFlagResetMs: number; // CTF dropped flag reset timer, -1 = never
   denialScoreEnabled: boolean; // friendly recoveries earn +1 team point
   gungamePreset: "all" | "cqc" | "long_range";

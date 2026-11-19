@@ -12,6 +12,7 @@ import {
 } from "@/lib/game-data";
 import {
   MAP_LIST, getMap, recommendedTeamSize, teamSizesForMap, roomCapacity, mapAllowedForMode, resolveRoomSelection,
+  KC_TAG_LIFETIME_OPTIONS_MS, KC_TAG_LIFETIME_INFINITE_MS,
   type MapId, type GameMode, type TeamSize, type RoomSummary, type CreateRoomConfig,
   type S2C, type C2S, type BotDifficulty,
 } from "@/lib/game-protocol";
@@ -378,14 +379,14 @@ export function Play() {
                         <div className="min-w-0 rounded-xl border border-white/5 bg-black/20 p-2">
                           <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Tag Lifetime</Label>
                           <div className="flex flex-wrap gap-1.5">
-                            {[10000, 15000, 25000, 30000, 45000].map((ms) => (
+                            {KC_TAG_LIFETIME_OPTIONS_MS.map((ms) => (
                               <button key={ms} type="button" onClick={() => setRoomConfig({ tagLifetimeMs: ms })}
                                 className={`px-2 py-1 rounded-lg text-xs font-bold transition-colors ${roomConfig.tagLifetimeMs === ms ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
-                                {ms / 1000}s
+                                {ms === KC_TAG_LIFETIME_INFINITE_MS ? "Infinite" : `${ms / 1000}s`}
                               </button>
                             ))}
                           </div>
-                          <p className="text-white/35 text-[11px] leading-snug mt-2">Unclaimed dogtags expire after this time.</p>
+                          <p className="text-white/35 text-[11px] leading-snug mt-2">{roomConfig.tagLifetimeMs === KC_TAG_LIFETIME_INFINITE_MS ? "Unclaimed dogtags stay until collected." : "Unclaimed dogtags expire after this time."}</p>
                         </div>
                       )}
                       {roomConfig.mode === "killconfirmed" && (
@@ -649,7 +650,7 @@ export function Play() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5">
 <SummaryRow label="Host" value={profile?.name ?? "Recruit"} />
                     <SummaryRow label="Mode" value={MATCH_MODES[roomConfig.mode].label} accent={MATCH_MODES[roomConfig.mode].accentColor} />
-                    {roomConfig.mode === "killconfirmed" && <SummaryRow label="Tag Lifetime" value={`${roomConfig.tagLifetimeMs / 1000}s`} />}
+                    {roomConfig.mode === "killconfirmed" && <SummaryRow label="Tag Lifetime" value={roomConfig.tagLifetimeMs === KC_TAG_LIFETIME_INFINITE_MS ? "Infinite" : `${roomConfig.tagLifetimeMs / 1000}s`} />}
                     {roomConfig.mode === "killconfirmed" && <SummaryRow label="Denial Scoring" value={roomConfig.denialScoreEnabled ? "+1 Point" : "Off"} />}
                     <SummaryRow
                       label={roomConfig.mode === "ffa" || roomConfig.mode === "gungame" ? "Slots" : roomConfig.mode === "survival" ? "Squad" : "Teams"}
