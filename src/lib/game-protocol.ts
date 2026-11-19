@@ -1471,7 +1471,8 @@ export type C2S =
   | { t: "leaveRoom" };
 
 // ---- Server -> Client events ----
-// Kill Confirmed dogtags are created on every death and expire after 25s.
+// Kill Confirmed dogtags are created on every death and expire after the
+// configured lifetime (25s by default; -1 means infinite).
 // Pickups are authoritative on the server; offline play uses the same rules.
 export const KC_TAG_LIFETIME_MS = 25000;
 export const KC_TAG_LIFETIME_INFINITE_MS = -1;
