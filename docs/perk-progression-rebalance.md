@@ -37,14 +37,13 @@ Weapon unlock requirements are rebalanced using the Armory's established
 historical ownership:
 
 - Common (under 800 CR, including three starters): levels **1–10**
-- Rare (800–1999 CR): levels **11–32**; Bastion .45 is deliberately moved to level 32.
+- Rare (800–1999 CR): levels **11–32**; Magnum .50 is the deliberate level-32 late-game sidearm exception.
 - Epic (2000–3499 CR): levels **30–38**; Arc Pistol is a level-38 purchase for non-campaign players.
 - Legendary (3500+ CR): level **39** (RL-7 Rocket Launcher).
 
 Operations also grants Arc Pistol permanently at Act 2 completion and the
 Juggernaut Mk I Wonder Weapon permanently at Act 3 completion. These act rewards
-do not require stars. The Bastion move uses the second level-18 unlock slot:
-Cyclone DMR remains at 18, while Bastion moves to 32.
+do not require stars. Bastion .45 unlocks at level 23, ahead of Magnum .50 at level 32, matching their Armory order. Magnum uses the late-game level-32 rare-tier slot; Cyclone DMR remains at level 18.
 
 These levels are *minimum purchase availability*, not automatic grants for
 paid weapons. Previously owned weapons remain owned even if their new level
