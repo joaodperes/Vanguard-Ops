@@ -621,7 +621,7 @@
     "id": "pistol_magnum",
     "name": "Magnum .50",
     "category": "pistol",
-    "unlockLevel": 23,
+    "unlockLevel": 32,
     "unlockCost": 1500,
     "description": "Precision revolver with punishing recoil and deliberate follow-up shots. A clean headshot can eliminate a full-health target within its short full-damage range.",
     "stats": {
@@ -1282,7 +1282,7 @@
     "id": "pistol_bastion",
     "name": "Bastion .45",
     "category": "pistol",
-    "unlockLevel": 32,
+    "unlockLevel": 23,
     "unlockCost": 1100,
     "description": "Heavy-frame six-shot .45 revolver specializing in penetrating light cover and aligned enemies. Punishing recoil and slow hammer-cocking cadence; fan the hammer for inaccurate rapid shots.",
     "stats": {
