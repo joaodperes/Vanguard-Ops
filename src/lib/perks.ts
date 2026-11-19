@@ -1,8 +1,7 @@
 /** Passive character perks; kept separate from weapon attachments. */
-// New choices arrive at roughly three-level intervals, beginning at level 4.
+// Standard choices arrive at three-level intervals; Wonder Weapon is the level-40 capstone and is also an Act 1 campaign reward.
 export const PERKS = [
   { id: "battle_hardened", name: "Battle-Hardened", description: "Begin health regeneration 1 second sooner after damage.", icon: "shield", unlockLevel: 1 },
-  { id: "wonder_weapon", name: "Wonder Weapon", description: "Trade a passive perk for a rechargeable Wonder in slot 4.", icon: "zap", unlockLevel: 1 },
   { id: "field_loader", name: "Field Loader", description: "Reload and vent heat while sprinting.", icon: "refresh-cw", unlockLevel: 4 },
   { id: "recon_visor", name: "Recon Visor", description: "Enemy gunfire tracks moving targets on your minimap for 3.2 seconds instead of 2.2 seconds.", icon: "radar", unlockLevel: 7 },
   { id: "quickdraw", name: "Quickdraw", description: "Swap weapons 60% faster and reload 20% faster.", icon: "zap", unlockLevel: 10 },
@@ -14,6 +13,7 @@ export const PERKS = [
   { id: "well_prepared", name: "Well Prepared", description: "Equip a second distinct primary weapon in your secondary slot instead of a sidearm.", icon: "backpack", unlockLevel: 28 },
   { id: "silent_steps", name: "Silent Steps", description: "Move without making footstep sounds. Gunfire and other actions remain audible.", icon: "volume-x", unlockLevel: 31 },
   { id: "tactician", name: "Tactician", description: "Regenerate one used tactical equipment charge every 18 seconds, up to its normal capacity.", icon: "timer-reset", unlockLevel: 34 },
+  { id: "wonder_weapon", name: "Wonder Weapon", description: "Trade a passive perk for a rechargeable Wonder in slot 4.", icon: "zap", unlockLevel: 40 },
 ] as const;
 export type PerkId = (typeof PERKS)[number]["id"];
 export const PERK_STORAGE_KEY = "vanguard_perk";
@@ -21,15 +21,16 @@ export const DEFAULT_PERK_ID: PerkId = "battle_hardened";
 export function perkById(id?: string | null) {
   return PERKS.find(p => p.id === id) ?? PERKS[0];
 }
-export function perkUnlocked(id: string | null | undefined, level: number): boolean {
-  return perkById(id).unlockLevel <= level;
+export function perkUnlocked(id: string | null | undefined, level: number, earnedPerks: readonly string[] = []): boolean {
+  const perk = perkById(id);
+  return perk.unlockLevel <= level || earnedPerks.includes(perk.id);
 }
 /** Validates legacy localStorage selections against current player level. */
-export function perkSelection(level = 1): PerkId {
+export function perkSelection(level = 1, earnedPerks: readonly string[] = []): PerkId {
   if (typeof localStorage === "undefined") return DEFAULT_PERK_ID;
   try {
     const selected = perkById(localStorage.getItem(PERK_STORAGE_KEY));
-    return selected.unlockLevel <= level ? selected.id : DEFAULT_PERK_ID;
+    return perkUnlocked(selected.id, level, earnedPerks) ? selected.id : DEFAULT_PERK_ID;
   } catch { return DEFAULT_PERK_ID; }
 }
 export function survivalEnemyCount(wave: number, humans: number, baseCount: (wave: number) => number): number {

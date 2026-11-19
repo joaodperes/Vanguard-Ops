@@ -25,7 +25,7 @@ import {
   type AttachmentSlot,
 } from "@/lib/game-data";
 import { resolvePlayerKey } from "@/lib/auth";
-import { canEquipSecondaryPrimary, DEFAULT_PERK_ID, perkById } from "@/lib/perks";
+import { canEquipSecondaryPrimary, DEFAULT_PERK_ID, perkById, perkUnlocked } from "@/lib/perks";
 
 export const dynamic = "force-dynamic";
 
@@ -135,10 +135,12 @@ export async function POST(req: NextRequest) {
   // Level-gated passive unlocks: clients must explicitly identify the
   // selected perk when equipping a second primary. The server checks level.
   let selectedPerk = perkById(perkId ?? player.loadout?.perkId ?? DEFAULT_PERK_ID);
-  if (perkId && (selectedPerk.id !== perkId || selectedPerk.unlockLevel > levelForXp(player.xp))) {
-    return NextResponse.json({ error: "Perk is locked at your current level" }, { status: 403 });
+  const operationActRewards = (() => { try { const value=JSON.parse(player.operationsActRewards); return Array.isArray(value)?value.filter((id:unknown):id is string=>typeof id==="string"):[]; } catch { return []; } })();
+  const selectedPerkUnlocked = perkUnlocked(selectedPerk.id, levelForXp(player.xp), operationActRewards.includes("act1_wonder_weapon_perk")?["wonder_weapon"]:[]);
+  if (perkId && (selectedPerk.id !== perkId || !selectedPerkUnlocked)) {
+    return NextResponse.json({ error: "Perk is locked until level " + selectedPerk.unlockLevel + " or completion of Operations Act 1" }, { status: 403 });
   }
-  if (selectedPerk.unlockLevel > levelForXp(player.xp)) selectedPerk = perkById(DEFAULT_PERK_ID);
+  if (!selectedPerkUnlocked) selectedPerk = perkById(DEFAULT_PERK_ID);
   let wonderWeaponId = requestedWonderWeaponId ?? player.loadout?.wonderWeaponId ?? "";
   if (selectedPerk.id === "wonder_weapon") {
     const candidate = WEAPONS.find(w => w.id === wonderWeaponId);

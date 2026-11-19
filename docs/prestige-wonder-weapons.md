@@ -40,8 +40,9 @@ weapon progress when it successfully submits its match result.
 
 ## Wonder Weapons — perk-selected fourth slot
 
-**Battle-Hardened** remains the level-one default. **Wonder Weapon** is a second
-level-one perk option. Choosing it removes passive perk benefits and equips one
+**Battle-Hardened** remains the level-one default. **Wonder Weapon** is the
+level-40 perk capstone for standard progression and is also granted early by
+Operations Act 1. Choosing it removes passive perk benefits and equips one
 permanently owned Wonder in weapon **slot 4** (keyboard 4, conditional touch
 button). Ordinary primary, secondary and melee slots (1–3) remain available.
 Without a redeemed Wonder unlock, the Wonder perk cannot be confirmed.

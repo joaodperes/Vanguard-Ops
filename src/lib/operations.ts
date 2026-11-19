@@ -5,6 +5,12 @@ export interface OperationObjective {kind:OperationKind;label:string;site:number
 export interface OperationMission {id:string;act:number;title:string;mapId:MapId;briefing:string;debrief:string;intensity:number;parSeconds:number;objectives:OperationObjective[];optionalObjective:{label:string;site:number};optionalChallenge?:{label:string;kills:number;seconds:number}}
 const goal=(kind:OperationKind,label:string,site:number,seconds=0,killTarget?:number):OperationObjective=>({kind,label,site,seconds,...(killTarget?{killTarget}:{})});
 export const OPERATION_DEADLINE_SECONDS=30*60;
+export const OPERATION_ACT_REWARDS = [
+ {act:1,id:'act1_wonder_weapon_perk',name:'Wonder Weapon perk',description:'Unlock the Wonder Weapon loadout perk.',kind:'perk',itemId:'wonder_weapon'},
+ {act:2,id:'act2_arc_pistol',name:'Arc Pistol',description:'Permanently unlock the Arc Pistol.',kind:'weapon',itemId:'pistol_arc'},
+ {act:3,id:'act3_juggernaut_mk1',name:'Juggernaut Mk I',description:'Permanently unlock the Juggernaut Mk I Wonder Weapon.',kind:'wonder',itemId:'wonder_juggernaut'},
+] as const;
+export type OperationActReward = typeof OPERATION_ACT_REWARDS[number];
 export interface OperationFirstClearReward {missionId:string;xp:number;credits:number}
 export function operationFirstClearReward(m:Pick<OperationMission,'act'>):Omit<OperationFirstClearReward,'missionId'> {
  const act=Math.max(1,Math.min(3,Math.floor(m.act)));
@@ -49,6 +55,13 @@ export const OPERATIONS:readonly OperationMission[]=[
   objectives:[goal('clear','Break the station blockade',2),goal('recover','Recover the shutdown carrier',10,10),goal('deliver','Install the master sequence',5,15),goal('defend','Defend the final shutdown',5,120),goal('clear','Eliminate the remaining command guard',12),goal('extract','Reach the extraction zone',0,30)]},
 ];
 export const operationById=(id:unknown)=>typeof id==='string'?OPERATIONS.find(m=>m.id===id):undefined;
+/** Act rewards are earned only by the first clear of that act's final mission. */
+export function operationActRewardForMission(missionId:string):OperationActReward|undefined {
+ const mission=operationById(missionId);
+ if(!mission)return undefined;
+ const finale=OPERATIONS.filter(m=>m.act===mission.act).at(-1);
+ return finale?.id===mission.id?OPERATION_ACT_REWARDS.find(reward=>reward.act===mission.act):undefined;
+}
 export function nextOperation(id:string){const i=OPERATIONS.findIndex(m=>m.id===id);return i>=0 ? OPERATIONS[i+1]:undefined;}
 /** Campaign whitelist does not alter standard Survival map availability. */
 export function operationConfigValid(c:{operationId?:unknown;mode:string;mapId:string;survivalTier?:unknown}):boolean {

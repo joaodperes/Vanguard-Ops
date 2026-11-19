@@ -1,7 +1,7 @@
 import {strict as assert} from 'node:assert';
 import {NextRequest} from 'next/server';
 import {db} from '../../src/lib/db';
-import {getOrCreatePlayer} from '../../src/lib/player-service';
+import {buildProfileView,getOrCreatePlayer} from '../../src/lib/player-service';
 import {createSessionToken,SESSION_COOKIE} from '../../src/lib/auth';
 import {GET,POST} from '../../src/app/api/operations/progress/route';
 import {createOperationState,OPERATIONS} from '../../src/lib/operations';
@@ -36,5 +36,31 @@ try{
  await db.player.update({where:{id:capPlayer.id},data:{xp:capXp,level:MAX_PLAYER_LEVEL}});
  const capAward=await POST(request({...payload,playerKey:capPlayer.playerKey,runId:'career_cap_test_0001'},false));assert.equal(capAward.status,200);
  const capped=await db.player.findUniqueOrThrow({where:{id:capPlayer.id}});assert.equal(capped.xp,capXp+150);assert.equal(capped.careerXp,150);assert.equal(capped.credits,capPlayer.credits+75);
+ // Act finale rewards are permanent account entitlements, independent of stars.
+ const act1=await getOrCreatePlayer('operations-act1-reward');
+ const act1State={...createOperationState('cold_trail','normal'),status:'won',stage:OPERATIONS.find(m=>m.id==='cold_trail')!.objectives.length,intel:false,elapsed:300};
+ const act1Response=await POST(request({kind:'complete',playerKey:act1.playerKey,runId:'act1_reward_test_0001',state:act1State,deaths:4},false));
+ assert.deepEqual((await act1Response.json()).actRewards.map((r:any)=>r.id),['act1_wonder_weapon_perk']);
+ const act1Fresh=await db.player.findUniqueOrThrow({where:{id:act1.id}});
+ assert.deepEqual(JSON.parse(act1Fresh.operationsActRewards),['act1_wonder_weapon_perk']);
+ assert.deepEqual((await buildProfileView(act1.playerKey))?.unlocks.perks,['wonder_weapon']);
+ const act2=await getOrCreatePlayer('operations-act2-reward');
+ const act2State={...createOperationState('relay_siege','normal'),status:'won',stage:OPERATIONS.find(m=>m.id==='relay_siege')!.objectives.length,elapsed:300};
+ const act2Response=await POST(request({kind:'complete',playerKey:act2.playerKey,runId:'act2_reward_test_0001',state:act2State,deaths:0},false));
+ assert.deepEqual((await act2Response.json()).actRewards.map((r:any)=>r.id),['act2_arc_pistol']);
+ assert.ok(await db.weaponUnlock.findUnique({where:{playerId_weaponId:{playerId:act2.id,weaponId:'pistol_arc'}}}));
+ const act3=await getOrCreatePlayer('operations-act3-reward');
+ const act3State={...createOperationState('zero_hour','normal'),status:'won',stage:OPERATIONS.find(m=>m.id==='zero_hour')!.objectives.length,elapsed:300};
+ const act3Response=await POST(request({kind:'complete',playerKey:act3.playerKey,runId:'act3_reward_test_0001',state:act3State,deaths:0},false));
+ assert.deepEqual((await act3Response.json()).actRewards.map((r:any)=>r.id),['act3_juggernaut_mk1']);
+ assert.ok(await db.wonderUnlock.findUnique({where:{playerId_weaponId:{playerId:act3.id,weaponId:'wonder_juggernaut'}}}));
+ const act3Replay=await POST(request({kind:'complete',playerKey:act3.playerKey,runId:'act3_reward_test_0002',state:act3State,deaths:0},false));
+ assert.deepEqual((await act3Replay.json()).actRewards,[]);
+ // Existing server-verified finale records receive their missing reward on read.
+ const legacyAct=await getOrCreatePlayer('operations-legacy-act-reward');
+ await db.player.update({where:{id:legacyAct.id},data:{operationsProgress:JSON.stringify({cold_trail:{stars:1,bestSeconds:300,intel:false,completions:1,firstClearRewarded:true,firstClearRunId:'legacy_act1_run_001',firstClearXp:200,firstClearCredits:100}})}});
+ await read(legacyAct.playerKey,false);
+ const legacyActFresh=await db.player.findUniqueOrThrow({where:{id:legacyAct.id}});
+ assert.deepEqual(JSON.parse(legacyActFresh.operationsActRewards),['act1_wonder_weapon_perk']);
  console.log('Operations account persistence passed');
 }finally{await db.$disconnect();}

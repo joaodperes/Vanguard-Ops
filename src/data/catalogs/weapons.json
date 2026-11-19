@@ -168,7 +168,7 @@
     "id": "pistol_arc",
     "name": "Arc Pistol",
     "category": "pistol",
-    "unlockLevel": 32,
+    "unlockLevel": 38,
     "unlockCost": 2300,
     "description": "Electrical discharge leaps to nearby foes for decreasing damage.",
     "special": {
@@ -1282,7 +1282,7 @@
     "id": "pistol_bastion",
     "name": "Bastion .45",
     "category": "pistol",
-    "unlockLevel": 18,
+    "unlockLevel": 32,
     "unlockCost": 1100,
     "description": "Heavy-frame six-shot .45 revolver specializing in penetrating light cover and aligned enemies. Punishing recoil and slow hammer-cocking cadence; fan the hammer for inaccurate rapid shots.",
     "stats": {

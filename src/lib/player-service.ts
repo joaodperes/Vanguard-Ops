@@ -365,6 +365,7 @@ export interface PlayerProfileView {
   xpProgress: { current: number; needed: number; level: number };
   unlocks: {
     weapons: string[];
+    perks?: string[];
     // Flat lists — preserved for backward-compat with the Profile collection grid.
     weaponSkins: string[];
     playerSkins: string[];
@@ -482,8 +483,12 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
   const unlockedSkinsForWeapon = skinsByWeapon[primaryId] ?? ["default"];
   const unlockedSkinsForSecondary = skinsByWeapon[secondaryId] ?? ["default"];
   const unlockedSkinsForMelee = skinsByWeapon[meleeId] ?? ["default"];
+  const storedOperationRewards = (() => { try { const value=JSON.parse(p.operationsActRewards); return Array.isArray(value)?value.filter((id:unknown):id is string=>typeof id==="string"):[]; } catch { return []; } })();
+  const savedPerk = PERKS.find(perk=>perk.id===(p.loadout?.perkId ?? "battle_hardened"));
+  const resolvedPerkId = savedPerk && (savedPerk.unlockLevel<=level || (savedPerk.id==="wonder_weapon"&&storedOperationRewards.includes("act1_wonder_weapon_perk")))
+    ? savedPerk.id : "battle_hardened";
   const loadout = resolveLoadout({
-    perkId: p.loadout?.perkId ?? "battle_hardened",
+    perkId: resolvedPerkId,
     wonderWeaponId: p.loadout?.wonderWeaponId ?? "",
     primaryWeapon: primaryId,
     secondaryWeapon: secondaryId,
@@ -574,6 +579,7 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
     xpProgress: xpProgressInLevel(p.xp),
     unlocks: {
       weapons: [...p.weaponUnlocks.map((u) => u.weaponId), ...wonderWeapons],
+      perks: (() => { try { const rewards=JSON.parse(p.operationsActRewards); return Array.isArray(rewards)&&rewards.includes("act1_wonder_weapon_perk")?["wonder_weapon"]:[]; } catch { return []; } })(),
       weaponSkins: flatSkins,
       playerSkins: Array.from(new Set(["default", p.selectedSkin, ...p.playerSkinUnlocks.map(u => u.skinId), ...autoUnlockedItems(level).playerSkins])),
       attachments: flatAttachments,

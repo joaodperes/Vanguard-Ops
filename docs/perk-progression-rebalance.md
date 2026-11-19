@@ -1,16 +1,18 @@
 # Weapon rarity and perk progression
 
-Implementation: directly on `dev`.
+Implementation: this branch is based on `dev`.
 
 ## Unlock cadence
 
-There are two perk choices at level 1 (Battle-Hardened equipped by default, Wonder Weapon selectable if an owned Wonder is available) and another perk every three levels
-thereafter. The perk menu is sorted in unlock order and shows locked levels.
+Battle-Hardened is the only level-1 perk. Standard perk choices then arrive
+every three levels through Tactician at level 34. Wonder Weapon is the level-40
+capstone for players following standard progression, but Operations Act 1 grants
+it early as a permanent account entitlement. The perk menu is sorted in unlock
+order and identifies the Act 1 reward.
 
 | Level | Perk | Effect |
 |---:|---|---|
 | 1 | Battle-Hardened | Default; health regeneration begins sooner |
-| 1 | Wonder Weapon | Trade the passive perk for an owned Wonder Weapon in slot 4 |
 | 4 | Field Loader | Reload/vent heat while sprinting |
 | 7 | Recon Visor | Increased radar gunfire tracking |
 | 10 | Quickdraw | Faster swap/reloads |
@@ -21,9 +23,12 @@ thereafter. The perk menu is sorted in unlock order and shows locked levels.
 | 25 | Explonando | Drop a timed explosive upon death |
 | 28 | Well Prepared | Swap sidearm for a distinct, purchased, non-Wonder primary |
 | 31 | Silent Steps | Suppress your footstep sounds; gunfire and other actions remain audible |
+| 34 | Tactician | Regenerate one tactical charge every 18 seconds |
+| 40 | Wonder Weapon | Trade the passive perk for an owned Wonder Weapon in slot 4; also awarded by Act 1 |
 
-The current perk selection is stored on the browser; level entitlement is
-validated on both the web loadout API and the multiplayer game server.
+The selected perk and Act 1 entitlement are stored on the player account. Level
+and campaign entitlements are validated by the web loadout API and multiplayer
+game server.
 
 ## Weapon rarity bands
 
@@ -32,9 +37,14 @@ Weapon unlock requirements are rebalanced using the Armory's established
 historical ownership:
 
 - Common (under 800 CR, including three starters): levels **1–10**
-- Rare (800–1999 CR): levels **11–29**
-- Epic (2000–3499 CR): levels **30–35**
-- Legendary (3500+ CR): level **36** (RL-7 Rocket Launcher)
+- Rare (800–1999 CR): levels **11–32**; Bastion .45 is deliberately moved to level 32.
+- Epic (2000–3499 CR): levels **30–38**; Arc Pistol is a level-38 purchase for non-campaign players.
+- Legendary (3500+ CR): level **39** (RL-7 Rocket Launcher).
+
+Operations also grants Arc Pistol permanently at Act 2 completion and the
+Juggernaut Mk I Wonder Weapon permanently at Act 3 completion. These act rewards
+do not require stars. The Bastion move uses the second level-18 unlock slot:
+Cyclone DMR remains at 18, while Bastion moves to 32.
 
 These levels are *minimum purchase availability*, not automatic grants for
 paid weapons. Previously owned weapons remain owned even if their new level

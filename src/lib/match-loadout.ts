@@ -1,5 +1,5 @@
 import { levelForXp } from "./progression";
-import { perkById, DEFAULT_PERK_ID, canEquipSecondaryPrimary } from "./perks";
+import { perkById, DEFAULT_PERK_ID, canEquipSecondaryPrimary, perkUnlocked } from "./perks";
 import { WEAPONS, PLAYER_SKINS, isPrimaryWeaponCategory, activeMeleeWeaponId } from "./game-data";
 import { equipmentAvailable } from "./equipment";
 import type { LoadoutWire } from "./game-protocol";
@@ -7,13 +7,16 @@ import type { LoadoutWire } from "./game-protocol";
 /** Shared authoritative entitlement check, independent of cached Player.level. */
 export function resolveMatchLoadout(player: {
   xp: number;
+  operationsActRewards?: string;
   weaponUnlocks: { weaponId: string }[];
   wonderUnlocks?: { weaponId: string }[];
   loadout: { secondaryWeapon: string; primaryReticle: string; secondaryReticle: string; primaryCharm: string; secondaryCharm: string; wonderWeaponId: string; equipmentId?: string; playerSkin?: string } | null;
 }, requested: LoadoutWire): LoadoutWire {
   const level = levelForXp(player.xp);
   const perk = perkById(requested.perkId);
-  let perkId = perk.unlockLevel <= level ? perk.id : DEFAULT_PERK_ID;
+  let earnedPerks:string[]=[];
+  try { const rewards=JSON.parse(player.operationsActRewards??"[]"); if(Array.isArray(rewards)&&rewards.includes("act1_wonder_weapon_perk"))earnedPerks=["wonder_weapon"]; } catch {}
+  let perkId = perkUnlocked(perk.id, level, earnedPerks) ? perk.id : DEFAULT_PERK_ID;
   if(perkId==="wonder_weapon" && !player.wonderUnlocks?.some(w=>w.weaponId===requested.wonderWeaponId && w.weaponId===player.loadout?.wonderWeaponId))perkId=DEFAULT_PERK_ID;
   let secondaryWeaponId = requested.secondaryWeaponId ?? "pistol_side";
   const w = WEAPONS.find(x => x.id === secondaryWeaponId);

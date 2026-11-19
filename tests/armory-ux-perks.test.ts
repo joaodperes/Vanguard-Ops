@@ -14,21 +14,29 @@ describe("level-ordered passive perk unlocks", () => {
 
   test("perk choices arrive every three levels and end with the new perks", () => {
     // Validate the progression rule rather than an outdated fixed-size list.
-    const expected=[1,1,...Array.from({length:PERKS.length-2},(_,i)=>4+i*3)];
+    const expected=[1,...Array.from({length:PERKS.length-2},(_,i)=>4+i*3),40];
     expect(PERKS.map(p => p.unlockLevel)).toEqual(expected);
-    expect(PERKS[1].id).toBe("wonder_weapon");
-    expect(PERKS.at(-3)?.id).toBe("well_prepared");
-    expect(PERKS.at(-2)?.id).toBe("silent_steps");
-    expect(PERKS.at(-1)?.id).toBe("tactician");
-    for (let i = 2; i < PERKS.length; i++) {
-      if(i===2){expect(PERKS[i].unlockLevel-PERKS[i-1].unlockLevel).toBe(3);continue;}
-      expect(PERKS[i].unlockLevel - PERKS[i-1].unlockLevel).toBe(3);
+    expect(PERKS[1].id).toBe("field_loader");
+    expect(PERKS.at(-4)?.id).toBe("well_prepared");
+    expect(PERKS.at(-3)?.id).toBe("silent_steps");
+    expect(PERKS.at(-2)?.id).toBe("tactician");
+    expect(PERKS.at(-1)?.id).toBe("wonder_weapon");
+    for (let i = 1; i < PERKS.length; i++) {
+      expect(PERKS[i].unlockLevel).toBeGreaterThan(PERKS[i-1].unlockLevel);
       expect(perkUnlocked(PERKS[i].id, PERKS[i].unlockLevel - 1)).toBe(false);
       expect(perkUnlocked(PERKS[i].id, PERKS[i].unlockLevel)).toBe(true);
     }
+    expect(perkUnlocked("wonder_weapon",1,["wonder_weapon"])).toBe(true);
+    expect(perkUnlocked("wonder_weapon",39,[])).toBe(false);
+  });
+  test("level 32 receives Bastion .45 while Arc Pistol remains at level 38", () => {
+    expect(WEAPONS.find(w=>w.id==="pistol_bastion")?.unlockLevel).toBe(32);
+    expect(WEAPONS.find(w=>w.id==="pistol_arc")?.unlockLevel).toBe(38);
+    expect(WEAPONS.find(w=>w.id==="rifle_hydra")?.unlockLevel).toBe(37);
   });
   test("common weapons unlock before rare, then epic and legendary", () => {
-    const weapons = WEAPONS.filter(w => !w.wonder);
+    // Bastion .45 is a deliberate level-32 sidearm reward moved from the level-18 double unlock.
+    const weapons = WEAPONS.filter(w => !w.wonder && w.id !== "pistol_bastion");
     const group = (min: number, max: number) => weapons.filter(w => w.unlockCost >= min && w.unlockCost < max);
     const common = group(0,800), rare = group(800,2000), epic = group(2000,3500), legendary = group(3500,Infinity);
     expect(Math.max(...common.map(w=>w.unlockLevel))).toBeLessThan(Math.min(...rare.map(w=>w.unlockLevel)));

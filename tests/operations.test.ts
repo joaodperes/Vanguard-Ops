@@ -1,5 +1,5 @@
 import {describe,expect,test} from 'bun:test';
-import {OPERATIONS,OPERATION_DEADLINE_SECONDS,operationFirstClearReward,createOperationState,operationById,nextOperation,operationConfigValid,operationSite,operationTarget,tickOperation,operationEncounter,operationAwarenessMultiplier,operationStars,operationStarCriteria,operationTimePerformance,formatOperationTime,operationActSummary,recordOperation,operationUnlocked,loadOperationProgress,operationFeedbackEvents,type OperationActor,type OperationState} from '../src/lib/operations';
+import {OPERATIONS,OPERATION_DEADLINE_SECONDS,operationFirstClearReward,createOperationState,operationById,nextOperation,operationConfigValid,operationSite,operationTarget,tickOperation,operationEncounter,operationAwarenessMultiplier,operationStars,operationStarCriteria,operationTimePerformance,formatOperationTime,operationActSummary,recordOperation,operationUnlocked,operationActRewardForMission,OPERATION_ACT_REWARDS,loadOperationProgress,operationFeedbackEvents,type OperationActor,type OperationState} from '../src/lib/operations';
 import {getMap,type Vec3} from '../src/lib/game-protocol';
 import {makeEnvironmentMap} from '../src/lib/dynamic-environment';
 import {botPositionEmbedded} from '../src/lib/bot-physics';
@@ -177,6 +177,13 @@ describe('Operations campaign',()=>{
   expect(formatOperationTime(599)).toBe('9:59');
   expect(formatOperationTime(600)).toBe('10:00');
   expect(formatOperationTime(-5)).toBe('0:00');
+ });
+ test('act completion rewards are attached only to each act finale',()=>{
+  expect(operationActRewardForMission('cold_trail')).toEqual(OPERATION_ACT_REWARDS[0]);
+  expect(operationActRewardForMission('relay_siege')).toEqual(OPERATION_ACT_REWARDS[1]);
+  expect(operationActRewardForMission('zero_hour')).toEqual(OPERATION_ACT_REWARDS[2]);
+  expect(operationActRewardForMission('silent_entry')).toBeUndefined();
+  expect(OPERATION_ACT_REWARDS.map(reward=>reward.itemId)).toEqual(['wonder_weapon','pistol_arc','wonder_juggernaut']);
  });
  test('act summaries count only that act and aggregate earned stars',()=>{
   const p=recordOperation({}, {...createOperationState('silent_entry','veteran'),status:'won',elapsed:300,intel:true},0);
