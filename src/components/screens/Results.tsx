@@ -33,7 +33,7 @@ export function Results() {
   const rawStandings = r.standings ?? [];
   const seenKeys = new Set<string>();
   const standings = rawStandings.filter((s) => {
-    if (mission && s.isBot) return false;
+    if (r.operation && s.isBot) return false;
     const key = `${s.isBot ? "bot" : "human"}::${s.name}::${s.id}`;
     if (seenKeys.has(key)) return false;
     seenKeys.add(key);
