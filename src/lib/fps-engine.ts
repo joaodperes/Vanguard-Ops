@@ -13207,13 +13207,14 @@ export class FPSEngine {
     const maxDistance = maxWeaponHitRange(eff.range, eff);
     const resolved=resolveMaterialPenetrationShot(contacts,this.coverForRay(origin,dir,maxDistance),origin,dir,maxDistance,
       eff.bodyPenetration,eff.coverPenetration);
-    const hits=resolved.hits;
+    let hits=resolved.hits;
     const escort=this.operationEscortTarget();
     if(escort&&!isThrowingKnife(attacker.weaponId)){
       const cartHit=rayBox(origin,dir,[escort.pos[0],escort.pos[1]+.85,escort.pos[2]],[2,1.5,3]);
       if(cartHit!==null&&cartHit<(hits[0]?.t??Infinity)&&cartHit<=resolved.stoppedAt){
         const dealt=damageAtRange(eff.damage,cartHit,eff.range,eff);
         this.operation!.escortHp=Math.max(0,(this.operation!.escortHp??0)-dealt);
+        hits=[]; // The vehicle absorbs the shot instead of allowing it to pass through.
         if(this.operation!.escortHp<=0)this.operationNotice={kind:"objective",message:"ESCORT VEHICLE DESTROYED",at:performance.now()};
       }
     }
