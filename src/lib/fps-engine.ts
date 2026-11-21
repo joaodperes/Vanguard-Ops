@@ -1275,6 +1275,7 @@ export class FPSEngine {
   private operation: OperationState | undefined;
   private operationNotice?: HudState["operationNotice"];
   private operationBeacons: THREE.Group[] = [];
+  private operationEscortMesh?: THREE.Group;
   private survivalWave = 0;
   private survivalTier: SurvivalTier = "default";
   private survivalUpgradeRanks:SurvivalUpgradeRanks={};
@@ -10836,7 +10837,25 @@ export class FPSEngine {
 
   private updateOperationBeacons() {
     if(!this.operation)return;
-    const sites=[operationTarget(this.operation,this.map),this.operation.intel ? undefined : operationSite(this.map,operationById(this.operation.missionId)!.optionalObjective.site)];
+    const mission=operationById(this.operation.missionId),goal=mission?.objectives[this.operation.stage];
+    if(goal?.kind==='escort'&&this.operation.escortPos){
+      if(!this.operationEscortMesh){
+        const group=new THREE.Group();
+        const body=new THREE.Mesh(new THREE.BoxGeometry(1.8,.65,2.8),new THREE.MeshStandardMaterial({color:0x64748b,metalness:.55,roughness:.5}));body.position.y=.85;group.add(body);
+        const payload=new THREE.Mesh(new THREE.BoxGeometry(1.15,.95,1.2),new THREE.MeshStandardMaterial({color:0x2563eb,metalness:.25,roughness:.55}));payload.position.set(0,1.55,-.15);group.add(payload);
+        for(const x of [-.92,.92])for(const z of [-.88,.88]){const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.32,.32,.2,12),new THREE.MeshStandardMaterial({color:0x111827,roughness:.9}));wheel.rotation.z=Math.PI/2;wheel.position.set(x,.43,z);group.add(wheel);}
+        const bg=new THREE.Mesh(new THREE.BoxGeometry(2.1,.13,.08),new THREE.MeshBasicMaterial({color:0x111827,depthTest:false}));bg.position.set(0,2.55,0);group.add(bg);
+        const bar=new THREE.Mesh(new THREE.BoxGeometry(2,.09,.1),new THREE.MeshBasicMaterial({color:0x22c55e,depthTest:false}));bar.position.set(0,2.56,.055);bar.name='escort-health';group.add(bar);
+        this.scene.add(group);this.operationEscortMesh=group;
+      }
+      this.operationEscortMesh.visible=this.operation.status==='active'&&!this.lobbyActive;
+      this.operationEscortMesh.position.set(...this.operation.escortPos);
+      const destination=operationSite(this.map,goal.site),dx=destination[0]-this.operation.escortPos[0],dz=destination[2]-this.operation.escortPos[2];
+      this.operationEscortMesh.rotation.y=Math.atan2(dx,dz);
+      const bar=this.operationEscortMesh.getObjectByName('escort-health') as THREE.Mesh|undefined;
+      if(bar){const ratio=Math.max(0,Math.min(1,(this.operation.escortHp??0)/(this.operation.escortMaxHp??650)));bar.scale.x=ratio;bar.position.x=-(1-ratio);(bar.material as THREE.MeshBasicMaterial).color.set(ratio>.5?0x22c55e:ratio>.25?0xf59e0b:0xef4444);}
+    }else if(this.operationEscortMesh)this.operationEscortMesh.visible=false;
+    const sites=[operationTarget(this.operation,this.map),this.operation.intel ? undefined : operationSite(this.map,mission!.optionalObjective.site)];
     for(let i=0;i<2;i++){
       if(!this.operationBeacons[i]){
         const group=new THREE.Group(),material=new THREE.MeshBasicMaterial({color:i===0?0xfbbf24:0xffffff,transparent:true,opacity:.75,depthWrite:false});
@@ -12485,7 +12504,7 @@ export class FPSEngine {
       }
       if (Math.random() < 0.4) ai.strafeDir = -ai.strafeDir;
     }
-    const target = ai.targetId ? this.combatants.get(ai.targetId) : null;
+    const target = ai.targetId ? (ai.targetId==="__operation_escort__"?this.operationEscortTarget():this.combatants.get(ai.targetId)) : null;
     const targetIsSelf = ai.targetId === this.selfId;
     const selfCombatant: Combatant = {
       id: this.selfId, name: this.opts.playerName, team: this.opts.team as string, isBot: false, isSelf: true,
@@ -13098,6 +13117,13 @@ export class FPSEngine {
     this.checkWin();
   }
 
+  private operationEscortTarget(): Combatant | null {
+    const g=this.operation&&operationById(this.operation.missionId)?.objectives[this.operation.stage],p=this.operation?.escortPos;
+    if(!this.operation||this.operation.status!=="active"||g?.kind!=="escort"||!p||(this.operation.escortHp??0)<=0)return null;
+    return {id:"__operation_escort__",name:g.payload??"Escort vehicle",team:"__escort__",isBot:false,isSelf:false,pos:[...p] as Vec3,
+      yaw:0,pitch:0,health:this.operation.escortHp!,alive:true,weaponId:"rifle_m4",weaponSkinId:"",playerSkinId:"",kills:0,deaths:0,score:0} as Combatant;
+  }
+
   private nearestEnemy(c: Combatant): Combatant | null {
     let best: Combatant | null = null; let bestD = Infinity;
     const selfC: Combatant = {
@@ -13111,20 +13137,21 @@ export class FPSEngine {
     const cached=this.botEnemySearchCache.get(c.id);
     if(cached&&now<cached.nextAt){
       if(cached.targetId===null)return null;
-      const target=cached.targetId===this.selfId?selfC:this.combatants.get(cached.targetId);
+      const target=cached.targetId===this.selfId?selfC:cached.targetId==="__operation_escort__"?this.operationEscortTarget():this.combatants.get(cached.targetId);
       if(target?.alive)return target;
     }
     const awareness=this.operation?operationAwarenessMultiplier(this.operation):1;
     const radius=Math.min(botDetectionRange(c.ai?.difficulty??"normal",weaponById(c.weaponId).category)*botAwarenessPerkMultiplier(c.perkId)*awareness,
       this.map.id==="whiteout_depot"?whiteoutVisibility(this.environmentTime,c.pos):Infinity);
+    const escort=this.operationEscortTarget();
     const candidates = [...(this.actorIndex.size
-      ?this.actorIndex.near(c.pos[0],c.pos[2],radius):this.combatants.values()), selfC];
+      ?this.actorIndex.near(c.pos[0],c.pos[2],radius):this.combatants.values()), selfC,...(escort?[escort]:[])];
     // Bots require LINE OF SIGHT to acquire a target (no longer omniscient).
     // If no visible enemy exists, the bot wanders. This makes bots feel less
     // psychic — you can break LoS to escape them.
     for (const e of candidates) {
       if (e.id === c.id || !e.alive || (this.opts.mode === "survival" && e.isBot)) continue;
-      if (e.team === c.team && this.opts.mode !== "ffa" && this.opts.mode !== "gungame") continue;
+      if (e.id!=="__operation_escort__"&&e.team === c.team && this.opts.mode !== "ffa" && this.opts.mode !== "gungame") continue;
       const d = Math.hypot(e.pos[0] - c.pos[0], e.pos[2] - c.pos[2]);
       if (d >= bestD) continue;
       // Only acquire targets within engagement range AND with clear LoS.
@@ -13181,6 +13208,15 @@ export class FPSEngine {
     const resolved=resolveMaterialPenetrationShot(contacts,this.coverForRay(origin,dir,maxDistance),origin,dir,maxDistance,
       eff.bodyPenetration,eff.coverPenetration);
     const hits=resolved.hits;
+    const escort=this.operationEscortTarget();
+    if(escort&&!isThrowingKnife(attacker.weaponId)){
+      const cartHit=rayBox(origin,dir,[escort.pos[0],escort.pos[1]+.85,escort.pos[2]],[2,1.5,3]);
+      if(cartHit!==null&&cartHit<(hits[0]?.t??Infinity)&&cartHit<=resolved.stoppedAt){
+        const dealt=damageAtRange(eff.damage,cartHit,eff.range,eff);
+        this.operation!.escortHp=Math.max(0,(this.operation!.escortHp??0)-dealt);
+        if(this.operation!.escortHp<=0)this.operationNotice={kind:"objective",message:"ESCORT VEHICLE DESTROYED",at:performance.now()};
+      }
+    }
     if (!isThrowingKnife(attacker.weaponId) && this.offlineMines.length) {
       const coverStop = traceCoverPenetration(this.coverForRay(origin,dir,maxDistance), origin, dir, maxDistance,
         eff.coverPenetration ?? 0).blockedAt;
