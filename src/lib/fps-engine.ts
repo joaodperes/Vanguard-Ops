@@ -10855,11 +10855,11 @@ export class FPSEngine {
       const bar=this.operationEscortMesh.getObjectByName('escort-health') as THREE.Mesh|undefined;
       if(bar){const ratio=Math.max(0,Math.min(1,(this.operation.escortHp??0)/(this.operation.escortMaxHp??650)));bar.scale.x=ratio;bar.position.x=-(1-ratio);(bar.material as THREE.MeshBasicMaterial).color.set(ratio>.5?0x22c55e:ratio>.25?0xf59e0b:0xef4444);}
     }else if(this.operationEscortMesh)this.operationEscortMesh.visible=false;
-    const sites=[operationTarget(this.operation,this.map),this.operation.intel ? undefined : operationSite(this.map,mission!.optionalObjective.site)];
-    for(let i=0;i<2;i++){
+    const sites=[operationTarget(this.operation,this.map),this.operation.intel ? undefined : operationSite(this.map,mission!.optionalObjective.site),goal?.kind==='escort'?operationSite(this.map,goal.site):undefined];
+    for(let i=0;i<3;i++){
       if(!this.operationBeacons[i]){
-        const group=new THREE.Group(),material=new THREE.MeshBasicMaterial({color:i===0?0xfbbf24:0xffffff,transparent:true,opacity:.75,depthWrite:false});
-        const ring=new THREE.Mesh(new THREE.TorusGeometry(i===0?3.5:2,.08,6,32),material);
+        const group=new THREE.Group(),material=new THREE.MeshBasicMaterial({color:i===0?0xfbbf24:i===1?0xffffff:0x22c55e,transparent:true,opacity:.75,depthWrite:false});
+        const ring=new THREE.Mesh(new THREE.TorusGeometry(i===1?2:3.5,.08,6,32),material);
         ring.rotation.x=Math.PI/2;ring.position.y=.12;group.add(ring);
         const diamond=new THREE.Mesh(new THREE.OctahedronGeometry(.65),material);diamond.position.y=3;group.add(diamond);
         this.scene.add(group);this.operationBeacons[i]=group;
