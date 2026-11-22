@@ -36,6 +36,29 @@ describe("permanent challenge-based Armory eligibility", () => {
     expect(count).toBeGreaterThan(80);
   });
 
+  test("LMG skin challenges include sustained-fire pairs and track them as a distinct condition", () => {
+    const lmgs = WEAPONS.filter(w => w.category === "lmg");
+    expect(lmgs.length).toBeGreaterThanOrEqual(3);
+    for (const weapon of lmgs) {
+      const challenge = WEAPON_CHALLENGES.find(ch =>
+        ch.weaponId === weapon.id && ch.metric === "double_kills_without_reload");
+      expect(challenge).toBeDefined();
+      expect(challenge?.goal).toBe(10);
+      expect(challenge?.description).toContain("2 kills");
+      const incomplete = weaponChallengeProgress(challenge!, {
+        kills: 1000, headshots: 0,
+        conditionStats: { double_kills_without_reload: 9 },
+      });
+      expect(incomplete.progress).toBe(9);
+      expect(incomplete.completed).toBe(false);
+      const complete = weaponChallengeProgress(challenge!, {
+        kills: 1000, headshots: 0,
+        conditionStats: { double_kills_without_reload: 10 },
+      });
+      expect(complete.completed).toBe(true);
+    }
+  });
+
   test("challenge completion changes eligibility, not ownership or player level", () => {
     const weapon = WEAPONS.find(w => weaponAttachmentSlots(w).includes("sight") &&
       compatibleAttachments(w.id, "sight").length)!;
