@@ -43,6 +43,10 @@ describe("permanent challenge-based Armory eligibility", () => {
       const challenge = WEAPON_CHALLENGES.find(ch =>
         ch.weaponId === weapon.id && ch.metric === "double_kills_without_reload");
       expect(challenge).toBeDefined();
+      const resolved = skinChallengesForWeaponAndSkin(weapon.id, "inferno")
+        .find(ch => ch.metric === "double_kills_without_reload");
+      expect(resolved).toBeDefined();
+      expect(resolved?.id).toBe(challenge?.id);
       expect(challenge?.goal).toBe(10);
       expect(challenge?.description).toContain("2 kills");
       const incomplete = weaponChallengeProgress(challenge!, {
