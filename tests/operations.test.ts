@@ -96,8 +96,9 @@ describe('Operations campaign',()=>{
   expect(operationObjectiveTypeLabel('survive')).toBe('SURVIVE');
   expect(operationObjectiveTypeLabel('eliminate')).toBe('ELIMINATE ALL');
   expect(operationObjectiveTypeLabel('escort')).toBe('MOVE / ESCORT');
-  const relay=operationById('relay_siege')!,eliminate=relay.objectives.findIndex(objective=>objective.kind==='eliminate');
-  expect(operationTarget({...createOperationState(relay.id),stage:eliminate},getMap(relay.mapId,'survival'))).toBeUndefined();
+  const clearMission=operationById('silent_entry')!,eliminate=clearMission.objectives.findIndex(objective=>objective.kind==='eliminate');
+  expect(eliminate).toBeGreaterThanOrEqual(0);
+  expect(operationTarget({...createOperationState(clearMission.id),stage:eliminate},getMap(clearMission.mapId,'survival'))).toBeUndefined();
   const finale=operationById('zero_hour')!,bossIndex=finale.objectives.findIndex(objective=>objective.boss);
   expect(operationTarget({...createOperationState(finale.id),stage:bossIndex},getMap(finale.mapId,'survival'))).toEqual(operationSite(getMap(finale.mapId,'survival'),finale.objectives[bossIndex].site));
  });
