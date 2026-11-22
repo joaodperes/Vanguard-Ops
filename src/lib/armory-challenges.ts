@@ -17,7 +17,7 @@ import {
 export const WEAPON_CONDITION_METRICS = [
   "bare_kills", "fully_equipped_kills", "ads_kills", "hipfire_kills",
   "airborne_kills", "close_range_kills", "long_range_kills", "multikill_kills",
-  "suppressed_kills", "critical_health_kills", "comeback_kills",
+  "suppressed_kills", "critical_health_kills", "comeback_kills", "double_kills_without_reload",
 ] as const satisfies readonly WeaponConditionMetric[];
 export type WeaponConditionStats = Record<WeaponConditionMetric, number>;
 export function emptyWeaponConditionStats(): WeaponConditionStats {
