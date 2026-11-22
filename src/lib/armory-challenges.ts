@@ -74,6 +74,9 @@ function contextualSkinChallenge(ch: WeaponChallengeDef, weapon: WeaponDef): Wea
   const ranged = category === "sniper" || category === "dmr";
   const cqc = category === "shotgun" || category === "melee";
   const mobile = category === "smg" || category === "pdw";
+  // This authored magazine-management trial is already weapon-specific; do not
+  // replace it with the generic condition selected for its skin color.
+  if (ch.metric === "double_kills_without_reload") return ch;
 
   // Splash and melee kills cannot be headshots. Pellet headshot finishes are
   // inconsistent enough that they should not gate a shotgun cosmetic either.
