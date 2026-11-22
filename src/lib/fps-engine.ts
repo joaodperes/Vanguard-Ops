@@ -1355,6 +1355,8 @@ export class FPSEngine {
   // attributing all kills to the match-start weapon. Sent in MatchEndResult.
   private perWeaponKills: Map<string, { kills: number; headshots: number }> = new Map();
   private perWeaponActions: Map<string, Partial<Record<WeaponConditionMetric, number>>> = new Map();
+  /** Kills in the current magazine, retained per weapon while swapping slots. */
+  private magazineKillsByWeapon: Map<string, number> = new Map();
   private perAttachmentKills: Map<string, number> = new Map();
 
   // ---- Gun Game progression (gungame mode only) ----
@@ -7353,6 +7355,7 @@ export class FPSEngine {
           this.lastPlayerRespawnAt = performance.now();
           // Wonder charges persist without a refill. New queued kits start empty.
           this.refillAmmoOnRespawn(); this.reloading = false; this.equipmentAction = null;
+    this.magazineKillsByWeapon.clear();
           this.heatStates.clear(); this.boltCharges = 0; this.poisonByVictim.clear();
           this.equipmentCharges = equipmentById(this.opts.loadout.equipmentId).charges;
     this.equipmentNextRechargeAt=0;
@@ -10028,7 +10031,13 @@ export class FPSEngine {
     const actions = this.perWeaponActions.get(weaponId) ?? {};
     const bump = (metric: WeaponConditionMetric) => { actions[metric] = (actions[metric] ?? 0) + 1; };
     if (weaponId === this.weaponId) {
-      const slots = weaponAttachmentSlots(weaponById(weaponId));
+      const currentWeapon = weaponById(weaponId);
+      if (currentWeapon.category === "lmg") {
+        const magazineKills = (this.magazineKillsByWeapon.get(weaponId) ?? 0) + 1;
+        this.magazineKillsByWeapon.set(weaponId, magazineKills);
+        if (magazineKills % 2 === 0) bump("double_kills_without_reload");
+      }
+      const slots = weaponAttachmentSlots(currentWeapon);
       const atts = this.getCurrentAttachments();
       // Gun Game deliberately does not auto-award no-attachment challenges.
       if (slots.length > 0 && this.opts.mode !== "gungame") {
@@ -10831,6 +10840,8 @@ export class FPSEngine {
     // Melee weapons don't reload.
     if (weaponById(this.weaponId).category === "melee") return;
     this.reloading = true;
+    // A reload breaks the sustained-fire streak, even if the magazine was not empty.
+    this.magazineKillsByWeapon.set(this.weaponId, 0);
     this.fpReloadRecoveryUntil=0;
     this.reloadRoundInserted = false;
     this.reloadShellCycleIndex=0;
