@@ -35,7 +35,8 @@
           "multikill_kills",
           "suppressed_kills",
           "critical_health_kills",
-          "comeback_kills"
+          "comeback_kills",
+          "double_kills_without_reload"
         ]
       },
       "title": {
