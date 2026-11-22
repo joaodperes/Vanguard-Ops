@@ -70,7 +70,6 @@ import { rayCombatantHit } from "./combat-hitboxes";
 import { selectBodyPenetrationHits, type BodyRayContact } from "./body-penetration";
 import { resolveMaterialPenetrationShot, traceCoverPenetration } from "./cover-penetration";
 import { authoredBallisticCover, applyConfirmedCoverImpact, coverMaxIntegrity, damageBallisticCoverOnShot, damageBallisticCoverFromExplosion, reconcileBallisticCover } from "./material-cover-damage";
-import { survivalWaveDamageMul } from "./game-protocol";
 import type { MaterialCoverImpact } from "./game-protocol";
 import { launcherSplashFactor, launcherBlastVisibilityOrigin, launcherSplashContact } from "./launcher-effects";
 import { meleeSwingPose } from "./melee-styles";
