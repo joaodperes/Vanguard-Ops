@@ -337,7 +337,7 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
         if(!mission||!goal)return null;
         const progress=Math.floor(hud.operation.progress);
         const objectiveStatus=(goal.kind==='clear'||goal.kind==='eliminate') ? "Eliminate all hostiles"
-          : goal.kind==='survive' ? `Survive the area · ${Math.max(0,Math.ceil(goal.seconds-hud.operation.stageElapsed))}s remaining`
+          : goal.kind==='survive' ? `Survive the response wave · ${Math.max(0,Math.ceil(goal.seconds-hud.operation.stageElapsed))}s remaining`
           : goal.kind==='secure' ? `Secure site · ${progress}/${goal.seconds}s`
           : goal.kind==='defend' ? goal.killTarget ? `Hold site · ${progress}/${goal.killTarget} kills · ${Math.max(0,Math.ceil(goal.seconds-hud.operation.stageElapsed))}s · Reinforcements ${hud.operation.pulse}` : `Hold upload · ${progress}/${goal.seconds}s · Reinforcements ${hud.operation.pulse}`
           : goal.kind==='recover' ? `Recover package · ${progress}/${goal.seconds}s`

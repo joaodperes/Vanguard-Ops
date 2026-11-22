@@ -70,6 +70,7 @@ import { rayCombatantHit } from "./combat-hitboxes";
 import { selectBodyPenetrationHits, type BodyRayContact } from "./body-penetration";
 import { resolveMaterialPenetrationShot, traceCoverPenetration } from "./cover-penetration";
 import { authoredBallisticCover, applyConfirmedCoverImpact, coverMaxIntegrity, damageBallisticCoverOnShot, damageBallisticCoverFromExplosion, reconcileBallisticCover } from "./material-cover-damage";
+import { survivalWaveDamageMul } from "./game-protocol";
 import type { MaterialCoverImpact } from "./game-protocol";
 import { launcherSplashFactor, launcherBlastVisibilityOrigin, launcherSplashContact } from "./launcher-effects";
 import { meleeSwingPose } from "./melee-styles";
@@ -1276,6 +1277,7 @@ export class FPSEngine {
   private operationNotice?: HudState["operationNotice"];
   private operationBeacons: THREE.Group[] = [];
   private operationEscortMesh?: THREE.Group;
+  private operationEscortPayload = "";
   private survivalWave = 0;
   private survivalTier: SurvivalTier = "default";
   private survivalUpgradeRanks:SurvivalUpgradeRanks={};
@@ -6187,7 +6189,11 @@ export class FPSEngine {
     const squadSize=this.operation ? 1+[...this.combatants.values()].filter(c=>!c.isBot&&!c.isSelf&&c.alive).length : 1;
     const encounter=this.operation ? operationEncounter(operationById(this.operation.missionId)!,this.operation.stage,this.operation.difficulty,squadSize,this.operation.optionalChallengeStatus==='failed'):undefined;
     const count=(reinforcement ? encounter?.reinforcementCount : encounter?.count) ?? Math.min(40,Math.ceil(survivalWaveBotCount(this.survivalWave)*mutators.spawnMul))+(mutators.boss ? 1 : 0);
+    const bossWave=mutators.boss||!!encounter?.boss;
     const hpMul=survivalWaveHealthMul(this.survivalWave)*mutators.healthMul;
+    const commanderObjective=encounter?.boss&&this.operation?operationById(this.operation.missionId)?.objectives[this.operation.stage]:undefined;
+    const commanderSite=commanderObjective?operationSite(this.map,commanderObjective.site):undefined;
+    const escortPos=this.operation?.escortPos;
     // Curated Survival arsenal; launchers are allowed, long-range snipers excluded.
     const botWeapons = SURVIVAL_BOT_WEAPONS.map(w=>w.id);
     const skinRotation = Math.floor(Math.random()*BOT_OPERATIVE_SKINS.length);
@@ -6198,11 +6204,17 @@ export class FPSEngine {
     // direction. The pickSpawn function already maximizes distance from
     // other combatants + the player, so bots naturally spread out.
     for (let n = 0; n < count; n++) {
-      const boss=mutators.boss && n === count-1;
-      const elite=!boss && this.survivalWave>=5 && this.survivalWave%5===0 &&
-        n===count-(mutators.boss?2:1);
+      const boss=bossWave && n === count-1;
+      const elite=!boss && !bossWave && this.survivalWave>=5 && this.survivalWave%5===0 &&
+        n===count-1;
       const id=(boss ? "svboss_" : elite ? "svelite_" : "svbot_")+this.survivalWave+"_"+n+(this.operation ? "_"+this.operation.pulse : "");
-      const sp = this.pickSpawn("ffa");
+      const commanderSpawn=boss&&commanderSite?this.map.spawns.ffa
+        .filter(p=>Math.hypot(p[0]-commanderSite[0],p[2]-commanderSite[2])>6&&
+          (!escortPos||Math.hypot(p[0]-escortPos[0],p[2]-escortPos[2])>6)&&
+          Math.hypot(p[0]-this.pos.x,p[2]-this.pos.z)>6&&
+          [...this.combatants.values()].every(c=>!c.alive||Math.hypot(p[0]-c.pos[0],p[2]-c.pos[2])>6))
+        .sort((a,b)=>Math.hypot(a[0]-commanderSite[0],a[2]-commanderSite[2])-Math.hypot(b[0]-commanderSite[0],b[2]-commanderSite[2]))[0]:undefined;
+      const sp=commanderSpawn?[...commanderSpawn] as Vec3:this.pickSpawn("ffa");
       const wid = boss ? "lmg_hv" : botWeapons[Math.floor(Math.random()*botWeapons.length)];
       const role=survivalRoleForSlot(encounter?.roleWave ?? this.survivalWave,n,boss,elite);
       const perk=boss||role?"steady":botPerkForMode("survival",this.survivalWave);
@@ -6216,7 +6228,7 @@ export class FPSEngine {
       const c: Combatant = {
         survivalRole:role,survivalAbilityLeft:role==="engineer"?6:4,
         survivalMaxHealth:Math.round(MAX_HEALTH*hpMul*(boss?6:elite?2.2:survivalRoleHealthMultiplier(role))),
-        id, name: role ? `${SURVIVAL_ROLE_INFO[role].label} · W${this.survivalWave}` : boss ? `BOSS · W${this.survivalWave}` : elite ? `ELITE · W${this.survivalWave}` : `W${this.survivalWave}·${n + 1}`, team: "red", isBot: true, isSelf: false,
+        id, name: role ? `${SURVIVAL_ROLE_INFO[role].label} · W${this.survivalWave}` : boss ? (encounter?.boss ? "COMMANDER · ZERO HOUR" : `BOSS · W${this.survivalWave}`) : elite ? `ELITE · W${this.survivalWave}` : `W${this.survivalWave}·${n + 1}`, team: "red", isBot: true, isSelf: false,
         perkId:perk,botWonderId:wonderId,
         pos: sp, yaw: 0, pitch: 0, health: Math.round(MAX_HEALTH * hpMul * (boss ? 6 : elite ? 2.2 : survivalRoleHealthMultiplier(role))), alive: true,
         bossMaxHealth:boss?Math.round(MAX_HEALTH*hpMul*6):undefined,
@@ -6297,6 +6309,14 @@ export class FPSEngine {
         ];
         this.operation=tickOperation(this.operation,this.map,operationActors,
           [...this.combatants.values()].filter(c=>c.isBot).map(c=>({id:c.id,pos:c.pos,alive:c.alive,kills:c.kills})),dt);
+        if(!this.opts.online&&!previousOperation?.escortComplete&&this.operation.escortComplete&&
+          this.operation.escortPayload?.toLowerCase()==='juggernaut'&&this.operation.escortPos){
+          const yaw=this.operation.escortYaw??0,cart=this.operation.escortPos;
+          const dropPos=juggernautDropPoint(cart,yaw,this.map.cover,this.map.size)??
+            juggernautDropPoint(cart,yaw+Math.PI/2,this.map.cover,this.map.size)??[...cart] as Vec3;
+          const landAt=Date.now()+JUGGERNAUT_DROP_MS,id=`operation_juggernaut_${this.operation.missionId}_${Math.floor(Date.now())}`;
+          this.addMechDrop(id,this.selfId,dropPos,landAt,landAt+25000,"",false);
+        }
         this.applyOperationFeedback(operationFeedbackEvents(previousOperation!,this.operation));
         if(this.operation.status!=="active"){this.survivalWaveActive=false;this.finalizeMatchLocal();return;}
         if(this.operation.stage===previousStage&&this.operation.pulse!==previousPulse)this.startSurvivalWave(true);
@@ -10838,22 +10858,66 @@ export class FPSEngine {
   private updateOperationBeacons() {
     if(!this.operation)return;
     const mission=operationById(this.operation.missionId),goal=mission?.objectives[this.operation.stage];
-    if(goal?.kind==='escort'&&this.operation.escortPos){
-      if(!this.operationEscortMesh){
+    const escortPos=this.operation.escortPos;
+    const showEscort=!!escortPos&&(
+      goal?.kind==='escort'||(this.operation.escortComplete&&this.operation.escortPayload?.toLowerCase()==='juggernaut'));
+    if(showEscort&&escortPos){
+      const payloadName=goal?.kind==='escort'?goal.payload??'Escort vehicle':this.operation.escortComplete?'Empty':this.operation.escortPayload??'Juggernaut';
+      if(!this.operationEscortMesh||this.operationEscortPayload!==payloadName){
+        if(this.operationEscortMesh){
+          this.operationEscortMesh.removeFromParent();
+          this.operationEscortMesh.traverse(o=>{if(o instanceof THREE.Mesh){
+            o.geometry.dispose();for(const material of Array.isArray(o.material)?o.material:[o.material])material.dispose();
+          }});
+          this.operationEscortMesh=undefined;
+        }
         const group=new THREE.Group();
-        const body=new THREE.Mesh(new THREE.BoxGeometry(1.8,.65,2.8),new THREE.MeshStandardMaterial({color:0x64748b,metalness:.55,roughness:.5}));body.position.y=.85;group.add(body);
-        const payload=new THREE.Mesh(new THREE.BoxGeometry(1.15,.95,1.2),new THREE.MeshStandardMaterial({color:0x2563eb,metalness:.25,roughness:.55}));payload.position.set(0,1.55,-.15);group.add(payload);
-        for(const x of [-.92,.92])for(const z of [-.88,.88]){const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.32,.32,.2,12),new THREE.MeshStandardMaterial({color:0x111827,roughness:.9}));wheel.rotation.z=Math.PI/2;wheel.position.set(x,.43,z);group.add(wheel);}
-        const bg=new THREE.Mesh(new THREE.BoxGeometry(2.1,.13,.08),new THREE.MeshBasicMaterial({color:0x111827,depthTest:false}));bg.position.set(0,2.55,0);group.add(bg);
-        const bar=new THREE.Mesh(new THREE.BoxGeometry(2,.09,.1),new THREE.MeshBasicMaterial({color:0x22c55e,depthTest:false}));bar.position.set(0,2.56,.055);bar.name='escort-health';group.add(bar);
-        this.scene.add(group);this.operationEscortMesh=group;
+        const metal=new THREE.MeshStandardMaterial({color:0x64748b,metalness:.65,roughness:.42});
+        const dark=new THREE.MeshStandardMaterial({color:0x202a34,metalness:.35,roughness:.75});
+        const deck=new THREE.Mesh(new THREE.BoxGeometry(2.05,.22,3.05),metal);deck.position.y=.62;group.add(deck);
+        const chassis=new THREE.Mesh(new THREE.BoxGeometry(1.45,.35,2.35),dark);chassis.position.y=.39;group.add(chassis);
+        for(const x of [-1.02,1.02])for(const z of [-1.12,1.12]){
+          const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.34,.34,.22,14),new THREE.MeshStandardMaterial({color:0x111827,roughness:.95}));
+          wheel.rotation.z=Math.PI/2;wheel.position.set(x,.39,z);group.add(wheel);
+        }
+        if(payloadName.toLowerCase().includes('juggernaut')){
+          const armor=new THREE.MeshStandardMaterial({color:0x8a783b,metalness:.72,roughness:.34});
+          const trim=new THREE.MeshStandardMaterial({color:0x303b36,metalness:.48,roughness:.5});
+          const torso=new THREE.Mesh(new THREE.BoxGeometry(.9,1.02,.58),armor);torso.position.set(0,1.55,0);group.add(torso);
+          const helmet=new THREE.Mesh(new THREE.SphereGeometry(.34,14,10),trim);helmet.position.set(0,2.25,0);group.add(helmet);
+          const visor=new THREE.Mesh(new THREE.BoxGeometry(.42,.12,.035),new THREE.MeshStandardMaterial({color:0xf59e0b,emissive:0x7c3f00,emissiveIntensity:.8}));
+          visor.position.set(0,2.28,-.3);group.add(visor);
+          for(const side of [-1,1]){
+            const shoulder=new THREE.Mesh(new THREE.BoxGeometry(.48,.42,.62),armor);shoulder.position.set(side*.68,1.85,0);group.add(shoulder);
+            const arm=new THREE.Mesh(new THREE.BoxGeometry(.3,.72,.36),trim);arm.position.set(side*.72,1.34,0);group.add(arm);
+            const leg=new THREE.Mesh(new THREE.BoxGeometry(.34,.62,.42),trim);leg.position.set(side*.24,.98,.05);group.add(leg);
+          }
+          const weapon=new THREE.Mesh(new THREE.BoxGeometry(.18,.22,.95),dark);weapon.position.set(.82,1.38,-.43);group.add(weapon);
+        }else if(payloadName.toLowerCase()==='pc'){
+          const pcCase=new THREE.Mesh(new THREE.BoxGeometry(.48,.82,.52),dark);pcCase.position.set(-.48,1.18,.3);group.add(pcCase);
+          const monitor=new THREE.Mesh(new THREE.BoxGeometry(.98,.64,.12),metal);monitor.position.set(.32,1.45,-.24);group.add(monitor);
+          const screen=new THREE.Mesh(new THREE.BoxGeometry(.82,.47,.025),new THREE.MeshStandardMaterial({color:0x0e7490,emissive:0x0891b2,emissiveIntensity:1.1,metalness:.1,roughness:.3}));
+          screen.position.set(.32,1.46,-.315);group.add(screen);
+          const keyboard=new THREE.Mesh(new THREE.BoxGeometry(.62,.045,.24),dark);keyboard.position.set(.28,1.12,-.08);group.add(keyboard);
+        }
+        const barGroup=new THREE.Group();barGroup.name='escort-health-group';barGroup.position.set(0,3.05,0);
+        const bg=new THREE.Mesh(new THREE.PlaneGeometry(2.2,.18),new THREE.MeshBasicMaterial({color:0x111827,depthTest:false}));
+        const bar=new THREE.Mesh(new THREE.PlaneGeometry(2.05,.11),new THREE.MeshBasicMaterial({color:0x22c55e,depthTest:false}));
+        bar.position.z=.012;bar.name='escort-health';barGroup.add(bg,bar);group.add(barGroup);
+        this.scene.add(group);this.operationEscortMesh=group;this.operationEscortPayload=payloadName;
       }
       this.operationEscortMesh.visible=this.operation.status==='active'&&!this.lobbyActive;
-      this.operationEscortMesh.position.set(...this.operation.escortPos);
-      const destination=operationSite(this.map,goal.site),dx=destination[0]-this.operation.escortPos[0],dz=destination[2]-this.operation.escortPos[2];
-      this.operationEscortMesh.rotation.y=Math.atan2(dx,dz);
+      this.operationEscortMesh.position.set(...escortPos);
+      const destination=goal?.kind==='escort'?operationSite(this.map,goal.site):this.operation.escortDestination??escortPos;
+      const dx=destination[0]-escortPos[0],dz=destination[2]-escortPos[2];
+      this.operationEscortMesh.rotation.y=this.operation.escortYaw??Math.atan2(dx,dz);
       const bar=this.operationEscortMesh.getObjectByName('escort-health') as THREE.Mesh|undefined;
-      if(bar){const ratio=Math.max(0,Math.min(1,(this.operation.escortHp??0)/(this.operation.escortMaxHp??650)));bar.scale.x=ratio;bar.position.x=-(1-ratio);(bar.material as THREE.MeshBasicMaterial).color.set(ratio>.5?0x22c55e:ratio>.25?0xf59e0b:0xef4444);}
+      if(bar){
+        const ratio=Math.max(0,Math.min(1,(this.operation.escortHp??0)/(this.operation.escortMaxHp??650)));
+        bar.scale.x=ratio;bar.position.x=-(1-ratio)*1.025;
+        (bar.material as THREE.MeshBasicMaterial).color.set(ratio>.5?0x22c55e:ratio>.25?0xf59e0b:0xef4444);
+      }
+      this.operationEscortMesh.getObjectByName('escort-health-group')?.lookAt(this.camera.position);
     }else if(this.operationEscortMesh)this.operationEscortMesh.visible=false;
     const sites=[operationTarget(this.operation,this.map),this.operation.intel ? undefined : operationSite(this.map,mission!.optionalObjective.site),goal?.kind==='escort'?operationSite(this.map,goal.site):undefined];
     for(let i=0;i<3;i++){
@@ -13212,7 +13276,7 @@ export class FPSEngine {
     if(escort&&!isThrowingKnife(attacker.weaponId)){
       const cartHit=rayBox(origin,dir,[escort.pos[0],escort.pos[1]+.85,escort.pos[2]],[2,1.5,3]);
       if(cartHit!==null&&cartHit<(hits[0]?.t??Infinity)&&cartHit<=resolved.stoppedAt){
-        const dealt=damageAtRange(eff.damage,cartHit,eff.range,eff);
+        const dealt=damageAtRange(eff.damage,cartHit,eff.range,eff)*0.65*survivalWaveDamageMul(this.survivalWave)*survivalWaveMutators(this.survivalTier,this.survivalWave).damageMul;
         this.operation!.escortHp=Math.max(0,(this.operation!.escortHp??0)-dealt);
         hits=[]; // The vehicle absorbs the shot instead of allowing it to pass through.
         if(this.operation!.escortHp<=0)this.operationNotice={kind:"objective",message:"ESCORT VEHICLE DESTROYED",at:performance.now()};
@@ -13831,6 +13895,13 @@ export class FPSEngine {
     for(const id of [...this.mechDrops.keys()])this.removeMechDrop(id);
     for(const id of [...this.phantomDecoys.keys()])this.clearPhantom(id);
     for(const id of [...this.harbingerDrones.keys()])this.removeHarbinger(id);
+    if(this.operationEscortMesh){
+      this.operationEscortMesh.removeFromParent();
+      this.operationEscortMesh.traverse(o=>{if(o instanceof THREE.Mesh){
+        o.geometry.dispose();for(const material of Array.isArray(o.material)?o.material:[o.material])material.dispose();
+      }});
+      this.operationEscortMesh=undefined;this.operationEscortPayload="";
+    }
     for(const group of this.operationBeacons){
       group.removeFromParent();group.traverse(o=>{if(o instanceof THREE.Mesh)o.geometry.dispose();});
       ((group.children[0] as THREE.Mesh).material as THREE.Material).dispose();

@@ -1,5 +1,5 @@
 import {describe,expect,test} from 'bun:test';
-import {OPERATIONS,OPERATION_DEADLINE_SECONDS,operationFirstClearReward,createOperationState,operationById,nextOperation,operationConfigValid,operationSite,operationTarget,tickOperation,operationEncounter,operationAwarenessMultiplier,operationStars,operationStarCriteria,operationTimePerformance,formatOperationTime,operationActSummary,recordOperation,operationUnlocked,loadOperationProgress,operationFeedbackEvents,type OperationActor,type OperationState} from '../src/lib/operations';
+import {OPERATIONS,OPERATION_DEADLINE_SECONDS,operationFirstClearReward,createOperationState,operationById,nextOperation,operationConfigValid,operationSite,operationTarget,tickOperation,operationEncounter,operationAwarenessMultiplier,operationStars,operationStarCriteria,operationTimePerformance,formatOperationTime,operationActSummary,recordOperation,operationUnlocked,loadOperationProgress,operationFeedbackEvents,operationObjectiveTypeLabel,damageOperationEscort,type OperationActor,type OperationState} from '../src/lib/operations';
 import {getMap,type Vec3} from '../src/lib/game-protocol';
 import {makeEnvironmentMap} from '../src/lib/dynamic-environment';
 import {botPositionEmbedded} from '../src/lib/bot-physics';
@@ -17,7 +17,7 @@ describe('Operations campaign',()=>{
    expect(operationConfigValid({operationId:m.id,mode:'survival',mapId:m.mapId,survivalTier:'elite'})).toBe(false);
    expect(getMap(m.mapId).id).toBe(m.mapId);const compiled=makeEnvironmentMap(getMap(m.mapId,'survival'));
    expect(m.objectives.at(-1)?.kind).toBe('extract');
-   for(const g of [...m.objectives,{site:15}]){const p=operationSite(compiled,g.site);expect(p.every(Number.isFinite)).toBe(true);expect(botPositionEmbedded(compiled.cover,p)).toBe(false);}
+   for(const g of [...m.objectives,{site:15}]){const p=operationSite(compiled,g.site);expect(p.every(Number.isFinite)).toBe(true);expect(botPositionEmbedded(compiled.cover,p)).toBe(false);if('startSite' in g&&g.startSite!==undefined){const start=operationSite(compiled,g.startSite);expect(start.every(Number.isFinite)).toBe(true);expect(botPositionEmbedded(compiled.cover,start)).toBe(false);}}
    expect(operationEncounter(m,0).count).toBe(4+m.intensity);
   }
   expect(operationById('__proto__')).toBeUndefined();expect(operationConfigValid({operationId:'missing',mode:'survival',mapId:'compound'})).toBe(false);
@@ -56,6 +56,8 @@ describe('Operations campaign',()=>{
   const m=operationById('zero_hour')!,e=operationEncounter(m,0);
   const roles=new Set(Array.from({length:e.count},(_,i)=>survivalRoleForSlot(e.roleWave,i)).filter(Boolean));
   expect(roles.has('engineer')).toBe(true);expect(roles.has('disruptor')).toBe(true);
+  const commander=m.objectives.findIndex(objective=>objective.boss);
+  expect(commander).toBeGreaterThanOrEqual(0);expect(operationEncounter(m,commander).boss).toBe(true);expect(operationEncounter(m,0).boss).toBe(false);
  });
  test('objectives reject empty squads, live guards, contesting enemies and other floors',()=>{
   const s={...createOperationState(first.id),stage:1},p=operationTarget(s,map)!;
@@ -89,10 +91,51 @@ describe('Operations campaign',()=>{
   s=advance(s,[actor(exit,'host'),actor(exit,'partner')],[],12);
   expect(s.status).toBe('won');
  });
+ test('objective categories distinguish holding, surviving, clearing and moving objects',()=>{
+  expect(operationObjectiveTypeLabel('defend')).toBe('DEFEND AREA');
+  expect(operationObjectiveTypeLabel('survive')).toBe('SURVIVE');
+  expect(operationObjectiveTypeLabel('eliminate')).toBe('ELIMINATE ALL');
+  expect(operationObjectiveTypeLabel('escort')).toBe('MOVE / ESCORT');
+  const relay=operationById('relay_siege')!,eliminate=relay.objectives.findIndex(objective=>objective.kind==='eliminate');
+  expect(operationTarget({...createOperationState(relay.id),stage:eliminate},getMap(relay.mapId,'survival'))).toBeUndefined();
+  const finale=operationById('zero_hour')!,bossIndex=finale.objectives.findIndex(objective=>objective.boss);
+  expect(operationTarget({...createOperationState(finale.id),stage:bossIndex},getMap(finale.mapId,'survival'))).toEqual(operationSite(getMap(finale.mapId,'survival'),finale.objectives[bossIndex].site));
+ });
+ test('survival objectives advance on time without requiring a location hold or clearing enemies',()=>{
+  const mission=operationById('relay_siege')!,index=mission.objectives.findIndex(objective=>objective.kind==='survive'),mp=getMap(mission.mapId,'survival');
+  expect(index).toBeGreaterThanOrEqual(0);
+  let state={...createOperationState(mission.id),stage:index};
+  expect(operationTarget(state,mp)).toBeUndefined();
+  for(let second=0;second<90;second++)state=tickOperation(state,mp,[actor([25,0,-25])],[actor([-25,0,25],'guard')],1);
+  expect(state.stage).toBe(index+1);expect(state.status).toBe('active');
+ });
+ test('escort vehicles move only with a nearby operative, take damage and can be destroyed',()=>{
+  const mission=operationById('freight_intercept')!,index=mission.objectives.findIndex(objective=>objective.kind==='escort'),mp=getMap(mission.mapId,'survival');
+  let state={...createOperationState(mission.id),stage:index};
+  const objective=mission.objectives[index]!;
+  const start=operationSite(mp,objective.startSite??mission.objectives[index-1]!.site);
+  state=tickOperation(state,mp,[actor(start)],[],.1);
+  expect(state.escortHp).toBe(650);expect(state.escortMaxHp).toBe(650);expect(state.escortPayload).toBe('PC');expect(Number.isFinite(state.escortYaw)).toBe(true);
+  expect(state.escortPos).not.toEqual(start);
+  const parked=state.escortPos!;
+  state=tickOperation(state,mp,[actor([parked[0]+20,parked[1],parked[2]])],[],1);
+  expect(state.escortPos).toEqual(parked);
+  state=damageOperationEscort(state,180);expect(state.escortHp).toBe(470);
+  state=damageOperationEscort(state,1000);expect(state.escortHp).toBe(0);
+  state=tickOperation(state,mp,[actor(parked)],[],1);expect(state.status).toBe('failed');
+ });
+ test('the Juggernaut escort remains at the command chamber for the final commander encounter',()=>{
+  const mission=operationById('zero_hour')!,index=mission.objectives.findIndex(objective=>objective.kind==='escort'),mp=getMap(mission.mapId,'survival');
+  let state={...createOperationState(mission.id),stage:index},budget=200;
+  while(state.stage===index&&budget-->0){const cart=operationTarget(state,mp)!;state=tickOperation(state,mp,[actor(cart)],[],1);}
+  expect(state.stage).toBe(index+1);expect(state.escortComplete).toBe(true);expect(state.escortPayload).toBe('Juggernaut');
+  expect(state.escortPos).toBeDefined();expect(state.escortHp).toBe(650);expect(Number.isFinite(state.escortYaw)).toBe(true);
+  expect(mission.objectives[state.stage].boss).toBe(true);
+ });
  test('every mission has a valid solo completion path',()=>{
   for(const mission of OPERATIONS){
    const m=getMap(mission.mapId,'survival');let s=createOperationState(mission.id),budget=2000,kills=0;
-   while(s.status==='active'&&budget-->0){const goal=mission.objectives[s.stage];const p=operationTarget(s,m)!;if(goal?.kind==='defend'&&goal.killTarget)kills=(s.objectiveKillBaseline??0)+goal.killTarget;s=tickOperation(s,m,[actor(p,'solo',true,kills)],[],1);}
+   while(s.status==='active'&&budget-->0){const goal=mission.objectives[s.stage];const p=operationTarget(s,m)??operationSite(m,goal?.site??0);if(goal?.kind==='defend'&&goal.killTarget)kills=(s.objectiveKillBaseline??0)+goal.killTarget;s=tickOperation(s,m,[actor(p,'solo',true,kills)],[],1);}
    expect(s.status).toBe('won');expect(s.stage).toBe(mission.objectives.length);
   }
  });

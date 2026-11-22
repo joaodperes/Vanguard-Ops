@@ -1,7 +1,7 @@
 "use client";
 import {useEffect,useRef,useState} from 'react';
 import {useGame} from '@/lib/game-store';
-import {OPERATIONS,operationUnlocked,operationFirstClearReward,operationTimePerformance,formatOperationTime,operationActSummary,type OperationProgress,type OperationMission} from '@/lib/operations';
+import {OPERATIONS,operationUnlocked,operationFirstClearReward,operationTimePerformance,formatOperationTime,operationActSummary,operationObjectiveTypeLabel,type OperationProgress,type OperationMission} from '@/lib/operations';
 import {syncOperationProgress} from '@/lib/operations-client';
 import {getMap,recommendedTeamSize,type BotDifficulty,type CreateRoomConfig} from '@/lib/game-protocol';
 import {waitForAttachmentSaves} from '@/lib/attachment-save-queue';
@@ -63,7 +63,7 @@ export function Operations(){
      <div>
       <p className="text-white/85 font-semibold mb-2">◆ Main objectives</p>
       <ol className="space-y-1.5 list-decimal list-inside">
-       {mission.objectives.map((objective,index)=><li key={index} className="leading-relaxed">{objective.label}</li>)}
+       {mission.objectives.map((objective,index)=><li key={index} className="leading-relaxed"><span className="inline-flex align-middle mr-2 rounded border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[9px] font-black tracking-wider text-amber-200">{operationObjectiveTypeLabel(objective.kind)}</span>{objective.label}</li>)}
       </ol>
      </div>
      <div>
@@ -90,7 +90,7 @@ export function Operations(){
     </div>
     <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 mb-5">
      <p className="text-xs uppercase tracking-widest text-white/65 font-bold mb-1">Two-player co-op</p>
-     <p className="text-xs leading-relaxed text-white/55">Enemy squads scale up for two operatives. Either player can work objectives and recover intel; every living operative must reach extraction. If the package carrier is downed, the other player can recover the dropped package.</p>
+     <p className="text-xs leading-relaxed text-white/55">Enemy squads scale up for two operatives. Either player can work objectives and recover intel; every living operative must reach extraction. Stay close to escort vehicles to keep them moving, and protect their integrity from enemy fire. If the package carrier is downed, the other player can recover the dropped package.</p>
     </div>
     <div className="mb-5">
      <p className="text-xs uppercase tracking-widest text-white/50 font-bold mb-2">Bot difficulty</p>

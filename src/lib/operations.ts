@@ -1,9 +1,9 @@
 /** Operations campaign rules shared by local/networked simulations and account progression. */
 import type {MapDef,MapId,Vec3,BotDifficulty} from './game-protocol';
 export type OperationKind='clear'|'eliminate'|'survive'|'secure'|'defend'|'recover'|'deliver'|'escort'|'extract';
-export interface OperationObjective {kind:OperationKind;label:string;site:number;seconds:number;killTarget?:number;startSite?:number;payload?:string}
+export interface OperationObjective {kind:OperationKind;label:string;site:number;seconds:number;killTarget?:number;startSite?:number;payload?:string;boss?:boolean}
 export interface OperationMission {id:string;act:number;title:string;mapId:MapId;briefing:string;debrief:string;intensity:number;parSeconds:number;objectives:OperationObjective[];optionalObjective:{label:string;site:number};optionalChallenge?:{label:string;kills:number;seconds:number}}
-const goal=(kind:OperationKind,label:string,site:number,seconds=0,killTarget?:number,extra:Pick<OperationObjective,'startSite'|'payload'>={}):OperationObjective=>({kind,label,site,seconds,...(killTarget?{killTarget}:{}),...extra});
+const goal=(kind:OperationKind,label:string,site:number,seconds=0,killTarget?:number,extra:Pick<OperationObjective,'startSite'|'payload'|'boss'>={}):OperationObjective=>({kind,label,site,seconds,...(killTarget?{killTarget}:{}),...extra});
 export const OPERATION_DEADLINE_SECONDS=30*60;
 export interface OperationFirstClearReward {missionId:string;xp:number;credits:number}
 export function operationFirstClearReward(m:Pick<OperationMission,'act'>):Omit<OperationFirstClearReward,'missionId'> {
@@ -16,7 +16,7 @@ export const OPERATIONS:readonly OperationMission[]=[
   objectives:[goal('eliminate','Break the outpost perimeter',0),goal('secure','Copy the dispatch records',3,45),goal('recover','Recover the encrypted relay',7,5),goal('deliver','Deliver the relay to the uplink',1,8),goal('extract','Reach the extraction zone',0,12)]},
  {id:'freight_intercept',act:1,title:'Freight Intercept',mapId:'skybridge',intensity:1,parSeconds:660,optionalObjective:{label:'Recover the convoy route sheet',site:15},optionalChallenge:{label:'Prevent the convoy alarm',kills:4,seconds:45},
   briefing:'Intercept the convoy before its cargo leaves the factory. Hold the loading area while command traces the next shipment.',debrief:'The manifest identifies a sleeper cell in Afterlight.',
-  objectives:[goal('secure','Disable the convoy beacon',2,35),goal('escort','Escort the convoy cargo',4,0,undefined,{startSite:6,payload:'Convoy cargo'}),goal('defend','Hold the loading area for the scan',4,120),goal('recover','Recover the cargo manifest',8,5),goal('extract','Extract with the manifest',0,15)]},
+  objectives:[goal('secure','Disable the convoy beacon',2,35),goal('escort','Escort the cart carrying the PC to the loading area',4,0,undefined,{startSite:6,payload:'PC'}),goal('defend','Hold the loading area for the scan',4,120),goal('recover','Recover the cargo manifest',8,5),goal('extract','Extract with the manifest',0,15)]},
  {id:'city_signal',act:1,title:'City Signal',mapId:'terminal',intensity:2,parSeconds:660,optionalObjective:{label:'Download the second transmitter log',site:13},
   briefing:'Two transmission sites are hiding the cell. Triangulate their signal and retrieve the operator cipher.',debrief:'The cipher exposes a transfer through Whiteout Depot.',
   objectives:[goal('secure','Triangulate the first transmitter',3,45),goal('secure','Triangulate the second transmitter',9,45),goal('eliminate','Eliminate the cipher escort',6),goal('recover','Recover the operator cipher',11,5),goal('extract','Reach the evacuation point',1,15)]},
@@ -45,8 +45,8 @@ export const OPERATIONS:readonly OperationMission[]=[
   briefing:'Return to Emberhold to cut the command network at its source. Its defenders are expecting you this time.',debrief:'The command archive gives you the master shutdown sequence.',
   objectives:[goal('eliminate','Breach the command guard',6),goal('secure','Unlock the command archive',12,75),goal('defend','Hold the shutdown sequence transfer',4,120),goal('recover','Recover the master sequence',9,10),goal('extract','Escape with the master sequence',0,25)]},
  {id:'zero_hour',act:3,title:'Zero Hour',mapId:'orbital_nexus',intensity:5,parSeconds:900,optionalObjective:{label:'Recover the network shutdown audit',site:13},
-  briefing:'One final insertion. Carry the master sequence into the station, hold the shutdown and make it to extraction.',debrief:'The network is offline. Operation complete. Replay missions to improve your ratings and recover every intel cache.',
-  objectives:[goal('eliminate','Break the station blockade',2),goal('recover','Recover the shutdown carrier',10,10),goal('deliver','Install the master sequence',5,15),goal('defend','Defend the final shutdown',5,120),goal('eliminate','Eliminate the remaining command guard',12),goal('extract','Reach the extraction zone',0,30)]},
+  briefing:'One final insertion. Carry the master sequence into the station, escort the Juggernaut to the command chamber, defeat the commander and make it to extraction.',debrief:'The network is offline. Operation complete. Replay missions to improve your ratings and recover every intel cache.',
+  objectives:[goal('eliminate','Break the station blockade',2),goal('recover','Recover the shutdown carrier',10,10),goal('deliver','Install the master sequence',5,15),goal('defend','Defend the final shutdown',5,120),goal('escort','Escort the Juggernaut cart to the command chamber',12,0,undefined,{startSite:5,payload:'Juggernaut'}),goal('eliminate','Eliminate the final commander',12,0,undefined,{boss:true}),goal('extract','Reach the extraction zone',0,30)]},
 ];
 export const operationById=(id:unknown)=>typeof id==='string'?OPERATIONS.find(m=>m.id===id):undefined;
 export function nextOperation(id:string){const i=OPERATIONS.findIndex(m=>m.id===id);return i>=0 ? OPERATIONS[i+1]:undefined;}
@@ -54,7 +54,9 @@ export function nextOperation(id:string){const i=OPERATIONS.findIndex(m=>m.id===
 export function operationConfigValid(c:{operationId?:unknown;mode:string;mapId:string;survivalTier?:unknown}):boolean {
  const m=operationById(c.operationId);return !!m&&c.mode==='survival'&&c.mapId===m.mapId&&(c.survivalTier===undefined||c.survivalTier==='default');
 }
-export interface OperationState {missionId:string;difficulty:BotDifficulty;stage:number;progress:number;elapsed:number;stageElapsed:number;pulse:number;objectiveKillBaseline?:number;intel:boolean;optionalChallengeStatus?:'active'|'complete'|'failed';optionalChallengeElapsed?:number;optionalChallengeBaseline?:number;optionalChallengeKills?:number;carrierId?:string;packagePos?:Vec3;escortPos?:Vec3;escortHp?:number;escortMaxHp?:number;status:'active'|'won'|'failed'}
+export interface OperationState {missionId:string;difficulty:BotDifficulty;stage:number;progress:number;elapsed:number;stageElapsed:number;pulse:number;objectiveKillBaseline?:number;intel:boolean;optionalChallengeStatus?:'active'|'complete'|'failed';optionalChallengeElapsed?:number;optionalChallengeBaseline?:number;optionalChallengeKills?:number;carrierId?:string;packagePos?:Vec3;escortPos?:Vec3;escortHp?:number;escortMaxHp?:number;escortPayload?:string;escortDestination?:Vec3;escortYaw?:number;escortComplete?:boolean;status:'active'|'won'|'failed'}
+const OBJECTIVE_TYPE_LABELS:Record<OperationKind,string>={clear:'ELIMINATE ALL',eliminate:'ELIMINATE ALL',survive:'SURVIVE',secure:'SECURE SITE',defend:'DEFEND AREA',recover:'RECOVER',deliver:'DELIVER',escort:'MOVE / ESCORT',extract:'EXTRACT'};
+export function operationObjectiveTypeLabel(kind:OperationKind):string{return OBJECTIVE_TYPE_LABELS[kind];}
 export interface OperationFeedbackEvent {kind:"objective"|"intel"|"challenge";message:string}
 /** Discrete transitions only: callers can safely run this for every simulation snapshot. */
 export function operationFeedbackEvents(previous:OperationState,next:OperationState):OperationFeedbackEvent[] {
@@ -78,9 +80,16 @@ export function operationSite(map:Pick<MapDef,'spawns'>,index:number):Vec3 {
 const near=(a:Vec3,b:Vec3,r=4)=>Math.hypot(a[0]-b[0],a[2]-b[2])<=r&&Math.abs(a[1]-b[1])<2.5;
 export function operationTarget(s:OperationState,map:Pick<MapDef,'spawns'>):Vec3|undefined {
  const m=operationById(s.missionId),g=m?.objectives[s.stage];if(!g)return;
+ if(g.kind==='survive')return;
+ if((g.kind==='clear'||g.kind==='eliminate')&&!g.boss)return;
  if(g.kind==='deliver'&&!s.carrierId)return s.packagePos??operationSite(map,m!.objectives[Math.max(0,s.stage-1)].site);
  if(g.kind==='escort')return s.escortPos??operationSite(map,g.startSite??m!.objectives[Math.max(0,s.stage-1)]?.site??g.site);
  return operationSite(map,g.site);
+}
+export function damageOperationEscort(s:OperationState,damage:number):OperationState {
+ if(s.status!=='active'||s.escortHp===undefined||!s.escortPos)return s;
+ const amount=Number.isFinite(damage)?Math.max(0,damage):0;
+ return amount>0?{...s,escortHp:Math.max(0,s.escortHp-amount)}:s;
 }
 export function tickOperation(s:OperationState,map:Pick<MapDef,'spawns'>,actors:readonly OperationActor[],enemies:readonly OperationActor[],dt:number):OperationState {
  if(s.status!=='active')return s;
@@ -101,14 +110,16 @@ export function tickOperation(s:OperationState,map:Pick<MapDef,'spawns'>,actors:
  const g=m.objectives[s.stage];if(!g)return {...n,status:'won'};
  if(g.kind==='escort'){
   const destination=operationSite(map,g.site),start=operationSite(map,g.startSite??m.objectives[Math.max(0,s.stage-1)]?.site??g.site);
-  n.escortMaxHp??=650;n.escortHp??=n.escortMaxHp;n.escortPos??=[...start] as Vec3;
+  n.escortMaxHp??=650;n.escortHp??=n.escortMaxHp;n.escortPos??=[...start] as Vec3;n.escortPayload??=g.payload??'Escort vehicle';n.escortDestination??=[...destination] as Vec3;n.escortYaw??=Math.atan2(destination[0]-start[0],destination[2]-start[2]);
   if((n.escortHp??0)<=0)return {...n,status:'failed'};
   if(living.some(a=>near(a.pos,n.escortPos!,7))){
    const dx=destination[0]-n.escortPos[0],dz=destination[2]-n.escortPos[2],distance=Math.hypot(dx,dz),step=Math.min(distance,2.6*delta);
    if(distance>0.01)n.escortPos=[n.escortPos[0]+dx/distance*step,n.escortPos[1]+(destination[1]-n.escortPos[1])*Math.min(1,delta),n.escortPos[2]+dz/distance*step];
   }
   if(Math.hypot(destination[0]-n.escortPos[0],destination[2]-n.escortPos[2])<=1.25){
-   n.stage++;n.progress=0;n.stageElapsed=0;n.pulse=0;n.objectiveKillBaseline=undefined;n.escortPos=undefined;n.escortHp=undefined;n.escortMaxHp=undefined;
+   n.stage++;n.progress=0;n.stageElapsed=0;n.pulse=0;n.objectiveKillBaseline=undefined;
+   if(g.payload?.toLowerCase()==='juggernaut')n.escortComplete=true;
+   else {delete n.escortPos;delete n.escortHp;delete n.escortMaxHp;delete n.escortPayload;delete n.escortDestination;delete n.escortYaw;delete n.escortComplete;}
    if(n.stage>=m.objectives.length)n.status='won';
   }
   return n;
@@ -150,9 +161,10 @@ export function operationAwarenessMultiplier(s:Pick<OperationState,'missionId'|'
 export function operationEncounter(m:OperationMission,stage:number,selectedDifficulty?:BotDifficulty,players=1,escalated=false){
  const squadScale=players>1?1.6:1;
  const alarmScale=escalated?1.25:1;
- const count=Math.min(24,Math.ceil((4+m.intensity+stage)*squadScale*alarmScale));
+ const boss=!!m.objectives[stage]?.boss;
+ const count=boss?Math.min(12,1+Math.ceil((m.intensity+1)*squadScale*alarmScale)):Math.min(24,Math.ceil((4+m.intensity+stage)*squadScale*alarmScale));
  const difficulty=selectedDifficulty??(m.intensity<=1?'easy':m.intensity<=3?'normal':'hard');
- return {count,reinforcementCount:Math.max(2,Math.ceil(count*.35)),roleWave:stage+1+(m.intensity-1)*2,difficulty:difficulty==='mixed'?undefined:difficulty};
+ return {count,reinforcementCount:Math.max(2,Math.ceil(count*.35)),roleWave:stage+1+(m.intensity-1)*2,difficulty:difficulty==='mixed'?undefined:difficulty,boss};
 }
 export interface OperationRecord {stars:number;bestSeconds:number;intel:boolean;completions:number;firstClearRewarded?:boolean;firstClearRunId?:string;firstClearXp?:number;firstClearCredits?:number}
 export type OperationProgress=Record<string,OperationRecord>;

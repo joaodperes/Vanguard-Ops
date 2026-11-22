@@ -1,5 +1,5 @@
 import {squadIntent,validSquadOrder,squadOrderPoint,type SquadOrder} from "./squad-coordination";
-import { operationById, nextOperation, createOperationState, tickOperation, operationEncounter, operationConfigValid, operationAwarenessMultiplier, type OperationState } from "./operations";
+import { operationById, nextOperation, createOperationState, tickOperation, damageOperationEscort, operationSite, operationEncounter, operationConfigValid, operationAwarenessMultiplier, type OperationState } from "./operations";
 import { survivalRoleForSlot, survivalRoleHealthMultiplier, survivalFrontalArmor, tickSurvivalSpecialists, createSurvivalObjective, tickSurvivalObjective, SURVIVAL_ROLE_INFO, type SurvivalActor, type SurvivalObjective } from "./survival-encounters";
 import { survivalPauseActive, survivalFirstChoiceDeadline, remainingSurvivalUpgradeSeconds } from "./survival-pause";
 import { blastCanDamage, blastDistance, blastExposureDistance, blastUnobstructed } from "./explosion-damage-rules";
@@ -987,6 +987,22 @@ function allCombatants(room: Room): PlayerNet[] {
   return [...room.players.values(), ...room.bots.values()];
 }
 
+const OPERATION_ESCORT_TARGET_ID="__operation_escort__";
+function operationEscortTarget(room:Room):PlayerNet|null {
+  const state=room.operation,goal=state&&operationById(state.missionId)?.objectives[state.stage];
+  if(!state||state.status!=="active"||goal?.kind!=="escort"||!state.escortPos||(state.escortHp??0)<=0)return null;
+  return {id:OPERATION_ESCORT_TARGET_ID,name:goal.payload??"Escort vehicle",team:"blue",isBot:false,
+    pos:[...state.escortPos] as Vec3,yaw:0,pitch:0,health:state.escortHp!,alive:true,weaponId:"rifle_m4",
+    weaponSkinId:"default",playerSkinId:"",kills:0,deaths:0,lastShotAt:0};
+}
+function roomCombatantById(room:Room,id:string):PlayerNet|undefined {
+  return id===OPERATION_ESCORT_TARGET_ID?operationEscortTarget(room)??undefined:room.bots.get(id)??room.players.get(id);
+}
+function allCombatantsWithEscort(room:Room):PlayerNet[] {
+  const escort=operationEscortTarget(room);
+  return escort?[...allCombatants(room),escort]:allCombatants(room);
+}
+
 // Shared limb-inclusive humanoid ray collision (see combat-hitboxes.ts).
 
 // ---- LOS & hit detection ----------------------------------------------------
@@ -1019,10 +1035,15 @@ function fireRay(room: Room, attackerId: string, origin: Vec3, dir: Vec3, weapon
   const attacker = room.players.get(attackerId) ?? room.bots.get(attackerId);
   const attackerTeam = attacker?.team;
   let nearest: { victim: PlayerNet; t: number; head: boolean; shield?: boolean } | null = null;
-  for (const p of allCombatants(room)) {
+  for (const p of allCombatantsWithEscort(room)) {
     if (p.id === attackerId) continue;
     if (!p.alive) continue;
     if (room.config.friendlyFire === false && p.team === attackerTeam && room.mode !== "ffa" && room.mode !== "gungame") continue;
+    if(p.id===OPERATION_ESCORT_TARGET_ID){
+      const cartHit=rayBox(origin,dir,[p.pos[0],p.pos[1]+.85,p.pos[2]],[2,1.5,3]);
+      if(cartHit!==null&&cartHit>=0&&cartHit<=range*falloffEndMultiplier&&(!nearest||cartHit<nearest.t))nearest={victim:p,t:cartHit,head:false};
+      continue;
+    }
     const panel=rayRiotShield(origin,dir,p);
     if(panel!==null&&panel<=range*falloffEndMultiplier&&(!nearest||panel<nearest.t))nearest={victim:p,t:panel,head:false,shield:true};
     const hit = rayCombatantHit(origin, dir, p.pos);
@@ -1139,18 +1160,18 @@ function firePenetratingRay(room: Room, attackerId: string, origin: Vec3, dir: V
   const attacker = room.players.get(attackerId) ?? room.bots.get(attackerId);
   const maxDistance = maxWeaponHitRange(range, eff);
   const contacts: BodyRayContact<PlayerNet>[] = [];
-  for (const target of allCombatants(room)) {
+  for (const target of allCombatantsWithEscort(room)) {
     if (!target.alive || target.id === attackerId) continue;
     if (room.config.friendlyFire === false && target.team === attacker?.team &&
         room.mode !== "ffa" && room.mode !== "gungame") continue;
-    const panel = rayRiotShield(origin, dir, target);
-    const body = rayCombatantHit(origin, dir, target.pos);
-    const shieldFirst = panel !== null && panel >= 0 && (!body || panel < body.t);
-    const t = shieldFirst ? panel! : body?.t;
-    if (t === undefined) continue;
-    contacts.push({ target, t, head: shieldFirst ? false : !!body?.head,
-      shield: shieldFirst,
-      protected: (target.spawnProtectedUntil ?? 0) > Date.now() });
+    const cart=target.id===OPERATION_ESCORT_TARGET_ID;
+    const panel=cart?null:rayRiotShield(origin,dir,target);
+    const body=cart?null:rayCombatantHit(origin,dir,target.pos);
+    const cartHit=cart?rayBox(origin,dir,[target.pos[0],target.pos[1]+.85,target.pos[2]],[2,1.5,3]):null;
+    const shieldFirst=panel!==null&&panel>=0&&(!body||panel<body.t);
+    const t=cart?cartHit:shieldFirst?panel!:body?.t;
+    if(t===undefined||t===null||t<0)continue;
+    contacts.push({target,t,head:shieldFirst?false:!!body?.head,shield:shieldFirst,protected:(target.spawnProtectedUntil??0)>Date.now()});
   }
   const resolved=resolveMaterialPenetrationShot(contacts,coverForRay(room,origin,dir,maxDistance),origin,dir,maxDistance,
       eff.bodyPenetration,eff.coverPenetration,phasebreaker);
@@ -1478,7 +1499,7 @@ function applyMeleeStrike(room:Room,attacker:PlayerNet,weaponId:string,now:numbe
     ? riotBashProfile() : quickMeleeProfile(weapon.stats,weaponId);
   destroyTurretsHitByMelee(room,attacker,attack.reach);
   const target=chooseQuickMeleeTarget(attacker.pos,attacker.yaw,
-    allCombatants(room).filter(c=>c.id!==attacker.id).map(c=>({
+    allCombatantsWithEscort(room).filter(c=>c.id!==attacker.id).map(c=>({
       id:c.id,pos:c.pos,alive:c.alive,
       protected:(c.spawnProtectedUntil??0)>now,
       friendly:room.config.friendlyFire===false&&room.mode!=="ffa"&&room.mode!=="gungame"&&c.team===attacker.team,
@@ -1488,12 +1509,12 @@ function applyMeleeStrike(room:Room,attacker:PlayerNet,weaponId:string,now:numbe
       const dir:Vec3=[(c.pos[0]-attacker.pos[0])/dist,0,(c.pos[2]-attacker.pos[2])/dist];
       return !losBlocked(room,eye,dir,Math.max(.01,dist-.15));
     },attack.reach,attack.halfArcDegrees);
-  const victim=target?(room.players.get(target.id)??room.bots.get(target.id)):null;
+  const victim=target?roomCombatantById(room,target.id)??null:null;
   const hitIds:string[]=[];
   if(victim){
     hitIds.push(victim.id);
     applyDamage(room,attacker.id,victim,attack.damage,false,weaponId);
-    if(weaponId===RIOT_SHIELD_ID && victim.alive){
+    if(weaponId===RIOT_SHIELD_ID && victim.alive && victim.id!==OPERATION_ESCORT_TARGET_ID){
       const dx=victim.pos[0]-attacker.pos[0],dz=victim.pos[2]-attacker.pos[2];
       const dist=Math.hypot(dx,dz)||1;
       const pushed:Vec3=[victim.pos[0]+dx/dist*RIOT_BASH_KNOCKBACK,
@@ -1863,6 +1884,10 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
   // Boss armor: prevents burst weapons from trivializing boss encounters.
   if (fellInLava) dmg = victim.health;
   else if (room.mode === "survival" && room.bots.get(victim.id)?.ai.boss) dmg *= 0.80;
+  if(victim.id===OPERATION_ESCORT_TARGET_ID){
+    if(room.operation)room.operation=damageOperationEscort(room.operation,dmg);
+    return;
+  }
   if(room.mode==="survival"&&!fellInLava){
     if(attacker&&!attacker.isBot&&victim.isBot){
       const now=Date.now();
@@ -2449,6 +2474,10 @@ function startSurvivalWave(room: Room,reinforcement=false) {
   const encounter=room.operation ? operationEncounter(operationById(room.operation.missionId)!,room.operation.stage,room.botDifficulty,room.players.size,room.operation.optionalChallengeStatus==='failed'):undefined;
   const count=(reinforcement ? encounter?.reinforcementCount : encounter?.count) ?? Math.min(40,Math.ceil(baseCount*mutators.spawnMul))+(mutators.boss ? 1 : 0);
   const hpMul = survivalWaveHealthMul(room.wave)*mutators.healthMul;
+  const bossWave=mutators.boss||!!encounter?.boss;
+  const commanderObjective=encounter?.boss&&room.operation?operationById(room.operation.missionId)?.objectives[room.operation.stage]:undefined;
+  const commanderSite=commanderObjective?operationSite(room.map,commanderObjective.site):undefined;
+  const escortPos=room.operation?.escortPos;
   // Match archetypes to any eligible standard weapon, not a legacy fixed list.
   const skinRotation = Math.floor(Math.random()*BOT_OPERATIVE_SKINS.length);
   const waveDiff=room.operation?.difficulty==='mixed'?resolveBotDifficulty(room):encounter?.difficulty ?? survivalBotDifficulty(room.config.survivalTier ?? "default",room.wave);
@@ -2458,10 +2487,15 @@ function startSurvivalWave(room: Room,reinforcement=false) {
     // Use FFA spawn list (spread across the whole map) instead of red-team-only
     // spawns (one side only). This prevents all bots from swarming from one
     // direction.
-    const sp = pickSpawn("ffa", room);
+    const commanderSpawn=bossWave&&n===count-1&&commanderSite?room.map.spawns.ffa
+      .filter(pos=>Math.hypot(pos[0]-commanderSite[0],pos[2]-commanderSite[2])>6&&
+        (!escortPos||Math.hypot(pos[0]-escortPos[0],pos[2]-escortPos[2])>6)&&
+        allCombatants(room).every(actor=>!actor.alive||Math.hypot(pos[0]-actor.pos[0],pos[2]-actor.pos[2])>6))
+      .sort((a,b)=>Math.hypot(a[0]-commanderSite[0],a[2]-commanderSite[2])-Math.hypot(b[0]-commanderSite[0],b[2]-commanderSite[2]))[0]:undefined;
+    const sp=commanderSpawn?[...commanderSpawn] as Vec3:pickSpawn("ffa",room);
     const loadout = botLoadout(undefined,n,"survival",room.wave);
-    const boss = mutators.boss && n === count-1;
-    const elite = !boss && room.wave>=5 && room.wave%5===0 && n===count-(mutators.boss?2:1);
+    const boss = bossWave && n === count-1;
+    const elite = !boss && !bossWave && room.wave>=5 && room.wave%5===0 && n===count-1;
     const role=survivalRoleForSlot(encounter?.roleWave ?? room.wave,n,boss,elite);
     if(role){loadout.perkId="steady";loadout.wonderWeaponId=undefined;}
     loadout.playerSkinId = boss ? SURVIVAL_BOSS_SKIN_ID : botOperativeSkinId(n,skinRotation);
@@ -2481,7 +2515,7 @@ function startSurvivalWave(room: Room,reinforcement=false) {
     const bot: PlayerNet & { ai: BotAI; loadout: LoadoutWire } = {
       survivalRole:role,survivalAbilityLeft:role==="engineer"?6:4,
       survivalMaxHealth:Math.round(MAX_HEALTH*hpMul*(boss?6:elite?2.2:survivalRoleHealthMultiplier(role))),
-      id, name: role ? `${SURVIVAL_ROLE_INFO[role].label} · W${room.wave}` : boss ? `BOSS · W${room.wave}` : elite ? `ELITE · W${room.wave}` : `W${room.wave}·${n + 1}`, team: "red", isBot: true,
+      id, name: role ? `${SURVIVAL_ROLE_INFO[role].label} · W${room.wave}` : boss ? (encounter?.boss ? "COMMANDER · ZERO HOUR" : `BOSS · W${room.wave}`) : elite ? `ELITE · W${room.wave}` : `W${room.wave}·${n + 1}`, team: "red", isBot: true,
       pos: sp, yaw: 0, pitch: 0, health: Math.round(MAX_HEALTH * hpMul * (boss ? 6 : elite ? 2.2 : survivalRoleHealthMultiplier(role))), alive: true,
       bossMaxHealth:boss?Math.round(MAX_HEALTH*hpMul*6):undefined,
       eliteMaxHealth:elite?Math.round(MAX_HEALTH*hpMul*2.2):undefined,
@@ -2796,11 +2830,21 @@ function tickRoomSimulation(room: Room) {
       } else if (room.waveActive) {
         const aliveBots = [...room.bots.values()].filter((b) => b.alive).length;
         tickRoomSurvivalEncounters(room,1/20);
-        const previousStage=room.operation?.stage,previousPulse=room.operation?.pulse;
+        const previousOperation=room.operation,previousStage=room.operation?.stage,previousPulse=room.operation?.pulse;
         if(room.operation){
           room.operation=tickOperation(room.operation,room.map,
             [...room.players.values()].map(p=>({id:p.id,pos:p.pos,alive:p.alive&&!room.downed.has(p.id),kills:p.kills})),
             [...room.bots.values()].map(p=>({id:p.id,pos:p.pos,alive:p.alive})),1/20);
+          if(!previousOperation?.escortComplete&&room.operation.escortComplete&&
+            room.operation.escortPayload?.toLowerCase()==='juggernaut'&&room.operation.escortPos){
+            const cart=room.operation.escortPos,yaw=room.operation.escortYaw??0;
+            const pos=juggernautDropPoint(cart,yaw,room.map.cover,room.map.size)??
+              juggernautDropPoint(cart,yaw+Math.PI/2,room.map.cover,room.map.size)??[...cart] as Vec3;
+            const id=genId("mech"),landAt=Date.now()+JUGGERNAUT_DROP_MS;
+            const drop={id,ownerId:"operation",pos,landAt,expiresAt:landAt+25000,moduleId:"",landed:false};
+            room.mechDrops.set(id,drop);
+            io.to(room.id).emit("message",{t:"mechDrop",...drop} as S2C);
+          }
           if(room.operation.status!=="active"){room.waveActive=false;endMatch(room);return;}
           if(room.operation.stage===previousStage&&room.operation.pulse!==previousPulse)startSurvivalWave(room,true);
         }
@@ -2938,7 +2982,7 @@ function nearestEnemy(room: Room, p: PlayerNet): PlayerNet | null {
   const previous=cache.get(p.id);
   if(previous&&now<previous.nextAt){
     if(previous.targetId===null)return null;
-    const target=room.bots.get(previous.targetId)??room.players.get(previous.targetId);
+    const target=roomCombatantById(room,previous.targetId);
     if(target?.alive)return target;
   }
   let best: PlayerNet | null = null;
@@ -2949,20 +2993,22 @@ function nearestEnemy(room: Room, p: PlayerNet): PlayerNet | null {
   const awareness=room.operation?operationAwarenessMultiplier(room.operation):1;
   const radius=Math.min(botDetectionRange(room.bots.get(p.id)?.ai.difficulty??"normal",weaponById(p.weaponId).category)*botAwarenessPerkMultiplier(room.loadouts.get(p.id)?.perkId)*awareness,
     room.map.id==="whiteout_depot"?whiteoutVisibility(room.environmentTime,p.pos):Infinity);
-  const candidates=room.actorIndex?.near(p.pos[0],p.pos[2],radius)
-    .sort((a,b)=>Number(a.isBot)-Number(b.isBot))??allCombatants(room);
+  const escort=operationEscortTarget(room);
+  const candidates=[...(room.actorIndex?.near(p.pos[0],p.pos[2],radius)
+    .sort((a,b)=>Number(a.isBot)-Number(b.isBot))??allCombatants(room)),...(escort?[escort]:[])];
   for (const e of candidates) {
     if (e.id === p.id || !e.alive || (room.mode === "survival" && (e.isBot || room.downed.has(e.id)))) continue;
     if (e.team === p.team && room.mode !== "ffa" && room.mode !== "gungame") continue;
     const d = Math.hypot(e.pos[0] - p.pos[0], e.pos[2] - p.pos[2]);
-    if (d >= bestD) continue;
+    const priorityDistance=e.id===OPERATION_ESCORT_TARGET_ID?d*.78:d;
+    if (priorityDistance >= bestD) continue;
     // Only acquire targets within the bot's engagement range AND with clear LoS.
     if (d > Math.min(botDetectionRange(room.bots.get(p.id)?.ai.difficulty??"normal",weaponById(p.weaponId).category)*botAwarenessPerkMultiplier(room.loadouts.get(p.id)?.perkId)*awareness,
       room.map.id==="whiteout_depot"?whiteoutVisibility(room.environmentTime,p.pos):Infinity)) continue;
     const fromY = p.pos[1] + PLAYER_HEIGHT / 2;
     const toY = e.pos[1] + PLAYER_HEIGHT / 2;
     if (!hasLineOfSight(room, [p.pos[0], fromY, p.pos[2]], [e.pos[0], toY, e.pos[2]])) continue;
-    bestD = d;
+    bestD = priorityDistance;
     best = e;
   }
   cache.set(p.id,{targetId:best?.id??null,nextAt:now+130+botRouteJitter(p.id,90)});
@@ -3083,7 +3129,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         if(anchor&&anchor.expiresAt>now){
           if(room.loadouts.get(p.id)?.wonderModuleId==="residual_beacon"){
             const origin:Vec3=[...anchor.pos] as Vec3;
-            const ids=allCombatants(room).filter(e=>e.alive&&e.id!==p.id&&
+            const ids=allCombatantsWithEscort(room).filter(e=>e.alive&&e.id!==p.id&&
               (room.mode==="ffa"||room.mode==="gungame"||e.team!==p.team)&&
               Math.hypot(e.pos[0]-origin[0],e.pos[2]-origin[2])<12&&
               hasLineOfSight(room,origin,[e.pos[0],e.pos[1]+1,e.pos[2]])).map(e=>e.id);
@@ -3301,7 +3347,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         const feet:Vec3=[...p.pos],radius=weapon.wonder.radius||8;
         const center:Vec3=[feet[0],feet[1]+.12,feet[2]];
         io.to(room.id).emit("message",{t:"wonderBeam",from:center,to:center,kind:"seismic"} as S2C);
-        for(const target of allCombatants(room)){
+        for(const target of allCombatantsWithEscort(room)){
           if(target.id===p.id||!target.alive||(!room.config.friendlyFire&&room.mode!=="ffa"&&room.mode!=="gungame"&&target.team===p.team))continue;
           if(!seismicPulseHit(feet,target.pos,radius))continue;
           if(!hasLineOfSight(room,[feet[0],feet[1]+1,feet[2]],[target.pos[0],target.pos[1]+1,target.pos[2]]))continue;
@@ -3320,7 +3366,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         const range=eff.range,cosine=Math.cos(.20*module.radiusMul);
         const end:Vec3=[msg.origin[0]+shotDir[0]*range,msg.origin[1]+shotDir[1]*range,msg.origin[2]+shotDir[2]*range];
         io.to(room.id).emit("message",{t:"wonderBeam",from:msg.origin,to:end,kind:"cryo"} as S2C);
-        for(const target of allCombatants(room)){
+        for(const target of allCombatantsWithEscort(room)){
           if(target.id===p.id||!target.alive||(!room.config.friendlyFire&&room.mode!=="ffa"&&room.mode!=="gungame"&&target.team===p.team))continue;
           const point:Vec3=[target.pos[0],target.pos[1]+1,target.pos[2]];
           if(!wonderConeHit(msg.origin,shotDir,point,range,cosine)||!hasLineOfSight(room,msg.origin,point))continue;
@@ -3344,7 +3390,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
           if(distance<.05)continue;
           const d:Vec3=[toVec[0]/distance,toVec[1]/distance,toVec[2]/distance];
           io.to(room.id).emit("message",{t:"wonderBeam",from:segment.from,to:segment.to,kind:"ripper"} as S2C);
-          for(const target of allCombatants(room)){
+          for(const target of allCombatantsWithEscort(room)){
             if(!target.alive||target.id===p.id||hitIds.has(target.id)||(!room.config.friendlyFire&&room.mode!=="ffa"&&room.mode!=="gungame"&&target.team===p.team))continue;
             const hit=rayCapsule(segment.from,d,[target.pos[0],target.pos[1]+1,target.pos[2]],PLAYER_RADIUS,PLAYER_HEIGHT);
             if(hit&&hit.t<=distance){hitIds.add(target.id);
@@ -3366,7 +3412,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         // One smart shot strikes every marked exposed target (up to three).
         // Cover, teams and spawn protection are checked authoritatively.
         const marks=(room.smartTags.get(p.id)??[]).filter(t=>t.expiresAt>now);
-        const victims=marks.map(t=>allCombatants(room).find(c=>c.id===t.id))
+        const victims=marks.map(t=>allCombatantsWithEscort(room).find(c=>c.id===t.id))
           .filter((c):c is PlayerNet=>!!c&&c.alive&&
             (!c.spawnProtectedUntil||c.spawnProtectedUntil<=now)&&
             (room.config.friendlyFire||room.mode==="ffa"||room.mode==="gungame"||c.team!==p.team)&&
@@ -3392,7 +3438,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
       }
       if(weapon.wonder?.kind==="flame"){
         const len=Math.hypot(...shotDir)||1,dir:Vec3=[shotDir[0]/len,shotDir[1]/len,shotDir[2]/len];
-        for(const victim of allCombatants(room)){
+        for(const victim of allCombatantsWithEscort(room)){
           if(victim.id===p.id||!victim.alive||(!room.config.friendlyFire&&room.mode!=="ffa"&&room.mode!=="gungame"&&victim.team===p.team))continue;
           const target:Vec3=[victim.pos[0],victim.pos[1]+1,victim.pos[2]];
           if(wonderConeHit(msg.origin,dir,target,eff.range,Math.cos(70*Math.PI/180*module.radiusMul))&&
@@ -3407,7 +3453,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         const impact=serverBoltLanding(room,p.id,msg.origin,shotDir,eff.range);
         const point:Vec3=[impact[0],p.pos[1]+.12,impact[2]];
         placeWonderField(room,p,weapon.id,"sludge",point,weapon.wonder.radius,now,8500);
-        for(const victim of allCombatants(room)){
+        for(const victim of allCombatantsWithEscort(room)){
           if(victim.id===p.id||!victim.alive||(!room.config.friendlyFire&&room.mode!=="ffa"&&room.mode!=="gungame"&&victim.team===p.team))continue;
           if(Math.hypot(victim.pos[0]-point[0],victim.pos[2]-point[2])<=weapon.wonder.radius&&
             hasLineOfSight(room,[point[0],point[1]+.5,point[2]],[victim.pos[0],victim.pos[1]+1,victim.pos[2]]))
@@ -3426,7 +3472,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
           // Lightning is only emitted by serverStormChain from the impact victim
           // to the next target, never as a bogus arc from the firing muzzle.
           if(impact.victim){
-            const victim=allCombatants(room).find(c=>c.id===impact.victim!.id);
+            const victim=allCombatantsWithEscort(room).find(c=>c.id===impact.victim!.id);
             if(victim?.alive){
               const count=hits.get(victim.id)??0;
               if(count<STORM_MAX_DIRECT_HITS_PER_TARGET){
@@ -3460,7 +3506,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         let impactT = eff.range;
         const coverImpact = closestCoverHit(coverForRay(room,msg.origin,dir,impactT), msg.origin, dir, impactT, rayBox);
         if (coverImpact) impactT = coverImpact.distance;
-        for (const e of allCombatants(room)) {
+        for (const e of allCombatantsWithEscort(room)) {
           if (e.id === p.id || !e.alive) continue;
           if (!blastCanDamage(p.id,p.team,e.id,e.team,room.mode)) continue;
           const center: Vec3 = [e.pos[0], e.pos[1] + PLAYER_HEIGHT / 2, e.pos[2]];
@@ -3476,7 +3522,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         // A gravity projectile should bloom beside an enemy near the crosshair,
         // not keep flying to the distant back wall on a slight aim miss.
         if (weapon.wonder?.kind === "singularity") {
-          const candidates = allCombatants(room).filter(e => e.id !== p.id && e.alive &&
+          const candidates = allCombatantsWithEscort(room).filter(e => e.id !== p.id && e.alive &&
             (room.mode === "ffa" || room.mode === "gungame" || e.team !== p.team))
             .map(e => [e.pos[0], e.pos[1] + PLAYER_HEIGHT / 2, e.pos[2]] as Vec3);
           const targetT = gravityTargetDistance(msg.origin, dir, candidates, impactT);
@@ -3508,7 +3554,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         const splashRadius = projectileSplashRadius(weapon)*module.radiusMul;
         // Rockets keep trajectory near misses, but blast LOS now starts
         // at the closest travelled point and cannot pass through hard cover.
-        for (const e of allCombatants(room)) {
+        for (const e of allCombatantsWithEscort(room)) {
           if (!e.alive) continue;
           if (!blastCanDamage(p.id,p.team,e.id,e.team,room.mode)) continue;
           const cx = e.pos[0], cy = e.pos[1] + PLAYER_HEIGHT / 2, cz = e.pos[2];
@@ -3804,7 +3850,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     if (Math.random() < 0.4) ai.strafeDir = -ai.strafeDir;
   }
 
-  const candidate = ai.targetId ? (room.players.get(ai.targetId) ?? room.bots.get(ai.targetId)) : null;
+  const candidate = ai.targetId ? roomCombatantById(room,ai.targetId) : null;
   // Never track/fight an opponent behind cover even before the next AI
   // decision. Only refreshed visible positions can enter the memory.
   const candidateDist=candidate?Math.hypot(candidate.pos[0]-bot.pos[0],candidate.pos[2]-bot.pos[2]):Infinity;

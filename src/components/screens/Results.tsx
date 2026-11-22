@@ -21,7 +21,7 @@ function unlockedGearLabel(id: string): string {
 }
 
 export function Results() {
-  const { matchResult, profile, setScreen, playConfig, roomConnect } = useGame();
+  const { matchResult, profile, setScreen, setMatchResult, playConfig, roomConnect } = useGame();
   if (!matchResult) {
     setScreen("menu");
     return null;
@@ -50,6 +50,7 @@ export function Results() {
   const hsPct = r.kills > 0 ? Math.round((r.headshots / r.kills) * 100) : 0;
   const mission=operationById(r.operation?.missionId);
   const followingMission=mission?nextOperation(mission.id):undefined;
+  const operationFailed=!!mission&&r.operation?.status==='failed'&&!leftEarly;
   const isSurvival = playConfig.mode === "survival"&&!mission;
 
   return (
@@ -103,7 +104,11 @@ export function Results() {
               {index===2&&<span className="ml-auto text-[10px] uppercase tracking-wider text-white/35">{r.operation!.difficulty}</span>}
             </div>)}
           </div>
-          <p className="text-white/50 text-sm mt-3">Intel {r.operation.intel ? "recovered":"not recovered"}{mission.optionalChallenge ? ` · ${r.operation.optionalChallengeStatus==='complete'?'Alarm prevented':r.operation.optionalChallengeStatus==='failed'?'Alarm triggered':'Alarm unresolved'}`:''} · Objectives {r.operation.stage}/{mission.objectives.length} · Campaign progress syncs to your player account.</p>
+          <p className="text-white/50 text-sm mt-3">
+            <span className={r.operation.intel ? "text-emerald-300 font-semibold" : "text-white/50"}>Intel {r.operation.intel ? "recovered":"not recovered"}</span>
+            {mission.optionalChallenge&&<> · <span className={r.operation.optionalChallengeStatus==='complete'?"text-emerald-300 font-semibold":r.operation.optionalChallengeStatus==='failed'?"text-rose-300":"text-amber-200"}>{r.operation.optionalChallengeStatus==='complete'?'Alarm prevented':r.operation.optionalChallengeStatus==='failed'?'Alarm triggered':'Alarm unresolved'}</span></>}
+            {" · "}Objectives {r.operation.stage}/{mission.objectives.length} · Campaign progress syncs to your player account.
+          </p>
         </div>}
         {isSurvival && (
           <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4 mb-4 text-center">
@@ -366,6 +371,9 @@ export function Results() {
         </div>
 
         <RoomRoundPanel results />
+        {operationFailed&&!playConfig.online&&<Button onClick={()=>{setMatchResult(null);setScreen("playing");}} className="w-full mb-3 bg-emerald-700 hover:bg-emerald-600 text-white font-bold h-12">
+          <RotateCcw className="w-4 h-4 mr-2" /> Quick Restart
+        </Button>}
         {mission&&r.won&&followingMission&&<Button
           onClick={() => setScreen("operations")}
           className="w-full mb-3 bg-amber-500 hover:bg-amber-400 text-black font-bold h-12"

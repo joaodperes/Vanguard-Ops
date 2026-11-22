@@ -42,8 +42,8 @@ export function RoomRoundPanel({ results = false }: { results?: boolean }) {
     {results && <>
       <p className="text-xs text-white/60">{status.players.map(p => `${p.name}${p.id === status.hostSocketId ? " (host)" : ""}`).join(" · ")}</p>
       {isHost ? <Button disabled={saving || !roomSocketConnected()} onClick={() => roomSend({ t: "startMatch" })} className="w-full bg-amber-600 hover:bg-amber-500">
-        {saving ? `Saving results · ${status.ready.length}/${status.players.length} ready` : mission ? "Replay mission":"Start next round"}
-      </Button> : <p className="text-sm text-amber-200" role="status">{saving ? "Saving results…" : "Waiting for the host to start the next round."}</p>}
+        {saving ? `Saving results · ${status.ready.length}/${status.players.length} ready` : mission ? (status.operationComplete ? "Replay mission":"Quick restart") : "Start next round"}
+      </Button> : <p className="text-sm text-amber-200" role="status">{saving ? "Saving results…" : mission&&!status.operationComplete ? "Waiting for the host to quick restart the mission." : "Waiting for the host to start the next round."}</p>}
       {isHost&&next&&<Button disabled={saving||!roomSocketConnected()} onClick={()=>roomSend({t:"startMatch",advanceOperation:true})} className="w-full bg-emerald-700 hover:bg-emerald-600">Next mission · {next.title}</Button>}
     </>}
   </section>;
