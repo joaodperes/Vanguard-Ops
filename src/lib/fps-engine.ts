@@ -13292,7 +13292,7 @@ export class FPSEngine {
     const escort=this.operationEscortTarget();
     const candidates = [...this.combatants.values(), selfC,...(escort?[escort]:[])];
     for (const e of candidates) {
-      if (e.id === attacker.id || !e.alive) continue;
+      if (e.id === attacker.id || e.id === "__operation_escort__" || !e.alive) continue;
       if (e.team === attacker.team && this.opts.mode !== "ffa" && this.opts.mode !== "gungame") continue;
       const panel = rayRiotShield(origin, dir, e);
       const body = rayCombatantHit(origin, dir, e.pos);
