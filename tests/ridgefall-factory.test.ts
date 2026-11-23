@@ -25,6 +25,7 @@ describe("Ridgefall factory redesign",()=>{
     expect(blueprint.features.filter(f=>f.kind==="stairs").length).toBeGreaterThanOrEqual(4);
     expect(blueprint.features.some(f=>f.kind==="cover"&&(f.y??0)>0)).toBe(true);
     expect(compiled.environment?.some(e=>e.type==="destructible_wall"&&e.id==="factory-blast-door")).toBe(true);
+    expect(compiled.environment?.some(e=>e.type==="fire"||e.type==="spikes")).toBe(false);
   });
   test("replaces alpine scenery with industrial props and materials",()=>{
     expect(theme.vegetation).toBe(0);
