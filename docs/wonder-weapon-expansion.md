@@ -1,6 +1,6 @@
 # Wonder Weapon mechanics
 
-The following Wonder abilities use their existing permanent Prestige-token unlocks and stable catalog IDs. Wonders now occupy slot 4 when the level-one Wonder Weapon perk is selected, replacing passive perks rather than conventional primary weapons. Every match starts with zero charges, recharge proceeds automatically even while dead, and neither death nor respawn provides ammunition. Ordinary kills accelerate recharge; changing a loadout also starts the selected Wonder at zero. Every shot/resource is validated on the match server; offline bot games mirror damage, collisions and special effects.
+The following Wonder abilities use their existing permanent Prestige-token unlocks and stable catalog IDs. Wonders now occupy slot 4 when the Wonder Weapon perk is selected (unlocked at level 40 or awarded by Operations Act 1), replacing passive perks rather than conventional primary weapons. Every match starts with zero charges, recharge proceeds automatically even while dead, and neither death nor respawn provides ammunition. Ordinary kills accelerate recharge; changing a loadout also starts the selected Wonder at zero. Every shot/resource is validated on the match server; offline bot games mirror damage, collisions and special effects.
 
 | Weapon | Behavior | Resource |
 | --- | --- | --- |

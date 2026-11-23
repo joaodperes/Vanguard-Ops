@@ -21,7 +21,7 @@ function unlockedGearLabel(id: string): string {
 }
 
 export function Results() {
-  const { matchResult, profile, setScreen, setMatchResult, playConfig, roomConnect } = useGame();
+  const { matchResult, profile, setScreen, playConfig, roomConnect, setRoomConnect, setPlayConfig, setMatchResult } = useGame();
   if (!matchResult) {
     setScreen("menu");
     return null;
@@ -33,6 +33,7 @@ export function Results() {
   const rawStandings = r.standings ?? [];
   const seenKeys = new Set<string>();
   const standings = rawStandings.filter((s) => {
+    if (r.operation && s.isBot) return false;
     const key = `${s.isBot ? "bot" : "human"}::${s.name}::${s.id}`;
     if (seenKeys.has(key)) return false;
     seenKeys.add(key);
@@ -92,10 +93,10 @@ export function Results() {
         {mission&&r.operation&&<div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-5 mb-4 text-center">
           <h2 className="text-xl font-bold text-amber-200">{r.won ? "OPERATION COMPLETE":leftEarly ? "OPERATION ABORTED":"OPERATION FAILED"}</h2>
           <p className="text-amber-300 text-2xl my-2" aria-label={`${operationStars(mission,r.operation,r.deaths)} of 3 stars`}>{"★".repeat(operationStars(mission,r.operation,r.deaths))}{"☆".repeat(3-operationStars(mission,r.operation,r.deaths))}</p>
-          <p className="text-white/70">{r.won ? mission.debrief:"Regroup, adjust your loadout and try again. Completed missions remain available."}</p>
+          {r.won && <p className="text-white/70">{mission.debrief}</p>}
           {(()=>{
             const pace=operationTimePerformance(mission,r.operation!.elapsed);
-            return <p className={`text-xs mt-2 ${pace.withinPar?'text-emerald-300':'text-amber-200'}`}>Mission time {formatOperationTime(pace.elapsedSeconds)} · Target {formatOperationTime(pace.parSeconds)} · {pace.withinPar?`${pace.deltaSeconds}s ahead`:`${pace.deltaSeconds}s over`}</p>;
+            return <p className={`text-xs mt-2 ${pace.withinPar?'text-emerald-300':'text-amber-200'}`}>Mission time {formatOperationTime(pace.elapsedSeconds)} · Target {formatOperationTime(pace.parSeconds)}</p>;
           })()}
           <div className="max-w-sm mx-auto mt-4 space-y-2 text-left">
             {operationStarCriteria(r.operation,r.deaths).map((criterion,index)=><div key={criterion.label} className="flex items-center gap-2 text-sm">
@@ -129,24 +130,20 @@ export function Results() {
           </div>
         )}
 
-        {mission ? (
+        {mission && (r.operationFirstClearRewards?.length ?? 0) > 0 ? (
           <div className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-5 mb-4">
             <h3 className="text-amber-200 text-xs uppercase tracking-widest mb-3 flex items-center gap-1.5"><Coins className="w-3 h-3" /> First Clear Rewards</h3>
-            {r.operationFirstClearRewards?.length ? (
-              <div className="space-y-2">
-                {r.operationFirstClearRewards.map(reward => {
-                  const rewardMission = operationById(reward.missionId);
-                  return <div key={reward.missionId} className="flex items-center justify-between gap-3 rounded-lg bg-white/5 px-3 py-2">
-                    <span className="text-sm text-white/80">{rewardMission?.title ?? "Mission"}</span>
-                    <span className="text-sm font-bold text-amber-200 text-right">+{reward.xp} XP · +{formatCredits(reward.credits)} CR</span>
-                  </div>;
-                })}
-              </div>
-            ) : (
-              <p className="text-white/55 text-sm">{r.operationRewardSyncPending ? "Campaign progress is waiting to sync. Return to Operations to retry the pending completion." : r.won ? "First-clear rewards are granted only on a mission’s first successful completion." : "Complete this mission to earn its first-clear reward."}</p>
-            )}
+            <div className="space-y-2">
+              {r.operationFirstClearRewards!.map(reward => {
+                const rewardMission = operationById(reward.missionId);
+                return <div key={reward.missionId} className="flex items-center justify-between gap-3 rounded-lg bg-white/5 px-3 py-2">
+                  <span className="text-sm text-white/80">{rewardMission?.title ?? "Mission"}</span>
+                  <span className="text-sm font-bold text-amber-200 text-right">+{reward.xp} XP · +{formatCredits(reward.credits)} CR</span>
+                </div>;
+              })}
+            </div>
           </div>
-        ) : (
+        ) : mission ? null : (
         <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-5 mb-4">
           <h3 className="text-white/50 text-xs uppercase tracking-widest mb-3 flex items-center gap-1.5"><Coins className="w-3 h-3" /> Rewards Earned</h3>
           {rewards ? (
@@ -379,6 +376,17 @@ export function Results() {
           className="w-full mb-3 bg-amber-500 hover:bg-amber-400 text-black font-bold h-12"
         >
           <Trophy className="w-4 h-4 mr-2" /> Continue campaign · {followingMission.title}
+        </Button>}
+        {mission&&r.operation?.status==='failed'&&(!roomConnect||roomConnect.kind==="create")&&<Button
+          onClick={() => {
+            setMatchResult(null);
+            setRoomConnect(roomConnect?.kind==="create"?roomConnect:null);
+            setPlayConfig({mode:"survival",operationId:mission.id,mapId:mission.mapId,online:roomConnect?.kind==="create",botCount:0,scoreLimit:0,timeLimit:0,botDifficulty:r.operation?.difficulty??playConfig.botDifficulty,survivalTier:"default"});
+            setScreen("playing");
+          }}
+          className="w-full mb-3 bg-emerald-500 hover:bg-emerald-400 text-black font-bold h-12"
+        >
+          <RotateCcw className="w-4 h-4 mr-2" /> Quick Restart · {mission.title}
         </Button>}
         <div className="flex flex-col sm:flex-row gap-3">
           <Button

@@ -1,5 +1,5 @@
 import {describe,expect,test} from 'bun:test';
-import {OPERATIONS,OPERATION_DEADLINE_SECONDS,operationFirstClearReward,createOperationState,operationById,nextOperation,operationConfigValid,operationSite,operationTarget,tickOperation,operationEncounter,operationAwarenessMultiplier,operationStars,operationStarCriteria,operationTimePerformance,formatOperationTime,operationActSummary,recordOperation,operationUnlocked,loadOperationProgress,operationFeedbackEvents,operationObjectiveTypeLabel,damageOperationEscort,type OperationActor,type OperationState} from '../src/lib/operations';
+import {OPERATIONS,OPERATION_DEADLINE_SECONDS,operationFirstClearReward,createOperationState,operationById,nextOperation,operationConfigValid,operationSite,operationTarget,tickOperation,operationEncounter,operationAwarenessMultiplier,operationStars,operationStarCriteria,operationTimePerformance,formatOperationTime,operationActSummary,recordOperation,operationUnlocked,operationActRewardForMission,OPERATION_ACT_REWARDS,loadOperationProgress,operationFeedbackEvents,type OperationActor,type OperationState} from '../src/lib/operations';
 import {getMap,type Vec3} from '../src/lib/game-protocol';
 import {makeEnvironmentMap} from '../src/lib/dynamic-environment';
 import {botPositionEmbedded} from '../src/lib/bot-physics';
@@ -20,6 +20,7 @@ describe('Operations campaign',()=>{
    for(const g of [...m.objectives,{site:15}]){const p=operationSite(compiled,g.site);expect(p.every(Number.isFinite)).toBe(true);expect(botPositionEmbedded(compiled.cover,p)).toBe(false);if('startSite' in g&&g.startSite!==undefined){const start=operationSite(compiled,g.startSite);expect(start.every(Number.isFinite)).toBe(true);expect(botPositionEmbedded(compiled.cover,start)).toBe(false);}}
    expect(operationEncounter(m,0).count).toBe(4+m.intensity);
   }
+  expect(operationTarget(createOperationState(first.id),map)).toBeUndefined(); // Elimination objectives have no defend/escort waypoint.
   expect(operationById('__proto__')).toBeUndefined();expect(operationConfigValid({operationId:'missing',mode:'survival',mapId:'compound'})).toBe(false);
  });
  test('every mission has a distinct authored optional intel objective at a valid site',()=>{
@@ -65,12 +66,27 @@ describe('Operations campaign',()=>{
   expect(advance(s,[actor(p)],[actor(p,'guard')]).progress).toBe(0);expect(advance(s,[actor(p)],[],45).stage).toBe(2);
   expect(advance(s,[actor(p)],[actor([p[0]+40,p[1],p[2]],'guard')],50).stage).toBe(1);
  });
- test('solo carrier can recover their own dropped package and deliver it',()=>{
-  let s={...createOperationState(first.id),stage:2};const pickup=operationTarget(s,map)!;
-  s=advance(s,[actor(pickup,'solo')],[],5);expect(s.stage).toBe(3);expect(s.carrierId).toBe('solo');
-  s=advance(s,[actor(pickup,'solo',false)]);expect(s.carrierId).toBeUndefined();expect(s.packagePos).toEqual(pickup);
-  s=advance(s,[actor(pickup,'solo')]);expect(s.carrierId).toBe('solo');
-  const delivery=operationTarget(s,map)!;s=advance(s,[actor(delivery,'solo')],[],8);expect(s.stage).toBe(4);expect(s.carrierId).toBeUndefined();
+ test('escort objectives move a durable cart only with a nearby operative and enemies damage it',()=>{
+  const mission=operationById('cold_trail')!,compiled=getMap(mission.mapId,'survival');
+  const start=operationSite(compiled,mission.objectives[1].site),destination=operationSite(compiled,mission.objectives[2].site);
+  let s:OperationState={...createOperationState(mission.id),stage:2,escortPos:[...start],escortHp:450,escortMaxHp:450};
+  const distance=(p:Vec3)=>Math.hypot(destination[0]-p[0],destination[2]-p[2]);
+  const before=[...s.escortPos!];
+  s=tickOperation(s,compiled,[actor([start[0]+30,start[1],start[2]])],[],1);
+  expect(s.escortPos).toEqual(before);
+  s=tickOperation(s,compiled,[actor(s.escortPos!,'escort')],[],1);
+  expect(distance(s.escortPos!)).toBeLessThan(distance(before));
+  const hp=s.escortHp!;
+  s=tickOperation(s,compiled,[actor(s.escortPos!,'escort')],[actor(s.escortPos!,'guard')],1);
+  expect(s.escortHp).toBeLessThan(hp);
+  expect(s.escortMaxHp).toBeGreaterThan(100);
+ });
+ test('escort destruction fails the operation',()=>{
+  const mission=operationById('cold_trail')!,compiled=getMap(mission.mapId,'survival');
+  const start=operationSite(compiled,mission.objectives[1].site);
+  let escort:OperationState={...createOperationState(mission.id),stage:2,escortPos:[...start],escortHp:1,escortMaxHp:450};
+  escort=tickOperation(escort,compiled,[actor(start)],[actor(start,'guard')],1);
+  expect(escort.status).toBe('failed');
  });
  test('solo extraction needs the operator at the site for an uninterrupted timer',()=>{
   let s={...createOperationState(first.id),stage:4};const p=operationTarget(s,map)!,away:Vec3=[p[0]+20,p[1],p[2]];
@@ -136,7 +152,7 @@ describe('Operations campaign',()=>{
  test('every mission has a valid solo completion path',()=>{
   for(const mission of OPERATIONS){
    const m=getMap(mission.mapId,'survival');let s=createOperationState(mission.id),budget=2000,kills=0;
-   while(s.status==='active'&&budget-->0){const goal=mission.objectives[s.stage];const p=operationTarget(s,m)??operationSite(m,goal?.site??0);if(goal?.kind==='defend'&&goal.killTarget)kills=(s.objectiveKillBaseline??0)+goal.killTarget;s=tickOperation(s,m,[actor(p,'solo',true,kills)],[],1);}
+   while(s.status==='active'&&budget-->0){const goal=mission.objectives[s.stage];const p=goal?.kind==='deliver'?(s.escortPos??s.packagePos??operationSite(m,mission.objectives[Math.max(0,s.stage-1)].site)):(operationTarget(s,m)??operationSite(m,goal?.site??0));if(goal?.kind==='defend'&&goal.killTarget)kills=(s.objectiveKillBaseline??0)+goal.killTarget;s=tickOperation(s,m,[actor(p,'solo',true,kills)],[],1);}
    expect(s.status).toBe('won');expect(s.stage).toBe(mission.objectives.length);
   }
  });
@@ -221,6 +237,13 @@ describe('Operations campaign',()=>{
   expect(formatOperationTime(599)).toBe('9:59');
   expect(formatOperationTime(600)).toBe('10:00');
   expect(formatOperationTime(-5)).toBe('0:00');
+ });
+ test('act completion rewards are attached only to each act finale',()=>{
+  expect(operationActRewardForMission('cold_trail')).toEqual(OPERATION_ACT_REWARDS[0]);
+  expect(operationActRewardForMission('relay_siege')).toEqual(OPERATION_ACT_REWARDS[1]);
+  expect(operationActRewardForMission('zero_hour')).toEqual(OPERATION_ACT_REWARDS[2]);
+  expect(operationActRewardForMission('silent_entry')).toBeUndefined();
+  expect(OPERATION_ACT_REWARDS.map(reward=>reward.itemId)).toEqual(['wonder_weapon','pistol_arc','wonder_juggernaut']);
  });
  test('act summaries count only that act and aggregate earned stars',()=>{
   const p=recordOperation({}, {...createOperationState('silent_entry','veteran'),status:'won',elapsed:300,intel:true},0);

@@ -60,6 +60,8 @@ model Player {
   /// Account-linked campaign records and completion request deduplication.
   operationsProgress String @default("{}")
   operationsRuns String @default("[]")
+  /// Permanent Operations act-completion reward IDs; independent of browser imports.
+  operationsActRewards String @default("[]")
 
   user            User?
   weaponUnlocks   WeaponUnlock[]

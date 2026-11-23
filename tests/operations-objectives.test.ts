@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { MapDef } from "../src/lib/game-protocol";
-import { createOperationState, operationById, operationSite, operationTarget, tickOperation } from "../src/lib/operations";
+import { createOperationState, damageOperationEscort, operationById, operationEncounter, operationSite, operationTarget, tickOperation } from "../src/lib/operations";
 
 const map = {
   spawns: {
@@ -68,4 +68,27 @@ describe("Operations objective types", () => {
       escortPos: [3, 0, 4] as [number, number, number] };
     expect(operationTarget(state, map)).toEqual([3, 0, 4]);
   });
+  test("player and hostile hits reduce shared escort health and destruction fails the mission", () => {
+    const state = { ...createOperationState("freight_intercept"), stage: 1 };
+    const operative = { id: "p1", pos: operationSite(map, 6), alive: true };
+    const moving = tickOperation(state, map, [operative], [], 0);
+    const damaged = damageOperationEscort(moving, 325);
+    expect(damaged.escortHp).toBe(325);
+    const destroyed = damageOperationEscort(damaged, 325);
+    expect(destroyed.escortHp).toBe(0);
+    expect(tickOperation(destroyed, map, [operative], [], 0).status).toBe("failed");
+  });
+
+  test("Zero Hour separates Juggernaut escort from the final commander elimination", () => {
+    const mission = operationById("zero_hour")!;
+    const escort = mission.objectives.find(objective => objective.kind === "escort")!;
+    const commander = mission.objectives.find(objective => objective.boss)!;
+    expect(escort.startSite).toBeDefined();
+    expect(escort.payload).toBe("Juggernaut");
+    expect(commander.kind).toBe("eliminate");
+    expect(commander.site).toBeGreaterThan(0);
+    const encounter = operationEncounter(mission, mission.objectives.indexOf(commander), "veteran", 1, false);
+    expect(encounter?.boss).toBe(true);
+  });
+
 });

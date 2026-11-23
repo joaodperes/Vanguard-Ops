@@ -324,13 +324,13 @@ export function LoadoutSelector({ onSaved, onDirtyChange, compact, onCustomize, 
             </div>
             {openSlot === "perk" && (
               <div className="absolute z-40 left-0 right-0 mt-1 rounded-lg border border-white/15 bg-zinc-900/95 backdrop-blur shadow-2xl max-h-72 overflow-y-auto">
-                {PERKS.map(perk => <button key={perk.id} type="button" disabled={level < perk.unlockLevel} onClick={() => {
+                {PERKS.map(perk => <button key={perk.id} type="button" disabled={!perkUnlocked(perk.id, level, profile?.unlocks?.perks ?? [])} onClick={() => {
                     setPerkId(perk.id);
                     if (perk.id !== "well_prepared" && isPrimaryWeaponCategory(weaponById(secondary).category)) setSecondary("pistol_side");
                     setOpenSlot(null);
                   }}
-                  className={`w-full text-left px-3 py-2.5 text-xs flex flex-col gap-1 ${level < perk.unlockLevel ? "opacity-45 cursor-not-allowed" : "hover:bg-white/5"} ${perkId === perk.id ? "bg-amber-500/15 text-amber-300" : "text-white/80"}`}>
-                  <span className="font-semibold flex items-center justify-between gap-2">{perk.name}<span className={level >= perk.unlockLevel ? "text-emerald-300 text-[10px]" : "text-amber-300 text-[10px]"}>{perk.id === DEFAULT_PERK_ID ? "Default" : `LVL ${perk.unlockLevel}`}</span></span>
+                  className={`w-full text-left px-3 py-2.5 text-xs flex flex-col gap-1 ${!perkUnlocked(perk.id, level, profile?.unlocks?.perks ?? []) ? "opacity-45 cursor-not-allowed" : "hover:bg-white/5"} ${perkId === perk.id ? "bg-amber-500/15 text-amber-300" : "text-white/80"}`}>
+                  <span className="font-semibold flex items-center justify-between gap-2">{perk.name}<span className={perkUnlocked(perk.id, level, profile?.unlocks?.perks ?? []) ? "text-emerald-300 text-[10px]" : "text-amber-300 text-[10px]"}>{perk.id === DEFAULT_PERK_ID ? "Default" : perk.id === "wonder_weapon" && profile?.unlocks?.perks?.includes("wonder_weapon") ? "ACT 1" : `LVL ${perk.unlockLevel}`}</span></span>
                   <span className="text-white/40 leading-relaxed">{perk.description}</span>
                 </button>)}
               </div>

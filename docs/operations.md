@@ -50,8 +50,18 @@ First clears award a one-time payout per mission:
 - Act 2: 200 XP and 100 credits.
 - Act 3: 250 XP and 125 credits.
 
+Act finales also grant one permanent account reward on the first clear, independent
+of stars: Act 1 unlocks the Wonder Weapon perk, Act 2 unlocks the Arc Pistol, and
+Act 3 unlocks the Juggernaut Mk I Wonder Weapon. These entitlements are stored on
+the player account and are not granted by importing browser progress. The Wonder
+Weapon perk remains available through normal level progression at level 40 for
+players who do not complete Operations. Arc Pistol remains a level-38 purchase
+unlock for non-campaign progression; its Operations reward grants ownership
+immediately. Bastion .45 moves to level 32, filling the existing double-unlock
+level 18's second reward slot without moving another weapon's progression.
+
 Replay clears can improve best time, rating and intel records but never repeat the
-first-clear payout. XP follows the normal post-level-cap Career XP conversion;
+first-clear payout or act reward. XP follows the normal post-level-cap Career XP conversion;
 credits are added to the player wallet, while Survival wave records are untouched.
 Campaign progress and payout records are stored on the player
 account; logged-in accounts follow the player across browsers and devices. Existing
@@ -63,7 +73,7 @@ the existing guest API behaviour. Database changes are additive: run
 ## Implementation and QA
 
 `src/lib/operations.ts` owns the typed mission roster, fixed deadline, first-clear
-reward schedule, `operationEncounter` and pure `tickOperation` reducer. Operations
+reward schedule, permanent act-finale rewards, `operationEncounter` and pure `tickOperation` reducer. Operations
 run solo or in two-player networked co-op rooms. The room host controls mission
 selection and campaign continuation; both players retain account-bound campaign
 progress and earn their own star ratings based on personal deaths. Stable mission
@@ -76,3 +86,12 @@ Real-socket checks cover two-player co-op room creation, joining and difficulty
 preservation. Unit tests cover mission objectives, deadline, star-criteria
 breakdown, first-clear idempotency and account persistence. Human playtests remain necessary for combat pacing and route feel under
 fire. There is no new map geometry or cinematic/NPC scripting system.
+
+
+## Objective types and escort integrity
+
+Operations use distinct objective types: `eliminate` removes the active encounter, `survive` completes after its timer while at least one operative remains alive, site control uses `secure` / `defend`, package handling uses `recover` / `deliver`, and vehicle movement uses `escort`. Elimination and survival are intentionally different: timed survival does not require the squad to kill every remaining enemy.
+
+An `escort` objective has an authored start site, destination site and payload. The visible vehicle/cart moves only while an operative is nearby and has 650 HP. It is a combat target: players and hostiles can damage it, multiplayer health is authoritative on the server, and destruction fails the mission. The same target and damage rules are simulated locally. Escort vehicles are separate from package delivery.
+
+Zero Hour ends with an escort of the Juggernaut cart to the command chamber. After the cart reaches the destination, the Juggernaut drop is generated and the commander becomes a separate elimination encounter. The commander spawns near the authored objective, but away from the cart and nearby operatives. Defeat the commander before reaching extraction.

@@ -22,7 +22,7 @@ import { harbingerTuning, harbingerTargets, harbingerRayHit, harbingerPlacement,
 import { wonderConeHit, seismicPulseHit, seismicPushPosition, ripperSegments, CHRONO_ANCHOR_MS, PHANTOM_DURATION_MS, CRYO_SLOW_MS, CRYO_SLOW_FACTOR, mechTuning, phantomSpawnPosition, phantomTravelPosition, juggernautDropPoint, crushesAtLanding, JUGGERNAUT_DROP_MS, JUGGERNAUT_ACTIVE_MS, JUGGERNAUT_MINIGUN_RATE, JUGGERNAUT_SHOTGUN_RATE, JUGGERNAUT_SWARM_RATE } from "./wonder-abilities";
 import { db } from "./db";
 import { roomMapCandidates, roomTeamSizeForMap, winningRoomMap } from "./room-flow";
-import { recommendedTeamSize, type RoomStatus } from "./game-protocol";
+import { recommendedTeamSize, type RoomStatus, isValidKillConfirmedTagLifetimeMs, killConfirmedTagExpiresAt } from "./game-protocol";
 import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,ORBITAL_RULES_VERSION,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,orbitalPulseTargets,orbitalReaperEquipped,ORBITAL_REAPER_SPEED_MULTIPLIER} from "./orbital-reactor";
 import { advanceMatchElapsed } from "./match-clock";
 import { fullWonderCharges, drainedWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, refundWonderCharge, type WonderChargeState } from "./wonder-charge";
@@ -647,7 +647,7 @@ function createLobbyRoom(
   if (!isSurvival && !isGungame) {
     if (typeof cfg.scoreLimit === "number" && cfg.scoreLimit >= 0) config.scoreLimit = cfg.scoreLimit;
     if (typeof cfg.timeLimit === "number" && cfg.timeLimit >= 0) config.timeLimit = cfg.timeLimit;
-    if (mode === "killconfirmed" && isValidKillConfirmedTagLifetimeMs(cfg.tagLifetimeMs)) config.tagLifetimeMs = cfg.tagLifetimeMs;
+    if (mode === "killconfirmed" && isValidKillConfirmedTagLifetimeMs(cfg.tagLifetimeMs ?? config.tagLifetimeMs)) config.tagLifetimeMs = cfg.tagLifetimeMs ?? config.tagLifetimeMs;
     if (mode === "killconfirmed") config.denialScoreEnabled = cfg.denialScoreEnabled === true;
     if (mode === "ctf") config.ctfFlagResetMs = ctfResetMs(cfg.ctfFlagResetMs);
   }
@@ -1038,7 +1038,7 @@ function fireRay(room: Room, attackerId: string, origin: Vec3, dir: Vec3, weapon
   for (const p of allCombatantsWithEscort(room)) {
     if (p.id === attackerId) continue;
     if (!p.alive) continue;
-    if (room.config.friendlyFire === false && p.team === attackerTeam && room.mode !== "ffa" && room.mode !== "gungame") continue;
+    if(p.id!==OPERATION_ESCORT_TARGET_ID&&room.config.friendlyFire===false&&p.team===attackerTeam&&room.mode!=="ffa"&&room.mode!=="gungame")continue;
     if(p.id===OPERATION_ESCORT_TARGET_ID){
       const cartHit=rayBox(origin,dir,[p.pos[0],p.pos[1]+.85,p.pos[2]],[2,1.5,3]);
       if(cartHit!==null&&cartHit>=0&&cartHit<=range*falloffEndMultiplier&&(!nearest||cartHit<nearest.t))nearest={victim:p,t:cartHit,head:false};
@@ -1162,7 +1162,7 @@ function firePenetratingRay(room: Room, attackerId: string, origin: Vec3, dir: V
   const contacts: BodyRayContact<PlayerNet>[] = [];
   for (const target of allCombatantsWithEscort(room)) {
     if (!target.alive || target.id === attackerId) continue;
-    if (room.config.friendlyFire === false && target.team === attacker?.team &&
+    if (target.id!==OPERATION_ESCORT_TARGET_ID&&room.config.friendlyFire === false && target.team === attacker?.team &&
         room.mode !== "ffa" && room.mode !== "gungame") continue;
     const cart=target.id===OPERATION_ESCORT_TARGET_ID;
     const panel=cart?null:rayRiotShield(origin,dir,target);
@@ -1502,7 +1502,7 @@ function applyMeleeStrike(room:Room,attacker:PlayerNet,weaponId:string,now:numbe
     allCombatantsWithEscort(room).filter(c=>c.id!==attacker.id).map(c=>({
       id:c.id,pos:c.pos,alive:c.alive,
       protected:(c.spawnProtectedUntil??0)>now,
-      friendly:room.config.friendlyFire===false&&room.mode!=="ffa"&&room.mode!=="gungame"&&c.team===attacker.team,
+      friendly:room.config.friendlyFire===false&&room.mode!=="ffa"&&room.mode!=="gungame"&&c.id!==OPERATION_ESCORT_TARGET_ID&&c.team===attacker.team,
     })),
     (c,dist)=>{
       const eye:Vec3=[attacker.pos[0],attacker.pos[1]+1.1,attacker.pos[2]];
@@ -2836,10 +2836,9 @@ function tickRoomSimulation(room: Room) {
             [...room.players.values()].map(p=>({id:p.id,pos:p.pos,alive:p.alive&&!room.downed.has(p.id),kills:p.kills})),
             [...room.bots.values()].map(p=>({id:p.id,pos:p.pos,alive:p.alive})),1/20);
           if(!previousOperation?.escortComplete&&room.operation.escortComplete&&
-            room.operation.escortPayload?.toLowerCase()==='juggernaut'&&room.operation.escortPos){
+            room.operation.escortPayload?.toLowerCase()==="juggernaut"&&room.operation.escortPos){
             const cart=room.operation.escortPos,yaw=room.operation.escortYaw??0;
-            const pos=juggernautDropPoint(cart,yaw,room.map.cover,room.map.size)??
-              juggernautDropPoint(cart,yaw+Math.PI/2,room.map.cover,room.map.size)??[...cart] as Vec3;
+            const pos=juggernautDropPoint(cart,yaw,room.map.cover,room.map.size)??juggernautDropPoint(cart,yaw+Math.PI/2,room.map.cover,room.map.size)??[...cart] as Vec3;
             const id=genId("mech"),landAt=Date.now()+JUGGERNAUT_DROP_MS;
             const drop={id,ownerId:"operation",pos,landAt,expiresAt:landAt+25000,moduleId:"",landed:false};
             room.mechDrops.set(id,drop);
@@ -2998,7 +2997,7 @@ function nearestEnemy(room: Room, p: PlayerNet): PlayerNet | null {
     .sort((a,b)=>Number(a.isBot)-Number(b.isBot))??allCombatants(room)),...(escort?[escort]:[])];
   for (const e of candidates) {
     if (e.id === p.id || !e.alive || (room.mode === "survival" && (e.isBot || room.downed.has(e.id)))) continue;
-    if (e.team === p.team && room.mode !== "ffa" && room.mode !== "gungame") continue;
+    if (e.id!==OPERATION_ESCORT_TARGET_ID&&e.team === p.team && room.mode !== "ffa" && room.mode !== "gungame") continue;
     const d = Math.hypot(e.pos[0] - p.pos[0], e.pos[2] - p.pos[2]);
     const priorityDistance=e.id===OPERATION_ESCORT_TARGET_ID?d*.78:d;
     if (priorityDistance >= bestD) continue;
@@ -3846,6 +3845,14 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
           ai.wanderTarget=chooseBotPatrolPoint(bot.team,room.mode,bot.pos,
             room.map.spawns.red,room.map.spawns.blue,room.map.spawns.ffa,Math.random,room.map.id);
       }
+    }
+    // In Operations escort stages, bots pressure the convoy whenever no player
+    // is an immediate threat. The shared objective tick applies damage at cart range.
+    const escort=room.operation&&room.operation.status==="active"&&
+      operationById(room.operation.missionId)?.objectives[room.operation.stage]?.kind==="escort"
+      ?room.operation.escortPos:undefined;
+    if(escort&&room.operation&&(room.operation.escortHp??0)>0&&threatDistance>14){
+      ai.targetId=null;ai.wanderTarget=[...escort] as Vec3;ai.highGroundPatrol=null;ai.investigationLookAt=null;
     }
     if (Math.random() < 0.4) ai.strafeDir = -ai.strafeDir;
   }

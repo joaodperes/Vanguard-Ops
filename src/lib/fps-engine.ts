@@ -124,7 +124,7 @@ import { CTF_SPEED_MULTIPLIER, ctfCarrierWeaponSpeed, createCtfFlags, ctfDrop, c
 import {
   getMap, MAP_LIST, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS,
   SURVIVAL_RESPAWN_MS, survivalWaveBotCount, survivalWaveHealthMul, survivalWaveDamageMul,
-  GUN_GAME_PROGRESSION, GUN_GAME_TYPE_PROGRESSION, KC_TAG_LIFETIME_MS, KC_PICKUP_RADIUS, killConfirmedPickupPoints,
+  GUN_GAME_PROGRESSION, GUN_GAME_TYPE_PROGRESSION, KC_TAG_LIFETIME_MS, KC_PICKUP_RADIUS, killConfirmedPickupPoints, killConfirmedTagExpiresAt,
   type C2S, type Vec3, type LoadoutWire, type GameMode, type MapId, type MapDef, type SnapshotPlayer, type S2C, type KillFeedEntry, type CoverBox, type BotDifficulty, type KillDifficulty, type KillConfirmedTag,
 } from "@/lib/game-protocol";
 import {
@@ -134,6 +134,7 @@ import {
   type WeaponSlot, type WeaponDef, type WeaponCategory, type WeaponConditionMetric,
 } from "@/lib/game-data";
 import { SoundManager } from "@/lib/sound";
+import { recordMagazineKill, resetMagazineKillCount } from "@/lib/magazine-kill-tracking";
 import { ctfFeedback, type CtfAction } from "./ctf-feedback";
 import { WeaponAudio, weaponAcousticSpace, type WeaponSoundCategory } from "@/lib/weapon-audio";
 import { audioGainLevels, DEFAULT_AUDIO_MIX } from "./audio-mix";
@@ -6313,8 +6314,7 @@ export class FPSEngine {
         if(!this.opts.online&&!previousOperation?.escortComplete&&this.operation.escortComplete&&
           this.operation.escortPayload?.toLowerCase()==='juggernaut'&&this.operation.escortPos){
           const yaw=this.operation.escortYaw??0,cart=this.operation.escortPos;
-          const dropPos=juggernautDropPoint(cart,yaw,this.map.cover,this.map.size)??
-            juggernautDropPoint(cart,yaw+Math.PI/2,this.map.cover,this.map.size)??[...cart] as Vec3;
+          const dropPos=juggernautDropPoint(cart,yaw,this.map.cover,this.map.size)??juggernautDropPoint(cart,yaw+Math.PI/2,this.map.cover,this.map.size)??[...cart] as Vec3;
           const landAt=Date.now()+JUGGERNAUT_DROP_MS,id=`operation_juggernaut_${this.operation.missionId}_${Math.floor(Date.now())}`;
           this.addMechDrop(id,this.selfId,dropPos,landAt,landAt+25000,"",false);
         }
@@ -9665,9 +9665,18 @@ export class FPSEngine {
         this.damageEnvironmentWall(cover.box.environmentId, this.eff.damage);
         return null;
       }
+      const escort=this.operationEscortTarget();
+      const cartHit=escort?rayBox(origin,dir,[escort.pos[0],escort.pos[1]+.85,escort.pos[2]],[2,1.5,3]):null;
       const resolved=resolveMaterialPenetrationShot(contacts,this.coverForRay(origin,dir,maxDistance),origin,dir,maxDistance,
         this.eff.bodyPenetration,this.eff.coverPenetration,this.weaponId==="wonder_phasebreaker");
       const hits=resolved.hits;
+      if(escort&&cartHit!==null&&cartHit<(hits[0]?.t??Infinity)&&cartHit<=resolved.stoppedAt){
+        const dealt=damageAtRange(this.eff.damage,cartHit,this.eff.range,this.eff)*0.65*survivalWaveDamageMul(this.survivalWave)*survivalWaveMutators(this.survivalTier,this.survivalWave).damageMul;
+        this.operation!.escortHp=Math.max(0,(this.operation!.escortHp??0)-dealt);
+        this.hitMarkerAt=performance.now();
+        if(this.operation!.escortHp<=0)this.operationNotice={kind:"objective",message:"ESCORT VEHICLE DESTROYED",at:performance.now()};
+        return null;
+      }
       this.damageLocalBallisticCover(origin,dir,maxDistance,this.eff.coverPenetration??0,this.eff.damage,
         resolved.stoppedAt);
       let firstVictim: Combatant | null = null;
@@ -9730,6 +9739,15 @@ export class FPSEngine {
     for (const cov of this.coverAlong(origin,[origin[0]+dir[0]*this.eff.range,origin[1]+dir[1]*this.eff.range,origin[2]+dir[2]*this.eff.range],2)) {
       const t = rayBox(origin, dir, cov.pos, cov.size);
       if (t !== null && t < blockedT) blockedT = t;
+    }
+    const escort=this.operationEscortTarget();
+    const cartHit=escort?rayBox(origin,dir,[escort.pos[0],escort.pos[1]+.85,escort.pos[2]],[2,1.5,3]):null;
+    if(escort&&cartHit!==null&&cartHit<blockedT&&cartHit<(nearest?.t??Infinity)){
+      const dealt=damageAtRange(this.eff.damage,cartHit,this.eff.range,this.eff)*0.65*survivalWaveDamageMul(this.survivalWave)*survivalWaveMutators(this.survivalTier,this.survivalWave).damageMul;
+      this.operation!.escortHp=Math.max(0,(this.operation!.escortHp??0)-dealt);
+      this.hitMarkerAt=performance.now();
+      if(this.operation!.escortHp<=0)this.operationNotice={kind:"objective",message:"ESCORT VEHICLE DESTROYED",at:performance.now()};
+      return null;
     }
     // Ordinary calibers still crack, splinter or mark the first tagged panel,
     // even when they have no penetration budget at all.
@@ -10032,11 +10050,8 @@ export class FPSEngine {
     const bump = (metric: WeaponConditionMetric) => { actions[metric] = (actions[metric] ?? 0) + 1; };
     if (weaponId === this.weaponId) {
       const currentWeapon = weaponById(weaponId);
-      if (currentWeapon.category === "lmg") {
-        const magazineKills = (this.magazineKillsByWeapon.get(weaponId) ?? 0) + 1;
-        this.magazineKillsByWeapon.set(weaponId, magazineKills);
-        if (magazineKills % 2 === 0) bump("double_kills_without_reload");
-      }
+      if (recordMagazineKill(this.magazineKillsByWeapon, weaponId, currentWeapon.category === "lmg"))
+        bump("double_kills_without_reload");
       const slots = weaponAttachmentSlots(currentWeapon);
       const atts = this.getCurrentAttachments();
       // Gun Game deliberately does not auto-award no-attachment challenges.
@@ -10158,7 +10173,7 @@ export class FPSEngine {
     this.addKillConfirmedTag({
       id: "offline-tag-" + (++this.kcNextTagId),
       victimId, victimTeam, pos: [...pos] as Vec3,
-      expiresAt: Date.now() + KC_TAG_LIFETIME_MS,
+      expiresAt: killConfirmedTagExpiresAt(Date.now(), KC_TAG_LIFETIME_MS),
     });
   }
   private animateKillConfirmedTags(now: number) {
@@ -10841,7 +10856,7 @@ export class FPSEngine {
     if (weaponById(this.weaponId).category === "melee") return;
     this.reloading = true;
     // A reload breaks the sustained-fire streak, even if the magazine was not empty.
-    this.magazineKillsByWeapon.set(this.weaponId, 0);
+    resetMagazineKillCount(this.magazineKillsByWeapon, this.weaponId);
     this.fpReloadRecoveryUntil=0;
     this.reloadRoundInserted = false;
     this.reloadShellCycleIndex=0;
@@ -12576,6 +12591,14 @@ export class FPSEngine {
               this.map.spawns.red,this.map.spawns.blue,this.map.spawns.ffa,Math.random,this.map.id);
         }
       }
+      // During escort missions, nearby bots divert from distant players to attack the convoy.
+      // They still engage threats at close range, but otherwise path toward the vulnerable cart.
+      const escort=this.operation&&this.operation.status==='active'&&
+        operationById(this.operation.missionId)?.objectives[this.operation.stage]?.kind==='escort'
+        ?this.operation.escortPos:undefined;
+      if(escort&&this.operation&&(this.operation.escortHp??0)>0&&threatDistance>14){
+        ai.targetId=null;ai.wanderTarget=[...escort] as Vec3;ai.highGroundPatrol=null;ai.investigationLookAt=null;
+      }
       if (Math.random() < 0.4) ai.strafeDir = -ai.strafeDir;
     }
     const target = ai.targetId ? (ai.targetId==="__operation_escort__"?this.operationEscortTarget():this.combatants.get(ai.targetId)) : null;
@@ -13266,9 +13289,10 @@ export class FPSEngine {
       weaponId: "", weaponSkinId: "", playerSkinId: "", kills: 0, deaths: 0, score: 0,
     };
     selfC.weaponId=this.weaponId;selfC.yaw=this.yaw;selfC.riotShieldHp=this.riotShieldHp;selfC.riotShieldRaised=this.shieldRaised();
-    const candidates = [...this.combatants.values(), selfC];
+    const escort=this.operationEscortTarget();
+    const candidates = [...this.combatants.values(), selfC,...(escort?[escort]:[])];
     for (const e of candidates) {
-      if (e.id === attacker.id || !e.alive) continue;
+      if (e.id === attacker.id || e.id === "__operation_escort__" || !e.alive) continue;
       if (e.team === attacker.team && this.opts.mode !== "ffa" && this.opts.mode !== "gungame") continue;
       const panel = rayRiotShield(origin, dir, e);
       const body = rayCombatantHit(origin, dir, e.pos);

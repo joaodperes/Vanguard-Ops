@@ -63,6 +63,7 @@ describe("permanent challenge-based Armory eligibility", () => {
     }
   });
 
+
   test("challenge completion changes eligibility, not ownership or player level", () => {
     const weapon = WEAPONS.find(w => weaponAttachmentSlots(w).includes("sight") &&
       compatibleAttachments(w.id, "sight").length)!;

@@ -33,12 +33,16 @@ tactical item, rank or operator skin). In particular:
   alternative to the starting VK-12. Level 4 still grants Field Loader.
 - **Level 25:** Executioner DMR, Explonando and Poison Dart remain; Sentinel-45
   moves to **level 33** (priced at 2300 CR in the epic tier) to fill the disabled Breacher Axe's old slot.
-- **Level 36:** Vanguard Legend rank; **level 37:** Hydra Twin (formerly level 34);
-  **level 38:** Machine Pistol (formerly level 30). Their former levels retain other choices.
-- **Level 39:** RL-7 Rocket Launcher, moved from level 36 so the legendary tier
-  opens after epic weapons; **level 40:** Ascendant Vanguard, a unique
-  legendary operator skin automatically awarded at the XP cap, with no contract
-  or credit requirement. Existing level-40 profiles qualify immediately.
+- **Level 23:** Bastion .45 unlocks ahead of Magnum .50, matching their Armory
+  order. **Level 32:** Magnum .50 moves from level 23 into the late-game sidearm
+  slot; Cyclone DMR remains at level 18. **Level 37:** Hydra Twin.
+- **Level 38:** Machine Pistol and Arc Pistol (the latter remains a paid level
+  unlock for players who do not earn it from Operations Act 2).
+- **Level 39:** RL-7 Rocket Launcher; **level 40:** Ascendant Vanguard operator
+  skin and the standard-progression Wonder Weapon perk. Operations Act 1 grants
+  the Wonder Weapon perk early, Act 2 grants permanent Arc Pistol ownership, and
+  Act 3 grants permanent Juggernaut Mk I ownership. Act rewards are account-bound
+  and independent of mission stars.
 - **Level-up results:** disabled weapons are never advertised as newly
   available. Existing legitimately purchased weapons remain owned if their
   minimum level moves upward; no inventory cleanup is performed.
