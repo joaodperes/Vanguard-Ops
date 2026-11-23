@@ -25,6 +25,7 @@ import { roomMapCandidates, roomTeamSizeForMap, winningRoomMap } from "./room-fl
 import { recommendedTeamSize, type RoomStatus, isValidKillConfirmedTagLifetimeMs, killConfirmedTagExpiresAt } from "./game-protocol";
 import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,ORBITAL_RULES_VERSION,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,orbitalPulseTargets,orbitalReaperEquipped,ORBITAL_REAPER_SPEED_MULTIPLIER} from "./orbital-reactor";
 import { advanceMatchElapsed } from "./match-clock";
+import { createHardpointState, tickHardpoint, createSearchDestroyState, beginNextSearchDestroyRound, tickSearchDestroy, applySearchDestroyAction, dropSearchDestroyBomb, frontierWeaponAllowed, type HardpointState, type SearchDestroyState, type SearchDestroySite } from "./game-mode-rules";
 import { fullWonderCharges, drainedWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, refundWonderCharge, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
 import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
@@ -182,6 +183,8 @@ interface Room {
   mapCandidates?: MapId[];
   resultsReady?: Set<string>;
   roundNumber?: number;
+  hardpointState?: HardpointState;
+  searchDestroyState?: SearchDestroyState;
   cleanupTimer?: ReturnType<typeof setTimeout>;
   id: string;
   mode: GameMode;
@@ -757,6 +760,12 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   if (room.hostSocketId !== socketId) return false;  // only the host can start
   room.state = "playing";
   room.startTime = Date.now();
+  if(room.mode==="hardpoint")room.hardpointState=createHardpointState(room.startTime);
+  if(room.mode==="searchdestroy"){
+    const carrier=[...room.players.values()].find(p=>p.team==="red")??[...room.players.values()][0];
+    room.searchDestroyState=carrier?createSearchDestroyState(room.startTime,carrier.id,carrier.pos):undefined;
+    room.config.timeLimit=0;room.timeLeft=0;
+  }
   room.environmentTime = 0;
   room.floodgateBreachAt=null;
   if(room.map.id==="floodgate")setFloodgateFreightStage(room.map,null);
@@ -906,6 +915,8 @@ function snapshot(room: Room): S2C {
     stormMines: [...room.stormMines.values()].map(({id,pos,expiresAt,ownerId,ownerTeam})=>({id,pos,expiresAt,ownerId,ownerTeam})),
     ...(room.mode === "ctf" ? { ctfFlags: room.flags, ctfOvertime: room.overtime,
       ctfBases: {red:ctfBase("red",room.map),blue:ctfBase("blue",room.map)}, ctfRulesVersion: 2 } : {}),
+    ...(room.hardpointState ? { hardpoint: room.hardpointState } : {}),
+    ...(room.searchDestroyState ? { searchDestroy: room.searchDestroyState } : {}),
     ...(reactorObjective(room.map)?{
       orbitalCharge:room.orbitalCharge,
       orbitalHolders:[...room.orbitalHolders],orbitalRulesVersion:ORBITAL_RULES_VERSION,
@@ -2024,6 +2035,8 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
       }
     }
     victim.alive = false;
+    if(room.mode==="searchdestroy"&&room.searchDestroyState?.bomb.carrierId===victim.id)
+      dropSearchDestroyBomb(room.searchDestroyState,victim.id,[...victim.pos] as Vec3);
     removeMinesOwnedBy(room, victim.id);
     victim.deaths += 1;
     if(room.orbitalHolders.delete(victim.id)){
@@ -2177,6 +2190,8 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
         }
       }
       if (!room.ended) scheduleRespawn(room, victim);
+    } else if(room.mode==="searchdestroy") {
+      // Eliminated operatives remain out until the round resolves.
     } else {
       scheduleRespawn(room, victim);
     }
@@ -2702,7 +2717,28 @@ function updateRoomBots(room:Room,now:number):void{
   // Preserve the solver's bots-first ordering.
   room.actorIndex.rebuild([...room.bots.values(),...room.players.values()]);
   for(const bot of room.bots.values())if(bot.alive){
-    updateBotAI(room,bot,now);room.actorIndex.update(bot);
+    if(room.mode==="hardpoint"&&room.hardpointState){
+      const points=[[-24,0,-18],[22,0,-18],[0,0,0],[-22,0,20],[24,0,20]];
+      bot.ai.wanderTarget=[...points[room.hardpointState.activeIndex]] as Vec3;
+    }
+    if(room.mode==="searchdestroy"&&room.searchDestroyState){
+      const state=room.searchDestroyState;
+      if(state.phase==="planted"&&bot.team!==state.attackerTeam)bot.ai.wanderTarget=[...state.bomb.pos];
+      else if(state.phase==="live"&&bot.team===state.attackerTeam){
+        if(state.bomb.status==="dropped")bot.ai.wanderTarget=[...state.bomb.pos];
+        else if(state.bomb.carrierId===bot.id){const sites=[[-22,0,-18],[22,0,18]];bot.ai.wanderTarget=[...sites.sort((a,b)=>Math.hypot(a[0]-bot.pos[0],a[2]-bot.pos[2])-Math.hypot(b[0]-bot.pos[0],b[2]-bot.pos[2]))[0]] as Vec3;}
+      }
+    }
+    updateBotAI(room,bot,now);
+    if(room.mode==="searchdestroy"&&room.searchDestroyState){
+      const state=room.searchDestroyState,sites:SearchDestroySite[]=[{id:"A",pos:[-22,0,-18],radius:5},{id:"B",pos:[22,0,18],radius:5}];
+      if(state.phase==="live"&&bot.team===state.attackerTeam&&state.bomb.status==="dropped"&&Math.hypot(bot.pos[0]-state.bomb.pos[0],bot.pos[2]-state.bomb.pos[2])<2.6)
+        applySearchDestroyAction(state,{kind:"pickup",playerId:bot.id,team:bot.team as "red"|"blue",pos:bot.pos,alive:true},sites,now);
+      if(state.phase==="live"&&state.bomb.carrierId===bot.id){const site=sites.sort((a,b)=>Math.hypot(a.pos[0]-bot.pos[0],a.pos[2]-bot.pos[2])-Math.hypot(b.pos[0]-bot.pos[0],b.pos[2]-bot.pos[2]))[0];if(Math.hypot(bot.pos[0]-site.pos[0],bot.pos[2]-site.pos[2])<4)applySearchDestroyAction(state,{kind:"plant",playerId:bot.id,team:bot.team as "red"|"blue",pos:bot.pos,alive:true,siteId:site.id},sites,now);}
+      if(state.phase==="planted"&&bot.team!==state.attackerTeam&&Math.hypot(bot.pos[0]-state.bomb.pos[0],bot.pos[2]-state.bomb.pos[2])<2.6)
+        applySearchDestroyAction(state,{kind:"defuse",playerId:bot.id,team:bot.team as "red"|"blue",pos:bot.pos,alive:true},sites,now);
+    }
+    room.actorIndex.update(bot);
   }
 }
 function tickRoom(room:Room){
@@ -2894,6 +2930,25 @@ function tickRoomSimulation(room: Room) {
     }
   }
   const now = Date.now();
+  if(room.mode==="hardpoint"&&room.preMatchCountdown<=0&&room.hardpointState){
+    const zones=[[-24,0,-18],[22,0,-18],[0,0,0],[-22,0,20],[24,0,20]].map((p,i)=>({id:String(i),pos:p as Vec3,radius:6}));
+    const result=tickHardpoint(room.hardpointState,zones,allCombatants(room),now,50);
+    room.teamScores={...result.state.scores};
+    room.config.hardpointZone=result.state.activeIndex;
+    room.config.hardpointProgress=Math.max(result.state.objectiveMs.red,result.state.objectiveMs.blue);
+    if(result.state.scores.red>=200||result.state.scores.blue>=200){endMatch(room,result.state.scores.red===result.state.scores.blue?undefined:result.state.scores.red>result.state.scores.blue?"red":"blue");return;}
+  }
+  if(room.mode==="searchdestroy"&&room.preMatchCountdown<=0&&room.searchDestroyState){
+    const state=room.searchDestroyState;
+    if(state.phase==="round_end"){
+      for(const c of allCombatants(room)){c.alive=true;c.health=MAX_HEALTH;c.pos=pickSpawn(c.team,room);c.spawnProtectedUntil=now+1200;}
+      const carrier=allCombatants(room).find(p=>p.team===state.attackerTeam&&p.alive)||allCombatants(room).find(p=>p.alive);
+      if(carrier)beginNextSearchDestroyRound(state,now,carrier.id,carrier.pos);
+    }
+    const events=tickSearchDestroy(state,allCombatants(room),now);
+    if(events.some(e=>e.type==="match_won")){endMatch(room);return;}
+    room.config.searchDestroyRound=state.round;room.config.searchDestroyWins={...state.roundWins};
+  }
   tickThrowingKnifeRecovery(room,now);
   tickWonderExpansion(room,now);
   // Only run bot AI when the pre-match countdown is over.
@@ -4862,10 +4917,19 @@ async function handle(socket: any, msg: C2S) {
       io.to(p.id).emit("message",{t:"mechAmmo",armor:mech.armor,minigunAmmo:mech.minigunAmmo,secondaryAmmo:mech.secondaryAmmo} as S2C);
       break;
     }
+    case "modeInteract": {
+      const room=rooms.get(socketToRoom.get(socket.id)??"");const player=room?.players.get(socket.id);const state=room?.searchDestroyState;
+      if(!room||room.mode!=="searchdestroy"||!player?.alive||!state)return;
+      const sites:SearchDestroySite[]=[{id:"A",pos:[-22,0,-18],radius:5},{id:"B",pos:[22,0,18],radius:5}];
+      const event=applySearchDestroyAction(state,{kind:msg.action,playerId:player.id,team:player.team as "red"|"blue",pos:player.pos,alive:player.alive,siteId:msg.siteId},sites,Date.now());
+      if(event)io.to(room.id).emit("message",{t:"modeEvent",event} as S2C);
+      break;
+    }
     case "shot": {
       const room=rooms.get(socketToRoom.get(socket.id)??"");
       const player=room?.players.get(socket.id);
       if(!room||!player)return;
+      if(room.mode==="frontier"&&!frontierWeaponAllowed(weaponById(msg.weaponId).category))return;
       fireServerShot(room,player,msg);
       break;
     }
