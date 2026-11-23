@@ -219,8 +219,8 @@ export function Play() {
       survivalPlayers: roomConfig.survivalPlayers,
       survivalTier: mode === "survival" ? roomConfig.survivalTier : undefined,
       // Round 19i: Pass custom limits for FFA/TDM.
-      scoreLimit: (mode === "ffa" || mode === "tdm" || mode === "killconfirmed" || mode === "ctf") ? roomConfig.scoreLimit : undefined,
-      timeLimit: (mode === "ffa" || mode === "tdm" || mode === "killconfirmed" || mode === "ctf") ? roomConfig.timeLimit : undefined,
+      scoreLimit: (mode === "ffa" || mode === "tdm" || mode === "killconfirmed" || mode === "ctf" || mode === "frontier") ? roomConfig.scoreLimit : undefined,
+      timeLimit: (mode === "ffa" || mode === "tdm" || mode === "killconfirmed" || mode === "ctf" || mode === "frontier") ? roomConfig.timeLimit : undefined,
       tagLifetimeMs: mode === "killconfirmed" ? roomConfig.tagLifetimeMs : undefined,
       ctfFlagResetMs: mode === "ctf" ? roomConfig.ctfFlagResetMs : undefined,
       denialScoreEnabled: mode === "killconfirmed" ? roomConfig.denialScoreEnabled : undefined,
@@ -330,12 +330,12 @@ export function Play() {
                 <Section className="h-full" icon={<Swords className="w-4 h-4 text-amber-400" />} title="Game Mode" hint="Choose the match type">
                   <p className="text-xs text-white/50 mb-3">Choose a mode, then create a room with your preferred settings or browse active rooms.</p>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {(["ffa", "tdm", "killconfirmed", "ctf", "survival", "gungame"] as GameMode[]).map((m) => (
-                      <ModePickCard key={m} mode={m} selected={roomConfig.mode === m} onSelect={(mode) => setRoomConfig({ mode, mapId: mapAllowedForMode(mode,roomConfig.mapId)?roomConfig.mapId:mode==="ctf"?"forest_warfare":"compound", scoreLimit: MATCH_MODES[mode].defaultScoreLimit, timeLimit: MATCH_MODES[mode].defaultTimeLimit * 60 })} />
+                    {(["ffa", "tdm", "killconfirmed", "ctf", "searchdestroy", "hardpoint", "frontier", "survival", "gungame"] as GameMode[]).map((m) => (
+                      <ModePickCard key={m} mode={m} selected={roomConfig.mode === m} onSelect={(mode) => setRoomConfig({ mode, mapId: mapAllowedForMode(mode,roomConfig.mapId)?roomConfig.mapId:mode==="ctf"?"forest_warfare":mode==="searchdestroy"||mode==="hardpoint"||mode==="frontier"?"dustwater":"compound", scoreLimit: MATCH_MODES[mode].defaultScoreLimit, timeLimit: MATCH_MODES[mode].defaultTimeLimit * 60 })} />
                     ))}
                   </div>
                 </Section>
-                {(roomConfig.mode === "ffa" || roomConfig.mode === "tdm" || roomConfig.mode === "killconfirmed" || roomConfig.mode === "ctf") && (
+                {(roomConfig.mode === "ffa" || roomConfig.mode === "tdm" || roomConfig.mode === "killconfirmed" || roomConfig.mode === "ctf" || roomConfig.mode === "frontier") && (
                   <div className="relative min-h-0">
                     <Section className="lg:absolute lg:inset-0 lg:overflow-y-auto" icon={<Target className="w-4 h-4 text-rose-400" />} title="Match Limits" hint={roomConfig.mode === "killconfirmed" ? "Choose tag and time limits" : "Set the score target and/or time limit (at least one required)"}>
                     <div className={roomConfig.mode === "killconfirmed" ? "grid grid-cols-1 sm:grid-cols-2 gap-2 items-start" : "grid grid-cols-1 sm:grid-cols-2 gap-3 items-start"}>
@@ -1022,7 +1022,7 @@ function SummaryRow({ label, value, accent }: { label: string; value: string; ac
 
 function ModePickCard({ mode, selected, onSelect }: { mode: GameMode; selected: boolean; onSelect: (m: GameMode) => void }) {
   const cfg = MATCH_MODES[mode];
-  const Icon = mode === "ffa" ? Users : mode === "tdm" || mode === "ctf" ? Shield : mode === "killconfirmed" ? Target : mode === "survival" ? Skull : Swords;
+  const Icon = mode === "ffa" ? Users : mode === "tdm" || mode === "ctf" || mode === "hardpoint" ? Shield : mode === "killconfirmed" || mode === "searchdestroy" ? Target : mode === "survival" ? Skull : Swords;
   return (
     <button
       onClick={() => onSelect(mode)}
