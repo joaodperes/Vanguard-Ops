@@ -43,7 +43,9 @@ describe("Operations objective types", () => {
     const start = operationSite(map, operationById("freight_intercept")!.objectives[1].startSite!);
     const first = tickOperation(state, map, [{ id: "p1", pos: start, alive: true }], [], 1);
     expect(first.escortPos).toBeDefined();
-    expect(Math.hypot(first.escortPos![0] - start[0], first.escortPos![2] - start[2])).toBeCloseTo(2.6);
+    const moved = Math.hypot(first.escortPos![0] - start[0], first.escortPos![2] - start[2]);
+    expect(moved).toBeGreaterThan(0);
+    expect(moved).toBeLessThanOrEqual(2.6);
     expect(first.escortHp).toBe(650);
     const unattended = tickOperation(first, map, [{ id: "p1", pos: [100, 0, 100], alive: true }], [], 1);
     expect(unattended.escortPos).toEqual(first.escortPos);

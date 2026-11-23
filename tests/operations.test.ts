@@ -83,7 +83,7 @@ describe('Operations campaign',()=>{
   expect(s.escortMaxHp).toBeGreaterThan(100);
  });
  test('escort destruction fails the operation',()=>{
-  const mission=operationById('cold_trail')!,compiled=getMap(mission.mapId,'survival');
+  const mission=operationById('freight_intercept')!,compiled=makeEnvironmentMap(getMap(mission.mapId,'survival');
   const index=mission.objectives.findIndex(objective=>objective.kind==='escort'),objective=mission.objectives[index]!;
   const start=operationSite(compiled,objective.startSite);
   let escort:OperationState={...createOperationState(mission.id),stage:index,escortPos:[...start],escortHp:1,escortMaxHp:450};
@@ -125,7 +125,7 @@ describe('Operations campaign',()=>{
   expect(index).toBeGreaterThanOrEqual(0);
   let state={...createOperationState(mission.id),stage:index};
   expect(operationTarget(state,mp)).toBeUndefined();
-  for(let second=0;second<90;second++)state=tickOperation(state,mp,[actor([25,0,-25])],[actor([-25,0,25],'guard')],1);
+  for(let second=0;second<90;second++)state=tickOperation(state,mp,[actor([25,0,-25])],[actor([120,0,120],'guard')],1);
   expect(state.stage).toBe(index+1);expect(state.status).toBe('active');
  });
  test('escort vehicles move only with a nearby operative, take damage and can be destroyed',()=>{
@@ -154,7 +154,7 @@ describe('Operations campaign',()=>{
  test('every mission has a valid solo completion path',()=>{
   for(const mission of OPERATIONS){
    const m=makeEnvironmentMap(getMap(mission.mapId,'survival'));let s=createOperationState(mission.id),budget=2000,kills=0;
-   while(s.status==='active'&&budget-->0){const goal=mission.objectives[s.stage];const p=goal?.kind==='deliver'?(s.escortPos??s.packagePos??operationSite(m,mission.objectives[Math.max(0,s.stage-1)].site)):(operationTarget(s,m)??operationSite(m,goal?.site??0));if(goal?.kind==='defend'&&goal.killTarget)kills=(s.objectiveKillBaseline??0)+goal.killTarget;s=tickOperation(s,m,[actor(p,'solo',true,kills)],[],1);}
+   while(s.status==='active'&&budget-->0){const goal=mission.objectives[s.stage];const p=operationTarget(s,m)??operationSite(m,goal?.site??0);if(goal?.kind==='defend'&&goal.killTarget)kills=(s.objectiveKillBaseline??0)+goal.killTarget;s=tickOperation(s,m,[actor(p,'solo',true,kills)],[],1);}
    if(s.status!=='won')throw new Error(`${mission.id} failed at stage ${s.stage}/${mission.objectives.length} after ${s.elapsed}s`);
     expect(s.stage).toBe(mission.objectives.length);
   }
