@@ -69,7 +69,7 @@ describe('Operations campaign',()=>{
   const start=operationSite(compiled,mission.objectives[1].site),destination=operationSite(compiled,mission.objectives[2].site);
   let s:OperationState={...createOperationState(mission.id),stage:2,escortPos:[...start],escortHp:450,escortMaxHp:450};
   const distance=(p:Vec3)=>Math.hypot(destination[0]-p[0],destination[2]-p[2]);
-  const before=[...s.escortPos];
+  const before=[...s.escortPos!];
   s=tickOperation(s,compiled,[actor([start[0]+30,start[1],start[2]])],[],1);
   expect(s.escortPos).toEqual(before);
   s=tickOperation(s,compiled,[actor(s.escortPos!,'escort')],[],1);
