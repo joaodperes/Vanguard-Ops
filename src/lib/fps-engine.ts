@@ -13199,6 +13199,13 @@ export class FPSEngine {
     this.checkWin();
   }
 
+  private operationEscortTarget(): Combatant | null {
+    const g=this.operation&&operationById(this.operation.missionId)?.objectives[this.operation.stage],p=this.operation?.escortPos;
+    if(!this.operation||this.operation.status!=="active"||g?.kind!=="escort"||!p||(this.operation.escortHp??0)<=0)return null;
+    return {id:"__operation_escort__",name:g.payload??"Escort vehicle",team:"__escort__",isBot:false,isSelf:false,pos:[...p] as Vec3,
+      yaw:0,pitch:0,health:this.operation.escortHp!,alive:true,weaponId:"rifle_m4",weaponSkinId:"",playerSkinId:"",kills:0,deaths:0,score:0} as Combatant;
+  }
+
   private nearestEnemy(c: Combatant): Combatant | null {
     let best: Combatant | null = null; let bestD = Infinity;
     const selfC: Combatant = {
