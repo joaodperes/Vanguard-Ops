@@ -119,3 +119,8 @@ client but does not modify the database by itself.
 ## Concurrency and billing
 
 GitHub Actions validation runs on configured branch pushes and pull requests, including `dev` and `main` after these workflow changes are promoted. Re-check the run for the exact merge candidate and complete manual offline/online tests; this historical migration note does not replace the canonical QA checklist.
+
+
+## Sustained-fire LMG challenges
+
+Hailstorm, Vanguard LSW and Leviathan each have an authored challenge requiring two kills in one magazine, repeated ten times. The combat metric is tracked per weapon, survives switching weapon slots, and resets only when that weapon is reloaded. Skin specialization preserves this authored weapon-specific challenge instead of replacing it with a generic skin condition.
