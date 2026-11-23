@@ -47,3 +47,8 @@ change votes, finish a match, verify the results roster and rewards, start anoth
 arena, and leave as host. Repeat on a narrow touch screen and with clipboard
 access denied. Check late joining, the Gun Game first weapon and CTF reset rules.
 The six-mode selection remains a 3×2 grid.
+
+
+## Kill Confirmed dogtag lifetime
+
+Room hosts can select 10, 15, 25, 30 or 45 seconds, or Infinite. Infinite tags use `Number.MAX_SAFE_INTEGER` as their JSON-safe expiry timestamp and remain available until collected. The server validates the selected lifetime before accepting the room configuration; offline matches use the same expiry rule.
