@@ -65,7 +65,7 @@ describe("Operations objective types", () => {
     const obstacle = { pos: [-110, 0.9, 27] as [number, number, number], size: [8, 0.9, 10] as [number, number, number], kind: "solid" as const };
     const path = planEscortRoute([-99, 0, 43], [-122, 0, 18], [obstacle], 150);
     expect(path.length).toBeGreaterThan(2);
-    expect(path.every(point => !(Math.abs(point[0] + 110) < 9.55 && Math.abs(point[2] - 27) < 11.85)).toBe(true);
+    expect(path.every(point => !(Math.abs(point[0] + 110) < 9.55 && Math.abs(point[2] - 27) < 11.85))).toBe(true);
   });
 
   test("survive objectives can protect a 650 HP PC without a defend-site radius", () => {

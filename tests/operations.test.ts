@@ -1,12 +1,12 @@
 import {describe,expect,test} from 'bun:test';
-import {OPERATIONS,OPERATION_DEADLINE_SECONDS,operationFirstClearReward,createOperationState,operationById,nextOperation,operationConfigValid,operationSite,operationTarget,tickOperation,operationEncounter,operationAwarenessMultiplier,operationStars,operationStarCriteria,operationTimePerformance,formatOperationTime,operationActSummary,recordOperation,operationUnlocked,operationActRewardForMission,OPERATION_ACT_REWARDS,loadOperationProgress,operationFeedbackEvents,type OperationActor,type OperationState} from '../src/lib/operations';
+import {OPERATIONS,OPERATION_DEADLINE_SECONDS,operationFirstClearReward,createOperationState,operationById,nextOperation,operationConfigValid,operationSite,operationTarget,tickOperation,operationEncounter,operationAwarenessMultiplier,operationObjectiveTypeLabel,damageOperationEscort,operationStars,operationStarCriteria,operationTimePerformance,formatOperationTime,operationActSummary,recordOperation,operationUnlocked,operationActRewardForMission,OPERATION_ACT_REWARDS,loadOperationProgress,operationFeedbackEvents,type OperationActor,type OperationState} from '../src/lib/operations';
 import {getMap,type Vec3} from '../src/lib/game-protocol';
 import {makeEnvironmentMap} from '../src/lib/dynamic-environment';
 import {botPositionEmbedded} from '../src/lib/bot-physics';
 import {survivalRoleForSlot} from '../src/lib/survival-encounters';
 import {makeEngineStub} from './helpers/engine-stub';
 const actor=(pos:Vec3,id='human',alive=true,kills=0):OperationActor=>({id,pos,alive,kills});
-const first=OPERATIONS[0],map=getMap(first.mapId,'survival');
+const first=OPERATIONS[0],map=makeEnvironmentMap(getMap(first.mapId,'survival'));
 function advance(s:OperationState,actors:OperationActor[],enemies:OperationActor[]=[],seconds=1){for(let i=0;i<seconds;i++)s=tickOperation(s,map,actors,enemies,1);return s;}
 describe('Operations campaign',()=>{
  test('all missions have stable IDs, valid configurations and collision-clear sites',()=>{
@@ -67,9 +67,10 @@ describe('Operations campaign',()=>{
   expect(advance(s,[actor(p)],[actor([p[0]+40,p[1],p[2]],'guard')],50).stage).toBe(2);
  });
  test('escort objectives move a durable cart only with a nearby operative and enemies damage it',()=>{
-  const mission=operationById('cold_trail')!,compiled=getMap(mission.mapId,'survival');
-  const start=operationSite(compiled,mission.objectives[1].site),destination=operationSite(compiled,mission.objectives[2].site);
-  let s:OperationState={...createOperationState(mission.id),stage:2,escortPos:[...start],escortHp:450,escortMaxHp:450};
+  const mission=operationById('freight_intercept')!,compiled=makeEnvironmentMap(getMap(mission.mapId,'survival'));
+  const index=mission.objectives.findIndex(objective=>objective.kind==='escort'),objective=mission.objectives[index]!;
+  const start=operationSite(compiled,objective.startSite),destination=objective.destination??operationSite(compiled,objective.site);
+  let s:OperationState={...createOperationState(mission.id),stage:index,escortPos:[...start],escortHp:450,escortMaxHp:450};
   const distance=(p:Vec3)=>Math.hypot(destination[0]-p[0],destination[2]-p[2]);
   const before=[...s.escortPos!];
   s=tickOperation(s,compiled,[actor([start[0]+30,start[1],start[2]])],[],1);
@@ -83,8 +84,9 @@ describe('Operations campaign',()=>{
  });
  test('escort destruction fails the operation',()=>{
   const mission=operationById('cold_trail')!,compiled=getMap(mission.mapId,'survival');
-  const start=operationSite(compiled,mission.objectives[1].site);
-  let escort:OperationState={...createOperationState(mission.id),stage:2,escortPos:[...start],escortHp:1,escortMaxHp:450};
+  const index=mission.objectives.findIndex(objective=>objective.kind==='escort'),objective=mission.objectives[index]!;
+  const start=operationSite(compiled,objective.startSite);
+  let escort:OperationState={...createOperationState(mission.id),stage:index,escortPos:[...start],escortHp:1,escortMaxHp:450};
   escort=tickOperation(escort,compiled,[actor(start)],[actor(start,'guard')],1);
   expect(escort.status).toBe('failed');
  });
@@ -119,7 +121,7 @@ describe('Operations campaign',()=>{
   expect(operationTarget({...createOperationState(finale.id),stage:bossIndex},getMap(finale.mapId,'survival'))).toEqual(operationSite(getMap(finale.mapId,'survival'),finale.objectives[bossIndex].site));
  });
  test('survival objectives advance on time without requiring a location hold or clearing enemies',()=>{
-  const mission=operationById('relay_siege')!,index=mission.objectives.findIndex(objective=>objective.kind==='survive'),mp=getMap(mission.mapId,'survival');
+  const mission=operationById('relay_siege')!,index=mission.objectives.findIndex(objective=>objective.kind==='survive'),mp=makeEnvironmentMap(getMap(mission.mapId,'survival'));
   expect(index).toBeGreaterThanOrEqual(0);
   let state={...createOperationState(mission.id),stage:index};
   expect(operationTarget(state,mp)).toBeUndefined();
@@ -127,7 +129,7 @@ describe('Operations campaign',()=>{
   expect(state.stage).toBe(index+1);expect(state.status).toBe('active');
  });
  test('escort vehicles move only with a nearby operative, take damage and can be destroyed',()=>{
-  const mission=operationById('freight_intercept')!,index=mission.objectives.findIndex(objective=>objective.kind==='escort'),mp=getMap(mission.mapId,'survival');
+  const mission=operationById('freight_intercept')!,index=mission.objectives.findIndex(objective=>objective.kind==='escort'),mp=makeEnvironmentMap(getMap(mission.mapId,'survival'));
   let state={...createOperationState(mission.id),stage:index};
   const objective=mission.objectives[index]!;
   const start=operationSite(mp,objective.startSite??mission.objectives[index-1]!.site);
@@ -142,7 +144,7 @@ describe('Operations campaign',()=>{
   state=tickOperation(state,mp,[actor(parked)],[],1);expect(state.status).toBe('failed');
  });
  test('the Juggernaut escort remains at the command chamber for the final commander encounter',()=>{
-  const mission=operationById('zero_hour')!,index=mission.objectives.findIndex(objective=>objective.kind==='escort'),mp=getMap(mission.mapId,'survival');
+  const mission=operationById('zero_hour')!,index=mission.objectives.findIndex(objective=>objective.kind==='escort'),mp=makeEnvironmentMap(getMap(mission.mapId,'survival'));
   let state={...createOperationState(mission.id),stage:index},budget=200;
   while(state.stage===index&&budget-->0){const cart=operationTarget(state,mp)!;state=tickOperation(state,mp,[actor(cart)],[],1);}
   expect(state.stage).toBe(index+1);expect(state.escortComplete).toBe(true);expect(state.escortPayload).toBe('Juggernaut');
@@ -151,9 +153,10 @@ describe('Operations campaign',()=>{
  });
  test('every mission has a valid solo completion path',()=>{
   for(const mission of OPERATIONS){
-   const m=getMap(mission.mapId,'survival');let s=createOperationState(mission.id),budget=2000,kills=0;
+   const m=makeEnvironmentMap(getMap(mission.mapId,'survival'));let s=createOperationState(mission.id),budget=2000,kills=0;
    while(s.status==='active'&&budget-->0){const goal=mission.objectives[s.stage];const p=goal?.kind==='deliver'?(s.escortPos??s.packagePos??operationSite(m,mission.objectives[Math.max(0,s.stage-1)].site)):(operationTarget(s,m)??operationSite(m,goal?.site??0));if(goal?.kind==='defend'&&goal.killTarget)kills=(s.objectiveKillBaseline??0)+goal.killTarget;s=tickOperation(s,m,[actor(p,'solo',true,kills)],[],1);}
-   expect(s.status).toBe('won');expect(s.stage).toBe(mission.objectives.length);
+   if(s.status!=='won')throw new Error(`${mission.id} failed at stage ${s.stage}/${mission.objectives.length} after ${s.elapsed}s`);
+    expect(s.stage).toBe(mission.objectives.length);
   }
  });
  test('every defence objective holds for two minutes with continuous 15-second reinforcement pulses',()=>{

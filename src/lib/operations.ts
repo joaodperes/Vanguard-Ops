@@ -180,6 +180,7 @@ export function tickOperation(s:OperationState,map:OperationMap,actors:readonly 
   n.escortMaxHp??=650;n.escortHp??=n.escortMaxHp;n.escortPos??=[...start] as Vec3;n.escortPayload??=g.payload??'Escort vehicle';n.escortDestination??=[...destination] as Vec3;n.escortConnectionTarget??=g.connectionTarget;
   n.escortPath??=planEscortRoute(n.escortPos,destination,map.cover??[],map.size??150);n.escortPathIndex??=1;
   const firstWaypoint=n.escortPath[1]??destination;n.escortYaw??=Math.atan2(firstWaypoint[0]-n.escortPos[0],firstWaypoint[2]-n.escortPos[2]);
+  if(foes.some(a=>near(a.pos,n.escortPos!,7)))n.escortHp=Math.max(0,(n.escortHp??0)-delta*14);
   if((n.escortHp??0)<=0){syncOperationCartCollider(map,n);return {...n,status:'failed'};}
   if(living.some(a=>near(a.pos,n.escortPos!,7))){
    let remaining=2.6*delta;
@@ -200,6 +201,7 @@ export function tickOperation(s:OperationState,map:OperationMap,actors:readonly 
  if(g.kind==='survive'&&g.targetHp!==undefined){
   const start=operationSite(map,g.startSite??m.objectives[Math.max(0,s.stage-1)]?.site??0);
   n.escortMaxHp??=g.targetHp;n.escortHp??=g.targetHp;n.escortPos??=[...start] as Vec3;n.escortPayload??=g.payload??'Protected asset';
+  if(foes.some(a=>near(a.pos,n.escortPos!,7)))n.escortHp=Math.max(0,(n.escortHp??0)-delta*14);
   if((n.escortHp??0)<=0){syncOperationCartCollider(map,n);return {...n,status:'failed'};}
  }
  if(g.kind==='defend')n.pulse=Math.floor(n.stageElapsed/15);
