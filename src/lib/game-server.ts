@@ -991,7 +991,7 @@ const OPERATION_ESCORT_TARGET_ID="__operation_escort__";
 function operationEscortTarget(room:Room):PlayerNet|null {
   const state=room.operation,goal=state&&operationById(state.missionId)?.objectives[state.stage];
   if(!state||state.status!=="active"||goal?.kind!=="escort"||!state.escortPos||(state.escortHp??0)<=0)return null;
-  return {id:OPERATION_ESCORT_TARGET_ID,name:goal.payload??"Escort vehicle",team:"__escort__",isBot:false,
+  return {id:OPERATION_ESCORT_TARGET_ID,name:goal.payload??"Escort vehicle",team:"blue",isBot:false,
     pos:[...state.escortPos] as Vec3,yaw:0,pitch:0,health:state.escortHp!,alive:true,weaponId:"rifle_m4",
     weaponSkinId:"default",playerSkinId:"",kills:0,deaths:0,lastShotAt:0};
 }
@@ -1038,7 +1038,7 @@ function fireRay(room: Room, attackerId: string, origin: Vec3, dir: Vec3, weapon
   for (const p of allCombatantsWithEscort(room)) {
     if (p.id === attackerId) continue;
     if (!p.alive) continue;
-    if (room.config.friendlyFire === false && p.team === attackerTeam && room.mode !== "ffa" && room.mode !== "gungame") continue;
+    if(p.id!==OPERATION_ESCORT_TARGET_ID&&room.config.friendlyFire===false&&p.team===attackerTeam&&room.mode!=="ffa"&&room.mode!=="gungame")continue;
     if(p.id===OPERATION_ESCORT_TARGET_ID){
       const cartHit=rayBox(origin,dir,[p.pos[0],p.pos[1]+.85,p.pos[2]],[2,1.5,3]);
       if(cartHit!==null&&cartHit>=0&&cartHit<=range*falloffEndMultiplier&&(!nearest||cartHit<nearest.t))nearest={victim:p,t:cartHit,head:false};
@@ -1162,7 +1162,7 @@ function firePenetratingRay(room: Room, attackerId: string, origin: Vec3, dir: V
   const contacts: BodyRayContact<PlayerNet>[] = [];
   for (const target of allCombatantsWithEscort(room)) {
     if (!target.alive || target.id === attackerId) continue;
-    if (room.config.friendlyFire === false && target.team === attacker?.team &&
+    if (target.id!==OPERATION_ESCORT_TARGET_ID&&room.config.friendlyFire === false && target.team === attacker?.team &&
         room.mode !== "ffa" && room.mode !== "gungame") continue;
     const cart=target.id===OPERATION_ESCORT_TARGET_ID;
     const panel=cart?null:rayRiotShield(origin,dir,target);
@@ -1502,7 +1502,7 @@ function applyMeleeStrike(room:Room,attacker:PlayerNet,weaponId:string,now:numbe
     allCombatantsWithEscort(room).filter(c=>c.id!==attacker.id).map(c=>({
       id:c.id,pos:c.pos,alive:c.alive,
       protected:(c.spawnProtectedUntil??0)>now,
-      friendly:room.config.friendlyFire===false&&room.mode!=="ffa"&&room.mode!=="gungame"&&c.team===attacker.team,
+      friendly:room.config.friendlyFire===false&&room.mode!=="ffa"&&room.mode!=="gungame"&&c.id!==OPERATION_ESCORT_TARGET_ID&&c.team===attacker.team,
     })),
     (c,dist)=>{
       const eye:Vec3=[attacker.pos[0],attacker.pos[1]+1.1,attacker.pos[2]];
@@ -2997,7 +2997,7 @@ function nearestEnemy(room: Room, p: PlayerNet): PlayerNet | null {
     .sort((a,b)=>Number(a.isBot)-Number(b.isBot))??allCombatants(room)),...(escort?[escort]:[])];
   for (const e of candidates) {
     if (e.id === p.id || !e.alive || (room.mode === "survival" && (e.isBot || room.downed.has(e.id)))) continue;
-    if (e.team === p.team && room.mode !== "ffa" && room.mode !== "gungame") continue;
+    if (e.id!==OPERATION_ESCORT_TARGET_ID&&e.team === p.team && room.mode !== "ffa" && room.mode !== "gungame") continue;
     const d = Math.hypot(e.pos[0] - p.pos[0], e.pos[2] - p.pos[2]);
     if (d >= bestD) continue;
     // Only acquire targets within the bot's engagement range AND with clear LoS.
