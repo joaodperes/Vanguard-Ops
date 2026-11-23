@@ -22,7 +22,7 @@ import { harbingerTuning, harbingerTargets, harbingerRayHit, harbingerPlacement,
 import { wonderConeHit, seismicPulseHit, seismicPushPosition, ripperSegments, CHRONO_ANCHOR_MS, PHANTOM_DURATION_MS, CRYO_SLOW_MS, CRYO_SLOW_FACTOR, mechTuning, phantomSpawnPosition, phantomTravelPosition, juggernautDropPoint, crushesAtLanding, JUGGERNAUT_DROP_MS, JUGGERNAUT_ACTIVE_MS, JUGGERNAUT_MINIGUN_RATE, JUGGERNAUT_SHOTGUN_RATE, JUGGERNAUT_SWARM_RATE } from "./wonder-abilities";
 import { db } from "./db";
 import { roomMapCandidates, roomTeamSizeForMap, winningRoomMap } from "./room-flow";
-import { recommendedTeamSize, type RoomStatus } from "./game-protocol";
+import { recommendedTeamSize, type RoomStatus, isValidKillConfirmedTagLifetimeMs, killConfirmedTagExpiresAt } from "./game-protocol";
 import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,ORBITAL_RULES_VERSION,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,orbitalPulseTargets,orbitalReaperEquipped,ORBITAL_REAPER_SPEED_MULTIPLIER} from "./orbital-reactor";
 import { advanceMatchElapsed } from "./match-clock";
 import { fullWonderCharges, drainedWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, refundWonderCharge, type WonderChargeState } from "./wonder-charge";
@@ -647,7 +647,7 @@ function createLobbyRoom(
   if (!isSurvival && !isGungame) {
     if (typeof cfg.scoreLimit === "number" && cfg.scoreLimit >= 0) config.scoreLimit = cfg.scoreLimit;
     if (typeof cfg.timeLimit === "number" && cfg.timeLimit >= 0) config.timeLimit = cfg.timeLimit;
-    if (mode === "killconfirmed" && [10000, 15000, 25000, 30000, 45000].includes(cfg.tagLifetimeMs ?? -1)) config.tagLifetimeMs = cfg.tagLifetimeMs!;
+    if (mode === "killconfirmed" && isValidKillConfirmedTagLifetimeMs(cfg.tagLifetimeMs ?? config.tagLifetimeMs)) config.tagLifetimeMs = cfg.tagLifetimeMs ?? config.tagLifetimeMs;
     if (mode === "killconfirmed") config.denialScoreEnabled = cfg.denialScoreEnabled === true;
     if (mode === "ctf") config.ctfFlagResetMs = ctfResetMs(cfg.ctfFlagResetMs);
   }
@@ -987,6 +987,22 @@ function allCombatants(room: Room): PlayerNet[] {
   return [...room.players.values(), ...room.bots.values()];
 }
 
+const OPERATION_ESCORT_TARGET_ID="__operation_escort__";
+function operationEscortTarget(room:Room):PlayerNet|null {
+  const state=room.operation,goal=state&&operationById(state.missionId)?.objectives[state.stage];
+  if(!state||state.status!=="active"||goal?.kind!=="escort"||!state.escortPos||(state.escortHp??0)<=0)return null;
+  return {id:OPERATION_ESCORT_TARGET_ID,name:goal.payload??"Escort vehicle",team:"blue",isBot:false,
+    pos:[...state.escortPos] as Vec3,yaw:0,pitch:0,health:state.escortHp!,alive:true,weaponId:"rifle_m4",
+    weaponSkinId:"default",playerSkinId:"",kills:0,deaths:0,lastShotAt:0};
+}
+function roomCombatantById(room:Room,id:string):PlayerNet|undefined {
+  return id===OPERATION_ESCORT_TARGET_ID?operationEscortTarget(room)??undefined:room.bots.get(id)??room.players.get(id);
+}
+function allCombatantsWithEscort(room:Room):PlayerNet[] {
+  const escort=operationEscortTarget(room);
+  return escort?[...allCombatants(room),escort]:allCombatants(room);
+}
+
 // Shared limb-inclusive humanoid ray collision (see combat-hitboxes.ts).
 
 // ---- LOS & hit detection ----------------------------------------------------
@@ -1019,10 +1035,15 @@ function fireRay(room: Room, attackerId: string, origin: Vec3, dir: Vec3, weapon
   const attacker = room.players.get(attackerId) ?? room.bots.get(attackerId);
   const attackerTeam = attacker?.team;
   let nearest: { victim: PlayerNet; t: number; head: boolean; shield?: boolean } | null = null;
-  for (const p of allCombatants(room)) {
+  for (const p of allCombatantsWithEscort(room)) {
     if (p.id === attackerId) continue;
     if (!p.alive) continue;
     if (room.config.friendlyFire === false && p.team === attackerTeam && room.mode !== "ffa" && room.mode !== "gungame") continue;
+    if(p.id===OPERATION_ESCORT_TARGET_ID){
+      const cartHit=rayBox(origin,dir,[p.pos[0],p.pos[1]+.85,p.pos[2]],[2,1.5,3]);
+      if(cartHit!==null&&cartHit>=0&&cartHit<=range*falloffEndMultiplier&&(!nearest||cartHit<nearest.t))nearest={victim:p,t:cartHit,head:false};
+      continue;
+    }
     const panel=rayRiotShield(origin,dir,p);
     if(panel!==null&&panel<=range*falloffEndMultiplier&&(!nearest||panel<nearest.t))nearest={victim:p,t:panel,head:false,shield:true};
     const hit = rayCombatantHit(origin, dir, p.pos);
@@ -1139,18 +1160,18 @@ function firePenetratingRay(room: Room, attackerId: string, origin: Vec3, dir: V
   const attacker = room.players.get(attackerId) ?? room.bots.get(attackerId);
   const maxDistance = maxWeaponHitRange(range, eff);
   const contacts: BodyRayContact<PlayerNet>[] = [];
-  for (const target of allCombatants(room)) {
+  for (const target of allCombatantsWithEscort(room)) {
     if (!target.alive || target.id === attackerId) continue;
     if (room.config.friendlyFire === false && target.team === attacker?.team &&
         room.mode !== "ffa" && room.mode !== "gungame") continue;
-    const panel = rayRiotShield(origin, dir, target);
-    const body = rayCombatantHit(origin, dir, target.pos);
-    const shieldFirst = panel !== null && panel >= 0 && (!body || panel < body.t);
-    const t = shieldFirst ? panel! : body?.t;
-    if (t === undefined) continue;
-    contacts.push({ target, t, head: shieldFirst ? false : !!body?.head,
-      shield: shieldFirst,
-      protected: (target.spawnProtectedUntil ?? 0) > Date.now() });
+    const cart=target.id===OPERATION_ESCORT_TARGET_ID;
+    const panel=cart?null:rayRiotShield(origin,dir,target);
+    const body=cart?null:rayCombatantHit(origin,dir,target.pos);
+    const cartHit=cart?rayBox(origin,dir,[target.pos[0],target.pos[1]+.85,target.pos[2]],[2,1.5,3]):null;
+    const shieldFirst=panel!==null&&panel>=0&&(!body||panel<body.t);
+    const t=cart?cartHit:shieldFirst?panel!:body?.t;
+    if(t===undefined||t===null||t<0)continue;
+    contacts.push({target,t,head:shieldFirst?false:!!body?.head,shield:shieldFirst,protected:(target.spawnProtectedUntil??0)>Date.now()});
   }
   const resolved=resolveMaterialPenetrationShot(contacts,coverForRay(room,origin,dir,maxDistance),origin,dir,maxDistance,
       eff.bodyPenetration,eff.coverPenetration,phasebreaker);
@@ -1478,7 +1499,7 @@ function applyMeleeStrike(room:Room,attacker:PlayerNet,weaponId:string,now:numbe
     ? riotBashProfile() : quickMeleeProfile(weapon.stats,weaponId);
   destroyTurretsHitByMelee(room,attacker,attack.reach);
   const target=chooseQuickMeleeTarget(attacker.pos,attacker.yaw,
-    allCombatants(room).filter(c=>c.id!==attacker.id).map(c=>({
+    allCombatantsWithEscort(room).filter(c=>c.id!==attacker.id).map(c=>({
       id:c.id,pos:c.pos,alive:c.alive,
       protected:(c.spawnProtectedUntil??0)>now,
       friendly:room.config.friendlyFire===false&&room.mode!=="ffa"&&room.mode!=="gungame"&&c.team===attacker.team,
@@ -1863,6 +1884,10 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
   // Boss armor: prevents burst weapons from trivializing boss encounters.
   if (fellInLava) dmg = victim.health;
   else if (room.mode === "survival" && room.bots.get(victim.id)?.ai.boss) dmg *= 0.80;
+  if(victim.id===OPERATION_ESCORT_TARGET_ID){
+    if(room.operation)room.operation=damageOperationEscort(room.operation,dmg);
+    return;
+  }
   if(room.mode==="survival"&&!fellInLava){
     if(attacker&&!attacker.isBot&&victim.isBot){
       const now=Date.now();
@@ -2081,7 +2106,7 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
       }
     }
     if (room.mode === "killconfirmed" && attacker && attacker.team !== victim.team && (victim.team === "red" || victim.team === "blue")) {
-      const tag: KillConfirmedTag = { id: genId("tag"), victimId: victim.id, victimTeam: victim.team, pos: [...victim.pos] as Vec3, expiresAt: Date.now() + room.config.tagLifetimeMs };
+      const tag: KillConfirmedTag = { id: genId("tag"), victimId: victim.id, victimTeam: victim.team, pos: [...victim.pos] as Vec3, expiresAt: killConfirmedTagExpiresAt(Date.now(), room.config.tagLifetimeMs) };
       room.tags.set(tag.id, tag);
     }
     const entry: KillFeedEntry = {
@@ -2938,7 +2963,7 @@ function nearestEnemy(room: Room, p: PlayerNet): PlayerNet | null {
   const previous=cache.get(p.id);
   if(previous&&now<previous.nextAt){
     if(previous.targetId===null)return null;
-    const target=room.bots.get(previous.targetId)??room.players.get(previous.targetId);
+    const target=roomCombatantById(room,previous.targetId);
     if(target?.alive)return target;
   }
   let best: PlayerNet | null = null;
@@ -2949,8 +2974,9 @@ function nearestEnemy(room: Room, p: PlayerNet): PlayerNet | null {
   const awareness=room.operation?operationAwarenessMultiplier(room.operation):1;
   const radius=Math.min(botDetectionRange(room.bots.get(p.id)?.ai.difficulty??"normal",weaponById(p.weaponId).category)*botAwarenessPerkMultiplier(room.loadouts.get(p.id)?.perkId)*awareness,
     room.map.id==="whiteout_depot"?whiteoutVisibility(room.environmentTime,p.pos):Infinity);
-  const candidates=room.actorIndex?.near(p.pos[0],p.pos[2],radius)
-    .sort((a,b)=>Number(a.isBot)-Number(b.isBot))??allCombatants(room);
+  const escort=operationEscortTarget(room);
+  const candidates=[...(room.actorIndex?.near(p.pos[0],p.pos[2],radius)
+    .sort((a,b)=>Number(a.isBot)-Number(b.isBot))??allCombatants(room)),...(escort?[escort]:[])];
   for (const e of candidates) {
     if (e.id === p.id || !e.alive || (room.mode === "survival" && (e.isBot || room.downed.has(e.id)))) continue;
     if (e.team === p.team && room.mode !== "ffa" && room.mode !== "gungame") continue;
@@ -3804,7 +3830,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     // In Operations escort stages, bots pressure the convoy whenever no player
     // is an immediate threat. The shared objective tick applies damage at cart range.
     const escort=room.operation&&room.operation.status==="active"&&
-      operationById(room.operation.missionId)?.objectives[room.operation.stage]?.kind==="deliver"
+      operationById(room.operation.missionId)?.objectives[room.operation.stage]?.kind==="escort"
       ?room.operation.escortPos:undefined;
     if(escort&&room.operation&&(room.operation.escortHp??0)>0&&threatDistance>14){
       ai.targetId=null;ai.wanderTarget=[...escort] as Vec3;ai.highGroundPatrol=null;ai.investigationLookAt=null;
@@ -3812,7 +3838,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     if (Math.random() < 0.4) ai.strafeDir = -ai.strafeDir;
   }
 
-  const candidate = ai.targetId ? (room.players.get(ai.targetId) ?? room.bots.get(ai.targetId)) : null;
+  const candidate = ai.targetId ? roomCombatantById(room,ai.targetId) : null;
   // Never track/fight an opponent behind cover even before the next AI
   // decision. Only refreshed visible positions can enter the memory.
   const candidateDist=candidate?Math.hypot(candidate.pos[0]-bot.pos[0],candidate.pos[2]-bot.pos[2]):Infinity;
