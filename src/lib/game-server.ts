@@ -2830,7 +2830,7 @@ function tickRoomSimulation(room: Room) {
       } else if (room.waveActive) {
         const aliveBots = [...room.bots.values()].filter((b) => b.alive).length;
         tickRoomSurvivalEncounters(room,1/20);
-        const previousStage=room.operation?.stage,previousPulse=room.operation?.pulse;
+        const previousOperation=room.operation,previousStage=room.operation?.stage,previousPulse=room.operation?.pulse;
         if(room.operation){
           room.operation=tickOperation(room.operation,room.map,
             [...room.players.values()].map(p=>({id:p.id,pos:p.pos,alive:p.alive&&!room.downed.has(p.id),kills:p.kills})),
