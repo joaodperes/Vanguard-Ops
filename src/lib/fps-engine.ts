@@ -1275,7 +1275,8 @@ export class FPSEngine {
   private operation: OperationState | undefined;
   private operationNotice?: HudState["operationNotice"];
   private operationBeacons: THREE.Group[] = [];
-  private operationEscort?: THREE.Group;
+  private operationEscortMesh?: THREE.Group;
+  private operationEscortPayload = "";
   private survivalWave = 0;
   private survivalTier: SurvivalTier = "default";
   private survivalUpgradeRanks:SurvivalUpgradeRanks={};
@@ -9646,9 +9647,18 @@ export class FPSEngine {
         this.damageEnvironmentWall(cover.box.environmentId, this.eff.damage);
         return null;
       }
+      const escort=this.operationEscortTarget();
+      const cartHit=escort?rayBox(origin,dir,[escort.pos[0],escort.pos[1]+.85,escort.pos[2]],[2,1.5,3]):null;
       const resolved=resolveMaterialPenetrationShot(contacts,this.coverForRay(origin,dir,maxDistance),origin,dir,maxDistance,
         this.eff.bodyPenetration,this.eff.coverPenetration,this.weaponId==="wonder_phasebreaker");
       const hits=resolved.hits;
+      if(escort&&cartHit!==null&&cartHit<(hits[0]?.t??Infinity)&&cartHit<=resolved.stoppedAt){
+        const dealt=damageAtRange(this.eff.damage,cartHit,this.eff.range,this.eff)*0.65*survivalWaveDamageMul(this.survivalWave)*survivalWaveMutators(this.survivalTier,this.survivalWave).damageMul;
+        this.operation!.escortHp=Math.max(0,(this.operation!.escortHp??0)-dealt);
+        this.hitMarkerAt=performance.now();
+        if(this.operation!.escortHp<=0)this.operationNotice={kind:"objective",message:"ESCORT VEHICLE DESTROYED",at:performance.now()};
+        return null;
+      }
       this.damageLocalBallisticCover(origin,dir,maxDistance,this.eff.coverPenetration??0,this.eff.damage,
         resolved.stoppedAt);
       let firstVictim: Combatant | null = null;
@@ -9711,6 +9721,15 @@ export class FPSEngine {
     for (const cov of this.coverAlong(origin,[origin[0]+dir[0]*this.eff.range,origin[1]+dir[1]*this.eff.range,origin[2]+dir[2]*this.eff.range],2)) {
       const t = rayBox(origin, dir, cov.pos, cov.size);
       if (t !== null && t < blockedT) blockedT = t;
+    }
+    const escort=this.operationEscortTarget();
+    const cartHit=escort?rayBox(origin,dir,[escort.pos[0],escort.pos[1]+.85,escort.pos[2]],[2,1.5,3]):null;
+    if(escort&&cartHit!==null&&cartHit<blockedT&&cartHit<(nearest?.t??Infinity)){
+      const dealt=damageAtRange(this.eff.damage,cartHit,this.eff.range,this.eff)*0.65*survivalWaveDamageMul(this.survivalWave)*survivalWaveMutators(this.survivalTier,this.survivalWave).damageMul;
+      this.operation!.escortHp=Math.max(0,(this.operation!.escortHp??0)-dealt);
+      this.hitMarkerAt=performance.now();
+      if(this.operation!.escortHp<=0)this.operationNotice={kind:"objective",message:"ESCORT VEHICLE DESTROYED",at:performance.now()};
+      return null;
     }
     // Ordinary calibers still crack, splinter or mark the first tagged panel,
     // even when they have no penetration budget at all.
@@ -10849,11 +10868,72 @@ export class FPSEngine {
   private updateOperationBeacons() {
     if(!this.operation)return;
     const mission=operationById(this.operation.missionId),goal=mission?.objectives[this.operation.stage];
-    const sites=[operationTarget(this.operation,this.map),this.operation.intel ? undefined : operationSite(this.map,mission!.optionalObjective.site)];
-    for(let i=0;i<2;i++){
+    const escortPos=this.operation.escortPos;
+    const showEscort=!!escortPos&&(
+      goal?.kind==='escort'||(this.operation.escortComplete&&this.operation.escortPayload?.toLowerCase()==='juggernaut'));
+    if(showEscort&&escortPos){
+      const payloadName=goal?.kind==='escort'?goal.payload??'Escort vehicle':this.operation.escortComplete?'Empty':this.operation.escortPayload??'Juggernaut';
+      if(!this.operationEscortMesh||this.operationEscortPayload!==payloadName){
+        if(this.operationEscortMesh){
+          this.operationEscortMesh.removeFromParent();
+          this.operationEscortMesh.traverse(o=>{if(o instanceof THREE.Mesh){
+            o.geometry.dispose();for(const material of Array.isArray(o.material)?o.material:[o.material])material.dispose();
+          }});
+          this.operationEscortMesh=undefined;
+        }
+        const group=new THREE.Group();
+        const metal=new THREE.MeshStandardMaterial({color:0x64748b,metalness:.65,roughness:.42});
+        const dark=new THREE.MeshStandardMaterial({color:0x202a34,metalness:.35,roughness:.75});
+        const deck=new THREE.Mesh(new THREE.BoxGeometry(2.05,.22,3.05),metal);deck.position.y=.62;group.add(deck);
+        const chassis=new THREE.Mesh(new THREE.BoxGeometry(1.45,.35,2.35),dark);chassis.position.y=.39;group.add(chassis);
+        for(const x of [-1.02,1.02])for(const z of [-1.12,1.12]){
+          const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.34,.34,.22,14),new THREE.MeshStandardMaterial({color:0x111827,roughness:.95}));
+          wheel.rotation.z=Math.PI/2;wheel.position.set(x,.39,z);group.add(wheel);
+        }
+        if(payloadName.toLowerCase().includes('juggernaut')){
+          const armor=new THREE.MeshStandardMaterial({color:0x8a783b,metalness:.72,roughness:.34});
+          const trim=new THREE.MeshStandardMaterial({color:0x303b36,metalness:.48,roughness:.5});
+          const torso=new THREE.Mesh(new THREE.BoxGeometry(.9,1.02,.58),armor);torso.position.set(0,1.55,0);group.add(torso);
+          const helmet=new THREE.Mesh(new THREE.SphereGeometry(.34,14,10),trim);helmet.position.set(0,2.25,0);group.add(helmet);
+          const visor=new THREE.Mesh(new THREE.BoxGeometry(.42,.12,.035),new THREE.MeshStandardMaterial({color:0xf59e0b,emissive:0x7c3f00,emissiveIntensity:.8}));
+          visor.position.set(0,2.28,-.3);group.add(visor);
+          for(const side of [-1,1]){
+            const shoulder=new THREE.Mesh(new THREE.BoxGeometry(.48,.42,.62),armor);shoulder.position.set(side*.68,1.85,0);group.add(shoulder);
+            const arm=new THREE.Mesh(new THREE.BoxGeometry(.3,.72,.36),trim);arm.position.set(side*.72,1.34,0);group.add(arm);
+            const leg=new THREE.Mesh(new THREE.BoxGeometry(.34,.62,.42),trim);leg.position.set(side*.24,.98,.05);group.add(leg);
+          }
+          const weapon=new THREE.Mesh(new THREE.BoxGeometry(.18,.22,.95),dark);weapon.position.set(.82,1.38,-.43);group.add(weapon);
+        }else if(payloadName.toLowerCase()==='pc'){
+          const pcCase=new THREE.Mesh(new THREE.BoxGeometry(.48,.82,.52),dark);pcCase.position.set(-.48,1.18,.3);group.add(pcCase);
+          const monitor=new THREE.Mesh(new THREE.BoxGeometry(.98,.64,.12),metal);monitor.position.set(.32,1.45,-.24);group.add(monitor);
+          const screen=new THREE.Mesh(new THREE.BoxGeometry(.82,.47,.025),new THREE.MeshStandardMaterial({color:0x0e7490,emissive:0x0891b2,emissiveIntensity:1.1,metalness:.1,roughness:.3}));
+          screen.position.set(.32,1.46,-.315);group.add(screen);
+          const keyboard=new THREE.Mesh(new THREE.BoxGeometry(.62,.045,.24),dark);keyboard.position.set(.28,1.12,-.08);group.add(keyboard);
+        }
+        const barGroup=new THREE.Group();barGroup.name='escort-health-group';barGroup.position.set(0,3.05,0);
+        const bg=new THREE.Mesh(new THREE.PlaneGeometry(2.2,.18),new THREE.MeshBasicMaterial({color:0x111827,depthTest:false}));
+        const bar=new THREE.Mesh(new THREE.PlaneGeometry(2.05,.11),new THREE.MeshBasicMaterial({color:0x22c55e,depthTest:false}));
+        bar.position.z=.012;bar.name='escort-health';barGroup.add(bg,bar);group.add(barGroup);
+        this.scene.add(group);this.operationEscortMesh=group;this.operationEscortPayload=payloadName;
+      }
+      this.operationEscortMesh.visible=this.operation.status==='active'&&!this.lobbyActive;
+      this.operationEscortMesh.position.set(...escortPos);
+      const destination=goal?.kind==='escort'?operationSite(this.map,goal.site):this.operation.escortDestination??escortPos;
+      const dx=destination[0]-escortPos[0],dz=destination[2]-escortPos[2];
+      this.operationEscortMesh.rotation.y=this.operation.escortYaw??Math.atan2(dx,dz);
+      const bar=this.operationEscortMesh.getObjectByName('escort-health') as THREE.Mesh|undefined;
+      if(bar){
+        const ratio=Math.max(0,Math.min(1,(this.operation.escortHp??0)/(this.operation.escortMaxHp??650)));
+        bar.scale.x=ratio;bar.position.x=-(1-ratio)*1.025;
+        (bar.material as THREE.MeshBasicMaterial).color.set(ratio>.5?0x22c55e:ratio>.25?0xf59e0b:0xef4444);
+      }
+      this.operationEscortMesh.getObjectByName('escort-health-group')?.lookAt(this.camera.position);
+    }else if(this.operationEscortMesh)this.operationEscortMesh.visible=false;
+    const sites=[operationTarget(this.operation,this.map),this.operation.intel ? undefined : operationSite(this.map,mission!.optionalObjective.site),goal?.kind==='escort'?operationSite(this.map,goal.site):undefined];
+    for(let i=0;i<3;i++){
       if(!this.operationBeacons[i]){
-        const group=new THREE.Group(),material=new THREE.MeshBasicMaterial({color:i===0?0xfbbf24:0xffffff,transparent:true,opacity:.75,depthWrite:false});
-        const ring=new THREE.Mesh(new THREE.TorusGeometry(i===0?3.5:2,.08,6,32),material);
+        const group=new THREE.Group(),material=new THREE.MeshBasicMaterial({color:i===0?0xfbbf24:i===1?0xffffff:0x22c55e,transparent:true,opacity:.75,depthWrite:false});
+        const ring=new THREE.Mesh(new THREE.TorusGeometry(i===1?2:3.5,.08,6,32),material);
         ring.rotation.x=Math.PI/2;ring.position.y=.12;group.add(ring);
         const diamond=new THREE.Mesh(new THREE.OctahedronGeometry(.65),material);diamond.position.y=3;group.add(diamond);
         this.scene.add(group);this.operationBeacons[i]=group;
@@ -10861,27 +10941,6 @@ export class FPSEngine {
       const group=this.operationBeacons[i],site=sites[i];group.visible=!!site&&this.operation.status==='active'&&!this.lobbyActive;
       if(site)group.position.set(site[0],site[1],site[2]);group.children[1].rotation.y=performance.now()/1500;
     }
-    if(goal?.kind==='deliver'&&this.operation.escortPos){
-      if(!this.operationEscort){
-        const cart=new THREE.Group();
-        const frame=new THREE.MeshStandardMaterial({color:0x303943,roughness:.8,metalness:.35});
-        const cargo=new THREE.MeshStandardMaterial({color:0x9a6b36,roughness:.95});
-        const rubber=new THREE.MeshStandardMaterial({color:0x17191c,roughness:1});
-        const chassis=new THREE.Mesh(new THREE.BoxGeometry(3.2,.55,2),frame);chassis.position.y=.8;cart.add(chassis);
-        const load=new THREE.Mesh(new THREE.BoxGeometry(2.5,1.25,1.7),cargo);load.position.set(0,1.65,0);cart.add(load);
-        const wheelGeo=new THREE.CylinderGeometry(.43,.43,.28,12);
-        for(const x of [-1.15,1.15])for(const z of [-.78,.78]){
-          const wheel=new THREE.Mesh(wheelGeo,rubber);wheel.rotation.z=Math.PI/2;wheel.position.set(x,.48,z);cart.add(wheel);
-        }
-        const beacon=new THREE.Mesh(new THREE.BoxGeometry(.22,.8,.22),new THREE.MeshBasicMaterial({color:0xfbbf24}));
-        beacon.position.set(0,2.55,0);cart.add(beacon);
-        this.scene.add(cart);this.operationEscort=cart;
-      }
-      const cart=this.operationEscort;cart.visible=this.operation.status==='active'&&!this.lobbyActive;
-      cart.position.set(this.operation.escortPos[0],this.operation.escortPos[1],this.operation.escortPos[2]);
-      const destination=operationTarget(this.operation,this.map);
-      if(destination)cart.rotation.y=Math.atan2(destination[0]-cart.position.x,destination[2]-cart.position.z);
-    }else if(this.operationEscort)this.operationEscort.visible=false;
   }
 
   // ---- Loop ----
@@ -12527,7 +12586,7 @@ export class FPSEngine {
       }
       if (Math.random() < 0.4) ai.strafeDir = -ai.strafeDir;
     }
-    const target = ai.targetId ? this.combatants.get(ai.targetId) : null;
+    const target = ai.targetId ? (ai.targetId==="__operation_escort__"?this.operationEscortTarget():this.combatants.get(ai.targetId)) : null;
     const targetIsSelf = ai.targetId === this.selfId;
     const selfCombatant: Combatant = {
       id: this.selfId, name: this.opts.playerName, team: this.opts.team as string, isBot: false, isSelf: true,
@@ -13153,20 +13212,21 @@ export class FPSEngine {
     const cached=this.botEnemySearchCache.get(c.id);
     if(cached&&now<cached.nextAt){
       if(cached.targetId===null)return null;
-      const target=cached.targetId===this.selfId?selfC:this.combatants.get(cached.targetId);
+      const target=cached.targetId===this.selfId?selfC:cached.targetId==="__operation_escort__"?this.operationEscortTarget():this.combatants.get(cached.targetId);
       if(target?.alive)return target;
     }
     const awareness=this.operation?operationAwarenessMultiplier(this.operation):1;
     const radius=Math.min(botDetectionRange(c.ai?.difficulty??"normal",weaponById(c.weaponId).category)*botAwarenessPerkMultiplier(c.perkId)*awareness,
       this.map.id==="whiteout_depot"?whiteoutVisibility(this.environmentTime,c.pos):Infinity);
+    const escort=this.operationEscortTarget();
     const candidates = [...(this.actorIndex.size
-      ?this.actorIndex.near(c.pos[0],c.pos[2],radius):this.combatants.values()), selfC];
+      ?this.actorIndex.near(c.pos[0],c.pos[2],radius):this.combatants.values()), selfC,...(escort?[escort]:[])];
     // Bots require LINE OF SIGHT to acquire a target (no longer omniscient).
     // If no visible enemy exists, the bot wanders. This makes bots feel less
     // psychic — you can break LoS to escape them.
     for (const e of candidates) {
       if (e.id === c.id || !e.alive || (this.opts.mode === "survival" && e.isBot)) continue;
-      if (e.team === c.team && this.opts.mode !== "ffa" && this.opts.mode !== "gungame") continue;
+      if (e.id!=="__operation_escort__"&&e.team === c.team && this.opts.mode !== "ffa" && this.opts.mode !== "gungame") continue;
       const d = Math.hypot(e.pos[0] - c.pos[0], e.pos[2] - c.pos[2]);
       if (d >= bestD) continue;
       // Only acquire targets within engagement range AND with clear LoS.
