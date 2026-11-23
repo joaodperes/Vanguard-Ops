@@ -6205,7 +6205,7 @@ export class FPSEngine {
     // direction. The pickSpawn function already maximizes distance from
     // other combatants + the player, so bots naturally spread out.
     for (let n = 0; n < count; n++) {
-      const boss=mutators.boss && n === count-1;
+      const boss=bossWave && n === count-1;
       const elite=!boss && this.survivalWave>=5 && this.survivalWave%5===0 &&
         n===count-(mutators.boss?2:1);
       const id=(boss ? "svboss_" : elite ? "svelite_" : "svbot_")+this.survivalWave+"_"+n+(this.operation ? "_"+this.operation.pulse : "");
