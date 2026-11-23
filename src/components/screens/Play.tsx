@@ -12,6 +12,7 @@ import {
 } from "@/lib/game-data";
 import {
   MAP_LIST, getMap, recommendedTeamSize, teamSizesForMap, roomCapacity, mapAllowedForMode, resolveRoomSelection,
+  KC_TAG_LIFETIME_OPTIONS_MS, KC_TAG_LIFETIME_INFINITE_MS,
   type MapId, type GameMode, type TeamSize, type RoomSummary, type CreateRoomConfig,
   type S2C, type C2S, type BotDifficulty,
 } from "@/lib/game-protocol";

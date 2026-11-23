@@ -1498,7 +1498,7 @@ export interface KillConfirmedTag {
   victimId: string;
   victimTeam: "red" | "blue";
   pos: Vec3;
-  expiresAt: number;
+  expiresAt: number; // Number.MAX_SAFE_INTEGER represents an infinite lifetime
 }
 
 export interface KillFeedEntry {

@@ -24,6 +24,11 @@ the recipient sees the invited room in the browser and uses the ordinary team
 and password dialog. Full, expired and between-round rooms display an unavailable
 message with refresh available. Clipboard failure exposes a selectable link.
 
+Kill Confirmed room settings include a configurable dropped-dogtag lifetime:
+10, 15, 25, 30 or 45 seconds, or **Infinite**. Infinite tags remain available
+until collected; the default remains 25 seconds. The room protocol represents
+the Infinite choice with `-1` and broadcasts a JSON-safe non-expiring timestamp.
+
 The room protocol includes `createRoom`, `listRooms`, `joinRoom`, `voteMap`,
 `readyNextRound`, `roomStatus` and `roundLaunched`. Deploy frontend and game
 server together and restart the server. No catalogs or database schema change.

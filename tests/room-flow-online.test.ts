@@ -68,9 +68,14 @@ test("real sockets retain a private group across voting and rematches; host depa
     expect(afterLeave.rooms.some(room=>room.id===newRoomId)).toBe(false);
     for(const mode of ["ffa","killconfirmed","ctf","survival","gungame"] as GameMode[]){
       const s=await connect(),mapId=mode==="ctf"?"forest_warfare":"compound";
-      const config:CreateRoomConfig={mode,mapId,teamSize:recommendedTeamSize(mapId,mode),fillWithBots:mode!=="survival",password:null,roomName:mode,botDifficulty:"normal",survivalPlayers:1,survivalTier:"default",...(mode==="ctf"?{scoreLimit:3,timeLimit:0}:{})};
-      send(s,{t:"createRoom",playerKey:s.id!,name:mode,loadout,config});expect((await wait(s,"roomJoined")).mode).toBe(mode);
-      send(s,{t:"startMatch"});expect((await wait(s,"roundLaunched")).mode).toBe(mode);await wait(s,"matchStarted");s.disconnect();
+      const config:CreateRoomConfig={mode,mapId,teamSize:recommendedTeamSize(mapId,mode),fillWithBots:mode!=="survival",password:null,roomName:mode,botDifficulty:"normal",survivalPlayers:1,survivalTier:"default",...(mode==="ctf"?{scoreLimit:3,timeLimit:0}:{}),...(mode==="killconfirmed"?{tagLifetimeMs:-1}:{})};
+      send(s,{t:"createRoom",playerKey:s.id!,name:mode,loadout,config});
+      const joined=await wait(s,"roomJoined");expect(joined.mode).toBe(mode);
+      if(mode==="killconfirmed")expect(joined.config.tagLifetimeMs).toBe(-1);
+      send(s,{t:"startMatch"});expect((await wait(s,"roundLaunched")).mode).toBe(mode);
+      const started=await wait(s,"matchStarted");
+      if(mode==="killconfirmed")expect(started.config.tagLifetimeMs).toBe(-1);
+      s.disconnect();
     }
   }finally{clients.forEach(s=>s.disconnect());server.kill();await server.exited;await rm(dir,{recursive:true,force:true});}
 },120000);

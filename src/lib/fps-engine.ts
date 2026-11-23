@@ -6207,8 +6207,8 @@ export class FPSEngine {
     // other combatants + the player, so bots naturally spread out.
     for (let n = 0; n < count; n++) {
       const boss=bossWave && n === count-1;
-      const elite=!boss && this.survivalWave>=5 && this.survivalWave%5===0 &&
-        n===count-(mutators.boss?2:1);
+      const elite=!boss && !bossWave && this.survivalWave>=5 && this.survivalWave%5===0 &&
+        n===count-1;
       const id=(boss ? "svboss_" : elite ? "svelite_" : "svbot_")+this.survivalWave+"_"+n+(this.operation ? "_"+this.operation.pulse : "");
       const commanderSpawn=boss&&commanderSite?this.map.spawns.ffa
         .filter(p=>Math.hypot(p[0]-commanderSite[0],p[2]-commanderSite[2])>6&&
@@ -13306,13 +13306,13 @@ export class FPSEngine {
     const resolved=resolveMaterialPenetrationShot(contacts,this.coverForRay(origin,dir,maxDistance),origin,dir,maxDistance,
       eff.bodyPenetration,eff.coverPenetration);
     let hits=resolved.hits;
-
+    const escort=this.operationEscortTarget();
     if(escort&&!isThrowingKnife(attacker.weaponId)){
       const cartHit=rayBox(origin,dir,[escort.pos[0],escort.pos[1]+.85,escort.pos[2]],[2,1.5,3]);
       if(cartHit!==null&&cartHit<(hits[0]?.t??Infinity)&&cartHit<=resolved.stoppedAt){
         const dealt=damageAtRange(eff.damage,cartHit,eff.range,eff)*0.65*survivalWaveDamageMul(this.survivalWave)*survivalWaveMutators(this.survivalTier,this.survivalWave).damageMul;
         this.operation!.escortHp=Math.max(0,(this.operation!.escortHp??0)-dealt);
-        hits=[];
+        hits=[]; // The vehicle absorbs the shot instead of allowing it to pass through.
         if(this.operation!.escortHp<=0)this.operationNotice={kind:"objective",message:"ESCORT VEHICLE DESTROYED",at:performance.now()};
       }
     }
@@ -13929,6 +13929,13 @@ export class FPSEngine {
     for(const id of [...this.mechDrops.keys()])this.removeMechDrop(id);
     for(const id of [...this.phantomDecoys.keys()])this.clearPhantom(id);
     for(const id of [...this.harbingerDrones.keys()])this.removeHarbinger(id);
+    if(this.operationEscortMesh){
+      this.operationEscortMesh.removeFromParent();
+      this.operationEscortMesh.traverse(o=>{if(o instanceof THREE.Mesh){
+        o.geometry.dispose();for(const material of Array.isArray(o.material)?o.material:[o.material])material.dispose();
+      }});
+      this.operationEscortMesh=undefined;this.operationEscortPayload="";
+    }
     for(const group of this.operationBeacons){
       group.removeFromParent();group.traverse(o=>{if(o instanceof THREE.Mesh)o.geometry.dispose();});
       ((group.children[0] as THREE.Mesh).material as THREE.Material).dispose();
