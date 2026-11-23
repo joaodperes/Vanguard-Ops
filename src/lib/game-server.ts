@@ -463,7 +463,7 @@ function spawnBots(room: Room) {
     loadout.playerSkinId = botOperativeSkinId(room.bots.size, skinRotation);
     const difficulty = resolveBotDifficulty(room);
     const ai = makeBotAI(sp, loadout.weaponId, difficulty, 0, archetype);
-    ai.moveSpeed*=botMovementPerkMultiplier(loadout.perkId);
+    ai.moveSpeed*=botMovementPerkMultiplier(loadout.perkId)*(room.mode==="frontier"?1.2:1);
     if(loadout.secondaryWeaponId)ai.secondaryAmmoInMag=botMagazineCapacity(loadout.secondaryWeaponId,loadout.secondaryAttachments!);
     // In gungame, every combatant (including bots) starts on the first
     // progression weapon and advances on each kill. Their loadout's
@@ -4239,7 +4239,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       const durationMs = weapon.stats.reloadStyle === "incremental"
         ? Math.max(300, (weapon.stats.reloadPerRound ?? eff.reloadTime / eff.magSize) *
             eff.reloadTime / Math.max(0.01, weapon.stats.reloadTime) * 1000)
-        : eff.reloadTime * 1000;
+        : eff.reloadTime * 1000 * (room.mode==="frontier"?1.12:1);
       ai.reloadingUntil = now + durationMs * reloadDurationMultiplier(perk);
       if (weapon.stats.reloadStyle !== "incremental") ai.ammoInMag = eff.magSize;
       ai.burstShotsLeft = 0;
@@ -5001,7 +5001,7 @@ async function handle(socket: any, msg: C2S) {
       }
       const reloadAtts = loadout?.secondaryWeaponId === player.weaponId ? loadout.secondaryAttachments : loadout?.attachments;
       const reloadStats = computeEffectiveStats(weaponById(player.weaponId),reloadAtts ?? {sight:null,barrel:null,grip:null,magazine:null});
-      const reloadMul=room.mode==="survival" ? survivalReloadMultiplier(room.survivalRanks.get(socket.id)??{},Date.now()-(room.survivalLastKillAt.get(socket.id)??-Infinity)):1;
+      const reloadMul=(room.mode==="survival" ? survivalReloadMultiplier(room.survivalRanks.get(socket.id)??{},Date.now()-(room.survivalLastKillAt.get(socket.id)??-Infinity)):1)*(room.mode==="frontier"?1.12:1);
       room.reloadingPlayers.set(socket.id,Date.now()+Math.max(0,reloadStats.reloadTime*1000*reloadMul));
       io.to(room.id).emit("message", { t: "reloadFx", playerId: socket.id } as S2C);
       break;
