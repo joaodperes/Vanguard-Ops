@@ -1,9 +1,9 @@
 /** Operations campaign rules shared by local/networked simulations and account progression. */
 import type {MapDef,MapId,Vec3,BotDifficulty} from './game-protocol';
 export type OperationKind='clear'|'eliminate'|'survive'|'secure'|'defend'|'recover'|'deliver'|'escort'|'extract';
-export interface OperationObjective {kind:OperationKind;label:string;site:number;seconds:number;killTarget?:number;startSite?:number;payload?:string;boss?:boolean}
+export interface OperationObjective {kind:OperationKind;label:string;site?:number;seconds:number;killTarget?:number;startSite?:number;payload?:string;boss?:boolean;targetHp?:number;destination?:Vec3;connectionTarget?:Vec3}
 export interface OperationMission {id:string;act:number;title:string;mapId:MapId;briefing:string;debrief:string;intensity:number;parSeconds:number;objectives:OperationObjective[];optionalObjective:{label:string;site:number};optionalChallenge?:{label:string;kills:number;seconds:number}}
-const goal=(kind:OperationKind,label:string,site:number,seconds=0,killTarget?:number,extra:Pick<OperationObjective,'startSite'|'payload'|'boss'>={}):OperationObjective=>({kind,label,site,seconds,...(killTarget?{killTarget}:{}),...extra});
+const goal=(kind:OperationKind,label:string,site:number|undefined,seconds=0,killTarget?:number,extra:Pick<OperationObjective,'startSite'|'payload'|'boss'|'targetHp'|'destination'|'connectionTarget'>={}):OperationObjective=>({kind,label,...(site===undefined?{}:{site}),seconds,...(killTarget?{killTarget}:{}),...extra});
 export const OPERATION_DEADLINE_SECONDS=30*60;
 export interface OperationActReward {id:string;act:number;name:string;kind:'perk'|'weapon'|'wonder';itemId:string;missionId:string}
 /** Permanent campaign rewards, granted only when the final mission of each act is first-cleared. */
@@ -26,7 +26,7 @@ export const OPERATIONS:readonly OperationMission[]=[
   objectives:[goal('eliminate','Break the outpost perimeter',0),goal('secure','Copy the dispatch records',3,45),goal('recover','Recover the encrypted relay',7,5),goal('deliver','Deliver the relay to the uplink',1,8),goal('extract','Reach the extraction zone',0,12)]},
  {id:'freight_intercept',act:1,title:'Freight Intercept',mapId:'skybridge',intensity:1,parSeconds:660,optionalObjective:{label:'Recover the convoy route sheet',site:15},optionalChallenge:{label:'Prevent the convoy alarm',kills:4,seconds:45},
   briefing:'Intercept the convoy before its cargo leaves the factory. Hold the loading area while command traces the next shipment.',debrief:'The manifest identifies a sleeper cell in Afterlight.',
-  objectives:[goal('secure','Disable the convoy beacon',2,35),goal('escort','Escort the cart carrying the PC to the loading area',4,0,undefined,{startSite:6,payload:'PC'}),goal('defend','Hold the loading area for the scan',4,120),goal('recover','Recover the cargo manifest',8,5),goal('extract','Extract with the manifest',0,15)]},
+  objectives:[goal('secure','Disable the convoy beacon',2,35),goal('escort','Escort the cart carrying the PC to the loading area',12,0,undefined,{startSite:6,payload:'PC',destination:[-122,0,18],connectionTarget:[-118,1.1,18]}),goal('defend','Hold the loading area for the scan',4,120),goal('recover','Recover the cargo manifest',8,5),goal('extract','Extract with the manifest',0,15)]},
  {id:'city_signal',act:1,title:'City Signal',mapId:'terminal',intensity:2,parSeconds:660,optionalObjective:{label:'Download the second transmitter log',site:13},
   briefing:'Two transmission sites are hiding the cell. Triangulate their signal and retrieve the operator cipher.',debrief:'The cipher exposes a transfer through Whiteout Depot.',
   objectives:[goal('secure','Triangulate the first transmitter',3,45),goal('secure','Triangulate the second transmitter',9,45),goal('eliminate','Eliminate the cipher escort',6),goal('recover','Recover the operator cipher',11,5),goal('extract','Reach the evacuation point',1,15)]},
@@ -44,7 +44,7 @@ export const OPERATIONS:readonly OperationMission[]=[
   objectives:[goal('eliminate','Secure the boarding corridor',1),goal('recover','Recover the reactor access module',8,6),goal('deliver','Install the module at the service uplink',4,12),goal('defend','Hold the reactor log transfer',4,120),goal('extract','Return to the docking perimeter',0,20)]},
  {id:'relay_siege',act:2,title:'Relay Siege',mapId:'compound',intensity:3,parSeconds:720,optionalObjective:{label:'Recover the relay access codes',site:15},
   briefing:'The ground relay is the only route into the command network. Seize its terminals and survive the response force.',debrief:'Command has located the final weapons cache. Act two is complete.',
-  objectives:[goal('secure','Seize the west relay',5,55),goal('secure','Seize the east relay',10,55),goal('defend','Hold the command relay and eliminate 8 hostiles',2,75,8),goal('survive','Survive the response wave',7,90),goal('extract','Evacuate the relay',0,20)]},
+  objectives:[goal('secure','Seize the west relay',5,55),goal('secure','Seize the east relay',10,55),goal('defend','Hold the command relay and eliminate 8 hostiles',2,75,8),goal('survive','Keep the PC alive during the response wave',undefined,90,undefined,{startSite:2,payload:'PC',targetHp:650}),goal('extract','Evacuate the relay',0,20)]},
  {id:'last_shipment',act:3,title:'Last Shipment',mapId:'skybridge',intensity:4,parSeconds:780,optionalObjective:{label:'Secure the weapons inventory',site:13},
   briefing:'Stop the last weapons shipment. Recover the targeting package and upload its contents before the network relocates.',debrief:'The targeting package reveals an attack on the city.',
   objectives:[goal('eliminate','Break the cache defences',4),goal('recover','Recover the targeting package',9,8),goal('deliver','Carry the package to the factory uplink',2,12),goal('defend','Hold the targeting upload',2,120),goal('extract','Reach the freight extraction point',0,22)]},
@@ -64,7 +64,7 @@ export function nextOperation(id:string){const i=OPERATIONS.findIndex(m=>m.id===
 export function operationConfigValid(c:{operationId?:unknown;mode:string;mapId:string;survivalTier?:unknown}):boolean {
  const m=operationById(c.operationId);return !!m&&c.mode==='survival'&&c.mapId===m.mapId&&(c.survivalTier===undefined||c.survivalTier==='default');
 }
-export interface OperationState {missionId:string;difficulty:BotDifficulty;stage:number;progress:number;elapsed:number;stageElapsed:number;pulse:number;objectiveKillBaseline?:number;intel:boolean;optionalChallengeStatus?:'active'|'complete'|'failed';optionalChallengeElapsed?:number;optionalChallengeBaseline?:number;optionalChallengeKills?:number;carrierId?:string;packagePos?:Vec3;escortPos?:Vec3;escortHp?:number;escortMaxHp?:number;escortPayload?:string;escortDestination?:Vec3;escortYaw?:number;escortComplete?:boolean;status:'active'|'won'|'failed'}
+export interface OperationState {missionId:string;difficulty:BotDifficulty;stage:number;progress:number;elapsed:number;stageElapsed:number;pulse:number;objectiveKillBaseline?:number;intel:boolean;optionalChallengeStatus?:'active'|'complete'|'failed';optionalChallengeElapsed?:number;optionalChallengeBaseline?:number;optionalChallengeKills?:number;carrierId?:string;packagePos?:Vec3;escortPos?:Vec3;escortHp?:number;escortMaxHp?:number;escortPayload?:string;escortDestination?:Vec3;escortConnectionTarget?:Vec3;escortYaw?:number;escortPath?:Vec3[];escortPathIndex?:number;escortComplete?:boolean;status:'active'|'won'|'failed'}
 const OBJECTIVE_TYPE_LABELS:Record<OperationKind,string>={clear:'ELIMINATE ALL',eliminate:'ELIMINATE ALL',survive:'SURVIVE',secure:'SECURE SITE',defend:'DEFEND AREA',recover:'RECOVER',deliver:'DELIVER',escort:'MOVE / ESCORT',extract:'EXTRACT'};
 export function operationObjectiveTypeLabel(kind:OperationKind):string{return OBJECTIVE_TYPE_LABELS[kind];}
 export interface OperationFeedbackEvent {kind:"objective"|"intel"|"challenge";message:string}
@@ -84,13 +84,70 @@ export function operationFeedbackEvents(previous:OperationState,next:OperationSt
 export const createOperationState=(missionId:string,difficulty:BotDifficulty='normal'):OperationState=>({missionId,difficulty,stage:0,progress:0,elapsed:0,stageElapsed:0,pulse:0,intel:false,...(operationById(missionId)?.optionalChallenge?{optionalChallengeStatus:'active' as const,optionalChallengeElapsed:0,optionalChallengeKills:0}:{}),status:'active'});
 export interface OperationActor {id:string;pos:Vec3;alive:boolean;kills?:number}
 /** Use collision-cleared authored pads, with the same positions on both simulations. */
-export function operationSite(map:Pick<MapDef,'spawns'>,index:number):Vec3 {
+export function operationSite(map:Pick<MapDef,'spawns'>,index=0):Vec3 {
  const p=map.spawns.ffa;return [...(p[index%p.length]??map.spawns.blue[0]??[0,0,0])] as Vec3;
+}
+type OperationMap=Pick<MapDef,'spawns'>&Partial<Pick<MapDef,'cover'|'size'>>;
+type RouteNode={x:number;z:number;g:number;f:number};
+const routeKey=(x:number,z:number)=>x+','+z;
+/** A* cart route with the cart footprint inflated around solid ground-level cover. */
+export function planEscortRoute(start:Vec3,destination:Vec3,cover:readonly MapDef['cover'][number][]=[],mapSize=150):Vec3[] {
+ const cell=2,sx=Math.round(start[0]/cell),sz=Math.round(start[2]/cell),gx=Math.round(destination[0]/cell),gz=Math.round(destination[2]/cell);
+ const margin=34,minX=Math.max(-Math.ceil(mapSize/cell),Math.floor((Math.min(start[0],destination[0])-margin)/cell));
+ const maxX=Math.min(Math.ceil(mapSize/cell),Math.ceil((Math.max(start[0],destination[0])+margin)/cell));
+ const minZ=Math.max(-Math.ceil(mapSize/cell),Math.floor((Math.min(start[2],destination[2])-margin)/cell));
+ const maxZ=Math.min(Math.ceil(mapSize/cell),Math.ceil((Math.max(start[2],destination[2])+margin)/cell));
+ const blocked=(x:number,z:number)=>cover.some(box=>{
+  if(box.kind==='accent'||box.kind==='stair')return false;
+  const bottom=box.pos[1]-box.size[1],top=box.pos[1]+box.size[1];
+  if(top<.12||bottom>1.65)return false;
+  return Math.abs(x*cell-box.pos[0])<box.size[0]+1.55&&Math.abs(z*cell-box.pos[2])<box.size[2]+1.85;
+ });
+ const nearestFree=(x:number,z:number)=>{
+  if(!blocked(x,z))return {x,z};
+  for(let r=1;r<=5;r++)for(let dx=-r;dx<=r;dx++)for(let dz=-r;dz<=r;dz++)
+   if(Math.max(Math.abs(dx),Math.abs(dz))===r&&!blocked(x+dx,z+dz))return {x:x+dx,z:z+dz};
+  return {x,z};
+ };
+ const from=nearestFree(sx,sz),to=nearestFree(gx,gz);
+ const heuristic=(x:number,z:number)=>{const dx=Math.abs(x-to.x),dz=Math.abs(z-to.z);return Math.max(dx,dz)+(Math.SQRT2-1)*Math.min(dx,dz);};
+ const heap:RouteNode[]=[];
+ const push=(node:RouteNode)=>{heap.push(node);let i=heap.length-1;while(i>0){const p=(i-1)>>1;if(heap[p].f<=node.f)break;heap[i]=heap[p];i=p;}heap[i]=node;};
+ const pop=():RouteNode|undefined=>{if(!heap.length)return;const first=heap[0],last=heap.pop()!;if(heap.length){let i=0;while(true){let c=i*2+1;if(c>=heap.length)break;if(c+1<heap.length&&heap[c+1].f<heap[c].f)c++;if(heap[c].f>=last.f)break;heap[i]=heap[c];i=c;}heap[i]=last;}return first;};
+ const startKey=routeKey(from.x,from.z),goalKey=routeKey(to.x,to.z),cost=new Map<string,number>([[startKey,0]]),came=new Map<string,string>();
+ push({x:from.x,z:from.z,g:0,f:heuristic(from.x,from.z)});
+ const dirs=[[-1,0,1],[1,0,1],[0,-1,1],[0,1,1],[-1,-1,Math.SQRT2],[-1,1,Math.SQRT2],[1,-1,Math.SQRT2],[1,1,Math.SQRT2]] as const;
+ let found=false,iterations=0;
+ while(heap.length&&iterations++<30000){
+  const current=pop()!,key=routeKey(current.x,current.z);
+  if(key===goalKey){found=true;break;}
+  if(current.g>(cost.get(key)??Infinity))continue;
+  for(const [dx,dz,step] of dirs){
+   const x=current.x+dx,z=current.z+dz;if(x<minX||x>maxX||z<minZ||z>maxZ||blocked(x,z))continue;
+   if(dx&&dz&&(blocked(current.x+dx,current.z)||blocked(current.x,current.z+dz)))continue;
+   const nextKey=routeKey(x,z),nextCost=current.g+step;
+   if(nextCost>=(cost.get(nextKey)??Infinity))continue;
+   cost.set(nextKey,nextCost);came.set(nextKey,key);push({x,z,g:nextCost,f:nextCost+heuristic(x,z)});
+  }
+ }
+ if(!found)return [[...start] as Vec3,[...destination] as Vec3];
+ const cells:string[]=[goalKey];while(cells[cells.length-1]!==startKey){const parent=came.get(cells[cells.length-1]);if(!parent)break;cells.push(parent);}cells.reverse();
+ const points:Vec3[]=[[...start] as Vec3,...cells.slice(1,-1).map(key=>{const [x,z]=key.split(',').map(Number);return [x*cell,start[1],z*cell] as Vec3;}),[...destination] as Vec3];
+ return points.filter((point,i)=>i===0||Math.hypot(point[0]-points[i-1][0],point[2]-points[i-1][2])>.1);
+}
+/** Keep the moving cart in the shared collision broadphase on both simulations. */
+export function syncOperationCartCollider(map:OperationMap,state:OperationState):void {
+ if(!map.cover)return;
+ const index=map.cover.findIndex(box=>box.environmentId==='operation-escort-cart');
+ if(!state.escortPos){if(index>=0)map.cover.splice(index,1);return;}
+ const box=index>=0?map.cover[index]:{pos:[...state.escortPos] as Vec3,size:[1.25,.75,1.65] as Vec3,kind:'solid' as const,environmentId:'operation-escort-cart'};
+ box.pos=[state.escortPos[0],state.escortPos[1]+.85,state.escortPos[2]];box.size=[1.25,.75,1.65];
+ if(index<0)map.cover.push(box);
 }
 const near=(a:Vec3,b:Vec3,r=4)=>Math.hypot(a[0]-b[0],a[2]-b[2])<=r&&Math.abs(a[1]-b[1])<2.5;
 export function operationTarget(s:OperationState,map:Pick<MapDef,'spawns'>):Vec3|undefined {
  const m=operationById(s.missionId),g=m?.objectives[s.stage];if(!g)return;
- if(g.kind==='survive')return;
+ if(g.kind==='survive')return g.targetHp!==undefined?s.escortPos:undefined;
  if((g.kind==='clear'||g.kind==='eliminate')&&!g.boss)return;
  if(g.kind==='deliver'&&!s.carrierId)return s.packagePos??operationSite(map,m!.objectives[Math.max(0,s.stage-1)].site);
  if(g.kind==='escort')return s.escortPos??operationSite(map,g.startSite??m!.objectives[Math.max(0,s.stage-1)]?.site??g.site);
@@ -101,7 +158,7 @@ export function damageOperationEscort(s:OperationState,damage:number):OperationS
  const amount=Number.isFinite(damage)?Math.max(0,damage):0;
  return amount>0?{...s,escortHp:Math.max(0,s.escortHp-amount)}:s;
 }
-export function tickOperation(s:OperationState,map:Pick<MapDef,'spawns'>,actors:readonly OperationActor[],enemies:readonly OperationActor[],dt:number):OperationState {
+export function tickOperation(s:OperationState,map:OperationMap,actors:readonly OperationActor[],enemies:readonly OperationActor[],dt:number):OperationState {
  if(s.status!=='active')return s;
  const m=operationById(s.missionId);if(!m)return {...s,status:'failed'};
  const delta=Number.isFinite(dt)?Math.max(0,Math.min(dt,1)):0;
@@ -119,20 +176,30 @@ export function tickOperation(s:OperationState,map:Pick<MapDef,'spawns'>,actors:
  if(!n.intel&&living.some(a=>near(a.pos,operationSite(map,m.optionalObjective.site),2.5)))n.intel=true;
  const g=m.objectives[s.stage];if(!g)return {...n,status:'won'};
  if(g.kind==='escort'){
-  const destination=operationSite(map,g.site),start=operationSite(map,g.startSite??m.objectives[Math.max(0,s.stage-1)]?.site??g.site);
-  n.escortMaxHp??=650;n.escortHp??=n.escortMaxHp;n.escortPos??=[...start] as Vec3;n.escortPayload??=g.payload??'Escort vehicle';n.escortDestination??=[...destination] as Vec3;n.escortYaw??=Math.atan2(destination[0]-start[0],destination[2]-start[2]);
-  if((n.escortHp??0)<=0)return {...n,status:'failed'};
+  const destination=g.destination??operationSite(map,g.site??0),start=operationSite(map,g.startSite??m.objectives[Math.max(0,s.stage-1)]?.site??g.site??0);
+  n.escortMaxHp??=650;n.escortHp??=n.escortMaxHp;n.escortPos??=[...start] as Vec3;n.escortPayload??=g.payload??'Escort vehicle';n.escortDestination??=[...destination] as Vec3;n.escortConnectionTarget??=g.connectionTarget;
+  n.escortPath??=planEscortRoute(n.escortPos,destination,map.cover??[],map.size??150);n.escortPathIndex??=1;
+  if((n.escortHp??0)<=0){syncOperationCartCollider(map,n);return {...n,status:'failed'};}
   if(living.some(a=>near(a.pos,n.escortPos!,7))){
-   const dx=destination[0]-n.escortPos[0],dz=destination[2]-n.escortPos[2],distance=Math.hypot(dx,dz),step=Math.min(distance,2.6*delta);
-   if(distance>0.01)n.escortPos=[n.escortPos[0]+dx/distance*step,n.escortPos[1]+(destination[1]-n.escortPos[1])*Math.min(1,delta),n.escortPos[2]+dz/distance*step];
+   let remaining=2.6*delta;
+   while(remaining>0.001&&n.escortPathIndex!<n.escortPath!.length){
+    const waypoint=n.escortPath![n.escortPathIndex!],dx=waypoint[0]-n.escortPos[0],dz=waypoint[2]-n.escortPos[2],distance=Math.hypot(dx,dz);
+    if(distance<.05){n.escortPathIndex!++;continue;}
+    const step=Math.min(distance,remaining);n.escortPos=[n.escortPos[0]+dx/distance*step,n.escortPos[1]+(waypoint[1]-n.escortPos[1])*Math.min(1,step/Math.max(distance,.001)),n.escortPos[2]+dz/distance*step];
+    n.escortYaw=Math.atan2(dx,dz);remaining-=step;if(step>=distance-.05)n.escortPathIndex!++;
+   }
   }
   if(Math.hypot(destination[0]-n.escortPos[0],destination[2]-n.escortPos[2])<=1.25){
-   n.stage++;n.progress=0;n.stageElapsed=0;n.pulse=0;n.objectiveKillBaseline=undefined;
-   if(g.payload?.toLowerCase()==='juggernaut')n.escortComplete=true;
-   else {delete n.escortPos;delete n.escortHp;delete n.escortMaxHp;delete n.escortPayload;delete n.escortDestination;delete n.escortYaw;delete n.escortComplete;}
+   n.escortPos=[...destination] as Vec3;n.stage++;n.progress=0;n.stageElapsed=0;n.pulse=0;n.objectiveKillBaseline=undefined;n.escortComplete=true;
+   if(g.connectionTarget)n.escortYaw=Math.atan2(g.connectionTarget[0]-destination[0],g.connectionTarget[2]-destination[2]);
    if(n.stage>=m.objectives.length)n.status='won';
   }
-  return n;
+  syncOperationCartCollider(map,n);return n;
+ }
+ if(g.kind==='survive'&&g.targetHp!==undefined){
+  const start=operationSite(map,g.startSite??m.objectives[Math.max(0,s.stage-1)]?.site??0);
+  n.escortMaxHp??=g.targetHp;n.escortHp??=g.targetHp;n.escortPos??=[...start] as Vec3;n.escortPayload??=g.payload??'Protected asset';
+  if((n.escortHp??0)<=0){syncOperationCartCollider(map,n);return {...n,status:'failed'};}
  }
  if(g.kind==='defend')n.pulse=Math.floor(n.stageElapsed/15);
  if(g.kind==='defend'&&g.killTarget){
@@ -147,22 +214,24 @@ export function tickOperation(s:OperationState,map:Pick<MapDef,'spawns'>,actors:
   n.carrierId=living.find(a=>near(a.pos,pickup,3))?.id;
  }
  const carrier=living.find(a=>a.id===n.carrierId);if(carrier)n.packagePos=[...carrier.pos];
- const site=operationSite(map,g.site),inside=living.filter(a=>near(a.pos,site));
+ const site=operationSite(map,g.site??g.startSite??0),inside=living.filter(a=>near(a.pos,site));
  const contested=foes.some(a=>near(a.pos,site,7));
  const eligible=(g.kind==='clear'||g.kind==='eliminate')?living.length>0&&foes.length===0
-  :g.kind==='survive'?living.length>0
-  :g.kind==='extract'?living.length>0&&inside.length===living.length&&foes.length===0
+  :g.kind==='survive'?living.length>0&&(g.targetHp===undefined||(n.escortHp??0)>0)
+  :g.kind==='extract'?living.length>0&&inside.length===living.length
   :g.kind==='deliver'?inside.some(a=>a.id===n.carrierId)&&!contested:g.kind==='defend'?inside.length>0:inside.length>0&&!contested;
  // Kill-target defence uses progress for kills; its deadline is tracked by stageElapsed.
  if(eligible&&!(g.kind==='defend'&&g.killTarget))n.progress=Math.min(g.seconds,n.progress+delta);else if(!eligible&&g.kind==='extract')n.progress=0;
  // Guard elimination and pending reinforcement pulses both gate stage completion.
  const objectiveComplete=g.kind==='defend'&&g.killTarget? n.progress>=g.killTarget : n.progress>=g.seconds;
- if(eligible&&objectiveComplete&&((g.kind==='defend'&&g.killTarget)||g.kind==='survive'||foes.length===0)&&n.pulse===s.pulse){
+ if(eligible&&objectiveComplete&&n.pulse===s.pulse){
   if(g.kind==='recover'){n.carrierId=inside[0]?.id;n.packagePos=[...site];}
   if(g.kind==='deliver'){n.carrierId=undefined;n.packagePos=undefined;}
-  n.stage++;n.progress=0;n.stageElapsed=0;n.pulse=0;n.objectiveKillBaseline=undefined;if(n.stage>=m.objectives.length)n.status='won';
+  n.stage++;n.progress=0;n.stageElapsed=0;n.pulse=0;n.objectiveKillBaseline=undefined;
+  if(g.kind==='survive'&&g.targetHp!==undefined)n.escortComplete=true;
+  if(n.stage>=m.objectives.length)n.status='won';
  }
- return n;
+ syncOperationCartCollider(map,n);return n;
 }
 /** Enemy acquisition is more assertive outside the opening stealth approach. */
 export function operationAwarenessMultiplier(s:Pick<OperationState,'missionId'|'stage'>):number {

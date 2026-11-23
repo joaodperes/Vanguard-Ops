@@ -569,42 +569,6 @@
     ],
     "hazards": [
       {
-        "id": "foundry-heat-west",
-        "type": "fire",
-        "x": -99,
-        "y": 0.45,
-        "z": -10,
-        "w": 8,
-        "d": 10,
-        "h": 0.9,
-        "dps": 6
-      },
-      {
-        "id": "foundry-heat-east",
-        "type": "fire",
-        "x": 104,
-        "y": 0.45,
-        "z": -10,
-        "w": 7,
-        "d": 9,
-        "h": 0.9,
-        "dps": 6
-      },
-      {
-        "id": "press-cycle",
-        "type": "spikes",
-        "x": -23,
-        "y": 0.45,
-        "z": 8,
-        "w": 7,
-        "d": 6,
-        "h": 0.9,
-        "damage": 22,
-        "period": 5,
-        "activeFor": 1.1,
-        "offset": 0
-      },
-      {
         "id": "factory-blast-door",
         "type": "destructible_wall",
         "x": 0,

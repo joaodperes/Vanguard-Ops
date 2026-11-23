@@ -990,7 +990,7 @@ function allCombatants(room: Room): PlayerNet[] {
 const OPERATION_ESCORT_TARGET_ID="__operation_escort__";
 function operationEscortTarget(room:Room):PlayerNet|null {
   const state=room.operation,goal=state&&operationById(state.missionId)?.objectives[state.stage];
-  if(!state||state.status!=="active"||goal?.kind!=="escort"||!state.escortPos||(state.escortHp??0)<=0)return null;
+  if(!state||state.status!=="active"||!(goal?.kind==="escort"||(goal?.kind==="survive"&&goal.targetHp!==undefined))||!state.escortPos||(state.escortHp??0)<=0)return null;
   return {id:OPERATION_ESCORT_TARGET_ID,name:goal.payload??"Escort vehicle",team:"blue",isBot:false,
     pos:[...state.escortPos] as Vec3,yaw:0,pitch:0,health:state.escortHp!,alive:true,weaponId:"rifle_m4",
     weaponSkinId:"default",playerSkinId:"",kills:0,deaths:0,lastShotAt:0};
@@ -2477,7 +2477,8 @@ function startSurvivalWave(room: Room,reinforcement=false) {
   const bossWave=mutators.boss||!!encounter?.boss;
   const commanderObjective=encounter?.boss&&room.operation?operationById(room.operation.missionId)?.objectives[room.operation.stage]:undefined;
   const commanderSite=commanderObjective?operationSite(room.map,commanderObjective.site):undefined;
-  const escortPos=room.operation?.escortPos;
+  const escortGoal=room.operation&&operationById(room.operation.missionId)?.objectives[room.operation.stage];
+      const escortPos=room.operation&&(escortGoal?.kind==='escort'||(escortGoal?.kind==='survive'&&escortGoal.targetHp!==undefined))?room.operation.escortPos:undefined;
   // Match archetypes to any eligible standard weapon, not a legacy fixed list.
   const skinRotation = Math.floor(Math.random()*BOT_OPERATIVE_SKINS.length);
   const waveDiff=room.operation?.difficulty==='mixed'?resolveBotDifficulty(room):encounter?.difficulty ?? survivalBotDifficulty(room.config.survivalTier ?? "default",room.wave);

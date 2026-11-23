@@ -1,6 +1,6 @@
 import {DEFAULT_CONTROLS,canonicalKey,stick,type ControlSettings} from "./control-settings";
 import {squadIntent,validSquadOrder,squadOrderPoint,type SquadOrder,type SquadCommand} from "./squad-coordination";
-import { operationById, createOperationState, tickOperation, operationEncounter, operationConfigValid, operationTarget, operationSite, operationAwarenessMultiplier, operationFeedbackEvents, type OperationState } from "./operations";
+import { operationById, createOperationState, tickOperation, operationEncounter, operationConfigValid, operationTarget, operationSite, operationAwarenessMultiplier, operationFeedbackEvents, syncOperationCartCollider, type OperationState } from "./operations";
 import { survivalRoleForSlot, survivalRoleHealthMultiplier, survivalFrontalArmor, tickSurvivalSpecialists, createSurvivalObjective, tickSurvivalObjective, survivalObjectiveSite, survivalObjectiveText, SURVIVAL_ROLE_INFO, type SurvivalRole, type SurvivalActor, type SurvivalObjective } from "./survival-encounters";
 import { combatIdentity, tracerIdentity } from "./combat-identity";
 import { combatThreats, type CombatHazard, type CombatThreat } from "./combat-threats";
@@ -10882,12 +10882,12 @@ export class FPSEngine {
 
   private updateOperationBeacons() {
     if(!this.operation)return;
+    syncOperationCartCollider(this.map,this.operation);
     const mission=operationById(this.operation.missionId),goal=mission?.objectives[this.operation.stage];
     const escortPos=this.operation.escortPos;
-    const showEscort=!!escortPos&&(
-      goal?.kind==='escort'||(this.operation.escortComplete&&this.operation.escortPayload?.toLowerCase()==='juggernaut'));
+    const showEscort=!!escortPos&&(goal?.kind==='escort'||(goal?.kind==='survive'&&goal.targetHp!==undefined)||this.operation.escortComplete===true);
     if(showEscort&&escortPos){
-      const payloadName=goal?.kind==='escort'?goal.payload??'Escort vehicle':this.operation.escortComplete?'Empty':this.operation.escortPayload??'Juggernaut';
+      const payloadName=goal?.kind==='escort'?goal.payload??'Escort vehicle':this.operation.escortPayload??'Escort vehicle';
       if(!this.operationEscortMesh||this.operationEscortPayload!==payloadName){
         if(this.operationEscortMesh){
           this.operationEscortMesh.removeFromParent();
@@ -10924,6 +10924,7 @@ export class FPSEngine {
           const screen=new THREE.Mesh(new THREE.BoxGeometry(.82,.47,.025),new THREE.MeshStandardMaterial({color:0x0e7490,emissive:0x0891b2,emissiveIntensity:1.1,metalness:.1,roughness:.3}));
           screen.position.set(.32,1.46,-.315);group.add(screen);
           const keyboard=new THREE.Mesh(new THREE.BoxGeometry(.62,.045,.24),dark);keyboard.position.set(.28,1.12,-.08);group.add(keyboard);
+          const cable=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x22d3ee,transparent:true,opacity:.95}));cable.name='pc-connection-cable';group.add(cable);
         }
         const barGroup=new THREE.Group();barGroup.name='escort-health-group';barGroup.position.set(0,3.05,0);
         const bg=new THREE.Mesh(new THREE.PlaneGeometry(2.2,.18),new THREE.MeshBasicMaterial({color:0x111827,depthTest:false}));
@@ -10936,6 +10937,8 @@ export class FPSEngine {
       const destination=goal?.kind==='escort'?operationSite(this.map,goal.site):this.operation.escortDestination??escortPos;
       const dx=destination[0]-escortPos[0],dz=destination[2]-escortPos[2];
       this.operationEscortMesh.rotation.y=this.operation.escortYaw??Math.atan2(dx,dz);
+      const cable=this.operationEscortMesh.getObjectByName('pc-connection-cable') as THREE.Line|undefined;
+      if(cable){cable.visible=this.operation.escortComplete===true;const target=this.operation.escortConnectionTarget??this.operation.escortDestination;if(target){const local=this.operationEscortMesh.worldToLocal(new THREE.Vector3(target[0],target[1],target[2]));cable.geometry.setFromPoints([new THREE.Vector3(.32,1.46,-.315),local]);cable.geometry.computeBoundingSphere();}}
       const bar=this.operationEscortMesh.getObjectByName('escort-health') as THREE.Mesh|undefined;
       if(bar){
         const ratio=Math.max(0,Math.min(1,(this.operation.escortHp??0)/(this.operation.escortMaxHp??650)));
@@ -10944,7 +10947,7 @@ export class FPSEngine {
       }
       this.operationEscortMesh.getObjectByName('escort-health-group')?.lookAt(this.camera.position);
     }else if(this.operationEscortMesh)this.operationEscortMesh.visible=false;
-    const sites=[operationTarget(this.operation,this.map),this.operation.intel ? undefined : operationSite(this.map,mission!.optionalObjective.site),goal?.kind==='escort'?operationSite(this.map,goal.site):undefined];
+    const sites=[operationTarget(this.operation,this.map),this.operation.intel ? undefined : operationSite(this.map,mission!.optionalObjective.site),goal?.kind==='escort'?(goal.destination??operationSite(this.map,goal.site??0)):undefined];
     for(let i=0;i<3;i++){
       if(!this.operationBeacons[i]){
         const group=new THREE.Group(),material=new THREE.MeshBasicMaterial({color:i===0?0xfbbf24:i===1?0xffffff:0x22c55e,transparent:true,opacity:.75,depthWrite:false});
@@ -12593,8 +12596,9 @@ export class FPSEngine {
       }
       // During escort missions, nearby bots divert from distant players to attack the convoy.
       // They still engage threats at close range, but otherwise path toward the vulnerable cart.
+      const escortGoal=this.operation&&operationById(this.operation.missionId)?.objectives[this.operation.stage];
       const escort=this.operation&&this.operation.status==='active'&&
-        operationById(this.operation.missionId)?.objectives[this.operation.stage]?.kind==='escort'
+        (escortGoal?.kind==='escort'||(escortGoal?.kind==='survive'&&escortGoal.targetHp!==undefined))
         ?this.operation.escortPos:undefined;
       if(escort&&this.operation&&(this.operation.escortHp??0)>0&&threatDistance>14){
         ai.targetId=null;ai.wanderTarget=[...escort] as Vec3;ai.highGroundPatrol=null;ai.investigationLookAt=null;
@@ -13216,7 +13220,7 @@ export class FPSEngine {
 
   private operationEscortTarget(): Combatant | null {
     const g=this.operation&&operationById(this.operation.missionId)?.objectives[this.operation.stage],p=this.operation?.escortPos;
-    if(!this.operation||this.operation.status!=="active"||g?.kind!=="escort"||!p||(this.operation.escortHp??0)<=0)return null;
+    if(!this.operation||this.operation.status!=="active"||!(g?.kind==="escort"||(g?.kind==="survive"&&g.targetHp!==undefined))||!p||(this.operation.escortHp??0)<=0)return null;
     return {id:"__operation_escort__",name:g.payload??"Escort vehicle",team:"__escort__",isBot:false,isSelf:false,pos:[...p] as Vec3,
       yaw:0,pitch:0,health:this.operation.escortHp!,alive:true,weaponId:"rifle_m4",weaponSkinId:"",playerSkinId:"",kills:0,deaths:0,score:0} as Combatant;
   }

@@ -64,7 +64,7 @@ describe('Operations campaign',()=>{
   const s={...createOperationState(first.id),stage:1},p=operationTarget(s,map)!;
   expect(advance(s,[]).progress).toBe(0);expect(advance(s,[actor([p[0],p[1]+8,p[2]])]).progress).toBe(0);
   expect(advance(s,[actor(p)],[actor(p,'guard')]).progress).toBe(0);expect(advance(s,[actor(p)],[],45).stage).toBe(2);
-  expect(advance(s,[actor(p)],[actor([p[0]+40,p[1],p[2]],'guard')],50).stage).toBe(1);
+  expect(advance(s,[actor(p)],[actor([p[0]+40,p[1],p[2]],'guard')],50).stage).toBe(2);
  });
  test('escort objectives move a durable cart only with a nearby operative and enemies damage it',()=>{
   const mission=operationById('cold_trail')!,compiled=getMap(mission.mapId,'survival');
@@ -172,11 +172,8 @@ describe('Operations campaign',()=>{
    }
    expect([...pulses]).toEqual([0,1,2,3,4,5,6,7,8]);
    expect(s.pulse).toBe(8);
-   // The hold is complete, but a living defender still blocks stage completion.
+   // The hold completes on the next pulse boundary even with hostiles alive.
    s=tickOperation(s,mp,[actor(p)],[guard],1);
-   expect(s.stage).toBe(index);
-   // Clearing the final guard completes the hold without another timer delay.
-   s=tickOperation(s,mp,[actor(p)],[],1);
    expect(s.stage).toBe(index+1);
    expect(s.pulse).toBe(0);
    expect(s.stageElapsed).toBe(0);
