@@ -13306,7 +13306,6 @@ export class FPSEngine {
     const resolved=resolveMaterialPenetrationShot(contacts,this.coverForRay(origin,dir,maxDistance),origin,dir,maxDistance,
       eff.bodyPenetration,eff.coverPenetration);
     let hits=resolved.hits;
-    const escort=this.operationEscortTarget();
     if(escort&&!isThrowingKnife(attacker.weaponId)){
       const cartHit=rayBox(origin,dir,[escort.pos[0],escort.pos[1]+.85,escort.pos[2]],[2,1.5,3]);
       if(cartHit!==null&&cartHit<(hits[0]?.t??Infinity)&&cartHit<=resolved.stoppedAt){
