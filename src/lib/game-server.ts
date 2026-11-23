@@ -991,7 +991,7 @@ const OPERATION_ESCORT_TARGET_ID="__operation_escort__";
 function operationEscortTarget(room:Room):PlayerNet|null {
   const state=room.operation,goal=state&&operationById(state.missionId)?.objectives[state.stage];
   if(!state||state.status!=="active"||goal?.kind!=="escort"||!state.escortPos||(state.escortHp??0)<=0)return null;
-  return {id:OPERATION_ESCORT_TARGET_ID,name:goal.payload??"Escort vehicle",team:"blue",isBot:false,
+  return {id:OPERATION_ESCORT_TARGET_ID,name:goal.payload??"Escort vehicle",team:"__escort__",isBot:false,
     pos:[...state.escortPos] as Vec3,yaw:0,pitch:0,health:state.escortHp!,alive:true,weaponId:"rifle_m4",
     weaponSkinId:"default",playerSkinId:"",kills:0,deaths:0,lastShotAt:0};
 }
