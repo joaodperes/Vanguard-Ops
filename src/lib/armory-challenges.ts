@@ -17,7 +17,7 @@ import {
 export const WEAPON_CONDITION_METRICS = [
   "bare_kills", "fully_equipped_kills", "ads_kills", "hipfire_kills",
   "airborne_kills", "close_range_kills", "long_range_kills", "multikill_kills",
-  "suppressed_kills", "critical_health_kills", "comeback_kills",
+  "suppressed_kills", "critical_health_kills", "comeback_kills", "double_kills_without_reload",
 ] as const satisfies readonly WeaponConditionMetric[];
 export type WeaponConditionStats = Record<WeaponConditionMetric, number>;
 export function emptyWeaponConditionStats(): WeaponConditionStats {
@@ -74,6 +74,9 @@ function contextualSkinChallenge(ch: WeaponChallengeDef, weapon: WeaponDef): Wea
   const ranged = category === "sniper" || category === "dmr";
   const cqc = category === "shotgun" || category === "melee";
   const mobile = category === "smg" || category === "pdw";
+  // This authored magazine-management trial is already weapon-specific; do not
+  // replace it with the generic condition selected for its skin color.
+  if (ch.metric === "double_kills_without_reload") return ch;
 
   // Splash and melee kills cannot be headshots. Pellet headshot finishes are
   // inconsistent enough that they should not gate a shotgun cosmetic either.
@@ -115,6 +118,7 @@ function contextualSkinChallenge(ch: WeaponChallengeDef, weapon: WeaponDef): Wea
     hipfire_kills: .45, airborne_kills: .25, close_range_kills: .55,
     long_range_kills: .28, multikill_kills: .25,
     suppressed_kills: .28, critical_health_kills: .18, comeback_kills: .25,
+    double_kills_without_reload: .20,
   };
   const circumstances: Record<WeaponConditionMetric, string> = {
     bare_kills: "without any attachments",
@@ -128,6 +132,7 @@ function contextualSkinChallenge(ch: WeaponChallengeDef, weapon: WeaponDef): Wea
     suppressed_kills: "while using a suppressor",
     critical_health_kills: "while at 35 HP or lower",
     comeback_kills: "within 10 seconds of respawning",
+    double_kills_without_reload: "in pairs of kills without reloading",
   };
   // Rare kill conditions are meaningful objectives, not most of the grind.
   const factor = metric === "airborne_kills" ? .16
