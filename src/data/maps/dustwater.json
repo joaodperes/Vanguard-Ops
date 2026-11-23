@@ -60,7 +60,7 @@
         "h": 4,
         "kind": "cover",
         "label": "Saloon north wall",
-        "material": "timber"
+        "material": "thin_wood"
       },
       {
         "id": "saloon-south-wall",
@@ -71,7 +71,7 @@
         "h": 4,
         "kind": "cover",
         "label": "Saloon south wall",
-        "material": "timber"
+        "material": "thin_wood"
       },
       {
         "id": "saloon-west-wall",
@@ -82,7 +82,7 @@
         "h": 4,
         "kind": "cover",
         "label": "Saloon west wall",
-        "material": "timber"
+        "material": "thin_wood"
       },
       {
         "id": "saloon-east-wall",
@@ -93,7 +93,7 @@
         "h": 4,
         "kind": "cover",
         "label": "Saloon east wall",
-        "material": "timber"
+        "material": "thin_wood"
       },
       {
         "id": "sheriff-north-wall",
@@ -104,7 +104,7 @@
         "h": 4,
         "kind": "cover",
         "label": "Sheriff office north wall",
-        "material": "timber"
+        "material": "thin_wood"
       },
       {
         "id": "sheriff-south-wall",
@@ -115,7 +115,7 @@
         "h": 4,
         "kind": "cover",
         "label": "Sheriff office south wall",
-        "material": "timber"
+        "material": "thin_wood"
       },
       {
         "id": "sheriff-west-wall",
@@ -126,7 +126,7 @@
         "h": 4,
         "kind": "cover",
         "label": "Sheriff office west wall",
-        "material": "timber"
+        "material": "thin_wood"
       },
       {
         "id": "sheriff-east-wall",
@@ -137,7 +137,7 @@
         "h": 4,
         "kind": "cover",
         "label": "Sheriff office east wall",
-        "material": "timber"
+        "material": "thin_wood"
       },
       {
         "id": "bank-north-wall",
@@ -192,7 +192,7 @@
         "h": 4,
         "kind": "cover",
         "label": "Freight depot north wall",
-        "material": "timber"
+        "material": "thin_wood"
       },
       {
         "id": "depot-south-wall",
@@ -203,7 +203,7 @@
         "h": 4,
         "kind": "cover",
         "label": "Freight depot south wall",
-        "material": "timber"
+        "material": "thin_wood"
       },
       {
         "id": "depot-west-wall",
@@ -214,7 +214,7 @@
         "h": 4,
         "kind": "cover",
         "label": "Freight depot west wall",
-        "material": "timber"
+        "material": "thin_wood"
       },
       {
         "id": "depot-east-wall",
@@ -225,7 +225,7 @@
         "h": 4,
         "kind": "cover",
         "label": "Freight depot east wall",
-        "material": "timber"
+        "material": "thin_wood"
       },
       {
         "id": "boardwalk-west",
@@ -315,7 +315,7 @@
         "h": 1.2,
         "kind": "cover",
         "label": "Street freight crate",
-        "material": "timber"
+        "material": "thin_wood"
       },
       {
         "id": "street-crate-2",
@@ -326,7 +326,7 @@
         "h": 1.2,
         "kind": "cover",
         "label": "Street freight crate",
-        "material": "timber"
+        "material": "thin_wood"
       },
       {
         "id": "street-wagon",
@@ -337,7 +337,7 @@
         "h": 1.5,
         "kind": "cover",
         "label": "Overturned wagon",
-        "material": "timber"
+        "material": "thin_wood"
       },
       {
         "id": "south-rock-1",
@@ -370,7 +370,7 @@
         "h": 1.3,
         "kind": "cover",
         "label": "Water barrel cover",
-        "material": "timber"
+        "material": "thin_wood"
       }
     ],
     "spawns": {
@@ -732,16 +732,11 @@
         "kind": "tree",
         "x": 48,
         "z": -34
-      },
-      {
-        "kind": "water_tower",
-        "x": 0,
-        "z": -40
       }
     ],
     "surfaces": {
       "floor": {
-        "pattern": "sand",
+        "pattern": "asphalt",
         "tileSize": 8,
         "roughness": 0.98
       },
@@ -751,7 +746,7 @@
         "roughness": 0.9
       },
       "cover": {
-        "pattern": "wood",
+        "pattern": "planks",
         "tileSize": 3,
         "roughness": 0.9
       },
