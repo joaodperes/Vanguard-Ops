@@ -129,10 +129,10 @@
     "id": "wc_lmg_kills_200",
     "weaponId": "lmg_hv",
     "skinId": "inferno",
-    "goal": 200,
-    "metric": "kills",
-    "title": "Hailstorm Master",
-    "description": "Get 200 kills with the Hailstorm LMG"
+    "goal": 10,
+    "metric": "double_kills_without_reload",
+    "title": "Sustained Suppression",
+    "description": "Get 2 kills with the Hailstorm LMG without reloading, 10 times"
   },
   {
     "id": "wc_pistol_kills_25",
@@ -1560,10 +1560,10 @@
     "id": "wc_lmg_light_kills_220",
     "weaponId": "lmg_light",
     "skinId": "inferno",
-    "goal": 220,
-    "metric": "kills",
-    "title": "Vanguard Inferno",
-    "description": "Get 220 kills with the Vanguard LSW"
+    "goal": 10,
+    "metric": "double_kills_without_reload",
+    "title": "Sustained Suppression",
+    "description": "Get 2 kills with the Vanguard LSW without reloading, 10 times"
   },
   {
     "id": "wc_lmg_light_kills_320",
@@ -1686,10 +1686,10 @@
     "id": "wc_lmg_heavy_kills_250",
     "weaponId": "lmg_heavy",
     "skinId": "inferno",
-    "goal": 250,
-    "metric": "kills",
-    "title": "Leviathan Inferno",
-    "description": "Get 250 kills with the Leviathan"
+    "goal": 10,
+    "metric": "double_kills_without_reload",
+    "title": "Sustained Suppression",
+    "description": "Get 2 kills with the Leviathan without reloading, 10 times"
   },
   {
     "id": "wc_lmg_heavy_kills_350",
