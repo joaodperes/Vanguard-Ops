@@ -91,7 +91,7 @@ export function operationSite(map:Pick<MapDef,'spawns'>,index:number):Vec3 {
 const near=(a:Vec3,b:Vec3,r=4)=>Math.hypot(a[0]-b[0],a[2]-b[2])<=r&&Math.abs(a[1]-b[1])<2.5;
 export function operationTarget(s:OperationState,map:Pick<MapDef,'spawns'>):Vec3|undefined {
  const m=operationById(s.missionId),g=m?.objectives[s.stage];if(!g)return;
- if(g.kind==='deliver')return s.escortPos??s.packagePos??operationSite(map,m!.objectives[Math.max(0,s.stage-1)].site);
+ if(g.kind==='deliver')return operationSite(map,g.site);
  return operationSite(map,g.site);
 }
 export function tickOperation(s:OperationState,map:Pick<MapDef,'spawns'>,actors:readonly OperationActor[],enemies:readonly OperationActor[],dt:number):OperationState {
@@ -148,7 +148,7 @@ export function tickOperation(s:OperationState,map:Pick<MapDef,'spawns'>,actors:
  if(eligible&&g.kind!=='deliver'&&!(g.kind==='defend'&&g.killTarget))n.progress=Math.min(g.seconds,n.progress+delta);else if(!eligible&&g.kind==='extract')n.progress=0;
  // Guard elimination and pending reinforcement pulses both gate stage completion.
  const objectiveComplete=g.kind==='deliver'?escortArrived:g.kind==='defend'&&g.killTarget?n.progress>=g.killTarget:n.progress>=g.seconds;
- if(eligible&&objectiveComplete&&(g.kind==='defend'&&g.killTarget?true:foes.length===0)&&n.pulse===s.pulse){
+ if(eligible&&objectiveComplete&&(g.kind==='survive'||g.kind==='defend'&&g.killTarget?true:foes.length===0)&&n.pulse===s.pulse){
   if(g.kind==='recover'){n.carrierId=inside[0]?.id;n.packagePos=[...site];}
   if(g.kind==='deliver'){n.carrierId=undefined;n.packagePos=undefined;n.escortPos=undefined;n.escortHp=undefined;n.escortMaxHp=undefined;}
   n.stage++;n.progress=0;n.stageElapsed=0;n.pulse=0;n.objectiveKillBaseline=undefined;if(n.stage>=m.objectives.length)n.status='won';

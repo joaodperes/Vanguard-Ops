@@ -12506,6 +12506,14 @@ export class FPSEngine {
               this.map.spawns.red,this.map.spawns.blue,this.map.spawns.ffa,Math.random,this.map.id);
         }
       }
+      // During escort missions, nearby bots divert from distant players to attack the convoy.
+      // They still engage threats at close range, but otherwise path toward the vulnerable cart.
+      const escort=this.operation&&this.operation.status==='active'&&
+        operationById(this.operation.missionId)?.objectives[this.operation.stage]?.kind==='deliver'
+        ?this.operation.escortPos:undefined;
+      if(escort&&this.operation&&(this.operation.escortHp??0)>0&&threatDistance>14){
+        ai.targetId=null;ai.wanderTarget=[...escort] as Vec3;ai.highGroundPatrol=null;ai.investigationLookAt=null;
+      }
       if (Math.random() < 0.4) ai.strafeDir = -ai.strafeDir;
     }
     const target = ai.targetId ? this.combatants.get(ai.targetId) : null;
