@@ -5,6 +5,16 @@ export interface OperationObjective {kind:OperationKind;label:string;site:number
 export interface OperationMission {id:string;act:number;title:string;mapId:MapId;briefing:string;debrief:string;intensity:number;parSeconds:number;objectives:OperationObjective[];optionalObjective:{label:string;site:number};optionalChallenge?:{label:string;kills:number;seconds:number}}
 const goal=(kind:OperationKind,label:string,site:number,seconds=0,killTarget?:number,extra:Pick<OperationObjective,'startSite'|'payload'|'boss'>={}):OperationObjective=>({kind,label,site,seconds,...(killTarget?{killTarget}:{}),...extra});
 export const OPERATION_DEADLINE_SECONDS=30*60;
+export interface OperationActReward {id:string;act:number;name:string;kind:'perk'|'weapon'|'wonder';itemId:string;missionId:string}
+/** Permanent campaign rewards, granted only when the final mission of each act is first-cleared. */
+export const OPERATION_ACT_REWARDS:readonly OperationActReward[]=[
+ {id:'act1_wonder_weapon_perk',act:1,name:'Wonder Weapon perk',kind:'perk',itemId:'wonder_weapon',missionId:'cold_trail'},
+ {id:'act2_pistol_arc',act:2,name:'Arc Pistol',kind:'weapon',itemId:'pistol_arc',missionId:'relay_siege'},
+ {id:'act3_wonder_juggernaut',act:3,name:'Wonder Juggernaut',kind:'wonder',itemId:'wonder_juggernaut',missionId:'zero_hour'},
+];
+export function operationActRewardForMission(missionId:string):OperationActReward|undefined {
+ return OPERATION_ACT_REWARDS.find(reward=>reward.missionId===missionId);
+}
 export interface OperationFirstClearReward {missionId:string;xp:number;credits:number}
 export function operationFirstClearReward(m:Pick<OperationMission,'act'>):Omit<OperationFirstClearReward,'missionId'> {
  const act=Math.max(1,Math.min(3,Math.floor(m.act)));
