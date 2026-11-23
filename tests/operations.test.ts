@@ -20,6 +20,7 @@ describe('Operations campaign',()=>{
    for(const g of [...m.objectives,{site:15}]){const p=operationSite(compiled,g.site);expect(p.every(Number.isFinite)).toBe(true);expect(botPositionEmbedded(compiled.cover,p)).toBe(false);}
    expect(operationEncounter(m,0).count).toBe(4+m.intensity);
   }
+  expect(operationTarget(createOperationState(first.id),map)).toBeUndefined(); // Elimination objectives have no defend/escort waypoint.
   expect(operationById('__proto__')).toBeUndefined();expect(operationConfigValid({operationId:'missing',mode:'survival',mapId:'compound'})).toBe(false);
  });
  test('every mission has a distinct authored optional intel objective at a valid site',()=>{

@@ -67,7 +67,7 @@ export function nextOperation(id:string){const i=OPERATIONS.findIndex(m=>m.id===
 export function operationConfigValid(c:{operationId?:unknown;mode:string;mapId:string;survivalTier?:unknown}):boolean {
  const m=operationById(c.operationId);return !!m&&c.mode==='survival'&&c.mapId===m.mapId&&(c.survivalTier===undefined||c.survivalTier==='default');
 }
-export interface OperationState {missionId:string;difficulty:BotDifficulty;stage:number;progress:number;elapsed:number;stageElapsed:number;pulse:number;objectiveKillBaseline?:number;intel:boolean;optionalChallengeStatus?:'active'|'complete'|'failed';optionalChallengeElapsed?:number;optionalChallengeBaseline?:number;optionalChallengeKills?:number;carrierId?:string;packagePos?:Vec3;escortPos?:Vec3;escortHp?:number;escortMaxHp?:number;status:'active'|'won'|'failed'}
+export interface OperationState {missionId:string;difficulty:BotDifficulty;stage:number;progress:number;elapsed:number;stageElapsed:number;pulse:number;objectiveKillBaseline?:number;intel:boolean;optionalChallengeStatus?:'active'|'complete'|'failed';optionalChallengeElapsed?:number;optionalChallengeBaseline?:number;optionalChallengeKills?:number;packagePos?:Vec3;escortPos?:Vec3;escortHp?:number;escortMaxHp?:number;status:'active'|'won'|'failed'}
 export interface OperationFeedbackEvent {kind:"objective"|"intel"|"challenge";message:string}
 /** Discrete transitions only: callers can safely run this for every simulation snapshot. */
 export function operationFeedbackEvents(previous:OperationState,next:OperationState):OperationFeedbackEvent[] {
@@ -91,7 +91,7 @@ export function operationSite(map:Pick<MapDef,'spawns'>,index:number):Vec3 {
 const near=(a:Vec3,b:Vec3,r=4)=>Math.hypot(a[0]-b[0],a[2]-b[2])<=r&&Math.abs(a[1]-b[1])<2.5;
 export function operationTarget(s:OperationState,map:Pick<MapDef,'spawns'>):Vec3|undefined {
  const m=operationById(s.missionId),g=m?.objectives[s.stage];if(!g)return;
- if(g.kind==='survive')return undefined;
+ if(g.kind==='survive'||g.kind==='clear')return undefined;
  if(g.kind==='deliver')return operationSite(map,g.site);
  return operationSite(map,g.site);
 }
@@ -145,7 +145,7 @@ export function tickOperation(s:OperationState,map:Pick<MapDef,'spawns'>,actors:
  // Guard elimination and pending reinforcement pulses both gate stage completion.
  const objectiveComplete=g.kind==='deliver'?escortArrived:g.kind==='defend'&&g.killTarget?n.progress>=g.killTarget:n.progress>=g.seconds;
  if(eligible&&objectiveComplete&&(g.kind==='survive'||g.kind==='defend'&&g.killTarget?true:foes.length===0)&&n.pulse===s.pulse){
-  if(g.kind==='recover'){n.carrierId=undefined;n.packagePos=[...site];}
+  if(g.kind==='recover'){n.packagePos=[...site];}
   if(g.kind==='deliver'){n.carrierId=undefined;n.packagePos=undefined;n.escortPos=undefined;n.escortHp=undefined;n.escortMaxHp=undefined;}
   n.stage++;n.progress=0;n.stageElapsed=0;n.pulse=0;n.objectiveKillBaseline=undefined;if(n.stage>=m.objectives.length)n.status='won';
  }
