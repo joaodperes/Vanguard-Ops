@@ -256,6 +256,8 @@ export interface HudState {
   teamScores: { red: number; blue: number };
   playerTeam?: string; // authoritative viewer team, also available before scoreboard synchronization
   ctfFlags?: CtfFlags;
+  hardpoint?: import("./game-mode-rules").HardpointState;
+  searchDestroy?: import("./game-mode-rules").SearchDestroyState;
   orbitalCharge?: number;
   orbitalKillsRequired?:number;
   orbitalReaper?: boolean;
@@ -1057,6 +1059,10 @@ export class FPSEngine {
   private combatants = new Map<string, Combatant>();
   private selfId = "self";
   private ctfFlags: CtfFlags = createCtfFlags();
+  private hardpointState?: import("./game-mode-rules").HardpointState;
+  private searchDestroyState?: import("./game-mode-rules").SearchDestroyState;
+  private modeInteractHeld=false;
+  private modeInteractSentAt=0;
   private ctfFlagMeshes: Record<FlagTeam, THREE.Group> | null = null;
   private ctfNotice: { label: string; at: number } | undefined;
   private ctfCaptures = 0;
@@ -4641,7 +4647,10 @@ export class FPSEngine {
       }
       this.keys[code] = true;
       if (code === "KeyR" && !this.mechActive) this.startReload();
-      if (code === "KeyE" && !e.repeat && (this.pointerLocked||this.touchMode))this.enterNearbyMech();
+      if (code === "KeyE" && !e.repeat && (this.pointerLocked||this.touchMode)) {
+        if(this.opts.mode==="searchdestroy"){e.preventDefault();this.modeInteractHeld=true;}
+        else this.enterNearbyMech();
+      }
       if (code === "KeyX" && !e.repeat && (this.pointerLocked||this.touchMode) && this.mechActive) {
         e.preventDefault();
         this.exitMech();
@@ -4671,6 +4680,7 @@ export class FPSEngine {
       }
     });
     on(window, "keyup", (e) => {
+      if(e.code==="KeyE")this.modeInteractHeld=false;
       const code=canonicalKey(this.controls.keyBindings,e.code);if(code)this.keys[code]=false;
     });
     on(window, "blur", ()=>this.clearInput());
@@ -4694,6 +4704,18 @@ export class FPSEngine {
     this.sound.setChannelVolumes({ weapons: levels.weapons, combat: levels.combat, ui: levels.ui });
     this.weaponAudio.setVolume(levels.weaponOutputPercent * this.flashAudioFactor);
     this.weaponAudio.setFeedbackVolume(levels.combatOutputPercent * this.flashAudioFactor);
+  }
+
+  setModeInteractHeld(held:boolean){this.modeInteractHeld=held;}
+
+  private updateModeInteraction(now:number){
+    if(!this.modeInteractHeld||this.opts.mode!=="searchdestroy"||!this.opts.online||!this.socket?.connected||now-this.modeInteractSentAt<220)return;
+    const state=this.searchDestroyState;if(!state||state.phase==="round_end"||state.phase==="match_end")return;
+    let action:"plant"|"defuse"|"pickup"|undefined,siteId:"A"|"B"|undefined;
+    if(state.bomb.status==="dropped"&&this.opts.team===state.attackerTeam)action="pickup";
+    else if(state.phase==="planted"&&this.opts.team!==state.attackerTeam)action="defuse";
+    else if(state.phase==="live"&&state.bomb.carrierId===this.selfId){action="plant";const sites:[number,number,number][]=[[-22,0,-18],[22,0,18]];siteId=Math.hypot(this.pos.x-sites[0][0],this.pos.z-sites[0][2])<=Math.hypot(this.pos.x-sites[1][0],this.pos.z-sites[1][2])?"A":"B";}
+    if(action){this.socket.emit("message",{t:"modeInteract",action,siteId});this.modeInteractSentAt=now;}
   }
 
   private updateFlashAudio(now: number) {
@@ -7104,6 +7126,8 @@ export class FPSEngine {
           }
         }
         this.teamScores = msg.teamScores;
+        this.hardpointState=msg.hardpoint;
+        this.searchDestroyState=msg.searchDestroy;
         this.trackScoreDeficit();
         if(this.opts.mode==="ctf")this.ctfCaptures=msg.scores[this.selfId]??this.ctfCaptures;
         if(reactorObjective(this.map)){
@@ -11019,6 +11043,7 @@ export class FPSEngine {
       this.survivalPauseStartedAt=0;
     }
     this.tickDeployCovers();
+    this.updateModeInteraction(performance.now());
     this.updateFlashAudio(performance.now());
     // Cinematic finish: keep recently killed operatives visible but never
     // simulate another combat tick or change match results after the verdict.
@@ -13615,6 +13640,8 @@ export class FPSEngine {
       teamScores: this.teamScores,
       playerTeam: this.opts.team as string,
       ctfFlags: this.opts.mode === "ctf" ? this.ctfFlags : undefined,
+      hardpoint: this.hardpointState,
+      searchDestroy: this.searchDestroyState,
       orbitalKillsRequired:reactorObjective(this.map)?.killsRequired,
       orbitalCharge:reactorObjective(this.map)?this.orbitalCharge:undefined,
       orbitalReaper:reactorObjective(this.map)?this.orbitalWeaponActive:undefined,
