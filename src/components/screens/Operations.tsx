@@ -1,7 +1,7 @@
 "use client";
 import {useEffect,useRef,useState} from 'react';
 import {useGame} from '@/lib/game-store';
-import {OPERATIONS,OPERATION_ACT_REWARDS,operationUnlocked,operationFirstClearReward,operationTimePerformance,formatOperationTime,operationActSummary,type OperationProgress,type OperationMission} from '@/lib/operations';
+import {OPERATIONS,OPERATION_ACT_REWARDS,operationUnlocked,operationFirstClearReward,operationTimePerformance,formatOperationTime,operationActSummary,operationObjectiveTypeLabel,type OperationProgress,type OperationMission} from '@/lib/operations';
 import {syncOperationProgress} from '@/lib/operations-client';
 import {getMap,recommendedTeamSize,type BotDifficulty,type CreateRoomConfig} from '@/lib/game-protocol';
 import {waitForAttachmentSaves} from '@/lib/attachment-save-queue';
