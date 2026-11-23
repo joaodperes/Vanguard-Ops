@@ -120,5 +120,59 @@
     ],
     "teamBased": true,
     "accentColor": "#69b55e"
+  },
+  "searchdestroy": {
+    "id": "searchdestroy",
+    "label": "Search & Destroy",
+    "description": "Attackers plant and defend a bomb while defenders stop the plant or defuse it. No respawns between rounds.",
+    "icon": "Target",
+    "defaultScoreLimit": 6,
+    "scoreOptions": [
+      6
+    ],
+    "defaultTimeLimit": 0,
+    "timeOptions": [
+      0
+    ],
+    "teamBased": true,
+    "accentColor": "#f97316"
+  },
+  "hardpoint": {
+    "id": "hardpoint",
+    "label": "Hardpoint",
+    "description": "Capture and hold five rotating zones. Earn one point per second while your team controls the uncontested hill.",
+    "icon": "Crosshair",
+    "defaultScoreLimit": 200,
+    "scoreOptions": [
+      200
+    ],
+    "defaultTimeLimit": 10,
+    "timeOptions": [
+      10
+    ],
+    "teamBased": true,
+    "accentColor": "#22c55e"
+  },
+  "frontier": {
+    "id": "frontier",
+    "label": "Frontier",
+    "description": "A fast western gunfight. Rifles, revolvers and shotguns only—with enhanced sprinting, jumping and evasive movement.",
+    "icon": "Swords",
+    "defaultScoreLimit": 30,
+    "scoreOptions": [
+      15,
+      30,
+      40,
+      50
+    ],
+    "defaultTimeLimit": 6,
+    "timeOptions": [
+      5,
+      6,
+      8,
+      10
+    ],
+    "teamBased": true,
+    "accentColor": "#d6a15e"
   }
 }
