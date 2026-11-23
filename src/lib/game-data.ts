@@ -680,7 +680,7 @@ export const ACHIEVEMENT_TIER_COLORS: Record<string, string> = achievementColors
 // MATCH SETTINGS — configurable per-match options.
 // ============================================================================
 export interface MatchModeConfig {
-  id: "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed" | "ctf";
+  id: "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed" | "ctf" | "searchdestroy" | "hardpoint" | "frontier";
   label: string;
   description: string;
   icon: string;
