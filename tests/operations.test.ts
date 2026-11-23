@@ -83,7 +83,7 @@ describe('Operations campaign',()=>{
   expect(s.escortMaxHp).toBeGreaterThan(100);
  });
  test('escort destruction fails the operation',()=>{
-  const mission=operationById('freight_intercept')!,compiled=makeEnvironmentMap(getMap(mission.mapId,'survival');
+  const mission=operationById('freight_intercept')!,compiled=makeEnvironmentMap(getMap(mission.mapId,'survival'));
   const index=mission.objectives.findIndex(objective=>objective.kind==='escort'),objective=mission.objectives[index]!;
   const start=operationSite(compiled,objective.startSite);
   let escort:OperationState={...createOperationState(mission.id),stage:index,escortPos:[...start],escortHp:1,escortMaxHp:450};
