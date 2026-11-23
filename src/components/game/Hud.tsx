@@ -460,6 +460,9 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
           )}
         </div>
 
+        {(mode==="hardpoint"||mode==="searchdestroy")&&<div className="absolute top-16 left-1/2 -translate-x-1/2 rounded-lg border border-white/15 bg-black/75 px-4 py-2 text-center text-xs font-bold tracking-wider text-white shadow-xl">
+          {mode==="hardpoint"&&hud.hardpoint ? <><div className="text-emerald-300">HARDPOINT · ZONE {hud.hardpoint.activeIndex+1}/5 · {hud.hardpoint.phase==="transition"?"ROTATING":hud.hardpoint.owner.toUpperCase()}</div><div className="mt-1 text-white/75">RED {Math.floor(hud.hardpoint.scores.red)} — {Math.floor(hud.hardpoint.scores.blue)} BLUE · {hud.hardpoint.owner==="contested"?"CONTESTED":"HOLD THE ZONE"}</div></> : hud.searchDestroy ? <><div className="text-amber-300">SEARCH & DESTROY · ROUND {hud.searchDestroy.round}/11</div><div className="mt-1 text-white/75">RED {hud.searchDestroy.roundWins.red} — {hud.searchDestroy.roundWins.blue} BLUE · {hud.searchDestroy.phase.toUpperCase()} · {hud.searchDestroy.bomb.status==="planted"?"BOMB PLANTED":hud.searchDestroy.bomb.status==="dropped"?"BOMB DROPPED":"BOMB CARRIED"}</div><div className="mt-1 text-amber-100/70">Hold E to interact</div></> : null}
+        </div>}
         {mode === "ctf" && hud.ctfFlags && flagLine && (
           <>
             <div className={`flex items-center justify-center flex-wrap rounded-md border border-emerald-400/20 bg-black/60 backdrop-blur ${isTouch ? "gap-x-2 px-2 py-0.5" : "gap-x-3 px-3 py-1"}`}>
