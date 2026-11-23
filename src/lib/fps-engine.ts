@@ -134,6 +134,7 @@ import {
   type WeaponSlot, type WeaponDef, type WeaponCategory, type WeaponConditionMetric,
 } from "@/lib/game-data";
 import { SoundManager } from "@/lib/sound";
+import { recordMagazineKill, resetMagazineKillCount } from "@/lib/magazine-kill-tracking";
 import { ctfFeedback, type CtfAction } from "./ctf-feedback";
 import { WeaponAudio, weaponAcousticSpace, type WeaponSoundCategory } from "@/lib/weapon-audio";
 import { audioGainLevels, DEFAULT_AUDIO_MIX } from "./audio-mix";
@@ -10049,11 +10050,8 @@ export class FPSEngine {
     const bump = (metric: WeaponConditionMetric) => { actions[metric] = (actions[metric] ?? 0) + 1; };
     if (weaponId === this.weaponId) {
       const currentWeapon = weaponById(weaponId);
-      if (currentWeapon.category === "lmg") {
-        const magazineKills = (this.magazineKillsByWeapon.get(weaponId) ?? 0) + 1;
-        this.magazineKillsByWeapon.set(weaponId, magazineKills);
-        if (magazineKills % 2 === 0) bump("double_kills_without_reload");
-      }
+      if (recordMagazineKill(this.magazineKillsByWeapon, weaponId, currentWeapon.category === "lmg"))
+        bump("double_kills_without_reload");
       const slots = weaponAttachmentSlots(currentWeapon);
       const atts = this.getCurrentAttachments();
       // Gun Game deliberately does not auto-award no-attachment challenges.
@@ -10858,7 +10856,7 @@ export class FPSEngine {
     if (weaponById(this.weaponId).category === "melee") return;
     this.reloading = true;
     // A reload breaks the sustained-fire streak, even if the magazine was not empty.
-    this.magazineKillsByWeapon.set(this.weaponId, 0);
+    resetMagazineKillCount(this.magazineKillsByWeapon, this.weaponId);
     this.fpReloadRecoveryUntil=0;
     this.reloadRoundInserted = false;
     this.reloadShellCycleIndex=0;
