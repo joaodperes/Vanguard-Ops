@@ -3801,6 +3801,14 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
             room.map.spawns.red,room.map.spawns.blue,room.map.spawns.ffa,Math.random,room.map.id);
       }
     }
+    // In Operations escort stages, bots pressure the convoy whenever no player
+    // is an immediate threat. The shared objective tick applies damage at cart range.
+    const escort=room.operation&&room.operation.status==="active"&&
+      operationById(room.operation.missionId)?.objectives[room.operation.stage]?.kind==="deliver"
+      ?room.operation.escortPos:undefined;
+    if(escort&&room.operation&&(room.operation.escortHp??0)>0&&threatDistance>14){
+      ai.targetId=null;ai.wanderTarget=[...escort] as Vec3;ai.highGroundPatrol=null;ai.investigationLookAt=null;
+    }
     if (Math.random() < 0.4) ai.strafeDir = -ai.strafeDir;
   }
 
