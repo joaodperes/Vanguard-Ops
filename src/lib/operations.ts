@@ -1,15 +1,6 @@
 /** Operations campaign rules shared by local/networked simulations and account progression. */
 import type {MapDef,MapId,Vec3,BotDifficulty} from './game-protocol';
 export type OperationKind='clear'|'eliminate'|'survive'|'secure'|'defend'|'recover'|'deliver'|'escort'|'extract';
-/** Compact objective-type label used by the Operations mission briefing. */
-export function operationObjectiveTypeLabel(kind: OperationKind): string {
- const labels: Record<OperationKind, string> = {
-  clear: "CLEAR", eliminate: "ELIMINATE", survive: "SURVIVE",
-  secure: "SECURE", defend: "DEFEND", recover: "RECOVER",
-  deliver: "DELIVER", escort: "ESCORT", extract: "EXTRACT",
- };
- return labels[kind];
-}
 export interface OperationObjective {kind:OperationKind;label:string;site:number;seconds:number;killTarget?:number;startSite?:number;payload?:string;boss?:boolean}
 export interface OperationMission {id:string;act:number;title:string;mapId:MapId;briefing:string;debrief:string;intensity:number;parSeconds:number;objectives:OperationObjective[];optionalObjective:{label:string;site:number};optionalChallenge?:{label:string;kills:number;seconds:number}}
 const goal=(kind:OperationKind,label:string,site:number,seconds=0,killTarget?:number,extra:Pick<OperationObjective,'startSite'|'payload'|'boss'>={}):OperationObjective=>({kind,label,site,seconds,...(killTarget?{killTarget}:{}),...extra});
