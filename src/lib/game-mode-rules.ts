@@ -124,14 +124,14 @@ export function applySearchDestroyAction(
       state.bomb.plantProgress = { playerId: action.playerId, startedAt: now }; return null;
     }
     if (now - progress.startedAt < SEARCH_DESTROY_RULES.plantSeconds * 1000) return null;
-    state.phase = "planted"; state.bomb.status = "planted"; state.bomb.siteId = site.id;
+    state.phase = "planted"; state.bomb.status = "planted"; state.bomb.siteId = site.id; state.bomb.pos = [...site.pos];
     state.bomb.carrierId = null; state.bomb.plantedAt = now;
     state.bomb.detonatesAt = now + SEARCH_DESTROY_RULES.bombFuseSeconds * 1000;
     state.bomb.plantProgress = null;
     return { type: "planted", playerId: action.playerId, siteId: site.id, detonatesAt: state.bomb.detonatesAt };
   }
-  if (state.phase !== "planted" || action.team === state.attackerTeam ||
-      !inside(action.pos, state.bomb.pos, SEARCH_DESTROY_RULES.interactionRadius)) return null;
+  if (state.phase !== "planted" || action.team === state.attackerTeam) return null;
+  if (!inside(action.pos, state.bomb.pos, SEARCH_DESTROY_RULES.interactionRadius)) { state.bomb.defuseProgress = null; return null; }
   const progress = state.bomb.defuseProgress;
   if (!progress || progress.playerId !== action.playerId) {
     state.bomb.defuseProgress = { playerId: action.playerId, startedAt: now }; return null;
