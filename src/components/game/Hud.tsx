@@ -344,7 +344,7 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
           : goal.kind==='deliver' ? hud.operation.carrierId ? `Carry package to marker · ${progress}/${goal.seconds}s` : "Pick up the dropped package"
           : goal.kind==='escort' ? `Escort ${goal.payload??'vehicle'} to destination · stay nearby to move it`
           : `Extract · all operatives at zone · ${progress}/${goal.seconds}s`;
-        const timedObjective=goal.kind!=='clear'&&goal.kind!=='deliver'||goal.kind==='deliver'&&!!hud.operation.carrierId;
+        const timedObjective=goal.kind!=='clear'&&goal.kind!=='eliminate'&&goal.kind!=='deliver'||goal.kind==='deliver'&&!!hud.operation.carrierId;
         const objectivePct=goal.killTarget?Math.min(100,100*progress/goal.killTarget):goal.seconds>0?Math.min(100,100*progress/goal.seconds):0;
         const deadlineLeft=Math.max(0,OPERATION_DEADLINE_SECONDS-hud.operation.elapsed);
         const deadlinePct=Math.min(100,100*deadlineLeft/OPERATION_DEADLINE_SECONDS);
@@ -368,7 +368,6 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
           </div>}
           {mission.optionalChallenge&&<div className={`text-[10px] mt-1 ${hud.operation.optionalChallengeStatus==='failed'?'text-rose-300':hud.operation.optionalChallengeStatus==='complete'?'text-emerald-300':'text-amber-200'}`}>{hud.operation.optionalChallengeStatus==='complete'?'◇ Alarm prevented':hud.operation.optionalChallengeStatus==='failed'?'◇ Alarm raised · later enemy numbers increased':`◇ ${mission.optionalChallenge.label}: ${hud.operation.optionalChallengeKills??0}/${mission.optionalChallenge.kills} · ${Math.max(0,Math.ceil(mission.optionalChallenge.seconds-(hud.operation.optionalChallengeElapsed??0)))}s`}</div>}
           {hud.operation.carrierId&&<div className="text-[10px] text-amber-200">Package carrier: {hud.scoreboard.find(player=>player.id===hud.operation?.carrierId)?.name??"Squad operative"} · Bring them to ◆</div>}
-          {mission.optionalChallenge          {mission.optionalChallenge&&<div className={`text-[10px] mt-1 ${hud.operation.optionalChallengeStatus==='failed'?'text-rose-300':hud.operation.optionalChallengeStatus==='complete'?'text-emerald-300':'text-amber-200'}`}>{hud.operation.optionalChallengeStatus==='complete'?'◇ Alarm prevented':hud.operation.optionalChallengeStatus==='failed'?'◇ Alarm raised · later enemy numbers increased':`◇ ${mission.optionalChallenge.label}: ${hud.operation.optionalChallengeKills??0}/${mission.optionalChallenge.kills} · ${Math.max(0,Math.ceil(mission.optionalChallenge.seconds-(hud.operation.optionalChallengeElapsed??0)))}s`}</div>}
           
         </div>;
       })()}
