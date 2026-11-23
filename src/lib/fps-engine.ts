@@ -124,7 +124,7 @@ import { CTF_SPEED_MULTIPLIER, ctfCarrierWeaponSpeed, createCtfFlags, ctfDrop, c
 import {
   getMap, MAP_LIST, rayBox, rayCapsule, PLAYER_RADIUS, PLAYER_HEIGHT, EYE_HEIGHT, MAX_HEALTH, RESPAWN_DELAY_MS,
   SURVIVAL_RESPAWN_MS, survivalWaveBotCount, survivalWaveHealthMul, survivalWaveDamageMul,
-  GUN_GAME_PROGRESSION, GUN_GAME_TYPE_PROGRESSION, KC_TAG_LIFETIME_MS, KC_PICKUP_RADIUS, killConfirmedPickupPoints,
+  GUN_GAME_PROGRESSION, GUN_GAME_TYPE_PROGRESSION, KC_TAG_LIFETIME_MS, KC_PICKUP_RADIUS, killConfirmedPickupPoints, killConfirmedTagExpiresAt,
   type C2S, type Vec3, type LoadoutWire, type GameMode, type MapId, type MapDef, type SnapshotPlayer, type S2C, type KillFeedEntry, type CoverBox, type BotDifficulty, type KillDifficulty, type KillConfirmedTag,
 } from "@/lib/game-protocol";
 import {
@@ -10175,7 +10175,7 @@ export class FPSEngine {
     this.addKillConfirmedTag({
       id: "offline-tag-" + (++this.kcNextTagId),
       victimId, victimTeam, pos: [...pos] as Vec3,
-      expiresAt: Date.now() + KC_TAG_LIFETIME_MS,
+      expiresAt: killConfirmedTagExpiresAt(Date.now(), KC_TAG_LIFETIME_MS),
     });
   }
   private animateKillConfirmedTags(now: number) {
