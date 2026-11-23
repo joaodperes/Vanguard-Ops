@@ -91,6 +91,7 @@ export function operationSite(map:Pick<MapDef,'spawns'>,index:number):Vec3 {
 const near=(a:Vec3,b:Vec3,r=4)=>Math.hypot(a[0]-b[0],a[2]-b[2])<=r&&Math.abs(a[1]-b[1])<2.5;
 export function operationTarget(s:OperationState,map:Pick<MapDef,'spawns'>):Vec3|undefined {
  const m=operationById(s.missionId),g=m?.objectives[s.stage];if(!g)return;
+ if(g.kind==='survive')return undefined;
  if(g.kind==='deliver')return operationSite(map,g.site);
  return operationSite(map,g.site);
 }
@@ -130,12 +131,7 @@ export function tickOperation(s:OperationState,map:Pick<MapDef,'spawns'>,actors:
   n.progress=Math.max(0,totalKills-n.objectiveKillBaseline);
   if(n.stageElapsed>=g.seconds&&n.progress<g.killTarget)return {...n,status:'failed'};
  }
- if(g.kind==='deliver'&&!living.some(a=>a.id===n.carrierId)){
-  const fallen=actors.find(a=>a.id===n.carrierId);n.packagePos=fallen?.pos??n.packagePos;n.carrierId=undefined;
-  const pickup=n.packagePos??operationSite(map,m.objectives[Math.max(0,s.stage-1)].site);
-  n.carrierId=living.find(a=>near(a.pos,pickup,3))?.id;
- }
- const carrier=living.find(a=>a.id===n.carrierId);if(carrier)n.packagePos=[...carrier.pos];
+
  const site=operationSite(map,g.site),inside=living.filter(a=>near(a.pos,site));
  const contested=foes.some(a=>near(a.pos,site,7));
  const escortDestination=g.kind==='deliver'?operationSite(map,g.site):undefined;
@@ -149,7 +145,7 @@ export function tickOperation(s:OperationState,map:Pick<MapDef,'spawns'>,actors:
  // Guard elimination and pending reinforcement pulses both gate stage completion.
  const objectiveComplete=g.kind==='deliver'?escortArrived:g.kind==='defend'&&g.killTarget?n.progress>=g.killTarget:n.progress>=g.seconds;
  if(eligible&&objectiveComplete&&(g.kind==='survive'||g.kind==='defend'&&g.killTarget?true:foes.length===0)&&n.pulse===s.pulse){
-  if(g.kind==='recover'){n.carrierId=inside[0]?.id;n.packagePos=[...site];}
+  if(g.kind==='recover'){n.carrierId=undefined;n.packagePos=[...site];}
   if(g.kind==='deliver'){n.carrierId=undefined;n.packagePos=undefined;n.escortPos=undefined;n.escortHp=undefined;n.escortMaxHp=undefined;}
   n.stage++;n.progress=0;n.stageElapsed=0;n.pulse=0;n.objectiveKillBaseline=undefined;if(n.stage>=m.objectives.length)n.status='won';
  }
