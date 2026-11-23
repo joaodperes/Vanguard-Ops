@@ -1063,6 +1063,8 @@ export class FPSEngine {
   private searchDestroyState?: import("./game-mode-rules").SearchDestroyState;
   private modeInteractHeld=false;
   private modeInteractSentAt=0;
+  private frontierDodgeReadyAt=0;
+  private frontierDodgeUntil=0;
   private ctfFlagMeshes: Record<FlagTeam, THREE.Group> | null = null;
   private ctfNotice: { label: string; at: number } | undefined;
   private ctfCaptures = 0;
@@ -4649,6 +4651,7 @@ export class FPSEngine {
       if (code === "KeyR" && !this.mechActive) this.startReload();
       if (code === "KeyE" && !e.repeat && (this.pointerLocked||this.touchMode)) {
         if(this.opts.mode==="searchdestroy"){e.preventDefault();this.modeInteractHeld=true;}
+        else if(this.opts.mode==="frontier"){e.preventDefault();this.triggerFrontierDodge();}
         else this.enterNearbyMech();
       }
       if (code === "KeyX" && !e.repeat && (this.pointerLocked||this.touchMode) && this.mechActive) {
@@ -4707,6 +4710,11 @@ export class FPSEngine {
   }
 
   setModeInteractHeld(held:boolean){this.modeInteractHeld=held;}
+  triggerFrontierDodge(){
+    const now=performance.now();if(this.opts.mode!=="frontier"||now<this.frontierDodgeReadyAt||!this.alive)return;
+    const boost=MOVEMENT.walk*1.85;this.vel.x+=Math.sin(this.yaw)*boost;this.vel.z+=Math.cos(this.yaw)*boost;
+    this.frontierDodgeUntil=now+220;this.frontierDodgeReadyAt=now+3000;
+  }
 
   private updateModeInteraction(now:number){
     if(!this.modeInteractHeld||this.opts.mode!=="searchdestroy"||!this.opts.online||!this.socket?.connected||now-this.modeInteractSentAt<220)return;
@@ -12118,6 +12126,7 @@ export class FPSEngine {
     else if(this.activePerkId === "lightweight") speedMul *= 1.12;
     if(this.localCryoSlowUntil>performance.now())speedMul*=CRYO_SLOW_FACTOR;
     if(this.opts.mode==="survival")speedMul*=survivalMovementMultiplier(this.survivalUpgradeRanks,performance.now()-this.survivalLastKillAt);
+    if(this.opts.mode==="frontier"){speedMul*=1.2;if(this.sprinting)speedMul*=1.18;if(performance.now()<this.frontierDodgeUntil)speedMul*=1.85;}
     const carryingFlag=this.opts.mode==="ctf" && (this.ctfFlags.red.carrierId===this.selfId||this.ctfFlags.blue.carrierId===this.selfId);
     if(reaperMovement&&!carryingFlag)speedMul*=ORBITAL_REAPER_SPEED_MULTIPLIER;
     if(carryingFlag)speedMul*=CTF_SPEED_MULTIPLIER;
@@ -12166,7 +12175,7 @@ export class FPSEngine {
     if (wantJump) {
       this.lastJumpPressedAt = -Infinity;
       this.lastGroundedAt = -Infinity;
-      this.vel.y = MOVEMENT.jumpVelocity * (this.activePerkId === "lightweight" ? 1.08 : 1);
+      this.vel.y = MOVEMENT.jumpVelocity * (this.activePerkId === "lightweight" ? 1.08 : 1) * (this.opts.mode==="frontier"?1.22:1);
       this.onGround = false;
       // Running takeoffs carry additional horizontal momentum, whether the
       // player is sprinting or moving at ordinary running speed.
