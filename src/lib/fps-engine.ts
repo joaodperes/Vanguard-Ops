@@ -13274,7 +13274,8 @@ export class FPSEngine {
       weaponId: "", weaponSkinId: "", playerSkinId: "", kills: 0, deaths: 0, score: 0,
     };
     selfC.weaponId=this.weaponId;selfC.yaw=this.yaw;selfC.riotShieldHp=this.riotShieldHp;selfC.riotShieldRaised=this.shieldRaised();
-    const candidates = [...this.combatants.values(), selfC];
+    const escort=this.operationEscortTarget();
+    const candidates = [...this.combatants.values(), selfC,...(escort?[escort]:[])];
     for (const e of candidates) {
       if (e.id === attacker.id || !e.alive) continue;
       if (e.team === attacker.team && this.opts.mode !== "ffa" && this.opts.mode !== "gungame") continue;
@@ -13289,7 +13290,17 @@ export class FPSEngine {
     const maxDistance = maxWeaponHitRange(eff.range, eff);
     const resolved=resolveMaterialPenetrationShot(contacts,this.coverForRay(origin,dir,maxDistance),origin,dir,maxDistance,
       eff.bodyPenetration,eff.coverPenetration);
-    const hits=resolved.hits;
+    let hits=resolved.hits;
+    const escort=this.operationEscortTarget();
+    if(escort&&!isThrowingKnife(attacker.weaponId)){
+      const cartHit=rayBox(origin,dir,[escort.pos[0],escort.pos[1]+.85,escort.pos[2]],[2,1.5,3]);
+      if(cartHit!==null&&cartHit<(hits[0]?.t??Infinity)&&cartHit<=resolved.stoppedAt){
+        const dealt=damageAtRange(eff.damage,cartHit,eff.range,eff)*0.65*survivalWaveDamageMul(this.survivalWave)*survivalWaveMutators(this.survivalTier,this.survivalWave).damageMul;
+        this.operation!.escortHp=Math.max(0,(this.operation!.escortHp??0)-dealt);
+        hits=[];
+        if(this.operation!.escortHp<=0)this.operationNotice={kind:"objective",message:"ESCORT VEHICLE DESTROYED",at:performance.now()};
+      }
+    }
     if (!isThrowingKnife(attacker.weaponId) && this.offlineMines.length) {
       const coverStop = traceCoverPenetration(this.coverForRay(origin,dir,maxDistance), origin, dir, maxDistance,
         eff.coverPenetration ?? 0).blockedAt;
