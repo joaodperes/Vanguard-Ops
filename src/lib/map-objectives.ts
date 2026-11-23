@@ -23,11 +23,11 @@ export type ObjectiveSource=string|ObjectiveMap;
 export const OBJECTIVE_KINDS=["flag","capture_zone","reactor"] as const;
 /** Counts are mode contracts, independent of map IDs. Future modes extend this table. */
 export const MODE_OBJECTIVES:Record<GameMode,readonly {kind:MapObjective["kind"];team?:ObjectiveTeam}[]>={
-  ffa:[],tdm:[],survival:[],gungame:[],killconfirmed:[],
+  ffa:[],tdm:[],survival:[],gungame:[],killconfirmed:[],searchdestroy:[],hardpoint:[],frontier:[],
   ctf:[{kind:"flag",team:"red"},{kind:"flag",team:"blue"},
     {kind:"capture_zone",team:"red"},{kind:"capture_zone",team:"blue"}],
 };
-export const DEFAULT_COMBAT_MODES:GameMode[]=["ffa","tdm","survival","gungame","killconfirmed"];
+export const DEFAULT_COMBAT_MODES:GameMode[]=["ffa","tdm","survival","gungame","killconfirmed","frontier"];
 /** Compatibility for old API callers and pre-objective editor saves only. */
 export function legacyObjectiveMap(id:string):ObjectiveMap {
   const authored=({orbital_nexus:orbital,floodgate,compound,skybridge,whiteout_depot:whiteout} as Record<string,{blueprint:unknown}>)[id]?.blueprint as ObjectiveMap|undefined;
