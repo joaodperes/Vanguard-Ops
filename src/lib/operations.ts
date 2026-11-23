@@ -1,6 +1,6 @@
 /** Operations campaign rules shared by local/networked simulations and account progression. */
 import type {MapDef,MapId,Vec3,BotDifficulty} from './game-protocol';
-export type OperationKind='clear'|'secure'|'defend'|'recover'|'deliver'|'extract';
+export type OperationKind='clear'|'secure'|'defend'|'survive'|'recover'|'deliver'|'extract';
 export interface OperationObjective {kind:OperationKind;label:string;site:number;seconds:number;killTarget?:number}
 export interface OperationMission {id:string;act:number;title:string;mapId:MapId;briefing:string;debrief:string;intensity:number;parSeconds:number;objectives:OperationObjective[];optionalObjective:{label:string;site:number};optionalChallenge?:{label:string;kills:number;seconds:number}}
 const goal=(kind:OperationKind,label:string,site:number,seconds=0,killTarget?:number):OperationObjective=>({kind,label,site,seconds,...(killTarget?{killTarget}:{})});
@@ -67,7 +67,7 @@ export function nextOperation(id:string){const i=OPERATIONS.findIndex(m=>m.id===
 export function operationConfigValid(c:{operationId?:unknown;mode:string;mapId:string;survivalTier?:unknown}):boolean {
  const m=operationById(c.operationId);return !!m&&c.mode==='survival'&&c.mapId===m.mapId&&(c.survivalTier===undefined||c.survivalTier==='default');
 }
-export interface OperationState {missionId:string;difficulty:BotDifficulty;stage:number;progress:number;elapsed:number;stageElapsed:number;pulse:number;objectiveKillBaseline?:number;intel:boolean;optionalChallengeStatus?:'active'|'complete'|'failed';optionalChallengeElapsed?:number;optionalChallengeBaseline?:number;optionalChallengeKills?:number;carrierId?:string;packagePos?:Vec3;status:'active'|'won'|'failed'}
+export interface OperationState {missionId:string;difficulty:BotDifficulty;stage:number;progress:number;elapsed:number;stageElapsed:number;pulse:number;objectiveKillBaseline?:number;intel:boolean;optionalChallengeStatus?:'active'|'complete'|'failed';optionalChallengeElapsed?:number;optionalChallengeBaseline?:number;optionalChallengeKills?:number;carrierId?:string;packagePos?:Vec3;escortPos?:Vec3;escortHp?:number;escortMaxHp?:number;status:'active'|'won'|'failed'}
 export interface OperationFeedbackEvent {kind:"objective"|"intel"|"challenge";message:string}
 /** Discrete transitions only: callers can safely run this for every simulation snapshot. */
 export function operationFeedbackEvents(previous:OperationState,next:OperationState):OperationFeedbackEvent[] {
@@ -91,7 +91,7 @@ export function operationSite(map:Pick<MapDef,'spawns'>,index:number):Vec3 {
 const near=(a:Vec3,b:Vec3,r=4)=>Math.hypot(a[0]-b[0],a[2]-b[2])<=r&&Math.abs(a[1]-b[1])<2.5;
 export function operationTarget(s:OperationState,map:Pick<MapDef,'spawns'>):Vec3|undefined {
  const m=operationById(s.missionId),g=m?.objectives[s.stage];if(!g)return;
- if(g.kind==='deliver'&&!s.carrierId)return s.packagePos??operationSite(map,m!.objectives[Math.max(0,s.stage-1)].site);
+ if(g.kind==='deliver')return s.escortPos??s.packagePos??operationSite(map,m!.objectives[Math.max(0,s.stage-1)].site);
  return operationSite(map,g.site);
 }
 export function tickOperation(s:OperationState,map:Pick<MapDef,'spawns'>,actors:readonly OperationActor[],enemies:readonly OperationActor[],dt:number):OperationState {
@@ -112,6 +112,18 @@ export function tickOperation(s:OperationState,map:Pick<MapDef,'spawns'>,actors:
  if(!n.intel&&living.some(a=>near(a.pos,operationSite(map,m.optionalObjective.site),2.5)))n.intel=true;
  const g=m.objectives[s.stage];if(!g)return {...n,status:'won'};
  if(g.kind==='defend')n.pulse=Math.floor(n.stageElapsed/15);
+ if(g.kind==='survive'&&living.length===0)return {...n,status:'failed'};
+ if(g.kind==='deliver'){
+  const start=n.escortPos??n.packagePos??operationSite(map,m.objectives[Math.max(0,s.stage-1)].site);
+  n.escortPos=[...start];n.escortMaxHp??=450;n.escortHp??=n.escortMaxHp;
+  const attackers=foes.filter(a=>near(a.pos,n.escortPos!,5));
+  if(attackers.length)n.escortHp=Math.max(0,(n.escortHp??0)-attackers.length*18*delta);
+  if((n.escortHp??0)<=0)return {...n,status:'failed'};
+  const destination=operationSite(map,g.site),dx=destination[0]-n.escortPos[0],dz=destination[2]-n.escortPos[2],distance=Math.hypot(dx,dz);
+  if(distance>1.5&&living.some(a=>near(a.pos,n.escortPos!,8))){
+   const step=Math.min(distance,2.4*delta);n.escortPos=[n.escortPos[0]+dx/distance*step,n.escortPos[1],n.escortPos[2]+dz/distance*step];
+  }
+ }
  if(g.kind==='defend'&&g.killTarget){
   const totalKills=actors.reduce((sum,a)=>sum+(Number.isFinite(a.kills)?Math.max(0,a.kills??0):0),0);
   n.objectiveKillBaseline??=totalKills;
@@ -126,16 +138,19 @@ export function tickOperation(s:OperationState,map:Pick<MapDef,'spawns'>,actors:
  const carrier=living.find(a=>a.id===n.carrierId);if(carrier)n.packagePos=[...carrier.pos];
  const site=operationSite(map,g.site),inside=living.filter(a=>near(a.pos,site));
  const contested=foes.some(a=>near(a.pos,site,7));
+ const escortDestination=g.kind==='deliver'?operationSite(map,g.site):undefined;
+ const escortArrived=!!escortDestination&&!!n.escortPos&&Math.hypot(escortDestination[0]-n.escortPos[0],escortDestination[2]-n.escortPos[2])<=1.5;
  const eligible=g.kind==='clear'?living.length>0&&foes.length===0
   :g.kind==='extract'?living.length>0&&inside.length===living.length&&foes.length===0
-  :g.kind==='deliver'?inside.some(a=>a.id===n.carrierId)&&!contested:g.kind==='defend'?inside.length>0:inside.length>0&&!contested;
+  :g.kind==='deliver'?escortArrived&&living.some(a=>near(a.pos,n.escortPos!,8))
+  :g.kind==='survive'?living.length>0:g.kind==='defend'?inside.length>0:inside.length>0&&!contested;
  // Kill-target defence uses progress for kills; its deadline is tracked by stageElapsed.
- if(eligible&&!(g.kind==='defend'&&g.killTarget))n.progress=Math.min(g.seconds,n.progress+delta);else if(!eligible&&g.kind==='extract')n.progress=0;
+ if(eligible&&g.kind!=='deliver'&&!(g.kind==='defend'&&g.killTarget))n.progress=Math.min(g.seconds,n.progress+delta);else if(!eligible&&g.kind==='extract')n.progress=0;
  // Guard elimination and pending reinforcement pulses both gate stage completion.
- const objectiveComplete=g.kind==='defend'&&g.killTarget? n.progress>=g.killTarget : n.progress>=g.seconds;
+ const objectiveComplete=g.kind==='deliver'?escortArrived:g.kind==='defend'&&g.killTarget?n.progress>=g.killTarget:n.progress>=g.seconds;
  if(eligible&&objectiveComplete&&(g.kind==='defend'&&g.killTarget?true:foes.length===0)&&n.pulse===s.pulse){
   if(g.kind==='recover'){n.carrierId=inside[0]?.id;n.packagePos=[...site];}
-  if(g.kind==='deliver'){n.carrierId=undefined;n.packagePos=undefined;}
+  if(g.kind==='deliver'){n.carrierId=undefined;n.packagePos=undefined;n.escortPos=undefined;n.escortHp=undefined;n.escortMaxHp=undefined;}
   n.stage++;n.progress=0;n.stageElapsed=0;n.pulse=0;n.objectiveKillBaseline=undefined;if(n.stage>=m.objectives.length)n.status='won';
  }
  return n;

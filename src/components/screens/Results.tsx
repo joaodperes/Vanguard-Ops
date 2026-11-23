@@ -21,7 +21,7 @@ function unlockedGearLabel(id: string): string {
 }
 
 export function Results() {
-  const { matchResult, profile, setScreen, playConfig, roomConnect } = useGame();
+  const { matchResult, profile, setScreen, playConfig, roomConnect, setRoomConnect, setPlayConfig, setMatchResult } = useGame();
   if (!matchResult) {
     setScreen("menu");
     return null;
@@ -368,6 +368,17 @@ export function Results() {
           className="w-full mb-3 bg-amber-500 hover:bg-amber-400 text-black font-bold h-12"
         >
           <Trophy className="w-4 h-4 mr-2" /> Continue campaign · {followingMission.title}
+        </Button>}
+        {mission&&r.operation?.status==='failed'&&!roomConnect&&<Button
+          onClick={() => {
+            setMatchResult(null);
+            setRoomConnect(null);
+            setPlayConfig({mode:"survival",operationId:mission.id,mapId:mission.mapId,online:false,botCount:0,scoreLimit:0,timeLimit:0,botDifficulty:r.operation?.difficulty??playConfig.botDifficulty,survivalTier:"default"});
+            setScreen("playing");
+          }}
+          className="w-full mb-3 bg-emerald-500 hover:bg-emerald-400 text-black font-bold h-12"
+        >
+          <RotateCcw className="w-4 h-4 mr-2" /> Quick Restart · {mission.title}
         </Button>}
         <div className="flex flex-col sm:flex-row gap-3">
           <Button

@@ -1275,6 +1275,7 @@ export class FPSEngine {
   private operation: OperationState | undefined;
   private operationNotice?: HudState["operationNotice"];
   private operationBeacons: THREE.Group[] = [];
+  private operationEscort?: THREE.Group;
   private survivalWave = 0;
   private survivalTier: SurvivalTier = "default";
   private survivalUpgradeRanks:SurvivalUpgradeRanks={};
@@ -10836,7 +10837,8 @@ export class FPSEngine {
 
   private updateOperationBeacons() {
     if(!this.operation)return;
-    const sites=[operationTarget(this.operation,this.map),this.operation.intel ? undefined : operationSite(this.map,operationById(this.operation.missionId)!.optionalObjective.site)];
+    const mission=operationById(this.operation.missionId),goal=mission?.objectives[this.operation.stage];
+    const sites=[operationTarget(this.operation,this.map),this.operation.intel ? undefined : operationSite(this.map,mission!.optionalObjective.site)];
     for(let i=0;i<2;i++){
       if(!this.operationBeacons[i]){
         const group=new THREE.Group(),material=new THREE.MeshBasicMaterial({color:i===0?0xfbbf24:0xffffff,transparent:true,opacity:.75,depthWrite:false});
@@ -10848,6 +10850,27 @@ export class FPSEngine {
       const group=this.operationBeacons[i],site=sites[i];group.visible=!!site&&this.operation.status==='active'&&!this.lobbyActive;
       if(site)group.position.set(site[0],site[1],site[2]);group.children[1].rotation.y=performance.now()/1500;
     }
+    if(goal?.kind==='deliver'&&this.operation.escortPos){
+      if(!this.operationEscort){
+        const cart=new THREE.Group();
+        const frame=new THREE.MeshStandardMaterial({color:0x303943,roughness:.8,metalness:.35});
+        const cargo=new THREE.MeshStandardMaterial({color:0x9a6b36,roughness:.95});
+        const rubber=new THREE.MeshStandardMaterial({color:0x17191c,roughness:1});
+        const chassis=new THREE.Mesh(new THREE.BoxGeometry(3.2,.55,2),frame);chassis.position.y=.8;cart.add(chassis);
+        const load=new THREE.Mesh(new THREE.BoxGeometry(2.5,1.25,1.7),cargo);load.position.set(0,1.65,0);cart.add(load);
+        const wheelGeo=new THREE.CylinderGeometry(.43,.43,.28,12);
+        for(const x of [-1.15,1.15])for(const z of [-.78,.78]){
+          const wheel=new THREE.Mesh(wheelGeo,rubber);wheel.rotation.z=Math.PI/2;wheel.position.set(x,.48,z);cart.add(wheel);
+        }
+        const beacon=new THREE.Mesh(new THREE.BoxGeometry(.22,.8,.22),new THREE.MeshBasicMaterial({color:0xfbbf24}));
+        beacon.position.set(0,2.55,0);cart.add(beacon);
+        this.scene.add(cart);this.operationEscort=cart;
+      }
+      const cart=this.operationEscort;cart.visible=this.operation.status==='active'&&!this.lobbyActive;
+      cart.position.set(this.operation.escortPos[0],this.operation.escortPos[1],this.operation.escortPos[2]);
+      const destination=operationTarget(this.operation,this.map);
+      if(destination)cart.rotation.y=Math.atan2(destination[0]-cart.position.x,destination[2]-cart.position.z);
+    }else if(this.operationEscort)this.operationEscort.visible=false;
   }
 
   // ---- Loop ----
