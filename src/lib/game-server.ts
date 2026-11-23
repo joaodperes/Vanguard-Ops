@@ -2474,6 +2474,10 @@ function startSurvivalWave(room: Room,reinforcement=false) {
   const encounter=room.operation ? operationEncounter(operationById(room.operation.missionId)!,room.operation.stage,room.botDifficulty,room.players.size,room.operation.optionalChallengeStatus==='failed'):undefined;
   const count=(reinforcement ? encounter?.reinforcementCount : encounter?.count) ?? Math.min(40,Math.ceil(baseCount*mutators.spawnMul))+(mutators.boss ? 1 : 0);
   const hpMul = survivalWaveHealthMul(room.wave)*mutators.healthMul;
+  const bossWave=mutators.boss||!!encounter?.boss;
+  const commanderObjective=encounter?.boss&&room.operation?operationById(room.operation.missionId)?.objectives[room.operation.stage]:undefined;
+  const commanderSite=commanderObjective?operationSite(room.map,commanderObjective.site):undefined;
+  const escortPos=room.operation?.escortPos;
   // Match archetypes to any eligible standard weapon, not a legacy fixed list.
   const skinRotation = Math.floor(Math.random()*BOT_OPERATIVE_SKINS.length);
   const waveDiff=room.operation?.difficulty==='mixed'?resolveBotDifficulty(room):encounter?.difficulty ?? survivalBotDifficulty(room.config.survivalTier ?? "default",room.wave);
@@ -2483,10 +2487,15 @@ function startSurvivalWave(room: Room,reinforcement=false) {
     // Use FFA spawn list (spread across the whole map) instead of red-team-only
     // spawns (one side only). This prevents all bots from swarming from one
     // direction.
-    const sp = pickSpawn("ffa", room);
+    const commanderSpawn=bossWave&&n===count-1&&commanderSite?room.map.spawns.ffa
+      .filter(pos=>Math.hypot(pos[0]-commanderSite[0],pos[2]-commanderSite[2])>6&&
+        (!escortPos||Math.hypot(pos[0]-escortPos[0],pos[2]-escortPos[2])>6)&&
+        allCombatants(room).every(actor=>!actor.alive||Math.hypot(pos[0]-actor.pos[0],pos[2]-actor.pos[2])>6))
+      .sort((a,b)=>Math.hypot(a[0]-commanderSite[0],a[2]-commanderSite[2])-Math.hypot(b[0]-commanderSite[0],b[2]-commanderSite[2]))[0]:undefined;
+    const sp=commanderSpawn?[...commanderSpawn] as Vec3:pickSpawn("ffa",room);
     const loadout = botLoadout(undefined,n,"survival",room.wave);
-    const boss = mutators.boss && n === count-1;
-    const elite = !boss && room.wave>=5 && room.wave%5===0 && n===count-(mutators.boss?2:1);
+    const boss = bossWave && n === count-1;
+    const elite = !boss && !bossWave && room.wave>=5 && room.wave%5===0 && n===count-1;
     const role=survivalRoleForSlot(encounter?.roleWave ?? room.wave,n,boss,elite);
     if(role){loadout.perkId="steady";loadout.wonderWeaponId=undefined;}
     loadout.playerSkinId = boss ? SURVIVAL_BOSS_SKIN_ID : botOperativeSkinId(n,skinRotation);
@@ -2506,7 +2515,7 @@ function startSurvivalWave(room: Room,reinforcement=false) {
     const bot: PlayerNet & { ai: BotAI; loadout: LoadoutWire } = {
       survivalRole:role,survivalAbilityLeft:role==="engineer"?6:4,
       survivalMaxHealth:Math.round(MAX_HEALTH*hpMul*(boss?6:elite?2.2:survivalRoleHealthMultiplier(role))),
-      id, name: role ? `${SURVIVAL_ROLE_INFO[role].label} · W${room.wave}` : boss ? `BOSS · W${room.wave}` : elite ? `ELITE · W${room.wave}` : `W${room.wave}·${n + 1}`, team: "red", isBot: true,
+      id, name: role ? `${SURVIVAL_ROLE_INFO[role].label} · W${room.wave}` : boss ? (encounter?.boss ? "COMMANDER · ZERO HOUR" : `BOSS · W${room.wave}`) : elite ? `ELITE · W${room.wave}` : `W${room.wave}·${n + 1}`, team: "red", isBot: true,
       pos: sp, yaw: 0, pitch: 0, health: Math.round(MAX_HEALTH * hpMul * (boss ? 6 : elite ? 2.2 : survivalRoleHealthMultiplier(role))), alive: true,
       bossMaxHealth:boss?Math.round(MAX_HEALTH*hpMul*6):undefined,
       eliteMaxHealth:elite?Math.round(MAX_HEALTH*hpMul*2.2):undefined,
@@ -2826,6 +2835,15 @@ function tickRoomSimulation(room: Room) {
           room.operation=tickOperation(room.operation,room.map,
             [...room.players.values()].map(p=>({id:p.id,pos:p.pos,alive:p.alive&&!room.downed.has(p.id),kills:p.kills})),
             [...room.bots.values()].map(p=>({id:p.id,pos:p.pos,alive:p.alive})),1/20);
+          if(!previousOperation?.escortComplete&&room.operation.escortComplete&&
+            room.operation.escortPayload?.toLowerCase()==="juggernaut"&&room.operation.escortPos){
+            const cart=room.operation.escortPos,yaw=room.operation.escortYaw??0;
+            const pos=juggernautDropPoint(cart,yaw,room.map.cover,room.map.size)??juggernautDropPoint(cart,yaw+Math.PI/2,room.map.cover,room.map.size)??[...cart] as Vec3;
+            const id=genId("mech"),landAt=Date.now()+JUGGERNAUT_DROP_MS;
+            const drop={id,ownerId:"operation",pos,landAt,expiresAt:landAt+25000,moduleId:"",landed:false};
+            room.mechDrops.set(id,drop);
+            io.to(room.id).emit("message",{t:"mechDrop",...drop} as S2C);
+          }
           if(room.operation.status!=="active"){room.waveActive=false;endMatch(room);return;}
           if(room.operation.stage===previousStage&&room.operation.pulse!==previousPulse)startSurvivalWave(room,true);
         }
