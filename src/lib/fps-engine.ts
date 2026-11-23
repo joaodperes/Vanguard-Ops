@@ -10934,7 +10934,7 @@ export class FPSEngine {
       }
       this.operationEscortMesh.visible=this.operation.status==='active'&&!this.lobbyActive;
       this.operationEscortMesh.position.set(...escortPos);
-      const destination=goal?.kind==='escort'?operationSite(this.map,goal.site):this.operation.escortDestination??escortPos;
+      const destination=goal?.kind==='escort'?(goal.destination??operationSite(this.map,goal.site??0)):this.operation.escortDestination??escortPos;
       const dx=destination[0]-escortPos[0],dz=destination[2]-escortPos[2];
       this.operationEscortMesh.rotation.y=this.operation.escortYaw??Math.atan2(dx,dz);
       const cable=this.operationEscortMesh.getObjectByName('pc-connection-cable') as THREE.Line|undefined;

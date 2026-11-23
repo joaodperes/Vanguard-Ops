@@ -80,6 +80,8 @@ describe("Operations objective types", () => {
     expect(state.stage).toBe(4);
     expect(state.escortComplete).toBe(true);
     expect(state.escortHp).toBe(650);
+    const destroyed = damageOperationEscort(state, 650);
+    expect(tickOperation(destroyed, map, [operative], [hostile], 1).status).toBe('failed');
   });
 
   test("the PC cart has a persistent solid collider", () => {

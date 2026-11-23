@@ -14,20 +14,26 @@ interactions through floors. Each mission has its own named optional intel objec
 and beacon, placed separately from its main objective sites. Nearby enemies contest
 recovery, delivery and terminal progress.
 
-- Clear: defeat the encounter. The beacon is a rally point, not an arena boundary.
-- Secure: occupy the terminal site for its accumulated hold duration.
-- Defend: hold a fixed two-minute upload while seven reinforcement groups arrive
-  every 15 seconds. The hold timer continues under enemy pressure, but the stage
-  cannot complete until all active defenders are eliminated.
+- Clear / Eliminate: defeat the active encounter. These are the only objective
+  types that require every active hostile to be eliminated.
+- Secure: occupy the terminal site for its accumulated hold duration. Enemies
+  contest progress only while close enough to contest that site; distant hostiles
+  do not block completion.
+- Defend: hold the objective for its configured duration while reinforcement
+  groups arrive every 15 seconds. The hold timer continues under enemy pressure,
+  and the stage completes when the timer ends even if hostiles remain alive.
+- Survive: keep at least one operative alive for the configured duration. It does
+  not require a defend-site radius. An optional HP target can turn it into an
+  asset-protection objective, such as keeping the 650 HP PC alive.
 - Recover: occupy the recovery site to pick up its mission package.
 - Deliver: bring the actual carrier to the destination. If the carrier is downed,
   the package drops at their last known position and can be recovered after revival.
-- Extract: eliminate the encounter and reach the extraction site for an uninterrupted
-  countdown.
+- Extract: bring every living operative to the extraction site for an uninterrupted
+  countdown. Hostiles do not have to be eliminated first.
 
-Every stage requires its encounter to be defeated. Timers never despawn living
-opponents. Terminal/defence progress is retained when enemies contest the site;
-extraction resets. Enemy budgets grow with mission intensity and objective number.
+Timers never despawn living opponents. Secure progress pauses while the site is
+contested; extraction progress resets when a living operative leaves the zone.
+Enemy budgets grow with mission intensity and objective number.
 The existing Survival specialists, arsenal, elite, healing, damage and self-revive
 systems supply combat. Operations can be deployed solo or in a two-player co-op
 room. Co-op encounters scale to the squad size; both operatives can activate
@@ -92,6 +98,8 @@ fire. There is no new map geometry or cinematic/NPC scripting system.
 
 Operations use distinct objective types: `eliminate` removes the active encounter, `survive` completes after its timer while at least one operative remains alive, site control uses `secure` / `defend`, package handling uses `recover` / `deliver`, and vehicle movement uses `escort`. Elimination and survival are intentionally different: timed survival does not require the squad to kill every remaining enemy.
 
-An `escort` objective has an authored start site, destination site and payload. The visible vehicle/cart moves only while an operative is nearby and has 650 HP. It is a combat target: players and hostiles can damage it, multiplayer health is authoritative on the server, and destruction fails the mission. The same target and damage rules are simulated locally. Escort vehicles are separate from package delivery.
+An `escort` objective has an authored start site, destination and payload. Destinations can be spawn sites or explicit world coordinates; the route planner steers the cart around solid ground-level cover. The visible vehicle/cart moves only while an operative is nearby and has 650 HP. It is a solid collision object and a combat target: players and hostiles can damage it, multiplayer health is authoritative on the server, and destruction fails the mission. The same target, route and damage rules are simulated locally. A completed PC escort remains at its destination with a visible connection cable to the nearby structure. Escort vehicles are separate from package delivery.
+
+A `survive` objective can omit `site` entirely. Set `targetHp` and `payload` to protect a stationary asset instead of asking operatives to stand inside a defend radius; `startSite` controls where that asset appears. The Relay Siege response stage uses this pattern to protect a 650 HP PC.
 
 Zero Hour ends with an escort of the Juggernaut cart to the command chamber. After the cart reaches the destination, the Juggernaut drop is generated and the commander becomes a separate elimination encounter. The commander spawns near the authored objective, but away from the cart and nearby operatives. Defeat the commander before reaching extraction.

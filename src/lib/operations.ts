@@ -179,6 +179,7 @@ export function tickOperation(s:OperationState,map:OperationMap,actors:readonly 
   const destination=g.destination??operationSite(map,g.site??0),start=operationSite(map,g.startSite??m.objectives[Math.max(0,s.stage-1)]?.site??g.site??0);
   n.escortMaxHp??=650;n.escortHp??=n.escortMaxHp;n.escortPos??=[...start] as Vec3;n.escortPayload??=g.payload??'Escort vehicle';n.escortDestination??=[...destination] as Vec3;n.escortConnectionTarget??=g.connectionTarget;
   n.escortPath??=planEscortRoute(n.escortPos,destination,map.cover??[],map.size??150);n.escortPathIndex??=1;
+  const firstWaypoint=n.escortPath[1]??destination;n.escortYaw??=Math.atan2(firstWaypoint[0]-n.escortPos[0],firstWaypoint[2]-n.escortPos[2]);
   if((n.escortHp??0)<=0){syncOperationCartCollider(map,n);return {...n,status:'failed'};}
   if(living.some(a=>near(a.pos,n.escortPos!,7))){
    let remaining=2.6*delta;
@@ -222,7 +223,7 @@ export function tickOperation(s:OperationState,map:OperationMap,actors:readonly 
   :g.kind==='deliver'?inside.some(a=>a.id===n.carrierId)&&!contested:g.kind==='defend'?inside.length>0:inside.length>0&&!contested;
  // Kill-target defence uses progress for kills; its deadline is tracked by stageElapsed.
  if(eligible&&!(g.kind==='defend'&&g.killTarget))n.progress=Math.min(g.seconds,n.progress+delta);else if(!eligible&&g.kind==='extract')n.progress=0;
- // Guard elimination and pending reinforcement pulses both gate stage completion.
+ // Elimination objectives require a clear arena; timed holds progress independently of distant hostiles.
  const objectiveComplete=g.kind==='defend'&&g.killTarget? n.progress>=g.killTarget : n.progress>=g.seconds;
  if(eligible&&objectiveComplete&&n.pulse===s.pulse){
   if(g.kind==='recover'){n.carrierId=inside[0]?.id;n.packagePos=[...site];}
