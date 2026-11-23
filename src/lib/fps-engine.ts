@@ -6190,7 +6190,11 @@ export class FPSEngine {
     const squadSize=this.operation ? 1+[...this.combatants.values()].filter(c=>!c.isBot&&!c.isSelf&&c.alive).length : 1;
     const encounter=this.operation ? operationEncounter(operationById(this.operation.missionId)!,this.operation.stage,this.operation.difficulty,squadSize,this.operation.optionalChallengeStatus==='failed'):undefined;
     const count=(reinforcement ? encounter?.reinforcementCount : encounter?.count) ?? Math.min(40,Math.ceil(survivalWaveBotCount(this.survivalWave)*mutators.spawnMul))+(mutators.boss ? 1 : 0);
+    const bossWave=mutators.boss||!!encounter?.boss;
     const hpMul=survivalWaveHealthMul(this.survivalWave)*mutators.healthMul;
+    const commanderObjective=encounter?.boss&&this.operation?operationById(this.operation.missionId)?.objectives[this.operation.stage]:undefined;
+    const commanderSite=commanderObjective?operationSite(this.map,commanderObjective.site):undefined;
+    const escortPos=this.operation?.escortPos;
     // Curated Survival arsenal; launchers are allowed, long-range snipers excluded.
     const botWeapons = SURVIVAL_BOT_WEAPONS.map(w=>w.id);
     const skinRotation = Math.floor(Math.random()*BOT_OPERATIVE_SKINS.length);
@@ -6205,7 +6209,13 @@ export class FPSEngine {
       const elite=!boss && this.survivalWave>=5 && this.survivalWave%5===0 &&
         n===count-(mutators.boss?2:1);
       const id=(boss ? "svboss_" : elite ? "svelite_" : "svbot_")+this.survivalWave+"_"+n+(this.operation ? "_"+this.operation.pulse : "");
-      const sp = this.pickSpawn("ffa");
+      const commanderSpawn=boss&&commanderSite?this.map.spawns.ffa
+        .filter(p=>Math.hypot(p[0]-commanderSite[0],p[2]-commanderSite[2])>6&&
+          (!escortPos||Math.hypot(p[0]-escortPos[0],p[2]-escortPos[2])>6)&&
+          Math.hypot(p[0]-this.pos.x,p[2]-this.pos.z)>6&&
+          [...this.combatants.values()].every(c=>!c.alive||Math.hypot(p[0]-c.pos[0],p[2]-c.pos[2])>6))
+        .sort((a,b)=>Math.hypot(a[0]-commanderSite[0],a[2]-commanderSite[2])-Math.hypot(b[0]-commanderSite[0],b[2]-commanderSite[2]))[0]:undefined;
+      const sp=commanderSpawn?[...commanderSpawn] as Vec3:this.pickSpawn("ffa");
       const wid = boss ? "lmg_hv" : botWeapons[Math.floor(Math.random()*botWeapons.length)];
       const role=survivalRoleForSlot(encounter?.roleWave ?? this.survivalWave,n,boss,elite);
       const perk=boss||role?"steady":botPerkForMode("survival",this.survivalWave);
@@ -6219,7 +6229,7 @@ export class FPSEngine {
       const c: Combatant = {
         survivalRole:role,survivalAbilityLeft:role==="engineer"?6:4,
         survivalMaxHealth:Math.round(MAX_HEALTH*hpMul*(boss?6:elite?2.2:survivalRoleHealthMultiplier(role))),
-        id, name: role ? `${SURVIVAL_ROLE_INFO[role].label} · W${this.survivalWave}` : boss ? `BOSS · W${this.survivalWave}` : elite ? `ELITE · W${this.survivalWave}` : `W${this.survivalWave}·${n + 1}`, team: "red", isBot: true, isSelf: false,
+        id, name: role ? `${SURVIVAL_ROLE_INFO[role].label} · W${this.survivalWave}` : boss ? (encounter?.boss ? "COMMANDER · ZERO HOUR" : `BOSS · W${this.survivalWave}`) : elite ? `ELITE · W${this.survivalWave}` : `W${this.survivalWave}·${n + 1}`, team: "red", isBot: true, isSelf: false,
         perkId:perk,botWonderId:wonderId,
         pos: sp, yaw: 0, pitch: 0, health: Math.round(MAX_HEALTH * hpMul * (boss ? 6 : elite ? 2.2 : survivalRoleHealthMultiplier(role))), alive: true,
         bossMaxHealth:boss?Math.round(MAX_HEALTH*hpMul*6):undefined,
@@ -6300,6 +6310,13 @@ export class FPSEngine {
         ];
         this.operation=tickOperation(this.operation,this.map,operationActors,
           [...this.combatants.values()].filter(c=>c.isBot).map(c=>({id:c.id,pos:c.pos,alive:c.alive,kills:c.kills})),dt);
+        if(!this.opts.online&&!previousOperation?.escortComplete&&this.operation.escortComplete&&
+          this.operation.escortPayload?.toLowerCase()==='juggernaut'&&this.operation.escortPos){
+          const yaw=this.operation.escortYaw??0,cart=this.operation.escortPos;
+          const dropPos=juggernautDropPoint(cart,yaw,this.map.cover,this.map.size)??juggernautDropPoint(cart,yaw+Math.PI/2,this.map.cover,this.map.size)??[...cart] as Vec3;
+          const landAt=Date.now()+JUGGERNAUT_DROP_MS,id=`operation_juggernaut_${this.operation.missionId}_${Math.floor(Date.now())}`;
+          this.addMechDrop(id,this.selfId,dropPos,landAt,landAt+25000,"",false);
+        }
         this.applyOperationFeedback(operationFeedbackEvents(previousOperation!,this.operation));
         if(this.operation.status!=="active"){this.survivalWaveActive=false;this.finalizeMatchLocal();return;}
         if(this.operation.stage===previousStage&&this.operation.pulse!==previousPulse)this.startSurvivalWave(true);
