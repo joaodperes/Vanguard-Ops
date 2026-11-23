@@ -90,6 +90,8 @@ fire. There is no new map geometry or cinematic/NPC scripting system.
 
 ## Objective types and escort integrity
 
-Operations distinguish elimination (`clear`), site control (`secure` / `defend`), timed survival (`survive`), recovery (`recover`), physical escort (`deliver`) and extraction (`extract`). A `survive` objective advances while at least one operative remains alive; it does not require the enemy wave to be eliminated.
+Operations use distinct objective types: `eliminate` removes the active encounter, `survive` completes after its timer while at least one operative remains alive, site control uses `secure` / `defend`, package handling uses `recover` / `deliver`, and vehicle movement uses `escort`. Elimination and survival are intentionally different: timed survival does not require the squad to kill every remaining enemy.
 
-A `deliver` objective uses a physical convoy cart. It starts at the previous recovery point, advances only while an operative stays close, and has 450 HP (well above a standard operative's health). Nearby hostiles damage the cart; escort failure occurs if its integrity reaches zero. Bots divert toward the cart when no immediate player threat is close. The HUD shows convoy integrity and marks recovered optional intel in green.
+An `escort` objective has an authored start site, destination site and payload. The visible vehicle/cart moves only while an operative is nearby and has 650 HP. It is a combat target: players and hostiles can damage it, multiplayer health is authoritative on the server, and destruction fails the mission. The same target and damage rules are simulated locally. Escort vehicles are separate from package delivery.
+
+Zero Hour ends with an escort of the Juggernaut cart to the command chamber. After the cart reaches the destination, the Juggernaut drop is generated and the commander becomes a separate elimination encounter. The commander spawns near the authored objective, but away from the cart and nearby operatives. Defeat the commander before reaching extraction.
