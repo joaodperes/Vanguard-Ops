@@ -1329,7 +1329,7 @@ export const mapAllowedForMode = (mode: GameMode, id: MapId | string): boolean =
  * for the selected map must not send the old map's team size to the server. */
 export function resolveRoomSelection(mode: GameMode, mapId: MapId, teamSize: TeamSize): { mapId: MapId; teamSize: TeamSize } {
   const effectiveMapId: MapId = mapAllowedForMode(mode, mapId)
-    ? mapId : mode === "ctf" ? "forest_warfare" : "compound";
+    ? mapId : mode === "ctf" ? "forest_warfare" : mode === "searchdestroy" || mode === "hardpoint" || mode === "frontier" ? "dustwater" : "compound";
   return {
     mapId: effectiveMapId,
     // Direct/invalid room selections reset to the effective map recommendation.
