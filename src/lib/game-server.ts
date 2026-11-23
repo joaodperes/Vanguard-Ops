@@ -458,7 +458,8 @@ function spawnBots(room: Room) {
     const sp = pickSpawn(team, room);
     const teamSlot = [...room.bots.values()].filter(b => b.team === team).length;
     const archetype = botArchetypeForSlot(teamSlot);
-    const loadout = botLoadout(archetype,Math.floor(Math.random()*botArchetypeWeapons(archetype).length),room.mode);
+    const rawLoadout = botLoadout(archetype,Math.floor(Math.random()*botArchetypeWeapons(archetype).length),room.mode);
+    const loadout = room.mode==="frontier"?frontierSafeLoadout(rawLoadout):rawLoadout;
     loadout.playerSkinId = botOperativeSkinId(room.bots.size, skinRotation);
     const difficulty = resolveBotDifficulty(room);
     const ai = makeBotAI(sp, loadout.weaponId, difficulty, 0, archetype);
@@ -583,7 +584,17 @@ function replaceBotOnTeam(room: Room, team: string): boolean {
 // Add a human player to a room, replacing a bot on their team if the room is
 // bot-filled and at capacity. Returns the assigned team. `requested` lets the
 // joining player pick red/blue/auto for TDM.
+function frontierSafeLoadout(loadout:LoadoutWire):LoadoutWire {
+  const allowed=(id:string|undefined)=>!!id&&frontierWeaponAllowed(weaponById(id).category)&&!weaponById(id).disabled&&!weaponById(id).wonder;
+  const fallback=WEAPONS.find(w=>frontierWeaponAllowed(w.category)&&!w.disabled&&!w.wonder)?.id??"pistol_side";
+  const pistol=WEAPONS.find(w=>w.category==="pistol"&&!w.disabled&&!w.wonder)?.id??"pistol_side";
+  return {...loadout,weaponId:allowed(loadout.weaponId)?loadout.weaponId:fallback,
+    secondaryWeaponId:allowed(loadout.secondaryWeaponId)?loadout.secondaryWeaponId:pistol,
+    perkId:loadout.perkId==="wonder_weapon"?undefined:loadout.perkId,wonderWeaponId:undefined,wonderModuleId:undefined};
+}
+
 function addHumanToRoom(room: Room, socketId: string, p: PlayerNet, loadout: LoadoutWire, requested?: "red" | "blue" | "auto"): string {
+  if(room.mode==="frontier"){loadout=frontierSafeLoadout(loadout);p.weaponId=loadout.weaponId;}
   const team = assignTeam(room.mode, room, requested);
   p.team = team as any;
   // If the room is bot-filled and this team is full, replace a bot with the human.
@@ -636,6 +647,7 @@ function createLobbyRoom(
 ): Room {
   const id = genId("match");
   const mode = cfg.mode;
+  if(mode==="frontier")loadout=frontierSafeLoadout(loadout);
   const map = makeEnvironmentMap(getMap((operationConfigValid(cfg)||mapAllowedForMode(mode,cfg.mapId))?cfg.mapId:mode==="ctf"?"forest_warfare":"compound",mode));
   const teamSize = cfg.teamSize;
   const capacity = roomCapacity(mode, teamSize, cfg.survivalPlayers === 2 ? 2 : 1);
@@ -3096,6 +3108,7 @@ function roomHighGroundGoals(room:Room):HighGroundGoal[]{
  */
 function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void {
       if (!room) return;
+      if(room.mode==="frontier"&&!frontierWeaponAllowed(weaponById(msg.weaponId).category))return;
       // No shooting in lobby state.
       if (room.state !== "playing") return;
       // No shooting during the pre-match countdown (bots are frozen, but
@@ -4745,6 +4758,7 @@ async function handle(socket: any, msg: C2S) {
     case "useEquipment": {
       const room = rooms.get(socketToRoom.get(socket.id) ?? "");
       if (!room || !room.players.has(socket.id)) return;
+      if(room.mode==="frontier"){socket.emit("message",{t:"equipmentRejected",reason:"Frontier rules disable tactical equipment."} as S2C);return;}
       const left = serverUseEquipment(room, socket.id);
       // A rejected intent also corrects the client's predicted ammo count.
       const remaining = left ?? (room.equipmentCharges.get(socket.id) ??
