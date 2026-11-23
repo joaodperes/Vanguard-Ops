@@ -86,3 +86,10 @@ Real-socket checks cover two-player co-op room creation, joining and difficulty
 preservation. Unit tests cover mission objectives, deadline, star-criteria
 breakdown, first-clear idempotency and account persistence. Human playtests remain necessary for combat pacing and route feel under
 fire. There is no new map geometry or cinematic/NPC scripting system.
+
+
+## Objective types and escort integrity
+
+Operations distinguish elimination (`clear`), site control (`secure` / `defend`), timed survival (`survive`), recovery (`recover`), physical escort (`deliver`) and extraction (`extract`). A `survive` objective advances while at least one operative remains alive; it does not require the enemy wave to be eliminated.
+
+A `deliver` objective uses a physical convoy cart. It starts at the previous recovery point, advances only while an operative stays close, and has 450 HP (well above a standard operative's health). Nearby hostiles damage the cart; escort failure occurs if its integrity reaches zero. Bots divert toward the cart when no immediate player threat is close. The HUD shows convoy integrity and marks recovered optional intel in green.

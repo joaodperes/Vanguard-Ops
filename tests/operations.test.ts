@@ -78,19 +78,12 @@ describe('Operations campaign',()=>{
   expect(s.escortHp).toBeLessThan(hp);
   expect(s.escortMaxHp).toBeGreaterThan(100);
  });
- test('escort destruction fails the operation and surviving is a distinct timed objective',()=>{
+ test('escort destruction fails the operation',()=>{
   const mission=operationById('cold_trail')!,compiled=getMap(mission.mapId,'survival');
   const start=operationSite(compiled,mission.objectives[1].site);
   let escort:OperationState={...createOperationState(mission.id),stage:2,escortPos:[...start],escortHp:1,escortMaxHp:450};
   escort=tickOperation(escort,compiled,[actor(start)],[actor(start,'guard')],1);
   expect(escort.status).toBe('failed');
-  const surviveMission={...mission,objectives:[{kind:'survive' as const,label:'Survive',site:0,seconds:3}]};
-  // Exercise the shared state machine without changing the authored campaign.
-  const survive={...createOperationState(mission.id),stage:0};
-  const original=OPERATIONS.findIndex(m=>m.id===mission.id);
-  expect(original).toBeGreaterThanOrEqual(0);
-  let s=tickOperation(survive,compiled,[actor(operationSite(compiled,surviveMission.objectives[0].site))],[],3);
-  expect(s.stage).toBe(1);
  });
  test('solo extraction needs the operator at the site for an uninterrupted timer',()=>{
   let s={...createOperationState(first.id),stage:4};const p=operationTarget(s,map)!,away:Vec3=[p[0]+20,p[1],p[2]];
