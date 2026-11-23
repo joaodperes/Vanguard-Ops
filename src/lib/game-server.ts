@@ -1006,8 +1006,9 @@ function allCombatantsWithEscort(room:Room):PlayerNet[] {
 // Shared limb-inclusive humanoid ray collision (see combat-hitboxes.ts).
 
 // ---- LOS & hit detection ----------------------------------------------------
-function losBlocked(room: Room, origin: Vec3, dir: Vec3, maxT: number): boolean {
+function losBlocked(room: Room, origin: Vec3, dir: Vec3, maxT: number, ignoreOperationCart=false): boolean {
   for (const c of coverForRay(room,origin,dir,maxT)) {
+    if(ignoreOperationCart&&c.environmentId==="operation-escort-cart")continue;
     const t = rayBox(origin, dir, c.pos, c.size);
     if (t !== null && t < maxT) return true;
   }
@@ -1060,7 +1061,7 @@ function fireRay(room: Room, attackerId: string, origin: Vec3, dir: Vec3, weapon
       Math.min(maxDistance, coverStop ?? Infinity, nearest?.t ?? Infinity)) !== null) return null;
   }
   if (!nearest) return null;
-  if (losBlocked(room, origin, dir, nearest.t)) return null;
+  if (losBlocked(room, origin, dir, nearest.t,nearest.victim.id===OPERATION_ESCORT_TARGET_ID)) return null;
   return nearest;
 }
 
@@ -1507,7 +1508,7 @@ function applyMeleeStrike(room:Room,attacker:PlayerNet,weaponId:string,now:numbe
     (c,dist)=>{
       const eye:Vec3=[attacker.pos[0],attacker.pos[1]+1.1,attacker.pos[2]];
       const dir:Vec3=[(c.pos[0]-attacker.pos[0])/dist,0,(c.pos[2]-attacker.pos[2])/dist];
-      return !losBlocked(room,eye,dir,Math.max(.01,dist-.15));
+      return !losBlocked(room,eye,dir,Math.max(.01,dist-.15),c.id===OPERATION_ESCORT_TARGET_ID);
     },attack.reach,attack.halfArcDegrees);
   const victim=target?roomCombatantById(room,target.id)??null:null;
   const hitIds:string[]=[];
@@ -3007,7 +3008,7 @@ function nearestEnemy(room: Room, p: PlayerNet): PlayerNet | null {
       room.map.id==="whiteout_depot"?whiteoutVisibility(room.environmentTime,p.pos):Infinity)) continue;
     const fromY = p.pos[1] + PLAYER_HEIGHT / 2;
     const toY = e.pos[1] + PLAYER_HEIGHT / 2;
-    if (!hasLineOfSight(room, [p.pos[0], fromY, p.pos[2]], [e.pos[0], toY, e.pos[2]])) continue;
+    if (!hasLineOfSight(room, [p.pos[0], fromY, p.pos[2]], [e.pos[0], toY, e.pos[2]],e.id===OPERATION_ESCORT_TARGET_ID)) continue;
     bestD = priorityDistance;
     best = e;
   }
@@ -4431,13 +4432,13 @@ function separateBots(room: Room, bot: PlayerNet & { ai: BotAI }, currentY: numb
 // Line-of-sight check: returns true if there is a clear line of sight from
 // `from` to `to` (no blocking cover boxes in between). Used by the bot AI to
 // make bots require LoS before acquiring a target (instead of being omniscient).
-function hasLineOfSight(room: Room, from: Vec3, to: Vec3): boolean {
+function hasLineOfSight(room: Room, from: Vec3, to: Vec3, ignoreOperationCart=false): boolean {
   const dx = to[0] - from[0], dy = to[1] - from[1], dz = to[2] - from[2];
   const len = Math.hypot(dx, dy, dz);
   if (len < 0.01) return true;
   const dir: Vec3 = [dx / len, dy / len, dz / len];
   for (const cov of roomCoverAlong(room,from,to,2)) {
-    if (cov.kind === "accent" || cov.kind === "stair") continue;
+    if (cov.kind === "accent" || cov.kind === "stair" || (ignoreOperationCart&&cov.environmentId==="operation-escort-cart")) continue;
     const t = rayBox(from, dir, cov.pos, cov.size);
     if (t !== null && t < len) return false;
   }

@@ -12619,7 +12619,7 @@ export class FPSEngine {
       candidateDist<=Math.min(botDetectionRange(ai.difficulty,w.category),
         this.map.id==="whiteout_depot"?whiteoutVisibility(this.environmentTime,c.pos):Infinity) &&
       this.hasLineOfSight([c.pos[0],c.pos[1]+PLAYER_HEIGHT/2,c.pos[2]],
-        [candidate.pos[0],candidate.pos[1]+PLAYER_HEIGHT/2,candidate.pos[2]])
+        [candidate.pos[0],candidate.pos[1]+PLAYER_HEIGHT/2,candidate.pos[2]],candidate.id==="__operation_escort__")
       ? candidate : null;
     if(tgt)ai.lastSighting=botRememberSighting(tgt.id,tgt.pos,now);
     else if(ai.targetId){ai.targetId=null;ai.nextDecisionAt=0;}
@@ -13260,7 +13260,7 @@ export class FPSEngine {
         this.map.id==="whiteout_depot"?whiteoutVisibility(this.environmentTime,c.pos):Infinity)) continue;
       const fromY = c.pos[1] + PLAYER_HEIGHT / 2;
       const toY = e.pos[1] + PLAYER_HEIGHT / 2;
-      if (!this.hasLineOfSight([c.pos[0], fromY, c.pos[2]], [e.pos[0], toY, e.pos[2]])) continue;
+      if (!this.hasLineOfSight([c.pos[0], fromY, c.pos[2]], [e.pos[0], toY, e.pos[2]],e.id==="__operation_escort__")) continue;
       bestD = d;
       best = e;
     }
@@ -13272,13 +13272,13 @@ export class FPSEngine {
   // Line-of-sight check: returns true if there's a clear line from `from` to `to`
   // (no blocking cover boxes in between). Used by the bot AI so bots require LoS
   // before acquiring a target (instead of being omniscient).
-  private hasLineOfSight(from: Vec3, to: Vec3): boolean {
+  private hasLineOfSight(from: Vec3, to: Vec3, ignoreOperationCart=false): boolean {
     const dx = to[0] - from[0], dy = to[1] - from[1], dz = to[2] - from[2];
     const len = Math.hypot(dx, dy, dz);
     if (len < 0.01) return true;
     const dir: Vec3 = [dx / len, dy / len, dz / len];
     for (const cov of this.coverAlong(from,to,2)) {
-      if (cov.kind === "accent" || cov.kind === "stair") continue;
+      if (cov.kind === "accent" || cov.kind === "stair" || (ignoreOperationCart&&cov.environmentId==="operation-escort-cart")) continue;
       const t = rayBox(from, dir, cov.pos, cov.size);
       if (t !== null && t < len) return false;
     }
