@@ -336,14 +336,15 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
         const mission=operationById(hud.operation.missionId),goal=mission?.objectives[hud.operation.stage],w=hud.operationWaypoint;
         if(!mission||!goal)return null;
         const progress=Math.floor(hud.operation.progress);
-        const objectiveStatus=goal.kind==='clear' ? "Eliminate all hostiles"
-          : goal.kind==='survive' ? `Survive · ${progress}/${goal.seconds}s`
+        const objectiveStatus=(goal.kind==='clear'||goal.kind==='eliminate') ? "Eliminate all hostiles"
+          : goal.kind==='survive' ? `Survive the response wave · ${Math.max(0,Math.ceil(goal.seconds-hud.operation.stageElapsed))}s remaining`
           : goal.kind==='secure' ? `Secure site · ${progress}/${goal.seconds}s`
           : goal.kind==='defend' ? goal.killTarget ? `Hold site · ${progress}/${goal.killTarget} kills · ${Math.max(0,Math.ceil(goal.seconds-hud.operation.stageElapsed))}s · Reinforcements ${hud.operation.pulse}` : `Hold upload · ${progress}/${goal.seconds}s · Reinforcements ${hud.operation.pulse}`
           : goal.kind==='recover' ? `Recover package · ${progress}/${goal.seconds}s`
-          : goal.kind==='deliver' ? `Escort convoy · ${Math.round(hud.operation.escortHp??0)}/${hud.operation.escortMaxHp??450} HP`
+          : goal.kind==='deliver' ? hud.operation.carrierId ? `Carry package to marker · ${progress}/${goal.seconds}s` : "Pick up the dropped package"
+          : goal.kind==='escort' ? `Escort ${goal.payload??'vehicle'} to destination · stay nearby to move it`
           : `Extract · all operatives at zone · ${progress}/${goal.seconds}s`;
-        const timedObjective=goal.kind!=='clear'&&goal.kind!=='deliver';
+        const timedObjective=goal.kind!=='clear'&&goal.kind!=='deliver'||goal.kind==='deliver'&&!!hud.operation.carrierId;
         const objectivePct=goal.killTarget?Math.min(100,100*progress/goal.killTarget):goal.seconds>0?Math.min(100,100*progress/goal.seconds):0;
         const deadlineLeft=Math.max(0,OPERATION_DEADLINE_SECONDS-hud.operation.elapsed);
         const deadlinePct=Math.min(100,100*deadlineLeft/OPERATION_DEADLINE_SECONDS);
@@ -361,9 +362,13 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
           {timedObjective&&goal.seconds>0&&<div className="h-1 rounded-full bg-white/10 mt-2 overflow-hidden"><div className="h-full bg-amber-400 transition-[width] duration-200" style={{width:`${objectivePct}%`}} /></div>}
           {w&&<div className="flex justify-center items-center gap-2 text-amber-200 text-xs mt-1"><span className="inline-block text-lg" style={{transform:`rotate(${-w.angle}rad)`}}>↑</span> ◆ {Math.round(w.distance)}m {Math.abs(w.vertical)>2.5 ? w.vertical>0 ? "· Above":"· Below":""}</div>}
           <div className={`text-[10px] ${hud.operation.intel ? "text-emerald-300 font-semibold":"text-white/50"}`}>{hud.operation.intel ? "✓ Optional intel recovered":"◇ Intel optional"}</div>
-          {goal.kind==='deliver'&&<div className="mt-1 h-1.5 rounded-full bg-white/10 overflow-hidden"><div className={`h-full transition-[width] ${((hud.operation.escortHp??0)/(hud.operation.escortMaxHp??450))<0.3?'bg-rose-400':'bg-emerald-400'}`} style={{width:`${Math.max(0,Math.min(100,100*(hud.operation.escortHp??0)/(hud.operation.escortMaxHp??450)))}%`}} /></div>
-          {goal.kind==='deliver'&&<div className="text-[10px] text-amber-200">Convoy integrity · {Math.ceil(hud.operation.escortHp??0)} / {hud.operation.escortMaxHp??450}</div>}
+          {goal.kind==='escort'&&<div className="mt-2">
+            <div className="flex justify-between text-[10px] font-bold text-white/80"><span>{goal.payload??'Escort vehicle'} integrity</span><span>{Math.ceil(hud.operation.escortHp??0)}/{hud.operation.escortMaxHp??650} HP</span></div>
+            <div className="h-1.5 rounded-full bg-white/15 overflow-hidden mt-1"><div className={`h-full transition-[width] ${((hud.operation.escortHp??0)/(hud.operation.escortMaxHp??650))>.5?'bg-emerald-400':((hud.operation.escortHp??0)/(hud.operation.escortMaxHp??650))>.25?'bg-amber-400':'bg-rose-400'}`} style={{width:`${Math.max(0,Math.min(100,100*(hud.operation.escortHp??0)/(hud.operation.escortMaxHp??650)))}%`}} /></div>
+          </div>}
           {mission.optionalChallenge&&<div className={`text-[10px] mt-1 ${hud.operation.optionalChallengeStatus==='failed'?'text-rose-300':hud.operation.optionalChallengeStatus==='complete'?'text-emerald-300':'text-amber-200'}`}>{hud.operation.optionalChallengeStatus==='complete'?'◇ Alarm prevented':hud.operation.optionalChallengeStatus==='failed'?'◇ Alarm raised · later enemy numbers increased':`◇ ${mission.optionalChallenge.label}: ${hud.operation.optionalChallengeKills??0}/${mission.optionalChallenge.kills} · ${Math.max(0,Math.ceil(mission.optionalChallenge.seconds-(hud.operation.optionalChallengeElapsed??0)))}s`}</div>}
+          {hud.operation.carrierId&&<div className="text-[10px] text-amber-200">Package carrier: {hud.scoreboard.find(player=>player.id===hud.operation?.carrierId)?.name??"Squad operative"} · Bring them to ◆</div>}
+          {mission.optionalChallenge          {mission.optionalChallenge&&<div className={`text-[10px] mt-1 ${hud.operation.optionalChallengeStatus==='failed'?'text-rose-300':hud.operation.optionalChallengeStatus==='complete'?'text-emerald-300':'text-amber-200'}`}>{hud.operation.optionalChallengeStatus==='complete'?'◇ Alarm prevented':hud.operation.optionalChallengeStatus==='failed'?'◇ Alarm raised · later enemy numbers increased':`◇ ${mission.optionalChallenge.label}: ${hud.operation.optionalChallengeKills??0}/${mission.optionalChallenge.kills} · ${Math.max(0,Math.ceil(mission.optionalChallenge.seconds-(hud.operation.optionalChallengeElapsed??0)))}s`}</div>}
           
         </div>;
       })()}
