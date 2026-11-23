@@ -108,7 +108,7 @@ describe('Operations campaign',()=>{
  test('every mission has a valid solo completion path',()=>{
   for(const mission of OPERATIONS){
    const m=getMap(mission.mapId,'survival');let s=createOperationState(mission.id),budget=2000,kills=0;
-   while(s.status==='active'&&budget-->0){const goal=mission.objectives[s.stage];const p=goal?.kind==='deliver'?(s.escortPos??s.packagePos??operationSite(m,mission.objectives[Math.max(0,s.stage-1)].site)):operationTarget(s,m)!;if(goal?.kind==='defend'&&goal.killTarget)kills=(s.objectiveKillBaseline??0)+goal.killTarget;s=tickOperation(s,m,[actor(p,'solo',true,kills)],[],1);}
+   while(s.status==='active'&&budget-->0){const goal=mission.objectives[s.stage];const p=goal?.kind==='deliver'?(s.escortPos??s.packagePos??operationSite(m,mission.objectives[Math.max(0,s.stage-1)].site)):(operationTarget(s,m)??operationSite(m,goal?.site??0));if(goal?.kind==='defend'&&goal.killTarget)kills=(s.objectiveKillBaseline??0)+goal.killTarget;s=tickOperation(s,m,[actor(p,'solo',true,kills)],[],1);}
    expect(s.status).toBe('won');expect(s.stage).toBe(mission.objectives.length);
   }
  });

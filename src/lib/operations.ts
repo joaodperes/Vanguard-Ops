@@ -146,7 +146,7 @@ export function tickOperation(s:OperationState,map:Pick<MapDef,'spawns'>,actors:
  const objectiveComplete=g.kind==='deliver'?escortArrived:g.kind==='defend'&&g.killTarget?n.progress>=g.killTarget:n.progress>=g.seconds;
  if(eligible&&objectiveComplete&&(g.kind==='survive'||g.kind==='defend'&&g.killTarget?true:foes.length===0)&&n.pulse===s.pulse){
   if(g.kind==='recover'){n.packagePos=[...site];}
-  if(g.kind==='deliver'){n.carrierId=undefined;n.packagePos=undefined;n.escortPos=undefined;n.escortHp=undefined;n.escortMaxHp=undefined;}
+  if(g.kind==='deliver'){n.packagePos=undefined;n.escortPos=undefined;n.escortHp=undefined;n.escortMaxHp=undefined;}
   n.stage++;n.progress=0;n.stageElapsed=0;n.pulse=0;n.objectiveKillBaseline=undefined;if(n.stage>=m.objectives.length)n.status='won';
  }
  return n;
