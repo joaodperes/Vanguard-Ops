@@ -111,7 +111,7 @@ export interface CreateRoomConfig {
   // progression length as the score limit).
   scoreLimit?: number;      // kills to win (FFA/TDM) or tags confirmed (Kill Confirmed)
   timeLimit?: number;       // seconds (0 = no time limit)
-  tagLifetimeMs?: number;   // Kill Confirmed dogtag lifetime, configured by host
+  tagLifetimeMs?: number;   // Kill Confirmed dogtag lifetime in ms; -1 means infinite
   ctfFlagResetMs?: number;  // CTF dropped flag return timer; -1 means never
   denialScoreEnabled?: boolean; // +1 team/player point for recovering friendly dogtags
   gungamePreset?: "all" | "cqc" | "long_range";
@@ -1471,9 +1471,23 @@ export type C2S =
   | { t: "leaveRoom" };
 
 // ---- Server -> Client events ----
-// Kill Confirmed dogtags are created on every death and expire after 25s.
+// Kill Confirmed dogtags are created on every death and expire after the
+// configured lifetime (25s by default; -1 means infinite).
 // Pickups are authoritative on the server; offline play uses the same rules.
 export const KC_TAG_LIFETIME_MS = 25000;
+export const KC_TAG_LIFETIME_INFINITE_MS = -1;
+export const KC_TAG_LIFETIME_OPTIONS_MS = [10000, 15000, 25000, 30000, 45000, KC_TAG_LIFETIME_INFINITE_MS] as const;
+export type KillConfirmedTagLifetimeMs = (typeof KC_TAG_LIFETIME_OPTIONS_MS)[number];
+
+export function isValidKillConfirmedTagLifetimeMs(value: unknown): value is KillConfirmedTagLifetimeMs {
+  return typeof value === "number" && KC_TAG_LIFETIME_OPTIONS_MS.includes(value as KillConfirmedTagLifetimeMs);
+}
+
+/** Return a JSON-safe expiry timestamp; Number.MAX_SAFE_INTEGER represents no expiry. */
+export function killConfirmedTagExpiresAt(now: number, lifetimeMs: number): number {
+  return lifetimeMs === KC_TAG_LIFETIME_INFINITE_MS ? Number.MAX_SAFE_INTEGER : now + lifetimeMs;
+}
+
 export const KC_PICKUP_RADIUS = 2.25;
 /** Match points for a pickup; an unscored denial still prevents the opponent scoring. */
 export function killConfirmedPickupPoints(action: "confirm" | "deny", denialScoreEnabled: boolean): 0 | 1 {
@@ -1628,7 +1642,7 @@ export interface MatchConfig {
   scoreLimit: number;     // kills to win (per player in FFA, per team in TDM). 0 = endless (survival)
   timeLimit: number;      // seconds. 0 = no time limit (survival)
   friendlyFire: boolean;
-  tagLifetimeMs: number;   // Kill Confirmed tag lifetime
+  tagLifetimeMs: number;   // Kill Confirmed tag lifetime in ms; -1 means infinite
   ctfFlagResetMs: number; // CTF dropped flag return timer
   denialScoreEnabled: boolean; // friendly tag recoveries earn a point when true
   operationId?: string;
