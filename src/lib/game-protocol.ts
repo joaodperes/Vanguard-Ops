@@ -17,8 +17,8 @@ import { FOREST_SPAWNS, FOREST_WARFARE_COVER, FOREST_REGIONS, FOREST_HALF_EXTENT
 import type { CtfFlags } from "./ctf-rules";
 
 export type Vec3 = [number, number, number];
-export type GameMode = "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed" | "ctf";
-export type MapId = "compound" | "skybridge" | "bunker" | "shipyard" | "terminal" | "arena_neon" | "forest_warfare" | "orbital_nexus" | "floodgate" | "whiteout_depot" | "emberhold";
+export type GameMode = "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed" | "ctf" | "searchdestroy" | "hardpoint" | "frontier";
+export type MapId = "compound" | "skybridge" | "bunker" | "shipyard" | "terminal" | "arena_neon" | "forest_warfare" | "orbital_nexus" | "floodgate" | "whiteout_depot" | "emberhold" | "dustwater";
 
 // ---- Room lobby system -------------------------------------------------------
 // Per-team player count options for the "Create a Room" flow.
@@ -30,6 +30,7 @@ export function isAfterlightCityMap(mapId: MapId | string): boolean {
   return mapId === "terminal" || mapId === "arena_neon";
 }
 export function teamSizesForMap(mapId: MapId | string, mode: GameMode = "tdm"): readonly TeamSize[] {
+  if (mode === "searchdestroy" || mode === "hardpoint" || mode === "frontier") return [3,4,5,7];
   if (mapId === "bunker") return mode === "ffa" || mode === "gungame" ? [3,4] : [3,5];
   if (isAfterlightCityMap(mapId)) return [5,7,9,16];
   // Castle is dense at 32 operatives: cap every supported mode at 12 per side / 24 total.
@@ -39,6 +40,7 @@ export function teamSizesForMap(mapId: MapId | string, mode: GameMode = "tdm"): 
   return [3,5,7];
 }
 export function recommendedTeamSize(mapId: MapId | string, mode: GameMode = "tdm"): TeamSize {
+  if(mode==="searchdestroy"||mode==="hardpoint"||mode==="frontier")return 5;
   if(mapId==="bunker")return 3;
   // 9 per side = 18 operatives in both day and night Afterlight editions.
   if(isAfterlightCityMap(mapId))return 9;
@@ -1455,6 +1457,7 @@ export type C2S =
   | { t: "quickMelee" }
   | { t: "collectScavenger"; id: string }
   | { t: "useEquipment" } // intent only; server validates the item, aim and stock
+  | { t: "modeInteract"; action: "plant" | "defuse" | "pickup"; siteId?: "A" | "B" }
   | { t: "chooseSurvivalUpgrade"; upgradeId: SurvivalUpgradeId }
   | { t: "rerollSurvivalUpgrade" }
   | { t: "setSurvivalPause"; paused: boolean }
@@ -1601,6 +1604,7 @@ export type S2C =
   | { t: "orbitalReward"; playerId: string; active: boolean }
   | { t: "orbitalPulse"; playerId: string; pos: Vec3 }
   | { t: "ctfEvent"; action: "pickup" | "return" | "capture" | "drop" | "auto_return"; flag: "red" | "blue"; playerId: string }
+  | { t: "modeEvent"; event: import("./game-mode-rules").SearchDestroyEvent }
   | { t: "tagCollected"; tagId: string; collectorId: string; action: "confirm" | "deny" }
   | { t: "respawn"; playerId: string; pos: Vec3; health: number }
   | { t: "loadoutQueued"; loadout: LoadoutWire } // authoritative validated pending loadout
@@ -1638,6 +1642,11 @@ export type S2C =
 
 export interface MatchConfig {
   mode: GameMode;
+  objectiveBotStyle?: "balanced" | "aggressive" | "defensive";
+  searchDestroyRound?: number;
+  searchDestroyWins?: { red: number; blue: number };
+  hardpointZone?: number;
+  hardpointProgress?: number;
   botCount: number;
   scoreLimit: number;     // kills to win (per player in FFA, per team in TDM). 0 = endless (survival)
   timeLimit: number;      // seconds. 0 = no time limit (survival)
@@ -1652,8 +1661,8 @@ export interface MatchConfig {
 export const DEFAULT_CONFIG = (mode: GameMode, botCount: number): MatchConfig => ({
   mode,
   botCount,
-  scoreLimit: mode === "ctf" ? 3 : mode === "ffa" ? 30 : mode === "tdm" ? 60 : mode === "killconfirmed" ? 40 : 0,
-  timeLimit: mode === "survival" || mode === "gungame" ? 0 : mode === "ctf" || mode === "killconfirmed" ? 600 : 360,
+  scoreLimit: mode === "searchdestroy" ? 0 : mode === "hardpoint" ? 200 : mode === "frontier" ? 30 : mode === "ctf" ? 3 : mode === "ffa" ? 30 : mode === "tdm" ? 60 : mode === "killconfirmed" ? 40 : 0,
+  timeLimit: mode === "survival" || mode === "gungame" || mode === "searchdestroy" ? 0 : mode === "hardpoint" ? 600 : mode === "frontier" ? 360 : mode === "ctf" || mode === "killconfirmed" ? 600 : 360,
   friendlyFire: false,
   tagLifetimeMs: KC_TAG_LIFETIME_MS,
   ctfFlagResetMs: 30000,
