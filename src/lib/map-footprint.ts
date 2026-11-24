@@ -15,6 +15,7 @@ import {legacyObjectiveMap} from "./map-objectives";
 export type MapPace = "compact" | "balanced" | "tactical";
 export const MAP_FOOTPRINT: Record<MapId, { scale: number; pace: MapPace; description: string }> = {
   emberhold: {scale:1,pace:"balanced",description:"A stone keep with four crossings over a lethal lava moat"},
+  dustwater: {scale:1,pace:"balanced",description:"A western boomtown with connected interiors, rooftop routes and a water-tower overlook"},
   whiteout_depot: {scale:1,pace:"balanced",description:"Snowbound freight sheds, covered rail platforms and a sheltered service gallery"},
   floodgate: {scale:1,pace:"tactical",description:"16v16 CTF · covered turbine hall, spillway pressure purges and maintenance-yard flanks"},
   orbital_nexus: {scale:1,pace:"balanced",description:"Mirrored flag vaults, reactor deck, jet launch pads and three assault lanes"},
