@@ -4721,6 +4721,12 @@ export class FPSEngine {
       this.socket.emit("message",{t:"modeInteract",action:"cancel"} as C2S);
     this.modeInteractHeld=held;
   }
+  /** Touch interaction mirrors keyboard/controller mode actions. */
+  setTouchInteract(held:boolean){
+    if(this.opts.mode==="searchdestroy"){this.setModeInteractHeld(held);return;}
+    if(this.opts.mode==="frontier"){if(held)this.triggerFrontierDodge();return;}
+    if(held)this.touchInteract();
+  }
   triggerFrontierDodge(){
     const now=performance.now();if(this.opts.mode!=="frontier"||now<this.frontierDodgeReadyAt||!this.alive)return;
     const boost=MOVEMENT.walk*1.85;this.vel.x+=Math.sin(this.yaw)*boost;this.vel.z+=Math.cos(this.yaw)*boost;
