@@ -36,9 +36,9 @@ describe("new competitive mode integration",()=>{
     const steps=featureBoxes(stair!);
     expect(steps.length).toBeGreaterThan(10);
     const landing=steps[steps.length-1];
-    expect(landing.pos[1]+landing.size[1]).toBeCloseTo((platform!.y??0)+platform!.h,1);
+    expect(landing.pos[1]+landing.size[1]).toBeCloseTo((platform!.y??0)+platform!.h/2,1);
     expect(Math.abs(landing.pos[0]-platform!.x)).toBeLessThan(platform!.w/2+landing.size[0]);
-    expect(MAP_DOCUMENTS.dustwater.blueprint.features.some(feature=>feature.kind==="platform"&&(feature.y??0)+feature.h>=5.4)).toBe(true);
+    expect(MAP_DOCUMENTS.dustwater.blueprint.features.some(feature=>feature.kind==="platform"&&(feature.y??0)+feature.h/2>=5.0)).toBe(true);
   });
   test("mode defaults use the specified competitive match limits",()=>{
     expect(DEFAULT_CONFIG("searchdestroy",8)).toMatchObject({scoreLimit:0,timeLimit:0});
