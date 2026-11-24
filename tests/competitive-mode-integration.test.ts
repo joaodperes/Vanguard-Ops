@@ -43,6 +43,6 @@ describe("new competitive mode integration",()=>{
   test("mode defaults use the specified competitive match limits",()=>{
     expect(DEFAULT_CONFIG("searchdestroy",8)).toMatchObject({scoreLimit:0,timeLimit:0});
     expect(DEFAULT_CONFIG("hardpoint",8)).toMatchObject({scoreLimit:200,timeLimit:600});
-    expect(DEFAULT_CONFIG("frontier",8)).toMatchObject({scoreLimit:30,timeLimit:360});
+    expect(DEFAULT_CONFIG("frontier",8)).toMatchObject({scoreLimit:75,timeLimit:600});
   });
 });
