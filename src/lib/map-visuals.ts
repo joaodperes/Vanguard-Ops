@@ -287,7 +287,6 @@ export function cityInteriorFixtures(p:MapProp):CityFixture[]{
     apartments:["bed","cabinet","desk","sofa","television","shelf","table","plant"],
     cafe:["counter","espresso","table","table","display","shelf","plant","bench"],
     supermarket:["shelf","checkout","shelf","cabinet","shelf","display","shelf","shelf"],
-    shop:["checkout","counter","shelf","display","cabinet","bench","table","shelf"],
     bakery:["oven","counter","display","shelf","table","espresso","cabinet","bench"],
     office:["desk","server_rack","desk","cabinet","plant","desk","shelf","reception"],
     hotel:["bed","cabinet","reception","sofa","television","plant","desk","bench"],
