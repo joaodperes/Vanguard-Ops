@@ -29,7 +29,7 @@ describe("new competitive mode integration",()=>{
     const buildings=MAP_DOCUMENTS.dustwater.theme.props.filter(prop=>prop.kind==="building");
     expect(buildings).toHaveLength(4);
     expect(buildings.every(prop=>prop.roofAccess===true)).toBe(true);
-    expect(MAP_DOCUMENTS.dustwater.blueprint.features.some(feature=>feature.kind==="platform"&&feature.h>=5)).toBe(true);
+    expect(MAP_DOCUMENTS.dustwater.blueprint.features.some(feature=>feature.kind==="platform"&&(feature.y??0)>=5)).toBe(true);
   });
   test("mode defaults use the specified competitive match limits",()=>{
     expect(DEFAULT_CONFIG("searchdestroy",8)).toMatchObject({scoreLimit:0,timeLimit:0});
