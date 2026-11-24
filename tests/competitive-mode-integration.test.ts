@@ -15,8 +15,8 @@ describe("new competitive mode integration",()=>{
   });
   test("bomb sites and all five Hardpoint hills are accessible inside the boomtown",()=>{
     const objectives:[number,number,number][]=[
-      [-12,0,-15],[15,0,25],
-      [-12,0,-15],[14,0,-15],[0,0,0],[-14,0,25],[15,0,25],
+      [-22,0,-18],[22,0,18],
+      [-24,0,-18],[22,0,-18],[0,0,0],[-22,0,20],[24,0,20],
     ];
     for(const point of objectives){
       expect(botPositionEmbedded(dustwater.cover,point)).toBe(false);
