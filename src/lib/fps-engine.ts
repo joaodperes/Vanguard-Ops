@@ -7361,7 +7361,7 @@ export class FPSEngine {
             // and alive=true), so this is a client-side estimate that makes
             // the countdown visible during the wait.
             const respawnDelay = this.opts.mode === "survival" ? SURVIVAL_RESPAWN_MS : RESPAWN_DELAY_MS;
-            this.respawnAt = this.opts.mode === "survival" ? 0 : performance.now() + respawnDelay;
+            this.respawnAt = this.opts.mode === "survival" || this.opts.mode === "searchdestroy" ? 0 : performance.now() + respawnDelay;
             this.sound.play("death", { volume: 0.8 });
           }
           // Trigger the death-fall animation on the victim's combatant (if it's
@@ -13675,7 +13675,7 @@ export class FPSEngine {
       weaponName: weaponById(this.weaponId).name,
       weaponId: this.weaponId,
       alive: this.alive,
-      respawnIn: this.alive ? 0 : Math.max(0, Math.ceil((this.respawnAt - now) / 1000)),
+      respawnIn: this.alive ? 0 : this.opts.mode==="searchdestroy" ? -1 : Math.max(0, Math.ceil((this.respawnAt - now) / 1000)),
       kills: this.kills,
       deaths: this.deaths,
       score: this.opts.online ? (this.combatants.get(this.selfId)?.score ?? (this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills)) : (this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills),
