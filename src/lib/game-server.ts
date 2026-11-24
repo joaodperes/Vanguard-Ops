@@ -2428,7 +2428,7 @@ function endMatch(room: Room, reason: "other" | "gungame_victory" = "other", win
   io.to(room.id).emit("message", { t: "matchEnd", standings, winnerTeam,
     teamScores: { ...room.teamScores }, modeStats:{
       ...(room.searchDestroyState?{searchDestroy:{redRounds:room.searchDestroyState.roundWins.red,blueRounds:room.searchDestroyState.roundWins.blue,roundsPlayed:room.searchDestroyState.round}}:{}),
-      ...(room.hardpointState?{hardpoint:{redObjectiveSeconds:Math.floor(room.hardpointState.objectiveMs.red/1000),blueObjectiveSeconds:Math.floor(room.hardpointState.objectiveMs.blue/1000),contestedSeconds:Math.floor(room.hardpointState.contestedMs/1000),redScore:Math.floor(room.hardpointState.scores.red),blueScore:Math.floor(room.hardpointState.scores.blue)}}:{}),
+      ...(room.hardpointState?{hardpoint:{redObjectiveSeconds:Math.floor(room.hardpointState.objectiveMs.red/1000),blueObjectiveSeconds:Math.floor(room.hardpointState.objectiveMs.blue/1000),contestedSeconds:Math.floor((room.hardpointState.contestedMs.red+room.hardpointState.contestedMs.blue)/1000),redScore:Math.floor(room.hardpointState.scores.red),blueScore:Math.floor(room.hardpointState.scores.blue)}}:{}),
     }} as S2C);
   room.resultsReady = new Set();
   room.mapVotes = {};
