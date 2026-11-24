@@ -2127,7 +2127,7 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
       attacker.kills += 1;
       // Kill Confirmed awards score only when the dropped tag is collected.
       if (room.mode !== "killconfirmed" && room.mode !== "ctf") room.scores.set(attackerId, (room.scores.get(attackerId) ?? 0) + 1);
-      if (room.mode === "tdm") {
+      if (room.mode === "tdm" || room.mode === "frontier") {
         room.teamScores[attacker.team as "red" | "blue"] += 1;
       }
     }
@@ -2410,12 +2410,14 @@ function endMatch(room: Room, reason: "other" | "gungame_victory" = "other", win
     score: room.mode === "survival" ? (p.isBot ? p.kills : room.wave) : (room.scores.get(p.id) ?? 0), isBot: p.isBot,
   })).sort((a, b) => b.score - a.score || b.kills - a.kills);
   let winnerTeam: string | null = winnerOverride ?? null;
-  if (!winnerOverride && (room.mode === "tdm" || room.mode === "killconfirmed" || room.mode === "ctf" || room.mode === "hardpoint")) winnerTeam = room.teamScores.red > room.teamScores.blue ? "red" : room.teamScores.blue > room.teamScores.red ? "blue" : null;
-  if (!winnerOverride && room.mode === "searchdestroy") winnerTeam = room.searchDestroyState ? (room.searchDestroyState.roundWins.red > room.searchDestroyState.roundWins.blue ? "red" : "blue") : null;
-  else if(room.operation)winnerTeam=room.operation.status==="won" ? "blue" : null;
-  else if (room.mode === "survival") winnerTeam =
-    room.config.survivalTier === "default" && survivalWavesCleared(room.wave,room.waveActive) >= 30 ? "blue" : null;
-  else winnerTeam = standings[0] ? standings[0].team : null;
+  if(!winnerOverride){
+    if(room.mode==="tdm"||room.mode==="killconfirmed"||room.mode==="ctf"||room.mode==="hardpoint"||room.mode==="frontier")
+      winnerTeam=room.teamScores.red>room.teamScores.blue?"red":room.teamScores.blue>room.teamScores.red?"blue":null;
+    else if(room.mode==="searchdestroy")winnerTeam=room.searchDestroyState?(room.searchDestroyState.roundWins.red>room.searchDestroyState.roundWins.blue?"red":"blue"):null;
+    else if(room.operation)winnerTeam=room.operation.status==="won"?"blue":null;
+    else if(room.mode==="survival")winnerTeam=room.config.survivalTier==="default"&&survivalWavesCleared(room.wave,room.waveActive)>=30?"blue":null;
+    else winnerTeam=standings[0]?standings[0].team:null;
+  }
   // Decisive scores can end the server's 20Hz tick before its next snapshot.
   // Deliver one final authoritative state, then the verdict in socket order.
   io.to(room.id).emit("message", snapshot(room));
@@ -2945,7 +2947,7 @@ function tickRoomSimulation(room: Room) {
   const now = Date.now();
   if(room.mode==="hardpoint"&&room.preMatchCountdown<=0&&room.hardpointState){
     const zones=[[-24,0,-18],[22,0,-18],[0,0,0],[-22,0,20],[24,0,20]].map((p,i)=>({id:String(i),pos:p as Vec3,radius:6}));
-    const result=tickHardpoint(room.hardpointState,zones,allCombatants(room),now,50);
+    const result=tickHardpoint(room.hardpointState,zones,allCombatants(room) as import("./game-mode-rules").ModeCombatant[],now,50);
     room.teamScores={...result.state.scores};
     room.config.hardpointZone=result.state.activeIndex;
     room.config.hardpointProgress=Math.max(result.state.objectiveMs.red,result.state.objectiveMs.blue);
@@ -2958,7 +2960,7 @@ function tickRoomSimulation(room: Room) {
       const carrier=allCombatants(room).find(p=>p.team===state.attackerTeam&&p.alive)||allCombatants(room).find(p=>p.alive);
       if(carrier)beginNextSearchDestroyRound(state,now,carrier.id,carrier.pos);
     }
-    const events=tickSearchDestroy(state,allCombatants(room),now);
+    const events=tickSearchDestroy(state,allCombatants(room) as import("./game-mode-rules").ModeCombatant[],now);
     const verdict=events.find((e):e is Extract<import("./game-mode-rules").SearchDestroyEvent,{type:"match_won"}>=>e.type==="match_won");
     if(verdict){endMatch(room,"other",verdict.winner);return;}
     room.config.searchDestroyRound=state.round;room.config.searchDestroyWins={...state.roundWins};
