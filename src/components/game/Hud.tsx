@@ -808,7 +808,11 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
           {mode === "survival" ? (
             <div className="text-white/70 text-lg">{hud.operation ? (hud.survivalWaitingForWave ? "Returning after your partner clears the stage" : "Operations deployment ended") : (hud.survivalWaitingForWave ? "Returning after your partner clears the wave" : "Survival run ended")}</div>
           ) : (
-            {hud.respawnIn < 0 ?<div className="text-amber-200 text-lg font-bold tracking-widest">ELIMINATED · WAIT FOR NEXT ROUND</div>:<div className="text-white/70 text-lg">Respawning in <span className="text-white font-bold text-2xl">{hud.respawnIn}</span>s</div>}
+            {hud.respawnIn < 0 ? (
+              <div className="text-amber-200 text-lg font-bold tracking-widest">ELIMINATED · WAIT FOR NEXT ROUND</div>
+            ) : (
+              <div className="text-white/70 text-lg">Respawning in <span className="text-white font-bold text-2xl">{hud.respawnIn}</span>s</div>
+            )}
           )}
         </div>
       )}
