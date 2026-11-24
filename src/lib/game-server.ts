@@ -593,7 +593,7 @@ function frontierSafeLoadout(loadout:LoadoutWire):LoadoutWire {
   const pistol=WEAPONS.find(w=>w.category==="pistol"&&!w.disabled&&!w.wonder)?.id??"pistol_side";
   return {...loadout,weaponId:allowed(loadout.weaponId)?loadout.weaponId:fallback,
     secondaryWeaponId:allowed(loadout.secondaryWeaponId)?loadout.secondaryWeaponId:pistol,
-    perkId:loadout.perkId==="wonder_weapon"?undefined:loadout.perkId,wonderWeaponId:undefined,wonderModuleId:undefined};
+    perkId:loadout.perkId==="wonder_weapon"||loadout.perkId==="explonando"?undefined:loadout.perkId,wonderWeaponId:undefined,wonderModuleId:undefined};
 }
 
 function addHumanToRoom(room: Room, socketId: string, p: PlayerNet, loadout: LoadoutWire, requested?: "red" | "blue" | "auto"): string {
