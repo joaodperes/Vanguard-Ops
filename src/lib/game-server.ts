@@ -2390,7 +2390,7 @@ function disbandRoom(room: Room, message: string) {
   rooms.delete(room.id);
 }
 
-function endMatch(room: Room, reason: "other" | "gungame_victory" = "other") {
+function endMatch(room: Room, reason: "other" | "gungame_victory" = "other", winnerOverride?: string) {
   // Prevent stale kill-count or timer handlers ending an active Gun Game.
   // A room with no humans may still be cleaned up normally.
   if (room.mode === "gungame" && room.players.size > 0 && reason !== "gungame_victory") return;
@@ -2409,8 +2409,9 @@ function endMatch(room: Room, reason: "other" | "gungame_victory" = "other") {
     assists: room.assists.get(p.id) ?? 0,
     score: room.mode === "survival" ? (p.isBot ? p.kills : room.wave) : (room.scores.get(p.id) ?? 0), isBot: p.isBot,
   })).sort((a, b) => b.score - a.score || b.kills - a.kills);
-  let winnerTeam: string | null = null;
-  if (room.mode === "tdm" || room.mode === "killconfirmed" || room.mode === "ctf") winnerTeam = room.teamScores.red > room.teamScores.blue ? "red" : room.teamScores.blue > room.teamScores.red ? "blue" : null;
+  let winnerTeam: string | null = winnerOverride ?? null;
+  if (!winnerOverride && (room.mode === "tdm" || room.mode === "killconfirmed" || room.mode === "ctf" || room.mode === "hardpoint")) winnerTeam = room.teamScores.red > room.teamScores.blue ? "red" : room.teamScores.blue > room.teamScores.red ? "blue" : null;
+  if (!winnerOverride && room.mode === "searchdestroy") winnerTeam = room.searchDestroyState ? (room.searchDestroyState.roundWins.red > room.searchDestroyState.roundWins.blue ? "red" : "blue") : null;
   else if(room.operation)winnerTeam=room.operation.status==="won" ? "blue" : null;
   else if (room.mode === "survival") winnerTeam =
     room.config.survivalTier === "default" && survivalWavesCleared(room.wave,room.waveActive) >= 30 ? "blue" : null;
@@ -2948,7 +2949,7 @@ function tickRoomSimulation(room: Room) {
     room.teamScores={...result.state.scores};
     room.config.hardpointZone=result.state.activeIndex;
     room.config.hardpointProgress=Math.max(result.state.objectiveMs.red,result.state.objectiveMs.blue);
-    if(result.state.scores.red>=200||result.state.scores.blue>=200){endMatch(room,result.state.scores.red===result.state.scores.blue?undefined:result.state.scores.red>result.state.scores.blue?"red":"blue");return;}
+    if(result.state.scores.red>=200||result.state.scores.blue>=200){endMatch(room,"other",result.state.scores.red===result.state.scores.blue?undefined:result.state.scores.red>result.state.scores.blue?"red":"blue");return;}
   }
   if(room.mode==="searchdestroy"&&room.preMatchCountdown<=0&&room.searchDestroyState){
     const state=room.searchDestroyState;
@@ -2958,7 +2959,8 @@ function tickRoomSimulation(room: Room) {
       if(carrier)beginNextSearchDestroyRound(state,now,carrier.id,carrier.pos);
     }
     const events=tickSearchDestroy(state,allCombatants(room),now);
-    if(events.some(e=>e.type==="match_won")){endMatch(room);return;}
+    const verdict=events.find((e):e is Extract<import("./game-mode-rules").SearchDestroyEvent,{type:"match_won"}>=>e.type==="match_won");
+    if(verdict){endMatch(room,"other",verdict.winner);return;}
     room.config.searchDestroyRound=state.round;room.config.searchDestroyWins={...state.roundWins};
   }
   tickThrowingKnifeRecovery(room,now);
@@ -4636,6 +4638,7 @@ async function handle(socket: any, msg: C2S) {
       }
       if (room) {
         if (room.mode === "ctf") dropCarriedFlag(room, socket.id, [...(room.players.get(socket.id)?.pos ?? [0,0,0])] as Vec3);
+        if(room.mode==="searchdestroy"&&room.searchDestroyState?.bomb.carrierId===socket.id)dropSearchDestroyBomb(room.searchDestroyState,socket.id,[...(room.players.get(socket.id)?.pos??[0,0,0])] as Vec3);
         room.players.delete(socket.id); removeMinesOwnedBy(room, socket.id);
         room.survivalOffers.delete(socket.id);
         if(room.survivalOffers.size===0)room.survivalUpgradeDeadline=null;
