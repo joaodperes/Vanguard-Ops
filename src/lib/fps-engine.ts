@@ -443,8 +443,8 @@ export interface MatchEndResult {
   mapId?: string;
   perAttachmentKills?: Record<string, number>;
   modeStats?: {
-    searchDestroy?: { redRounds: number; blueRounds: number; roundsPlayed: number };
-    hardpoint?: { redObjectiveSeconds: number; blueObjectiveSeconds: number; contestedSeconds: number; redScore: number; blueScore: number };
+    searchDestroy?: { redRounds: number; blueRounds: number; roundsPlayed: number; playerRoundsWon?:number };
+    hardpoint?: { redObjectiveSeconds: number; blueObjectiveSeconds: number; contestedSeconds: number; redScore: number; blueScore: number; playerObjectiveSeconds?:number };
     frontier?: { ammoRemaining: number };
   };
   confirmations?: number;
@@ -5906,7 +5906,12 @@ export class FPSEngine {
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
       perWeaponActions: Object.fromEntries(this.perWeaponActions),
       perAttachmentKills: Object.fromEntries(this.perAttachmentKills),
-      modeStats:{...modeStats,...(this.opts.mode==="frontier"?{frontier:{ammoRemaining:this.frontierAmmoRemaining??0}}:{})},
+      modeStats:{
+        ...modeStats,
+        ...(modeStats?.searchDestroy?{searchDestroy:{...modeStats.searchDestroy,playerRoundsWon:this.opts.team==="red"?modeStats.searchDestroy.redRounds:modeStats.searchDestroy.blueRounds}}:{}),
+        ...(modeStats?.hardpoint?{hardpoint:{...modeStats.hardpoint,playerObjectiveSeconds:this.opts.team==="red"?modeStats.hardpoint.redObjectiveSeconds:modeStats.hardpoint.blueObjectiveSeconds}}:{}),
+        ...(this.opts.mode==="frontier"?{frontier:{ammoRemaining:this.frontierAmmoRemaining??0}}:{}),
+      },
       confirmations: this.confirmations, denials: this.denials,
       ...(this.operation ? {operation:{...this.operation}} : {}),
       ...(isSurvival ? { survivalWaves: this.getSurvivalClearedWaves(), survivalTier: this.survivalTier } as any : {}),
