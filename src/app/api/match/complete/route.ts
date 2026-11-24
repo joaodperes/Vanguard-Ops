@@ -19,8 +19,26 @@ export async function POST(req: NextRequest) {
   const kills = Math.max(0, Math.min(200, Math.floor(input.kills ?? 0)));
   const deaths = Math.max(0, Math.min(200, Math.floor(input.deaths ?? 0)));
   const headshots = Math.max(0, Math.min(kills, Math.floor(input.headshots ?? 0)));
-  const mode: "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed" | "ctf" =
-    input.mode === "ctf" ? "ctf" : input.mode === "tdm" ? "tdm" : input.mode === "killconfirmed" ? "killconfirmed" : input.mode === "survival" ? "survival" : input.mode === "gungame" ? "gungame" : "ffa";
+  const mode: MatchResultInput["mode"] =
+    input.mode === "searchdestroy" || input.mode === "hardpoint" || input.mode === "frontier" || input.mode === "ctf" || input.mode === "tdm" || input.mode === "killconfirmed" || input.mode === "survival" || input.mode === "gungame" ? input.mode : "ffa";
+  const rawModeStats=input.modeStats??{};
+  const modeStats:MatchResultInput["modeStats"]={
+    ...(mode==="searchdestroy"&&rawModeStats.searchDestroy?{searchDestroy:{
+      redRounds:Math.max(0,Math.min(6,Math.floor(rawModeStats.searchDestroy.redRounds||0))),
+      blueRounds:Math.max(0,Math.min(6,Math.floor(rawModeStats.searchDestroy.blueRounds||0))),
+      roundsPlayed:Math.max(1,Math.min(11,Math.floor(rawModeStats.searchDestroy.roundsPlayed||1))),
+      playerRoundsWon:Math.max(0,Math.min(6,Math.floor(rawModeStats.searchDestroy.playerRoundsWon||0))),
+    }}:{}),
+    ...(mode==="hardpoint"&&rawModeStats.hardpoint?{hardpoint:{
+      redObjectiveSeconds:Math.max(0,Math.min(600,Math.floor(rawModeStats.hardpoint.redObjectiveSeconds||0))),
+      blueObjectiveSeconds:Math.max(0,Math.min(600,Math.floor(rawModeStats.hardpoint.blueObjectiveSeconds||0))),
+      contestedSeconds:Math.max(0,Math.min(600,Math.floor(rawModeStats.hardpoint.contestedSeconds||0))),
+      redScore:Math.max(0,Math.min(200,Math.floor(rawModeStats.hardpoint.redScore||0))),
+      blueScore:Math.max(0,Math.min(200,Math.floor(rawModeStats.hardpoint.blueScore||0))),
+      playerObjectiveSeconds:Math.max(0,Math.min(600,Math.floor(rawModeStats.hardpoint.playerObjectiveSeconds||0))),
+    }}:{}),
+    ...(mode==="frontier"&&rawModeStats.frontier?{frontier:{ammoRemaining:Math.max(0,Math.min(2000,Math.floor(rawModeStats.frontier.ammoRemaining||0)))}}:{}),
+  };
   // Per-weapon kill/headshot tallies (gungame). Sanitize: keep only entries with
   // numeric kills/headshots, cap each at the sanity-capped total kill count, and
   // verify the summed per-weapon kills don't exceed the reported total (defensive
@@ -123,6 +141,7 @@ export async function POST(req: NextRequest) {
     perWeaponKills: perWeaponKillsSum >= 0 && Object.keys(perWeaponKills).length > 0 ? perWeaponKills : undefined,
     perWeaponActions,
     perAttachmentKills,
+    modeStats,
     mapId,
   });
   return NextResponse.json(result);
