@@ -3147,7 +3147,7 @@ function roomHighGroundGoals(room:Room):HighGroundGoal[]{
  */
 function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void {
       if (!room) return;
-      if(room.mode==="frontier"&&!frontierWeaponAllowed(weaponById(msg.weaponId).category))return;
+      if(room.mode==="frontier"&&!frontierWeaponIdAllowed(msg.weaponId))return;
       // No shooting in lobby state.
       if (room.state !== "playing") return;
       // No shooting during the pre-match countdown (bots are frozen, but
@@ -5150,7 +5150,7 @@ async function handle(socket: any, msg: C2S) {
         newWeaponId=selected.id;
       }
       // Validate the weapon exists and remains within the Frontier weapon set.
-      if(room.mode==="frontier"&&!frontierWeaponAllowed(weaponById(newWeaponId).category))return;
+      if(room.mode==="frontier"&&!frontierWeaponIdAllowed(newWeaponId))return;
       const w = weaponById(newWeaponId);
       if (!w) return;
       p.weaponId = newWeaponId;
