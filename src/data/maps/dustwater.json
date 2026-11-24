@@ -236,7 +236,7 @@
         "h": 4,
         "kind": "cover",
         "label": "Bank north wall",
-        "material": "brick"
+        "material": "reinforced"
       },
       {
         "id": "bank-north-wall-right",
@@ -247,7 +247,7 @@
         "h": 4,
         "kind": "cover",
         "label": "Bank north wall",
-        "material": "brick"
+        "material": "reinforced"
       },
       {
         "id": "bank-south-wall-left",
@@ -258,7 +258,7 @@
         "h": 4,
         "kind": "cover",
         "label": "Bank south wall",
-        "material": "brick"
+        "material": "reinforced"
       },
       {
         "id": "bank-south-wall-right",
@@ -269,7 +269,7 @@
         "h": 4,
         "kind": "cover",
         "label": "Bank south wall",
-        "material": "brick"
+        "material": "reinforced"
       },
       {
         "id": "bank-west-wall-front",
@@ -280,7 +280,7 @@
         "h": 4,
         "kind": "cover",
         "label": "Bank west wall",
-        "material": "brick"
+        "material": "reinforced"
       },
       {
         "id": "bank-west-wall-rear",
@@ -291,7 +291,7 @@
         "h": 4,
         "kind": "cover",
         "label": "Bank west wall",
-        "material": "brick"
+        "material": "reinforced"
       },
       {
         "id": "bank-east-wall-front",
@@ -302,7 +302,7 @@
         "h": 4,
         "kind": "cover",
         "label": "Bank east wall",
-        "material": "brick"
+        "material": "reinforced"
       },
       {
         "id": "bank-east-wall-rear",
@@ -313,7 +313,7 @@
         "h": 4,
         "kind": "cover",
         "label": "Bank east wall",
-        "material": "brick"
+        "material": "reinforced"
       },
       {
         "id": "depot-north-wall-left",
