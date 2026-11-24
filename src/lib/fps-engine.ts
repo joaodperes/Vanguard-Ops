@@ -12923,7 +12923,7 @@ export class FPSEngine {
         const durationMs = w.stats.reloadStyle === "incremental"
           ? Math.max(300, (w.stats.reloadPerRound ?? eff.reloadTime / eff.magSize) *
               eff.reloadTime / Math.max(0.01, w.stats.reloadTime) * 1000)
-          : eff.reloadTime * 1000;
+          : eff.reloadTime * 1000 * (this.opts.mode==="frontier"?1.12:1);
         ai.reloadingUntil = now + durationMs * reloadDurationMultiplier(perk);
         if (w.stats.reloadStyle !== "incremental") ai.ammoInMag = eff.magSize;
         ai.burstShotsLeft = 0;
