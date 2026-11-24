@@ -1020,6 +1020,7 @@ const ARENA_NEON_LIGHTS: MapAccentLight[] = [
 const ENVIRONMENTS: Record<MapId, EnvironmentObject[]> = {
   emberhold: [],
   whiteout_depot: [],
+  dustwater: [],
   floodgate: [],
   orbital_nexus: [],
   forest_warfare: [],
@@ -1075,6 +1076,13 @@ const BASE_MAPS: Record<MapId, MapDef> = {
     theme: { floor: 0x332c2c, floorPattern: 0x575052, wall: 0x4e4546, cover: 0x797069,
       coverAccent: 0xef924a, stair: 0x8c8176, platform: 0x6c6768,
       sky: "#342c3c", fog: "#463b42", fogNear: 45, fogFar: 320, ambient: 1.2, gridColor: 0x575052 },
+  },
+  dustwater: {
+    id:"dustwater",name:MAP_BLUEPRINTS.maps.dustwater.name,shortName:MAP_BLUEPRINTS.maps.dustwater.shortName,
+    description:MAP_BLUEPRINTS.maps.dustwater.description,size:64,wallHeight:12,cover:[],environment:[],
+    spawns:{ffa:[],red:[],blue:[]},accentColor:"#d6a15e",biome:"western",
+    theme:{floor:0x8d7658,floorPattern:0x6f5941,wall:0x73543a,cover:0x9b7952,coverAccent:0xd6a15e,
+      stair:0x9b7952,platform:0x6f5941,sky:"#e6b879",fog:"#c99d68",fogNear:55,fogFar:320,ambient:1.35,gridColor:0x9c805e},lights:[],
   },
   whiteout_depot: {
     id:"whiteout_depot",name: MAP_BLUEPRINTS.maps.whiteout_depot.name,shortName: MAP_BLUEPRINTS.maps.whiteout_depot.shortName,
