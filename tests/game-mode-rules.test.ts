@@ -4,7 +4,7 @@ import {
   SEARCH_DESTROY_RULES, HARDPOINT_RULES, FRONTIER_RULES,
   createSearchDestroyState, beginNextSearchDestroyRound, finishSearchDestroyRound,
   applySearchDestroyAction, dropSearchDestroyBomb, tickSearchDestroy,
-  createHardpointState, tickHardpoint, frontierWeaponAllowed, frontierReserveAmmo, frontierMovementSpeed,
+  createHardpointState, tickHardpoint, frontierWeaponAllowed, frontierWeaponIdAllowed, frontierReserveAmmo, frontierMovementSpeed,
 } from "../src/lib/game-mode-rules";
 
 describe("Search & Destroy", () => {
@@ -82,6 +82,10 @@ describe("Frontier", () => {
     expect(frontierWeaponAllowed("sniper")).toBe(true);
     expect(frontierWeaponAllowed("pistol")).toBe(true);
     expect(frontierWeaponAllowed("assault")).toBe(false);
+    expect(frontierWeaponIdAllowed("pistol_magnum")).toBe(true);
+    expect(frontierWeaponIdAllowed("sniper_scout")).toBe(true);
+    expect(frontierWeaponIdAllowed("pistol_machine")).toBe(false);
+    expect(frontierWeaponIdAllowed("wonder_phasebreaker")).toBe(false);
     expect(frontierReserveAmmo(30)).toBe(Math.floor(30*FRONTIER_RULES.reserveAmmoMultiplier));
     expect(frontierMovementSpeed(10,true)).toBeGreaterThan(10);
     expect(FRONTIER_RULES.dodgeCooldownMs).toBe(3000);
