@@ -5043,7 +5043,8 @@ async function handle(socket: any, msg: C2S) {
       if (!room.players.has(socket.id) || !playerKey) return;
       // The packet is untrusted: check ownership, perks, skins and attachments
       // against the same authoritative validation as match joining.
-      const loadout = await validatedMatchLoadout(playerKey, msg.loadout);
+      const validated = await validatedMatchLoadout(playerKey, msg.loadout);
+      const loadout = room.mode==="frontier"?frontierSafeLoadout(validated):validated;
       if (!room.players.has(socket.id) || room.ended) return;
       room.pendingLoadouts.set(socket.id, loadout);
       socket.emit("message", { t: "loadoutQueued", loadout } as S2C);
@@ -5058,6 +5059,7 @@ async function handle(socket: any, msg: C2S) {
       if (room.state !== "playing") return;
       // Gun Game ignores manual swaps — weapon is driven by progression.
       if (room.mode === "gungame") return;
+      if(room.mode==="frontier"&&msg.slot!=="primary"&&msg.slot!=="secondary")return;
       const p = room.players.get(socket.id);
       if (!p || !p.alive || room.downed.has(socket.id)) return;
       const loadout = room.loadouts.get(socket.id);
@@ -5078,7 +5080,8 @@ async function handle(socket: any, msg: C2S) {
         if(!selected?.wonder || selected.disabled)return;
         newWeaponId=selected.id;
       }
-      // Validate the weapon exists.
+      // Validate the weapon exists and remains within the Frontier weapon set.
+      if(room.mode==="frontier"&&!frontierWeaponAllowed(weaponById(newWeaponId).category))return;
       const w = weaponById(newWeaponId);
       if (!w) return;
       p.weaponId = newWeaponId;
