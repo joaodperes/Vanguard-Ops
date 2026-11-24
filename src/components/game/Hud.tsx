@@ -16,12 +16,13 @@ import { LAVA_DEATH_SOURCE } from "@/lib/dynamic-environment";
 import { orbitalChargeLabel } from "@/lib/orbital-reactor";
 import { ctfFlagLine, killRank, teamScorePerspective } from "@/lib/hud-top-stats";
 import { combatIdentity } from "@/lib/combat-identity";
-import { Heart, Zap, Trophy, Skull, Clock, LogOut, Users, AlertTriangle, Crosshair as CrosshairIcon, Shield, ChevronUp, Siren } from "lucide-react";
+import { Heart, Zap, Trophy, Skull, Clock, LogOut, Users, AlertTriangle, Crosshair as CrosshairIcon, Shield, ChevronUp, Siren, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface Props {
   hud: HudState;
   onExit: () => void;
   onExitMech?: () => void;
+  onSpectatorCycle?: (direction:number) => void;
   mode: GameMode;
   crosshairColor?: string;
   crosshairSize?: number;
@@ -31,7 +32,7 @@ interface Props {
   scopeOverlay?: boolean;
 }
 
-export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e", crosshairSize = 8, reticleStyle = "classic", showPing = true, isTouch = false, scopeOverlay = true }: Props) {
+export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, mode, crosshairColor = "#22c55e", crosshairSize = 8, reticleStyle = "classic", showPing = true, isTouch = false, scopeOverlay = true }: Props) {
   const scoreboardKey=useSettings(s=>s.settings.keyBindings.Tab);
   const [showScoreboard, setShowScoreboard] = useState(false);
   const [hitFlash, setHitFlash] = useState(0);
@@ -793,6 +794,21 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
       {!hud.alive && (
         <div className={`absolute inset-0 ${mode==="searchdestroy"?"bg-black/10 pointer-events-none":"bg-black/50"} flex flex-col items-center justify-center`}>
           <div className={`text-rose-500 ${mode==="searchdestroy"?"text-3xl":"text-5xl"} font-black tracking-widest mb-2`} style={{ textShadow: "0 0 20px rgba(239,68,68,0.6)" }}>{mode==="searchdestroy"?"SPECTATING":"ELIMINATED"}</div>
+          {mode==="searchdestroy"&&hud.spectatorTargetName&&(
+            <div className="mt-2 flex items-center gap-3 rounded-full border border-white/15 bg-black/75 px-3 py-2 pointer-events-auto">
+              <button type="button" aria-label="Spectate previous teammate" title="Previous teammate (←)" onClick={()=>onSpectatorCycle?.(-1)}
+                className="rounded-full p-2 text-white hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300"><ChevronLeft className="h-5 w-5"/></button>
+              <div className="min-w-28 text-center">
+                <div className="text-[10px] font-bold tracking-widest text-white/50">SPECTATING</div>
+                <div className="max-w-40 truncate text-sm font-bold text-white">{hud.spectatorTargetName}</div>
+                <div className="text-[10px] text-white/45">{hud.spectatorTargetIndex} / {hud.spectatorTargetCount}</div>
+              </div>
+              <button type="button" aria-label="Spectate next teammate" title="Next teammate (→)" onClick={()=>onSpectatorCycle?.(1)}
+                className="rounded-full p-2 text-white hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300"><ChevronRight className="h-5 w-5"/></button>
+            </div>
+          )}
+          {mode==="searchdestroy"&&!hud.spectatorTargetName&&<div className="mt-2 text-sm text-white/60">No living teammates</div>}
+          {mode==="searchdestroy"&&hud.spectatorTargetName&&<div className="mt-1 text-[10px] tracking-wide text-white/45">{isTouch?"Tap arrows to switch":"Use ← / → to switch teammates"}</div>}
           {hud.lastDeath?.weaponId === LAVA_DEATH_SOURCE ? (
             <div className="my-4 px-6 py-3 rounded-xl border border-amber-500/40 bg-black/75 text-amber-200">Fell into the lava moat</div>
           ) : hud.lastDeath && (
