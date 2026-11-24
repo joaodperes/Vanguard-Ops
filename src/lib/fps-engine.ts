@@ -4934,7 +4934,9 @@ export class FPSEngine {
     const sensitivity=2.4*dt*this.controls.controllerSensitivity*(this.aiming?.64*this.controls.adsSensitivity*this.sightDef.adsSensMul:1);
     this.yaw-=look[0]*sensitivity;this.pitch-=look[1]*sensitivity*(this.invertY?-1:1);this.pitch=Math.max(-Math.PI/2+.05,Math.min(Math.PI/2-.05,this.pitch));
     if(edge(0))this.touchJump();if(edge(2))this.touchReload();if(edge(3))this.swapWeapon(quickSwapTarget(this.currentSlot,this.lastSlot));
-    if(edge(1))this.touchInteract();if(edge(11))this.touchQuickMelee();if(edge(5))this.touchUseEquipment();
+    if(this.opts.mode==="searchdestroy")this.modeInteractHeld=!!buttons[1];
+    else if(edge(1)){if(this.opts.mode==="frontier")this.triggerFrontierDodge();else this.touchInteract();}
+    if(edge(11))this.touchQuickMelee();if(edge(5))this.touchUseEquipment();
     if(edge(4))this.touchSwap("wonder");if(edge(12))this.touchSwap("primary");if(edge(13))this.touchSwap("secondary");if(edge(14))this.touchSwap("melee");
   }
 
