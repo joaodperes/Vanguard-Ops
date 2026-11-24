@@ -349,7 +349,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, operationId
       {mode==="frontier"&&isTouch&&touchStarted&&!lobbyActive&&!menuOpen&&<button type="button" className="pointer-events-auto absolute bottom-36 right-5 z-40 rounded-full border border-amber-300/50 bg-amber-950/85 px-4 py-3 text-xs font-black tracking-widest text-amber-100 shadow-lg" onPointerDown={e=>{e.preventDefault();engineInstance?.triggerFrontierDodge();}}>DODGE</button>}
       {hud && !lobbyActive && <Hud hud={hud} onExit={openMenu} onExitMech={()=>engineInstance?.exitMech()} mode={mode} crosshairColor={settings.crosshairColor} crosshairSize={settings.crosshairSize} reticleStyle={hud.weaponSlot==="secondary" ? loadout.secondaryReticleId??"classic" : loadout.primaryReticleId??"classic"} showPing={settings.showPing} isTouch={isTouch && touchStarted} scopeOverlay={settings.scopeOverlay} />}
       {/* Mobile touch controls (hidden while in lobby) */}
-      {isTouch && touchStarted && !lobbyActive && !menuOpen && !upgradePending && !upgradeWaiting && !hud?.matchEnding && <TouchControls engine={engineInstance} akimbo={!!hud?.akimbo} />}
+      {isTouch && touchStarted && !lobbyActive && !menuOpen && !upgradePending && !upgradeWaiting && !hud?.matchEnding && <TouchControls engine={engineInstance} mode={mode} akimbo={!!hud?.akimbo} />}
       {/* Desktop "click to play" (pointer lock) — hidden while lobby overlay is up */}
       {ready && !isTouch && !hud?.pointerLocked && !lobbyActive && !menuOpen && !upgradePending && !upgradeWaiting && !hud?.matchEnding && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
