@@ -3976,7 +3976,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
   else if(ai.targetId){ai.targetId=null;ai.nextDecisionAt=0;}
   // Tactical use follows actual target acquisition and ballistics; normal gun
   // aim and movement remain in the existing AI pipeline below.
-  if(target && !ai.boss && room.mode!=="gungame" &&
+  if(target && !ai.boss && room.mode!=="gungame" && room.mode!=="frontier" &&
       now >= (room.equipmentBotNextAt.get(bot.id)??Infinity)){
     const def=equipmentById(bot.loadout.equipmentId);
     const dist=Math.hypot(target.pos[0]-bot.pos[0],target.pos[2]-bot.pos[2]);
@@ -4050,10 +4050,10 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     ai.aiming=stance.aiming && !isTaserAdsBlocked(room.equipmentAdsBlockedUntil.get(bot.id)??0,now);
     if(now>=(ai.nextCombatJumpAt??0)&&botWantsCombatJump(ai.difficulty,weapon.category,dist,clearShot,
       ai.envJumpVelocityY===undefined&&botHasJumpClearance(roomCoverNear(room,bot.pos[0],bot.pos[2],2.5),bot.pos),now,ai.nextCombatJumpAt??0,Math.random())){
-      ai.envJumpVelocityY=MOVEMENT.jumpVelocity;ai.envLaunchX=0;ai.envLaunchZ=0;ai.nextCombatJumpAt=now+botTactics(ai.difficulty).jumpCooldown;
+      ai.envJumpVelocityY=MOVEMENT.jumpVelocity*(room.mode==="frontier"?1.22:1);ai.envLaunchX=0;ai.envLaunchZ=0;ai.nextCombatJumpAt=now+botTactics(ai.difficulty).jumpCooldown;
     }
     const botCarryingFlag=room.mode==="ctf"&&(room.flags.red.carrierId===bot.id||room.flags.blue.carrierId===bot.id);
-    const moveSpeed = (botCarryingFlag ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * botMovementPerkMultiplier(perk,ai.sprinting)/botMovementPerkMultiplier(perk) * ctfCarrierWeaponSpeed(eff.moveSpeed,botCarryingFlag) * (orbitalReaperEquipped(room.map,bot.weaponId)&&!botCarryingFlag?ORBITAL_REAPER_SPEED_MULTIPLIER:1) * sludgeMovementFactor(bot.pos,bot.team,now,[...room.wonderFields.values()],room.mode==="ffa"||room.mode==="gungame") * floodgateWaterEffect(bot.pos[0],bot.pos[1],bot.pos[2],floodAge,room.map.cover).speedMultiplier * ((room.cryoSlowUntil.get(bot.id)??0)>now?CRYO_SLOW_FACTOR:1);
+    const moveSpeed = (botCarryingFlag ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? (room.mode==="frontier"?1.25*1.18:1.25) : 1) * botMovementPerkMultiplier(perk,ai.sprinting)/botMovementPerkMultiplier(perk) * ctfCarrierWeaponSpeed(eff.moveSpeed,botCarryingFlag) * (orbitalReaperEquipped(room.map,bot.weaponId)&&!botCarryingFlag?ORBITAL_REAPER_SPEED_MULTIPLIER:1) * sludgeMovementFactor(bot.pos,bot.team,now,[...room.wonderFields.values()],room.mode==="ffa"||room.mode==="gungame") * floodgateWaterEffect(bot.pos[0],bot.pos[1],bot.pos[2],floodAge,room.map.cover).speedMultiplier * ((room.cryoSlowUntil.get(bot.id)??0)>now?CRYO_SLOW_FACTOR:1);
     const ideal = weapon.category==="melee" ? Math.max(.7,weapon.stats.range-.15) : stance.idealDistance;
     // Melee bots must close to the actual weapon's reach, not stop 3m short.
     const chaseThreshold=weapon.category==="melee" ? ideal : ideal+3;
