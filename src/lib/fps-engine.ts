@@ -11679,13 +11679,23 @@ export class FPSEngine {
     // Physics remains exact; ease only the first-person camera across stair risers.
     if(this.cameraFeetY===null||Math.abs(this.cameraFeetY-this.pos.y)>3)this.cameraFeetY=this.pos.y;
     else this.cameraFeetY+=(this.pos.y-this.cameraFeetY)*Math.min(1,dt*11);
-    this.camera.position.set(this.pos.x,this.cameraFeetY+(this.mechActive?2.75:this.survivalDowned?0.45:EYE_HEIGHT),this.pos.z);
-    // The game's yaw convention: forward = (sin yaw, 0, cos yaw) [see aimDir / updateMovement fwd].
-    // Three.js camera local -Z is forward, so camera.rotation "YXZ" with yaw θ makes the
-    // camera look toward (-sin θ, 0, -cos θ) — the OPPOSITE of our convention.
-    // Adding π to the camera yaw aligns the camera forward with the game forward,
-    // so pressing W moves toward where the player is looking and bullets fire forward.
-    this.camera.rotation.set(this.pitch, this.yaw + Math.PI, 0, "YXZ");
+    const spectatorTarget=this.opts.mode==="searchdestroy"&&this.opts.online&&!this.alive
+      ?[...this.combatants.values()].filter(c=>c.id!==this.selfId&&c.alive&&c.team===this.opts.team)
+        .sort((a,b)=>Math.hypot(a.pos[0]-this.pos.x,a.pos[2]-this.pos.z)-Math.hypot(b.pos[0]-this.pos.x,b.pos[2]-this.pos.z))[0]
+      :undefined;
+    if(spectatorTarget){
+      // S&D deaths are permanent for the round: follow the nearest living
+      // teammate instead of leaving the spectator camera at the death location.
+      this.camera.position.set(spectatorTarget.pos[0],spectatorTarget.pos[1]+EYE_HEIGHT,spectatorTarget.pos[2]);
+      this.camera.rotation.set(spectatorTarget.pitch??0,(spectatorTarget.yaw??0)+Math.PI,0,"YXZ");
+    }else{
+      this.camera.position.set(this.pos.x,this.cameraFeetY+(this.mechActive?2.75:this.survivalDowned?0.45:EYE_HEIGHT),this.pos.z);
+      // The game's yaw convention: forward = (sin yaw, 0, cos yaw) [see aimDir / updateMovement fwd].
+      // Three.js camera local -Z is forward, so camera.rotation "YXZ" with yaw θ makes the
+      // camera look toward (-sin θ, 0, -cos θ) — the OPPOSITE of our convention.
+      // Adding π to the camera yaw aligns the camera forward with the game forward.
+      this.camera.rotation.set(this.pitch, this.yaw + Math.PI, 0, "YXZ");
+    }
     // Viewmodel parts are direct children of the camera; positionViewmodel (called above)
     // sets their camera-local positions. The camera's matrixWorld is updated by the renderer.
 
