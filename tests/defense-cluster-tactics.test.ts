@@ -141,7 +141,7 @@ test("Annihilator loads beside the receiver while Reclaimer stays above its arro
 
 test("authoritative loadout only allows owned and persisted slot-four Wonders",()=>{
   for(const id of ["wonder_cluster",RIOT_SHIELD_ID]){
-    const player={xp:0,weaponUnlocks:[],wonderUnlocks:[{weaponId:id}],
+    const player={xp:0,operationsActRewards:'["act1_wonder_weapon_perk"]',weaponUnlocks:[],wonderUnlocks:[{weaponId:id}],
       loadout:{secondaryWeapon:"pistol_side",primaryReticle:"classic",secondaryReticle:"classic",
         primaryCharm:"none",secondaryCharm:"none",wonderWeaponId:id}};
     const request:any={weaponId:"rifle_ar",wonderWeaponId:id,perkId:"wonder_weapon",
