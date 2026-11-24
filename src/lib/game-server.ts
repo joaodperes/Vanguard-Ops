@@ -2946,7 +2946,7 @@ function tickRoomSimulation(room: Room) {
   }
   const now = Date.now();
   if(room.mode==="hardpoint"&&room.preMatchCountdown<=0&&room.hardpointState){
-    const zones=[[-24,0,-18],[22,0,-18],[0,0,0],[-22,0,20],[24,0,20]].map((p,i)=>({id:String(i),pos:p as Vec3,radius:6}));
+    const zones=[[-12,0,-15],[14,0,-15],[0,0,0],[-14,0,25],[15,0,25]].map((p,i)=>({id:String(i),pos:p as Vec3,radius:6}));
     const result=tickHardpoint(room.hardpointState,zones,allCombatants(room) as import("./game-mode-rules").ModeCombatant[],now,50);
     room.teamScores={...result.state.scores};
     room.config.hardpointZone=result.state.activeIndex;
@@ -4939,7 +4939,7 @@ async function handle(socket: any, msg: C2S) {
     case "modeInteract": {
       const room=rooms.get(socketToRoom.get(socket.id)??"");const player=room?.players.get(socket.id);const state=room?.searchDestroyState;
       if(!room||room.mode!=="searchdestroy"||!player?.alive||!state)return;
-      const sites:SearchDestroySite[]=[{id:"A",pos:[-22,0,-18],radius:5},{id:"B",pos:[22,0,18],radius:5}];
+      const sites:SearchDestroySite[]=[{id:"A",pos:[-12,0,-15],radius:5},{id:"B",pos:[15,0,25],radius:5}];
       const event=applySearchDestroyAction(state,{kind:msg.action,playerId:player.id,team:player.team as "red"|"blue",pos:player.pos,alive:player.alive,siteId:msg.siteId},sites,Date.now());
       if(event)io.to(room.id).emit("message",{t:"modeEvent",event} as S2C);
       break;
