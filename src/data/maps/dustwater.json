@@ -534,6 +534,18 @@
         "kind": "cover",
         "label": "Water barrel cover",
         "material": "thin_wood"
+      },
+      {
+        "id": "water-tower-staircase",
+        "kind": "stairs",
+        "label": "Water tower access stair",
+        "x": 6,
+        "z": -37,
+        "w": 4,
+        "d": 24,
+        "h": 5.4,
+        "axis": "x",
+        "sign": 1
       }
     ],
     "spawns": {
