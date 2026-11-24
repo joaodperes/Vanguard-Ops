@@ -2426,7 +2426,10 @@ function endMatch(room: Room, reason: "other" | "gungame_victory" = "other", win
   // Deliver one final authoritative state, then the verdict in socket order.
   io.to(room.id).emit("message", snapshot(room));
   io.to(room.id).emit("message", { t: "matchEnd", standings, winnerTeam,
-    teamScores: { ...room.teamScores } } as S2C);
+    teamScores: { ...room.teamScores }, modeStats:{
+      ...(room.searchDestroyState?{searchDestroy:{redRounds:room.searchDestroyState.roundWins.red,blueRounds:room.searchDestroyState.roundWins.blue,roundsPlayed:room.searchDestroyState.round}}:{}),
+      ...(room.hardpointState?{hardpoint:{redObjectiveSeconds:Math.floor(room.hardpointState.objectiveMs.red/1000),blueObjectiveSeconds:Math.floor(room.hardpointState.objectiveMs.blue/1000),contestedSeconds:Math.floor(room.hardpointState.contestedMs/1000),redScore:Math.floor(room.hardpointState.scores.red),blueScore:Math.floor(room.hardpointState.scores.blue)}}:{}),
+    }} as S2C);
   room.resultsReady = new Set();
   room.mapVotes = {};
   room.mapCandidates = roomMapCandidates(room.mode,room.map.id,room.teamSize,room.roundNumber,room.config.operationId,room.players.size,room.capacity===2?2:1);
