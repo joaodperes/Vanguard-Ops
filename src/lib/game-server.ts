@@ -2051,8 +2051,12 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
       }
     }
     victim.alive = false;
-    if(room.mode==="searchdestroy"&&room.searchDestroyState?.bomb.carrierId===victim.id)
-      dropSearchDestroyBomb(room.searchDestroyState,victim.id,[...victim.pos] as Vec3);
+    if(room.mode==="searchdestroy"&&room.searchDestroyState){
+      const state=room.searchDestroyState;
+      if(state.bomb.defuseProgress?.playerId===victim.id)state.bomb.defuseProgress=null;
+      if(state.bomb.plantProgress?.playerId===victim.id)state.bomb.plantProgress=null;
+      if(state.bomb.carrierId===victim.id)dropSearchDestroyBomb(state,victim.id,[...victim.pos] as Vec3);
+    }
     removeMinesOwnedBy(room, victim.id);
     victim.deaths += 1;
     if(room.orbitalHolders.delete(victim.id)){
@@ -4962,7 +4966,7 @@ async function handle(socket: any, msg: C2S) {
     }
     case "modeInteract": {
       const room=rooms.get(socketToRoom.get(socket.id)??"");const player=room?.players.get(socket.id);const state=room?.searchDestroyState;
-      if(!room||room.mode!=="searchdestroy"||!player?.alive||!state)return;
+      if(!room||room.mode!=="searchdestroy"||!player||!state)return;
       const sites:SearchDestroySite[]=[{id:"A",pos:[-22,0,-18],radius:5},{id:"B",pos:[22,0,18],radius:5}];
       const event=applySearchDestroyAction(state,{kind:msg.action,playerId:player.id,team:player.team as "red"|"blue",pos:player.pos,alive:player.alive,siteId:msg.siteId},sites,Date.now());
       if(event)io.to(room.id).emit("message",{t:"modeEvent",event} as S2C);
