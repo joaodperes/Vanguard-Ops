@@ -2974,6 +2974,7 @@ function tickRoomSimulation(room: Room) {
     const events=tickSearchDestroy(state,allCombatants(room) as import("./game-mode-rules").ModeCombatant[],now);
     const verdict=events.find((e):e is Extract<import("./game-mode-rules").SearchDestroyEvent,{type:"match_won"}>=>e.type==="match_won");
     if(verdict){endMatch(room,"other",verdict.winner);return;}
+    room.teamScores={...state.roundWins};
     room.config.searchDestroyRound=state.round;room.config.searchDestroyWins={...state.roundWins};
   }
   tickThrowingKnifeRecovery(room,now);
