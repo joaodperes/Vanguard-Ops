@@ -175,6 +175,9 @@ interface BotAI {
   envJumpVelocityY?: number;
   envLaunchX?: number;
   envLaunchZ?: number;
+  frontierDodgeReadyAt?: number;
+  frontierDodgeUntil?: number;
+  frontierDodgeDirection?: number;
 }
 
 interface Room {
@@ -4057,9 +4060,20 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       reactionReady,aimSettled,ai.ammoInMag>0,now<ai.reloadingUntil,ai.difficulty,ai.archetype);
     ai.sprinting=stance.sprinting;
     ai.aiming=stance.aiming && !isTaserAdsBlocked(room.equipmentAdsBlockedUntil.get(bot.id)??0,now);
-    if(now>=(ai.nextCombatJumpAt??0)&&botWantsCombatJump(ai.difficulty,weapon.category,dist,clearShot,
-      ai.envJumpVelocityY===undefined&&botHasJumpClearance(roomCoverNear(room,bot.pos[0],bot.pos[2],2.5),bot.pos),now,ai.nextCombatJumpAt??0,Math.random())){
-      ai.envJumpVelocityY=MOVEMENT.jumpVelocity*(room.mode==="frontier"?1.22:1);ai.envLaunchX=0;ai.envLaunchZ=0;ai.nextCombatJumpAt=now+botTactics(ai.difficulty).jumpCooldown;
+    const frontierVaultAhead=room.mode==="frontier"&&room.map.cover.some(box=>{
+      if(box.kind==="accent"||box.kind==="platform"||box.kind==="stair")return false;
+      const dx=box.pos[0]-bot.pos[0],dz=box.pos[2]-bot.pos[2];
+      const forward=dx*Math.sin(bot.yaw)+dz*Math.cos(bot.yaw);
+      const lateral=Math.abs(dx*Math.cos(bot.yaw)-dz*Math.sin(bot.yaw));
+      const top=box.pos[1]+box.size[1],bottom=box.pos[1]-box.size[1];
+      return forward>.2&&forward<1.7&&lateral<Math.max(box.size[0],box.size[2])+.55&&
+        top>bot.pos[1]+.15&&top<=bot.pos[1]+1.45&&bottom<=bot.pos[1]+.35;
+    });
+    if(now>=(ai.nextCombatJumpAt??0)&&(frontierVaultAhead||botWantsCombatJump(ai.difficulty,weapon.category,dist,clearShot,
+      ai.envJumpVelocityY===undefined&&botHasJumpClearance(roomCoverNear(room,bot.pos[0],bot.pos[2],2.5),bot.pos),now,ai.nextCombatJumpAt??0,Math.random()))){
+      ai.envJumpVelocityY=MOVEMENT.jumpVelocity*(room.mode==="frontier"?(frontierVaultAhead?1.48:1.22):1);
+      ai.envLaunchX=frontierVaultAhead?Math.sin(bot.yaw)*3.4:0;ai.envLaunchZ=frontierVaultAhead?Math.cos(bot.yaw)*3.4:0;
+      ai.nextCombatJumpAt=now+botTactics(ai.difficulty).jumpCooldown;
     }
     const botCarryingFlag=room.mode==="ctf"&&(room.flags.red.carrierId===bot.id||room.flags.blue.carrierId===bot.id);
     const moveSpeed = (botCarryingFlag ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? (room.mode==="frontier"?1.25*1.18:1.25) : 1) * botMovementPerkMultiplier(perk,ai.sprinting)/botMovementPerkMultiplier(perk) * ctfCarrierWeaponSpeed(eff.moveSpeed,botCarryingFlag) * (orbitalReaperEquipped(room.map,bot.weaponId)&&!botCarryingFlag?ORBITAL_REAPER_SPEED_MULTIPLIER:1) * sludgeMovementFactor(bot.pos,bot.team,now,[...room.wonderFields.values()],room.mode==="ffa"||room.mode==="gungame") * floodgateWaterEffect(bot.pos[0],bot.pos[1],bot.pos[2],floodAge,room.map.cover).speedMultiplier * ((room.cryoSlowUntil.get(bot.id)??0)>now?CRYO_SLOW_FACTOR:1);
@@ -4103,6 +4117,17 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     // Task 16-a: SUBSTEP tightened from 0.20 to 0.15 so the upcoming thin cover
     // boxes (half-extent 0.3-0.4) in Task 16-b have more headroom. Added a 45°
     // diagonal slide nudge after X-only/Z-only fail (same as the offline engine).
+    if(room.mode==="frontier"&&target&&candidateDist<20){
+      if(now>=(ai.frontierDodgeReadyAt??0)&&Math.random()<0.045){
+        ai.frontierDodgeReadyAt=now+3000;ai.frontierDodgeUntil=now+220;
+        ai.frontierDodgeDirection=Math.random()<.5?-1:1;
+      }
+      if((ai.frontierDodgeUntil??0)>now){
+        const dodge=(ai.frontierDodgeDirection??1)*1.85;
+        mvx+=Math.cos(bot.yaw)*dodge*moveSpeed/20;
+        mvz-=Math.sin(bot.yaw)*dodge*moveSpeed/20;
+      }
+    }
     const moveLen = Math.hypot(mvx, mvz);
     const SUBSTEP = 0.15;
     const steps = Math.max(1, Math.ceil(moveLen / SUBSTEP));
