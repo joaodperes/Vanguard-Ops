@@ -1669,8 +1669,8 @@ export interface MatchConfig {
 export const DEFAULT_CONFIG = (mode: GameMode, botCount: number): MatchConfig => ({
   mode,
   botCount,
-  scoreLimit: mode === "searchdestroy" ? 0 : mode === "hardpoint" ? 200 : mode === "frontier" ? 30 : mode === "ctf" ? 3 : mode === "ffa" ? 30 : mode === "tdm" ? 60 : mode === "killconfirmed" ? 40 : 0,
-  timeLimit: mode === "survival" || mode === "gungame" || mode === "searchdestroy" ? 0 : mode === "hardpoint" ? 600 : mode === "frontier" ? 360 : mode === "ctf" || mode === "killconfirmed" ? 600 : 360,
+  scoreLimit: mode === "searchdestroy" ? 0 : mode === "hardpoint" ? 200 : mode === "frontier" ? 75 : mode === "ctf" ? 3 : mode === "ffa" ? 30 : mode === "tdm" ? 60 : mode === "killconfirmed" ? 40 : 0,
+  timeLimit: mode === "survival" || mode === "gungame" || mode === "searchdestroy" ? 0 : mode === "hardpoint" ? 600 : mode === "frontier" ? 600 : mode === "ctf" || mode === "killconfirmed" ? 600 : 360,
   friendlyFire: false,
   tagLifetimeMs: KC_TAG_LIFETIME_MS,
   ctfFlagResetMs: 30000,
