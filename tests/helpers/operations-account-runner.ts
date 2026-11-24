@@ -47,7 +47,7 @@ try{
  const act2=await getOrCreatePlayer('operations-act2-reward');
  const act2State={...createOperationState('relay_siege','normal'),status:'won',stage:OPERATIONS.find(m=>m.id==='relay_siege')!.objectives.length,elapsed:300};
  const act2Response=await POST(request({kind:'complete',playerKey:act2.playerKey,runId:'act2_reward_test_0001',state:act2State,deaths:0},false));
- assert.deepEqual((await act2Response.json()).actRewards.map((r:any)=>r.id),['act2_arc_pistol']);
+ assert.deepEqual((await act2Response.json()).actRewards.map((r:any)=>r.id),['act2_pistol_arc']);
  assert.ok(await db.weaponUnlock.findUnique({where:{playerId_weaponId:{playerId:act2.id,weaponId:'pistol_arc'}}}));
  const act3=await getOrCreatePlayer('operations-act3-reward');
  const act3State={...createOperationState('zero_hour','normal'),status:'won',stage:OPERATIONS.find(m=>m.id==='zero_hour')!.objectives.length,elapsed:300};
