@@ -3,7 +3,7 @@ import type { ModeCombatant } from "../src/lib/game-mode-rules";
 import {
   SEARCH_DESTROY_RULES, HARDPOINT_RULES, FRONTIER_RULES,
   createSearchDestroyState, beginNextSearchDestroyRound, finishSearchDestroyRound,
-  applySearchDestroyAction, dropSearchDestroyBomb, tickSearchDestroy,
+  applySearchDestroyAction, dropSearchDestroyBomb, releaseSearchDestroyPlayer, tickSearchDestroy,
   createHardpointState, tickHardpoint, frontierWeaponAllowed, frontierWeaponIdAllowed, frontierReserveAmmo, frontierMovementSpeed, distributedObjectivePosition,
 } from "../src/lib/game-mode-rules";
 
@@ -33,6 +33,15 @@ describe("Search & Destroy", () => {
     const dropped=createSearchDestroyState(0,"attacker",[1,0,1]); dropped.phase="live";
     expect(dropSearchDestroyBomb(dropped,"attacker",[2,0,2])?.type).toBe("dropped");
     expect(applySearchDestroyAction(dropped,{kind:"pickup",playerId:"mate",team:"red",alive:true,pos:[2,0,2]},sites,100)?.type).toBe("picked_up");
+  });
+  test("disconnecting a carrier drops the bomb and disconnecting an actor cancels progress",()=>{
+    const state=createSearchDestroyState(0,"carrier",[1,0,1]);state.phase="live";
+    state.bomb.plantProgress={playerId:"carrier",startedAt:10};
+    expect(releaseSearchDestroyPlayer(state,"carrier",[4,0,5])?.type).toBe("dropped");
+    expect(state.bomb).toMatchObject({status:"dropped",carrierId:null,pos:[4,0,5],plantProgress:null});
+    state.phase="planted";state.bomb.status="planted";state.bomb.defuseProgress={playerId:"defender",startedAt:20};
+    releaseSearchDestroyPlayer(state,"defender",[0,0,0]);
+    expect(state.bomb.defuseProgress).toBeNull();
   });
   test("releasing interaction cancels plant and defuse progress",()=>{
     const state=createSearchDestroyState(0,"attacker",[0,0,0]);state.phase="live";
