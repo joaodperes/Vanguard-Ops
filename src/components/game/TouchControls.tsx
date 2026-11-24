@@ -2,11 +2,13 @@
 import {useSettings} from "@/lib/settings-store";
 import { useRef, useState, useEffect } from "react";
 import type { FPSEngine } from "@/lib/fps-engine";
+import type { GameMode } from "@/lib/game-protocol";
 import { shouldTouchAutoSprint } from "@/lib/movement-rules";
 import { Crosshair, ZoomIn, RefreshCw, ArrowUp, PocketKnife, Bomb } from "lucide-react";
 
 interface Props {
   engine: FPSEngine | null;
+  mode: GameMode;
   akimbo?: boolean;
 }
 
@@ -22,7 +24,7 @@ interface Props {
 //
 // The joystick knob glows cyan when auto-sprint is engaged so the player has
 // clear feedback that pushing harder = sprinting.
-export function TouchControls({ engine, akimbo = false }: Props) {
+export function TouchControls({ engine, mode, akimbo = false }: Props) {
   const prefs=useSettings(s=>s.settings);
   const [viewport,setViewport]=useState({width:800,height:400});
   useEffect(()=>{const resize=()=>setViewport({width:window.innerWidth,height:window.innerHeight});resize();window.addEventListener("resize",resize);return()=>window.removeEventListener("resize",resize);},[]);
@@ -203,7 +205,7 @@ export function TouchControls({ engine, akimbo = false }: Props) {
       <div className="absolute bottom-8 right-6 flex items-end gap-3" style={{ touchAction: "none", transform:`translateX(${24-inset}px) scale(${scale})`,transformOrigin:"bottom right" }}>
         {/* Tactical, quick melee and reload share a thumb column. */}
         <div className="flex flex-col gap-2 items-center mb-1">
-          <HoldBtn label="Interact" icon={<ArrowUp className="w-5 h-5"/>}
+          <HoldBtn label={mode==="frontier"?"Dodge":"Interact"} icon={<ArrowUp className="w-5 h-5"/>}
             onDown={()=>engine?.setTouchInteract(true)} onUp={()=>engine?.setTouchInteract(false)}
             color="border-white/30 text-white"/>
           <ActionBtn label="Tactical" icon={<Bomb className="w-5 h-5" />}
