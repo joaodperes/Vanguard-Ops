@@ -158,18 +158,12 @@
     "label": "Frontier",
     "description": "A fast western gunfight. Rifles, revolvers and shotguns only—with enhanced sprinting, jumping and evasive movement.",
     "icon": "Swords",
-    "defaultScoreLimit": 30,
+    "defaultScoreLimit": 75,
     "scoreOptions": [
-      15,
-      30,
-      40,
-      50
+      75
     ],
-    "defaultTimeLimit": 6,
+    "defaultTimeLimit": 10,
     "timeOptions": [
-      5,
-      6,
-      8,
       10
     ],
     "teamBased": true,
