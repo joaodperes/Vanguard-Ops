@@ -37,7 +37,8 @@ describe("permanent challenge-based Armory eligibility", () => {
   });
 
   test("LMG skin challenges include sustained-fire pairs and track them as a distinct condition", () => {
-    const lmgs = WEAPONS.filter(w => w.category === "lmg");
+    // Wonder weapons may share a weapon category but do not participate in paid skin challenges.
+    const lmgs = WEAPONS.filter(w => w.category === "lmg" && !w.wonder);
     expect(lmgs.length).toBeGreaterThanOrEqual(3);
     for (const weapon of lmgs) {
       const challenge = WEAPON_CHALLENGES.find(ch =>
