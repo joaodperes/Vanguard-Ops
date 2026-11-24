@@ -4653,7 +4653,7 @@ async function handle(socket: any, msg: C2S) {
       if (room) {
         if (room.mode === "ctf") dropCarriedFlag(room, socket.id, [...(room.players.get(socket.id)?.pos ?? [0,0,0])] as Vec3);
         const searchDestroy=room.searchDestroyState;
-        if(room.mode==="searchdestroy"&&searchDestroy?.bomb.carrierId===socket.id)dropSearchDestroyBomb(searchDestroy,socket.id,[...(room.players.get(socket.id)?.pos??[0,0,0])] as Vec3);
+        if(room.mode==="searchdestroy"&&searchDestroy&&searchDestroy.bomb.carrierId===socket.id)dropSearchDestroyBomb(searchDestroy,socket.id,[...(room.players.get(socket.id)?.pos??[0,0,0])] as Vec3);
         room.players.delete(socket.id); removeMinesOwnedBy(room, socket.id);
         room.survivalOffers.delete(socket.id);
         if(room.survivalOffers.size===0)room.survivalUpgradeDeadline=null;
