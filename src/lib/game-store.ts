@@ -59,6 +59,11 @@ export interface SessionInfo {
 }
 
 export interface MatchResultView {
+  modeStats?: {
+    searchDestroy?: { redRounds:number; blueRounds:number; roundsPlayed:number; playerRoundsWon?:number };
+    hardpoint?: { redObjectiveSeconds:number; blueObjectiveSeconds:number; contestedSeconds:number; redScore:number; blueScore:number; playerObjectiveSeconds?:number };
+    frontier?: { ammoRemaining:number };
+  };
   operation?: import("./operations").OperationState;
   operationFirstClearRewards?: import("./operations").OperationFirstClearReward[];
   operationRewardSyncPending?: boolean;
