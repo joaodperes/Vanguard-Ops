@@ -2251,6 +2251,8 @@ function refillPlayerWonderAmmo(room: Room, p: PlayerNet) {
 }
 
 function scheduleRespawn(room: Room, p: PlayerNet) {
+  // Search & Destroy is elimination-only: players return when the next round starts.
+  if(room.mode==="searchdestroy")return;
   room.burstState.delete(p.id);
   room.poison.delete(p.id);
   room.burning.delete(p.id);
@@ -2988,7 +2990,8 @@ function tickRoomSimulation(room: Room) {
   tickThrowingKnifeRecovery(room,now);
   tickWonderExpansion(room,now);
   // Only run bot AI when the pre-match countdown is over.
-  if (room.preMatchCountdown <= 0) {
+  if (room.preMatchCountdown <= 0 &&
+      !(room.mode==="searchdestroy"&&room.searchDestroyState?.phase==="preparation")) {
     updateRoomBots(room,now);
   }
   tickScavengerDrops(room, now);
@@ -3138,6 +3141,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
       // No shooting during the pre-match countdown (bots are frozen, but
       // humans shouldn't be able to shoot either — prevents pre-countdown kills).
       if (room.preMatchCountdown > 0) return;
+      if(room.mode==="searchdestroy"&&room.searchDestroyState?.phase!=="live"&&room.searchDestroyState?.phase!=="planted")return;
       if (!p || !p.alive || room.playerMechs.has(p.id)) return;
       // Sprinting players must lower their weapon before shooting.
       if (room.sprintState.get(p.id)) return;
