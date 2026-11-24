@@ -5153,7 +5153,7 @@ export class FPSEngine {
     const now = performance.now();
     if (this.disposed || this.inputSuspended || !this.alive || this.survivalDowned ||
         this.matchEnded || this.lobbyActive || this.preMatchCountdown > 0 ||
-        this.opts.mode === "gungame" || this.equipmentAction ||
+        this.opts.mode === "gungame" || this.opts.mode === "frontier" || this.equipmentAction ||
         this.reloading ||
         (!this.pointerLocked && !(this.touchMode||this.controllerActive) && !this.controllerActive) || this.equipmentCharges <= 0 ||
         (this.opts.online && !this.socket?.connected)) return;
@@ -5818,6 +5818,7 @@ export class FPSEngine {
   swapWeapon(slot: WeaponSlot) {
     if (this.equipmentAction || this.survivalDowned) return;
     if (this.opts.mode === "gungame") return;  // gungame auto-advances; no manual swap
+    if (this.opts.mode === "frontier" && slot !== "primary" && slot !== "secondary") return;
     if (this.currentSlot === slot) return;
     if (slot === "wonder" && !this.wonderWeaponId) return;
     if (!this.alive) return;
