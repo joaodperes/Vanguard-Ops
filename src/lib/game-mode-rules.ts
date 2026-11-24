@@ -36,6 +36,15 @@ export function frontierReserveAmmo(baseReserve: number): number {
   return Math.max(1, Math.floor(baseReserve * FRONTIER_RULES.reserveAmmoMultiplier));
 }
 
+/** Stable, evenly-spaced objective positions prevent bots stacking on one coordinate. */
+export function distributedObjectivePosition(anchor: ModeVec3, actorId: string, radius = 3.2): [number, number, number] {
+  let hash = 2166136261;
+  for (let i = 0; i < actorId.length; i++) hash = Math.imul(hash ^ actorId.charCodeAt(i), 16777619);
+  const angle = ((hash >>> 0) % 8) * (Math.PI / 4);
+  const distance = radius + (((hash >>> 3) % 3) * 0.65);
+  return [anchor[0] + Math.cos(angle) * distance, anchor[1], anchor[2] + Math.sin(angle) * distance];
+}
+
 export type SearchDestroyPhase = "preparation" | "live" | "planted" | "round_end" | "match_end";
 export type BombStatus = "carried" | "dropped" | "planted";
 export interface SearchDestroyState {
