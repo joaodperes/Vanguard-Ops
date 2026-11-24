@@ -18,11 +18,18 @@ describe("new competitive mode integration",()=>{
     const objectives:[number,number,number][]=[
       [-22,0,-18],[22,0,18],
       [-24,0,-18],[22,0,-18],[0,0,0],[-22,0,20],[24,0,20],
+      [-12,0,-15],[14,0,-15],[-14,0,25],[15,0,25],
     ];
     for(const point of objectives){
       expect(botPositionEmbedded(dustwater.cover,point)).toBe(false);
       expect(dustwater.regions?.some(r=>Math.abs(point[0]-r.x)<=r.w/2&&Math.abs(point[2]-r.z)<=r.d/2)).toBe(true);
     }
+  });
+  test("Dustwater interiors and vertical routes are physically accessible",()=>{
+    const buildings=MAP_DOCUMENTS.dustwater.theme.props.filter(prop=>prop.kind==="building");
+    expect(buildings).toHaveLength(4);
+    expect(buildings.every(prop=>prop.roofAccess===true)).toBe(true);
+    expect(MAP_DOCUMENTS.dustwater.blueprint.features.some(feature=>feature.kind==="platform"&&feature.h>=5)).toBe(true);
   });
   test("mode defaults use the specified competitive match limits",()=>{
     expect(DEFAULT_CONFIG("searchdestroy",8)).toMatchObject({scoreLimit:0,timeLimit:0});
