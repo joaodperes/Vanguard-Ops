@@ -79,9 +79,9 @@ export function applyMapFootprint(base:MapDef,draft?:{blueprint:MapBlueprint;the
   // fallbacks, not the obsolete central arena positions.
   const isAfterlight=base.id==="arena_neon"||base.id==="terminal";
   const activeLegacySpawns={
-    ffa:isAfterlight?scaledBase.spawns.ffa.slice(-6):scaledBase.spawns.ffa,
-    red:isAfterlight?scaledBase.spawns.red.slice(-3):scaledBase.spawns.red,
-    blue:isAfterlight?scaledBase.spawns.blue.slice(-3):scaledBase.spawns.blue,
+    ffa:base.id==="dustwater"?[]:isAfterlight?scaledBase.spawns.ffa.slice(-6):scaledBase.spawns.ffa,
+    red:base.id==="dustwater"?[]:isAfterlight?scaledBase.spawns.red.slice(-3):scaledBase.spawns.red,
+    blue:base.id==="dustwater"?[]:isAfterlight?scaledBase.spawns.blue.slice(-3):scaledBase.spawns.blue,
   };
   const allSpawns=[...activeLegacySpawns.ffa,...activeLegacySpawns.red,...activeLegacySpawns.blue,
     ...plan.spawns.ffa,...plan.spawns.red,...plan.spawns.blue];
@@ -105,11 +105,11 @@ export function applyMapFootprint(base:MapDef,draft?:{blueprint:MapBlueprint;the
   // Preserve the source outer-ring entries as the final entries for diagnostics.
   const addSpawns=(team:"ffa"|"red"|"blue")=>{
     const old=scaledBase.spawns[team], outerLen=team==="ffa"?6:3;
-    if(base.id==="skybridge")return plan.spawns[team].map(p=>[...p] as Vec3);
+    if(base.id==="skybridge"||base.id==="dustwater")return plan.spawns[team].map(p=>[...p] as Vec3);
     if(isAfterlight)return [...plan.spawns[team].map(p=>[...p] as Vec3),...old.slice(-outerLen)];
     return [...old.slice(0,-outerLen),...plan.spawns[team].map(p=>[...p] as Vec3),...old.slice(-outerLen)];
   };
-  const legacyCoverSource=scaledBase.cover.filter(c=>{
+  const legacyCoverSource=(base.id==="dustwater"?[]:scaledBase.cover).filter(c=>{
     if(base.id!=="shipyard"||c.kind!=="cover")return true;
     const stairs=scaledBase.cover.filter(b=>b.kind==="stair"&&
       (Math.abs(b.pos[0])>24||Math.abs(b.pos[2])>24));
@@ -133,7 +133,7 @@ export function applyMapFootprint(base:MapDef,draft?:{blueprint:MapBlueprint;the
   // Ridgefall replaces the old skybridge arena. The inherited breakable wall
   // at (0,-28) sat inside the new central staircase, could absorb shots and
   // was not a usable doorway. Keep only authored factory hazards instead.
-  const legacyEnvironmentSource=base.id==="skybridge"
+  const legacyEnvironmentSource=base.id==="dustwater"?[]:base.id==="skybridge"
     ?(scaledBase.environment??[]).filter(o=>o.id!=="skybridge_wall")
     :scaledBase.environment??[];
   const legacyEnvironment=compileVisibleLegacyBoxes(
