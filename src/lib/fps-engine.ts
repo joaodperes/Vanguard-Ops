@@ -5922,12 +5922,6 @@ export class FPSEngine {
       perWeaponActions: Object.fromEntries(this.perWeaponActions),
       perAttachmentKills: Object.fromEntries(this.perAttachmentKills),
 
-      modeStats:{
-        ...modeStats,
-        ...(modeStats?.searchDestroy?{searchDestroy:{...modeStats.searchDestroy,playerRoundsWon:this.opts.team==="red"?modeStats.searchDestroy.redRounds:modeStats.searchDestroy.blueRounds}}:{}),
-        ...(modeStats?.hardpoint?{hardpoint:{...modeStats.hardpoint,playerObjectiveSeconds:this.opts.team==="red"?modeStats.hardpoint.redObjectiveSeconds:modeStats.hardpoint.blueObjectiveSeconds}}:{}),
-        ...(this.opts.mode==="frontier"?{frontier:{ammoRemaining:this.frontierAmmoRemaining??0}}:{}),
-      },
       confirmations: this.confirmations, denials: this.denials,
       ...(this.operation ? {operation:{...this.operation}} : {}),
       ...(isSurvival ? { survivalWaves: this.getSurvivalClearedWaves(), survivalTier: this.survivalTier } as any : {}),
@@ -10361,12 +10355,6 @@ export class FPSEngine {
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
       perWeaponActions: Object.fromEntries(this.perWeaponActions),
       perAttachmentKills: Object.fromEntries(this.perAttachmentKills),
-      modeStats:{
-        ...modeStats,
-        ...(modeStats?.searchDestroy?{searchDestroy:{...modeStats.searchDestroy,playerRoundsWon:this.opts.team==="red"?modeStats.searchDestroy.redRounds:modeStats.searchDestroy.blueRounds}}:{}),
-        ...(modeStats?.hardpoint?{hardpoint:{...modeStats.hardpoint,playerObjectiveSeconds:this.opts.team==="red"?modeStats.hardpoint.redObjectiveSeconds:modeStats.hardpoint.blueObjectiveSeconds}}:{}),
-        ...(this.opts.mode==="frontier"?{frontier:{ammoRemaining:this.frontierAmmoRemaining??0}}:{}),
-      },
       confirmations: this.confirmations, denials: this.denials,
       ...(this.operation ? {operation:{...this.operation}} : {}),
       ...(isSurvival ? { survivalWaves: this.getSurvivalClearedWaves(), survivalTier: this.survivalTier } as any : {}),
@@ -10428,6 +10416,12 @@ export class FPSEngine {
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
       perWeaponActions: Object.fromEntries(this.perWeaponActions),
       perAttachmentKills: Object.fromEntries(this.perAttachmentKills),
+      modeStats:{
+        ...modeStats,
+        ...(modeStats?.searchDestroy?{searchDestroy:{...modeStats.searchDestroy,playerRoundsWon:this.opts.team==="red"?modeStats.searchDestroy.redRounds:modeStats.searchDestroy.blueRounds}}:{}),
+        ...(modeStats?.hardpoint?{hardpoint:{...modeStats.hardpoint,playerObjectiveSeconds:this.opts.team==="red"?modeStats.hardpoint.redObjectiveSeconds:modeStats.hardpoint.blueObjectiveSeconds}}:{}),
+        ...(this.opts.mode==="frontier"?{frontier:{ammoRemaining:this.frontierAmmoRemaining??0}}:{}),
+      },
       confirmations: this.confirmations, denials: this.denials,
       ...(this.operation ? {operation:{...this.operation}} : {}),
       ...(isSurvival ? { survivalWaves: this.getSurvivalClearedWaves(), survivalTier: this.survivalTier } as any : {}),
