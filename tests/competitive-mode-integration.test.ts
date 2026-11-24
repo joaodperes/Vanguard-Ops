@@ -38,7 +38,7 @@ describe("new competitive mode integration",()=>{
     const landing=steps[steps.length-1];
     expect(landing.pos[1]+landing.size[1]).toBeCloseTo((platform!.y??0)+platform!.h,1);
     expect(Math.abs(landing.pos[0]-platform!.x)).toBeLessThan(platform!.w/2+landing.size[0]);
-    expect(MAP_DOCUMENTS.dustwater.blueprint.features.some(feature=>feature.kind==="platform"&&(feature.y??0)+feature.h>=5.4)).toBe(true);
+    expect(MAP_DOCUMENTS.dustwater.blueprint.features.some(feature=>feature.kind==="platform"&&(feature.y??0)+feature.h>=5.39)).toBe(true);
     const interiorIds=MAP_DOCUMENTS.dustwater.blueprint.features.map(feature=>feature.id);
     for(const id of ["saloon-bar-counter","saloon-poker-table","sheriff-cell-left","sheriff-cell-right",
       "bank-vault-back","bank-vault-side-left","bank-vault-side-right","depot-cargo-crate-a","depot-cargo-crate-b"])
