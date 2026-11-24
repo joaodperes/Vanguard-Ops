@@ -11241,10 +11241,10 @@ export class FPSEngine {
       this.projectiles = [];
       // Still tick respawns (offline) + emit HUD so the respawn countdown shows.
       const now = performance.now();
-      if (!this.opts.online && this.respawnAt === 0) {
+      if (!this.opts.online && this.opts.mode !== "searchdestroy" && this.respawnAt === 0) {
         this.respawnAt = now + (this.opts.mode === "survival" ? SURVIVAL_RESPAWN_MS : RESPAWN_DELAY_MS);
       }
-      if (!this.opts.online && this.respawnAt && now >= this.respawnAt) {
+      if (!this.opts.online && this.opts.mode !== "searchdestroy" && this.respawnAt && now >= this.respawnAt) {
         this.respawnSelf();
       }
       if (now - this.lastHudAt > 100) {
@@ -11675,17 +11675,17 @@ export class FPSEngine {
       }
     }
 
-    if (!this.alive && this.respawnAt === 0 && !this.opts.online) {
+    if (!this.alive && this.respawnAt === 0 && !this.opts.online && this.opts.mode !== "searchdestroy") {
       this.respawnAt = now + RESPAWN_DELAY_MS;
     }
-    if (!this.alive && this.respawnAt && now >= this.respawnAt && !this.opts.online) {
+    if (!this.alive && this.respawnAt && now >= this.respawnAt && !this.opts.online && this.opts.mode !== "searchdestroy") {
       this.respawnSelf();
     }
 
     // Physics remains exact; ease only the first-person camera across stair risers.
     if(this.cameraFeetY===null||Math.abs(this.cameraFeetY-this.pos.y)>3)this.cameraFeetY=this.pos.y;
     else this.cameraFeetY+=(this.pos.y-this.cameraFeetY)*Math.min(1,dt*11);
-    const spectatorTarget=this.opts.mode==="searchdestroy"&&this.opts.online&&!this.alive
+    const spectatorTarget=this.opts.mode==="searchdestroy"&&!this.alive
       ?[...this.combatants.values()].filter(c=>c.id!==this.selfId&&c.alive&&c.team===this.opts.team)
         .sort((a,b)=>Math.hypot(a.pos[0]-this.pos.x,a.pos[2]-this.pos.z)-Math.hypot(b.pos[0]-this.pos.x,b.pos[2]-this.pos.z))[0]
       :undefined;
@@ -13585,7 +13585,7 @@ export class FPSEngine {
       if (this.opts.mode === "survival") {
         this.finalizeMatchLocal();
       } else {
-        this.respawnAt = performance.now() + RESPAWN_DELAY_MS;
+        this.respawnAt = this.opts.mode==="searchdestroy" ? 0 : performance.now() + RESPAWN_DELAY_MS;
       }
     }
   }
