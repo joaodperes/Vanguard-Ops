@@ -212,6 +212,7 @@ model MatchRecord {
   durationSec  Int
   weaponId     String   @default("rifle_ar")
   waves        Int      @default(0)   // survival: highest wave reached
+  modeStats    String   @default("{}") // objective-mode summary for Search & Destroy, Hardpoint and Frontier
   playedAt     DateTime @default(now())
   player       Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
