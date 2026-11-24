@@ -2745,7 +2745,8 @@ function updateRoomBots(room:Room,now:number):void{
   for(const bot of room.bots.values())if(bot.alive){
     if(room.mode==="hardpoint"&&room.hardpointState){
       const points=[[-24,0,-18],[22,0,-18],[0,0,0],[-22,0,20],[24,0,20]];
-      bot.ai.wanderTarget=[...points[room.hardpointState.activeIndex]] as Vec3;
+      const targetIndex=room.hardpointState.phase==="transition"?room.hardpointState.nextIndex:room.hardpointState.activeIndex;
+      bot.ai.wanderTarget=[...points[targetIndex]] as Vec3;
     }
     if(room.mode==="searchdestroy"&&room.searchDestroyState){
       const state=room.searchDestroyState;
