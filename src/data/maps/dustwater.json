@@ -546,6 +546,158 @@
         "h": 5.4,
         "axis": "x",
         "sign": 1
+      },
+      {
+        "id": "saloon-bar-counter",
+        "x": -12,
+        "z": -10.4,
+        "w": 9,
+        "d": 1.1,
+        "h": 1.15,
+        "kind": "cover",
+        "label": "Saloon bar counter",
+        "material": "thin_wood"
+      },
+      {
+        "id": "saloon-poker-table",
+        "x": -17.2,
+        "z": -15.2,
+        "w": 2.2,
+        "d": 1.8,
+        "h": 0.9,
+        "kind": "cover",
+        "label": "Saloon poker table",
+        "material": "thin_wood"
+      },
+      {
+        "id": "saloon-piano",
+        "x": -6.5,
+        "z": -15.2,
+        "w": 2.4,
+        "d": 1.1,
+        "h": 1.05,
+        "kind": "cover",
+        "label": "Saloon piano",
+        "material": "thin_wood"
+      },
+      {
+        "id": "sheriff-cell-left",
+        "x": 18.5,
+        "z": -19.4,
+        "w": 4.2,
+        "d": 0.45,
+        "h": 2.25,
+        "kind": "cover",
+        "label": "Sheriff jail cell wall",
+        "material": "thin_wood"
+      },
+      {
+        "id": "sheriff-cell-right",
+        "x": 18.5,
+        "z": -14.7,
+        "w": 4.2,
+        "d": 0.45,
+        "h": 2.25,
+        "kind": "cover",
+        "label": "Sheriff jail cell wall",
+        "material": "thin_wood"
+      },
+      {
+        "id": "sheriff-cell-divider",
+        "x": 16.4,
+        "z": -17.1,
+        "w": 0.4,
+        "d": 4.2,
+        "h": 2.25,
+        "kind": "cover",
+        "label": "Sheriff jail cell divider",
+        "material": "thin_wood"
+      },
+      {
+        "id": "sheriff-desk",
+        "x": 9.2,
+        "z": -11.2,
+        "w": 3.2,
+        "d": 1.1,
+        "h": 1.05,
+        "kind": "cover",
+        "label": "Sheriff's desk",
+        "material": "thin_wood"
+      },
+      {
+        "id": "bank-vault-back",
+        "x": -17.5,
+        "z": 20.4,
+        "w": 6.2,
+        "d": 0.55,
+        "h": 2.8,
+        "kind": "cover",
+        "label": "Bank vault back wall",
+        "material": "thin_wood"
+      },
+      {
+        "id": "bank-vault-side-left",
+        "x": -20.4,
+        "z": 23.1,
+        "w": 0.55,
+        "d": 5.4,
+        "h": 2.8,
+        "kind": "cover",
+        "label": "Bank vault side wall",
+        "material": "thin_wood"
+      },
+      {
+        "id": "bank-vault-side-right",
+        "x": -14.6,
+        "z": 23.1,
+        "w": 0.55,
+        "d": 5.4,
+        "h": 2.8,
+        "kind": "cover",
+        "label": "Bank vault side wall",
+        "material": "thin_wood"
+      },
+      {
+        "id": "bank-teller-counter",
+        "x": -8.5,
+        "z": 27.8,
+        "w": 7,
+        "d": 0.8,
+        "h": 1.1,
+        "kind": "cover",
+        "label": "Bank teller counter",
+        "material": "thin_wood"
+      },
+      {
+        "id": "depot-cargo-crate-a",
+        "x": 10,
+        "z": 21.5,
+        "w": 2.4,
+        "d": 2.1,
+        "h": 1.35,
+        "kind": "cover",
+        "label": "Freight cargo crate"
+      },
+      {
+        "id": "depot-cargo-crate-b",
+        "x": 20,
+        "z": 28.4,
+        "w": 2.8,
+        "d": 2.2,
+        "h": 1.55,
+        "kind": "cover",
+        "label": "Freight cargo crate"
+      },
+      {
+        "id": "depot-loading-counter",
+        "x": 15,
+        "z": 21.2,
+        "w": 5.5,
+        "d": 0.8,
+        "h": 1,
+        "kind": "cover",
+        "label": "Depot loading counter",
+        "material": "thin_wood"
       }
     ],
     "spawns": {
