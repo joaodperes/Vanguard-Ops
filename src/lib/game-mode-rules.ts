@@ -46,7 +46,7 @@ export interface SearchDestroyState {
 }
 export interface SearchDestroySite { id: "A" | "B"; pos: ModeVec3; radius: number }
 export interface SearchDestroyAction {
-  kind: "plant" | "defuse" | "pickup"; playerId: string; team: ModeTeam;
+  kind: "plant" | "defuse" | "pickup" | "cancel"; playerId: string; team: ModeTeam;
   pos: ModeVec3; alive: boolean; siteId?: "A" | "B";
 }
 export type SearchDestroyEvent =
@@ -107,6 +107,11 @@ export function applySearchDestroyAction(
   state: SearchDestroyState, action: SearchDestroyAction, sites: readonly SearchDestroySite[], now: number,
 ): SearchDestroyActionResult {
   if (state.phase !== "live" && state.phase !== "planted") return null;
+  if (action.kind === "cancel") {
+    if (state.bomb.plantProgress?.playerId === action.playerId) state.bomb.plantProgress = null;
+    if (state.bomb.defuseProgress?.playerId === action.playerId) state.bomb.defuseProgress = null;
+    return null;
+  }
   if (!action.alive) return null;
   if (action.kind === "pickup") {
     if (state.phase !== "live" || action.team !== state.attackerTeam || state.bomb.status !== "dropped" ||
