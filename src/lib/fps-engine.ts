@@ -4690,7 +4690,7 @@ export class FPSEngine {
       }
     });
     on(window, "keyup", (e) => {
-      if(e.code==="KeyE")this.modeInteractHeld=false;
+      if(e.code==="KeyE")this.setModeInteractHeld(false);
       const code=canonicalKey(this.controls.keyBindings,e.code);if(code)this.keys[code]=false;
     });
     on(window, "blur", ()=>this.clearInput());
@@ -4716,7 +4716,11 @@ export class FPSEngine {
     this.weaponAudio.setFeedbackVolume(levels.combatOutputPercent * this.flashAudioFactor);
   }
 
-  setModeInteractHeld(held:boolean){this.modeInteractHeld=held;}
+  setModeInteractHeld(held:boolean){
+    if(this.modeInteractHeld&&!held&&this.opts.mode==="searchdestroy"&&this.opts.online&&this.socket?.connected)
+      this.socket.emit("message",{t:"modeInteract",action:"cancel"} as C2S);
+    this.modeInteractHeld=held;
+  }
   triggerFrontierDodge(){
     const now=performance.now();if(this.opts.mode!=="frontier"||now<this.frontierDodgeReadyAt||!this.alive)return;
     const boost=MOVEMENT.walk*1.85;this.vel.x+=Math.sin(this.yaw)*boost;this.vel.z+=Math.cos(this.yaw)*boost;
@@ -4859,7 +4863,7 @@ export class FPSEngine {
   }
   /** In-game menu: suppress controls, even on touch devices, without resetting a match. */
   private clearInput(){
-    this.modeInteractHeld=false;
+    this.setModeInteractHeld(false);
     this.keys={};this.mouseDown=false;this.manualAiming=false;this.touchFiring=false;this.touchAkimboRight=false;this.touchAiming=false;this.touchMoveX=0;this.touchMoveY=0;this.touchSprint=false;this.touchJumpQueued=false;this.mousePressedThisFrame=false;this.touchPressedThisFrame=false;this.mechRightDown=false;this.akimboRightDown=false;this.burstShotsLeft=0;this.lastJumpPressedAt=-Infinity;this.controllerNeutral=true;
   }
 
@@ -4934,7 +4938,7 @@ export class FPSEngine {
     const sensitivity=2.4*dt*this.controls.controllerSensitivity*(this.aiming?.64*this.controls.adsSensitivity*this.sightDef.adsSensMul:1);
     this.yaw-=look[0]*sensitivity;this.pitch-=look[1]*sensitivity*(this.invertY?-1:1);this.pitch=Math.max(-Math.PI/2+.05,Math.min(Math.PI/2-.05,this.pitch));
     if(edge(0))this.touchJump();if(edge(2))this.touchReload();if(edge(3))this.swapWeapon(quickSwapTarget(this.currentSlot,this.lastSlot));
-    if(this.opts.mode==="searchdestroy")this.modeInteractHeld=!!buttons[1];
+    if(this.opts.mode==="searchdestroy")this.setModeInteractHeld(!!buttons[1]);
     else if(edge(1)){if(this.opts.mode==="frontier")this.triggerFrontierDodge();else this.touchInteract();}
     if(edge(11))this.touchQuickMelee();if(edge(5))this.touchUseEquipment();
     if(edge(4))this.touchSwap("wonder");if(edge(12))this.touchSwap("primary");if(edge(13))this.touchSwap("secondary");if(edge(14))this.touchSwap("melee");
