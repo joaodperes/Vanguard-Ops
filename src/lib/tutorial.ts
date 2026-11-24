@@ -4,7 +4,7 @@ import type { GameMode } from "./game-protocol";
 // The PvP briefing must cover every GameMode except Survival. Keep this
 // exhaustive when a new mode is added; tests also compare with the catalog.
 export type CompetitiveModeId = Exclude<GameMode, "survival">;
-export const COMPETITIVE_MODE_IDS = ["ffa", "tdm", "gungame", "killconfirmed", "ctf"] as const satisfies readonly CompetitiveModeId[];
+export const COMPETITIVE_MODE_IDS = ["ffa", "tdm", "gungame", "killconfirmed", "ctf", "searchdestroy", "hardpoint", "frontier"] as const satisfies readonly CompetitiveModeId[];
 export const COMPETITIVE_MODE_GUIDES = {
   ffa: {
     label: "Free-For-All",
@@ -30,6 +30,21 @@ export const COMPETITIVE_MODE_GUIDES = {
     label: "Capture the Flag",
     objective: "Steal the enemy flag and bring it to your base while your own flag is home. The team with the required captures wins.",
     tip: "Escort your carrier, defend your flag and return it when stolen.",
+  },
+  searchdestroy: {
+    label: "Search & Destroy",
+    objective: "Attackers plant the bomb at site A or B and protect it until detonation. Defenders eliminate attackers or complete the seven-second defuse. Operatives do not respawn during a round.",
+    tip: "Attackers: move together and hold E at a site to plant. Defenders: stop the plant, or hold E beside the planted bomb to defuse.",
+  },
+  hardpoint: {
+    label: "Hardpoint",
+    objective: "Capture the active hill and keep it uncontested to earn one point per second. The hill rotates through five locations with a short transition between them.",
+    tip: "Rotate before the hill moves. One teammate should hold the zone while others deny enemy approaches.",
+  },
+  frontier: {
+    label: "Frontier",
+    objective: "Fight through Dustwater with hunting rifles, DMRs, revolvers and shotguns. Ammunition is limited; sprinting, jumping and evasive movement are enhanced.",
+    tip: "Use E to dodge, keep moving between boardwalks and interiors, and make every shot count.",
   },
 } as const satisfies Record<CompetitiveModeId, { label: string; objective: string; tip: string }>;
 
