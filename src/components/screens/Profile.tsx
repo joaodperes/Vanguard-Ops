@@ -14,7 +14,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ArrowLeft, Trophy, Target, Skull, Zap, Coins, TrendingUp, Award, Crown, Star, Clock, Crosshair, Flame, Swords, Shield, Users, Sparkles, Calendar, LogOut, UserCircle, GraduationCap } from "lucide-react";
 
 interface MatchRecordView {
-  id: string; mode: string; online: boolean; kills: number; deaths: number;
+  id: string; mode: string; modeStats?: { searchDestroy?: { playerRoundsWon?: number; redRounds:number; blueRounds:number }; hardpoint?: { playerObjectiveSeconds?: number }; frontier?: { ammoRemaining:number } }; online: boolean; kills: number; deaths: number;
   headshots: number; score: number; placement: number; won: boolean;
   durationSec: number; weaponId: string; playedAt: string;
 }
@@ -485,16 +485,19 @@ export function Profile() {
                   </thead>
                   <tbody>
                     {matches.map((m) => {
-                      const Icon = m.mode === "tdm" ? Shield : m.mode === "survival" ? Skull : m.mode === "gungame" ? Swords : Users;
+                      const Icon = m.mode === "tdm" ? Shield : m.mode === "survival" ? Skull : m.mode === "gungame" || m.mode === "frontier" ? Swords : m.mode === "searchdestroy" ? Target : m.mode === "hardpoint" ? Crosshair : Users;
                       const w = weaponById(m.weaponId);
                       const ago = formatAgo(new Date(m.playedAt));
-                      const modeLabel = m.mode === "tdm" ? "TDM" : m.mode === "survival" ? "SURV" : m.mode === "gungame" ? "GUN" : m.mode === "killconfirmed" ? "KC" : m.mode === "ffa" ? "FFA" : displayLabel(m.mode);
+                      const modeLabel = m.mode === "tdm" ? "TDM" : m.mode === "survival" ? "SURV" : m.mode === "gungame" ? "GUN" : m.mode === "killconfirmed" ? "KC" : m.mode === "searchdestroy" ? "S&D" : m.mode === "hardpoint" ? "HP" : m.mode === "frontier" ? "FRONTIER" : m.mode === "ffa" ? "FFA" : displayLabel(m.mode);
                       return (
                         <tr key={m.id} className="border-t border-white/5 hover:bg-white/5">
                           <td className="px-4 py-2">
                             <span className="inline-flex items-center gap-1.5 text-white/80">
                               <Icon className={`w-3.5 h-3.5 ${m.mode === "tdm" ? "text-blue-400" : m.mode === "survival" ? "text-amber-400" : m.mode === "gungame" ? "text-purple-400" : "text-rose-400"}`} />
                               <span className="uppercase text-xs">{modeLabel}</span>
+                              {m.modeStats?.searchDestroy&&<span className="text-[9px] text-amber-300">ROUNDS {m.modeStats.searchDestroy.playerRoundsWon??0}</span>}
+                              {m.modeStats?.hardpoint&&<span className="text-[9px] text-emerald-300">HILL {m.modeStats.hardpoint.playerObjectiveSeconds??0}s</span>}
+                              {m.modeStats?.frontier&&<span className="text-[9px] text-amber-200">AMMO {m.modeStats.frontier.ammoRemaining}</span>}
                               {m.online && <span className="text-[9px] text-emerald-400 px-1 rounded bg-emerald-500/10">ONLINE</span>}
                             </span>
                           </td>
