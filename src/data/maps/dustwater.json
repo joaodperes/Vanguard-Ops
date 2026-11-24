@@ -900,6 +900,36 @@
         "kind": "antenna",
         "x": 0,
         "z": -37
+      },
+      {
+        "kind": "sign",
+        "x": -25,
+        "z": -18,
+        "text": "BOMB SITE A · HILL 1"
+      },
+      {
+        "kind": "sign",
+        "x": 25,
+        "z": -18,
+        "text": "HILL 2"
+      },
+      {
+        "kind": "sign",
+        "x": 1,
+        "z": 0,
+        "text": "HILL 3"
+      },
+      {
+        "kind": "sign",
+        "x": -23,
+        "z": 20,
+        "text": "HILL 4"
+      },
+      {
+        "kind": "sign",
+        "x": 25,
+        "z": 20,
+        "text": "BOMB SITE B · HILL 5"
       }
     ],
     "surfaces": {
