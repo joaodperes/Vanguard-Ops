@@ -789,10 +789,10 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
         </div>
       )}
 
-      {/* respawn overlay */}
+      {/* respawn / S&D spectator overlay */}
       {!hud.alive && (
-        <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center">
-          <div className="text-rose-500 text-5xl font-black tracking-widest mb-2" style={{ textShadow: "0 0 20px rgba(239,68,68,0.6)" }}>ELIMINATED</div>
+        <div className={`absolute inset-0 ${mode==="searchdestroy"?"bg-black/10 pointer-events-none":"bg-black/50"} flex flex-col items-center justify-center`}>
+          <div className={`text-rose-500 ${mode==="searchdestroy"?"text-3xl":"text-5xl"} font-black tracking-widest mb-2`} style={{ textShadow: "0 0 20px rgba(239,68,68,0.6)" }}>{mode==="searchdestroy"?"SPECTATING":"ELIMINATED"}</div>
           {hud.lastDeath?.weaponId === LAVA_DEATH_SOURCE ? (
             <div className="my-4 px-6 py-3 rounded-xl border border-amber-500/40 bg-black/75 text-amber-200">Fell into the lava moat</div>
           ) : hud.lastDeath && (
@@ -808,7 +808,7 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
           {mode === "survival" ? (
             <div className="text-white/70 text-lg">{hud.operation ? (hud.survivalWaitingForWave ? "Returning after your partner clears the stage" : "Operations deployment ended") : (hud.survivalWaitingForWave ? "Returning after your partner clears the wave" : "Survival run ended")}</div>
           ) : hud.respawnIn < 0 ? (
-              <div className="text-amber-200 text-lg font-bold tracking-widest">ELIMINATED · WAIT FOR NEXT ROUND</div>
+              <div className="text-amber-200 text-lg font-bold tracking-widest">{mode==="searchdestroy"?"TEAMMATE VIEW · WAIT FOR NEXT ROUND":"ELIMINATED · WAIT FOR NEXT ROUND"}</div>
             ) : (
               <div className="text-white/70 text-lg">Respawning in <span className="text-white font-bold text-2xl">{hud.respawnIn}</span>s</div>
             )}
