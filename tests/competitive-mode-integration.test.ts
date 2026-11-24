@@ -2,6 +2,7 @@ import {describe,expect,test} from "bun:test";
 import {MAP_LIST,mapAllowedForMode,DEFAULT_CONFIG} from "../src/lib/game-protocol";
 import {MAP_DOCUMENTS,validateMapDocument} from "../src/lib/map-documents";
 import {botPositionEmbedded} from "../src/lib/bot-physics";
+import {featureBoxes} from "../src/lib/map-blueprints";
 
 describe("new competitive mode integration",()=>{
   const dustwater=MAP_LIST.find(map=>map.id==="dustwater")!;
@@ -29,6 +30,15 @@ describe("new competitive mode integration",()=>{
     const buildings=MAP_DOCUMENTS.dustwater.theme.props.filter(prop=>prop.kind==="building");
     expect(buildings).toHaveLength(4);
     expect(buildings.every(prop=>prop.roofAccess===true)).toBe(true);
+    const platform=MAP_DOCUMENTS.dustwater.blueprint.features.find(feature=>feature.id==="water-tower-platform");
+    const stair=MAP_DOCUMENTS.dustwater.blueprint.features.find(feature=>feature.id==="water-tower-staircase");
+    expect(platform).toBeDefined();
+    expect(stair).toMatchObject({kind:"stairs",h:5.4,axis:"x",sign:1});
+    const steps=featureBoxes(stair!);
+    expect(steps.length).toBeGreaterThan(10);
+    const landing=steps[steps.length-1];
+    expect(landing.pos[1]+landing.size[1]).toBeCloseTo(platform!.y??0,1);
+    expect(Math.abs(landing.pos[0]-platform!.x)).toBeLessThan(platform!.w/2+landing.size[0]);
     expect(MAP_DOCUMENTS.dustwater.blueprint.features.some(feature=>feature.kind==="platform"&&(feature.y??0)>=5)).toBe(true);
   });
   test("mode defaults use the specified competitive match limits",()=>{
