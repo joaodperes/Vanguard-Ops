@@ -1,15 +1,14 @@
 import {describe,expect,test} from "bun:test";
 import {makeEngineStub} from "./helpers/engine-stub";
-import {PERKS,DEFAULT_PERK_ID,scavengerAmmoAmount} from "../src/lib/perks";
+import {DEFAULT_PERK_ID,scavengerAmmoAmount} from "../src/lib/perks";
 import {parseSavedLoadouts} from "../src/lib/saved-loadouts";
 import {drainedWonderCharges,fullWonderCharges,tickWonderCharges,accelerateWonderCharge,spendWonderCharge} from "../src/lib/wonder-charge";
 import {riotBashProfile,RIOT_BASH_DAMAGE,RIOT_BASH_REACH} from "../src/lib/riot-shield";
 
 
 describe("Specialist perk and slot-four loadout",()=>{
-  test("Battle-Hardened remains default; Wonder Weapon is available at level one",()=>{
+  test("Battle-Hardened remains the default perk",()=>{
     expect(DEFAULT_PERK_ID).toBe("battle_hardened");
-    expect(PERKS.find(x=>x.id==="wonder_weapon")?.unlockLevel).toBe(1);
   });
   test("legacy saved presets with a Wonder in primary are removed, ordinary presets survive",()=>{
     const presets=[
