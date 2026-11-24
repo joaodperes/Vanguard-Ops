@@ -25,7 +25,7 @@ import { roomMapCandidates, roomTeamSizeForMap, winningRoomMap } from "./room-fl
 import { recommendedTeamSize, type RoomStatus, isValidKillConfirmedTagLifetimeMs, killConfirmedTagExpiresAt } from "./game-protocol";
 import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,ORBITAL_RULES_VERSION,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,orbitalPulseTargets,orbitalReaperEquipped,ORBITAL_REAPER_SPEED_MULTIPLIER} from "./orbital-reactor";
 import { advanceMatchElapsed } from "./match-clock";
-import { createHardpointState, tickHardpoint, createSearchDestroyState, beginNextSearchDestroyRound, tickSearchDestroy, applySearchDestroyAction, dropSearchDestroyBomb, frontierWeaponIdAllowed, frontierReserveAmmo, distributedObjectivePosition, type HardpointState, type SearchDestroyState, type SearchDestroySite } from "./game-mode-rules";
+import { createHardpointState, tickHardpoint, createSearchDestroyState, beginNextSearchDestroyRound, tickSearchDestroy, applySearchDestroyAction, dropSearchDestroyBomb, releaseSearchDestroyPlayer, frontierWeaponIdAllowed, frontierReserveAmmo, distributedObjectivePosition, type HardpointState, type SearchDestroyState, type SearchDestroySite } from "./game-mode-rules";
 import { fullWonderCharges, drainedWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, refundWonderCharge, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
 import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
@@ -4603,6 +4603,10 @@ io.on("connection", (socket) => {
     }
     if (room) {
       if (room.mode === "ctf") dropCarriedFlag(room, socket.id, [...(room.players.get(socket.id)?.pos ?? [0,0,0])] as Vec3);
+      if(room.mode==="searchdestroy"&&room.searchDestroyState){
+        const departing=room.players.get(socket.id);
+        releaseSearchDestroyPlayer(room.searchDestroyState,socket.id,[...(departing?.pos??[0,0,0])] as Vec3);
+      }
       room.players.delete(socket.id); removeMinesOwnedBy(room, socket.id);
         room.survivalOffers.delete(socket.id);
         if(room.survivalOffers.size===0)room.survivalUpgradeDeadline=null;
@@ -4706,8 +4710,10 @@ async function handle(socket: any, msg: C2S) {
       }
       if (room) {
         if (room.mode === "ctf") dropCarriedFlag(room, socket.id, [...(room.players.get(socket.id)?.pos ?? [0,0,0])] as Vec3);
-        const searchDestroy=room.searchDestroyState;
-        if(room.mode==="searchdestroy"&&searchDestroy&&searchDestroy.bomb.carrierId===socket.id)dropSearchDestroyBomb(searchDestroy,socket.id,[...(room.players.get(socket.id)?.pos??[0,0,0])] as Vec3);
+        if(room.mode==="searchdestroy"&&room.searchDestroyState){
+          const departing=room.players.get(socket.id);
+          releaseSearchDestroyPlayer(room.searchDestroyState,socket.id,[...(departing?.pos??[0,0,0])] as Vec3);
+        }
         room.players.delete(socket.id); removeMinesOwnedBy(room, socket.id);
         room.survivalOffers.delete(socket.id);
         if(room.survivalOffers.size===0)room.survivalUpgradeDeadline=null;
