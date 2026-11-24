@@ -442,6 +442,11 @@ export interface MatchEndResult {
   perWeaponActions?: Record<string, Partial<Record<WeaponConditionMetric, number>>>;
   mapId?: string;
   perAttachmentKills?: Record<string, number>;
+  modeStats?: {
+    searchDestroy?: { redRounds: number; blueRounds: number; roundsPlayed: number };
+    hardpoint?: { redObjectiveSeconds: number; blueObjectiveSeconds: number; contestedSeconds: number; redScore: number; blueScore: number };
+    frontier?: { ammoRemaining: number };
+  };
   confirmations?: number;
   denials?: number;
 }
@@ -5901,6 +5906,11 @@ export class FPSEngine {
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
       perWeaponActions: Object.fromEntries(this.perWeaponActions),
       perAttachmentKills: Object.fromEntries(this.perAttachmentKills),
+      modeStats:{
+        ...(this.searchDestroyState?{searchDestroy:{redRounds:this.searchDestroyState.roundWins.red,blueRounds:this.searchDestroyState.roundWins.blue,roundsPlayed:this.searchDestroyState.round}}:{}),
+        ...(this.hardpointState?{hardpoint:{redObjectiveSeconds:Math.floor(this.hardpointState.objectiveMs.red/1000),blueObjectiveSeconds:Math.floor(this.hardpointState.objectiveMs.blue/1000),contestedSeconds:Math.floor(this.hardpointState.contestedMs/1000),redScore:Math.floor(this.hardpointState.scores.red),blueScore:Math.floor(this.hardpointState.scores.blue)}}:{}),
+        ...(this.opts.mode==="frontier"?{frontier:{ammoRemaining:this.frontierAmmoRemaining??0}}:{}),
+      },
       confirmations: this.confirmations, denials: this.denials,
       ...(this.operation ? {operation:{...this.operation}} : {}),
       ...(isSurvival ? { survivalWaves: this.getSurvivalClearedWaves(), survivalTier: this.survivalTier } as any : {}),
@@ -10381,7 +10391,7 @@ export class FPSEngine {
     const isFfaStyle = this.opts.mode === "ffa" || this.opts.mode === "gungame";
     if(this.operation)this.operation={...this.operation,status:winnerTeam==="blue" ? "won" : "failed"};
     const won = this.operation ? winnerTeam==="blue" : isSurvival ? (this.survivalTier==="default" && winnerTeam === "blue")
-      : (this.opts.mode === "tdm" || this.opts.mode === "killconfirmed" || this.opts.mode === "ctf") ? winnerTeam === this.opts.team
+      : (this.opts.mode === "tdm" || this.opts.mode === "killconfirmed" || this.opts.mode === "ctf" || this.opts.mode === "searchdestroy" || this.opts.mode === "hardpoint" || this.opts.mode === "frontier") ? winnerTeam === this.opts.team
       : isFfaStyle ? (winnerTeam === "ffa" ? (standings[0]?.id === this.selfId) : (standings[0]?.id === this.selfId))
       : true;
     // End-of-match SFX: victory fanfare or defeat tone.
