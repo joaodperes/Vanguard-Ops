@@ -4722,6 +4722,18 @@ export class FPSEngine {
     const boost=MOVEMENT.walk*1.85;this.vel.x+=Math.sin(this.yaw)*boost;this.vel.z+=Math.cos(this.yaw)*boost;
     this.frontierDodgeUntil=now+220;this.frontierDodgeReadyAt=now+3000;
   }
+  private frontierVaultAhead(){
+    if(this.opts.mode!=="frontier"||this.pos.y>0.25)return false;
+    const fx=Math.sin(this.yaw),fz=Math.cos(this.yaw);
+    return this.map.cover.some(box=>{
+      if(box.kind==="accent"||box.kind==="platform"||box.kind==="stair")return false;
+      const dx=box.pos[0]-this.pos.x,dz=box.pos[2]-this.pos.z;
+      const forward=dx*fx+dz*fz,lateral=Math.abs(dx*fz-dz*fx);
+      const top=box.pos[1]+box.size[1],bottom=box.pos[1]-box.size[1];
+      return forward>0.15&&forward<1.65&&lateral<Math.max(box.size[0],box.size[2])+0.55&&
+        top>this.pos.y+0.15&&top<=this.pos.y+1.45&&bottom<=this.pos.y+0.35;
+    });
+  }
 
   private updateModeInteraction(now:number){
     if(!this.modeInteractHeld||this.opts.mode!=="searchdestroy"||!this.opts.online||!this.socket?.connected||now-this.modeInteractSentAt<220)return;
@@ -12190,7 +12202,9 @@ export class FPSEngine {
     if (wantJump) {
       this.lastJumpPressedAt = -Infinity;
       this.lastGroundedAt = -Infinity;
-      this.vel.y = MOVEMENT.jumpVelocity * (this.activePerkId === "lightweight" ? 1.08 : 1) * (this.opts.mode==="frontier"?1.22:1);
+      const frontierVault=this.frontierVaultAhead();
+      this.vel.y = MOVEMENT.jumpVelocity * (this.activePerkId === "lightweight" ? 1.08 : 1) * (this.opts.mode==="frontier"?(frontierVault?1.48:1.22):1);
+      if(frontierVault){this.vel.x+=Math.sin(this.yaw)*3.4;this.vel.z+=Math.cos(this.yaw)*3.4;}
       this.onGround = false;
       // Running takeoffs carry additional horizontal momentum, whether the
       // player is sprinting or moving at ordinary running speed.
