@@ -676,7 +676,8 @@
         "d": 2.1,
         "h": 1.35,
         "kind": "cover",
-        "label": "Freight cargo crate"
+        "label": "Freight cargo crate",
+        "material": "thin_wood"
       },
       {
         "id": "depot-cargo-crate-b",
@@ -686,7 +687,8 @@
         "d": 2.2,
         "h": 1.55,
         "kind": "cover",
-        "label": "Freight cargo crate"
+        "label": "Freight cargo crate",
+        "material": "thin_wood"
       },
       {
         "id": "depot-loading-counter",
