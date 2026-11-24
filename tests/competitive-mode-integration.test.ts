@@ -32,7 +32,7 @@ describe("new competitive mode integration",()=>{
     const platform=MAP_DOCUMENTS.dustwater.blueprint.features.find(feature=>feature.id==="water-tower-platform");
     const stair=MAP_DOCUMENTS.dustwater.blueprint.features.find(feature=>feature.id==="water-tower-staircase");
     expect(platform).toBeDefined();
-    expect(stair).toMatchObject({kind:"stairs",h:5.4,axis:"x",sign:1});
+    expect(stair).toMatchObject({kind:"stairs",h:5.1,axis:"x",sign:1});
     const steps=featureBoxes(stair!);
     expect(steps.length).toBeGreaterThan(10);
     const landing=steps[steps.length-1];
