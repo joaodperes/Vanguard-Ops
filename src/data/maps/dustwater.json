@@ -820,7 +820,8 @@
         "d": 14,
         "h": 7,
         "use": "diner",
-        "facade": "timber"
+        "facade": "timber",
+        "roofAccess": true
       },
       {
         "kind": "building",
@@ -830,7 +831,8 @@
         "d": 14,
         "h": 7,
         "use": "office",
-        "facade": "timber"
+        "facade": "timber",
+        "roofAccess": true
       },
       {
         "kind": "building",
@@ -840,7 +842,8 @@
         "d": 14,
         "h": 7,
         "use": "shop",
-        "facade": "brick"
+        "facade": "brick",
+        "roofAccess": true
       },
       {
         "kind": "building",
@@ -850,7 +853,8 @@
         "d": 14,
         "h": 7,
         "use": "workshop",
-        "facade": "industrial"
+        "facade": "industrial",
+        "roofAccess": true
       },
       {
         "kind": "lamp",
