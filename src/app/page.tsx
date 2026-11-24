@@ -130,6 +130,7 @@ export default function Page() {
           perWeaponKills: r.perWeaponKills,
           perWeaponActions: r.perWeaponActions,
           perAttachmentKills: r.perAttachmentKills,
+          modeStats: r.modeStats,
           mapId: r.mapId,
         }),
       });
