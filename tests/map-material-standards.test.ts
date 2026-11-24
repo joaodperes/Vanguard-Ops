@@ -46,7 +46,7 @@ describe("all-map material authoring contract",()=>{
   });
 
   test("every compiled static cover (including procedural props and legacy walls) is typed",()=>{
-    expect(names).toHaveLength(11);
+    expect(names).toHaveLength(12);
     for(const map of MAP_LIST){
       const covers=map.cover.filter(c=>(c.kind??"cover")==="cover"&&!c.environmentId);
       expect(covers.length).toBeGreaterThan(0);
