@@ -8,8 +8,15 @@ import { botPositionEmbedded } from "../src/lib/bot-physics";
 
 describe("authored map combat layouts", () => {
   test("all maps have dedicated tactical cover and playable spawns", () => {
-    expect(MAP_LIST).toHaveLength(11);
+    expect(MAP_LIST).toHaveLength(12);
     for (const map of MAP_LIST) {
+      if(map.id==="dustwater"){
+        expect(MAP_BLUEPRINTS.maps.dustwater.features.length).toBeGreaterThanOrEqual(40);
+        expect(map.spawns.ffa.length).toBeGreaterThanOrEqual(6);
+        expect(map.spawns.red.length).toBeGreaterThanOrEqual(5);
+        expect(map.spawns.blue.length).toBeGreaterThanOrEqual(5);
+        continue;
+      }
       if(map.id==="emberhold"){
         expect(map.editorLegacyCoverCount).toBe(0);
         expect(map.spawns.ffa.length).toBeGreaterThanOrEqual(32);
@@ -38,6 +45,17 @@ describe("authored map combat layouts", () => {
     for (const map of MAP_LIST) {
       const collision = makeEnvironmentMap(map).cover;
       for (const team of ["ffa", "red", "blue"] as const) {
+        if(map.id==="dustwater"){
+          expect(map.spawns[team]).toEqual(MAP_BLUEPRINTS.maps.dustwater.spawns[team]);
+          for(const point of map.spawns[team]){
+            expect(botPositionEmbedded(collision,point)).toBe(false);
+            for(const env of map.environment??[]){
+              if(env.type!=="fire"&&env.type!=="spikes")continue;
+              expect(Math.abs(point[0]-env.pos[0])<env.size[0]+1.1&&Math.abs(point[2]-env.pos[2])<env.size[2]+1.1&&Math.abs(point[1]-env.pos[1])<2).toBe(false);
+            }
+          }
+          continue;
+        }
         if(map.id==="forest_warfare") {
           for(const point of map.spawns[team]) expect(botPositionEmbedded(collision,point)).toBe(false);
           continue;
