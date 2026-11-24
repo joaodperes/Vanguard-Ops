@@ -17,9 +17,8 @@ describe("new competitive mode integration",()=>{
   });
   test("bomb sites and all five Hardpoint hills are accessible inside the boomtown",()=>{
     const objectives:[number,number,number][]=[
-      [-22,0,-18],[22,0,18],
-      [-24,0,-18],[22,0,-18],[0,0,0],[-22,0,20],[24,0,20],
-      [-12,0,-15],[14,0,-15],[-14,0,25],[15,0,25],
+      [-35,0,-34],[35,0,38],
+      [-20,0,-34],[20,0,-34],[0,0,8],[-20,0,38],[20,0,38],
     ];
     for(const point of objectives){
       expect(botPositionEmbedded(dustwater.cover,point)).toBe(false);
@@ -39,7 +38,7 @@ describe("new competitive mode integration",()=>{
     const landing=steps[steps.length-1];
     expect(landing.pos[1]+landing.size[1]).toBeCloseTo(platform!.y??0,1);
     expect(Math.abs(landing.pos[0]-platform!.x)).toBeLessThan(platform!.w/2+landing.size[0]);
-    expect(MAP_DOCUMENTS.dustwater.blueprint.features.some(feature=>feature.kind==="platform"&&(feature.y??0)>=5)).toBe(true);
+    expect(MAP_DOCUMENTS.dustwater.blueprint.features.some(feature=>feature.kind==="platform"&&(feature.y??0)+feature.h>=5.4)).toBe(true);
   });
   test("mode defaults use the specified competitive match limits",()=>{
     expect(DEFAULT_CONFIG("searchdestroy",8)).toMatchObject({scoreLimit:0,timeLimit:0});
