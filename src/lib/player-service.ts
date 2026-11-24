@@ -54,7 +54,7 @@ export interface MatchResultInput {
   headshots: number;
   assists?: number;
   won: boolean;
-  mode: "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed" | "ctf";
+  mode: "ffa" | "tdm" | "survival" | "gungame" | "killconfirmed" | "ctf" | "searchdestroy" | "hardpoint" | "frontier";
   score: number;
   // Personal Kill Confirmed objective stats (separate from kills).
   confirmations?: number;
@@ -93,6 +93,11 @@ export interface MatchResultInput {
   perWeaponActions?: Record<string, Partial<WeaponConditionStats>>;
   mapId?: string;
   perAttachmentKills?: Record<string, number>;
+  modeStats?: {
+    searchDestroy?: { redRounds:number; blueRounds:number; roundsPlayed:number; playerRoundsWon?:number };
+    hardpoint?: { redObjectiveSeconds:number; blueObjectiveSeconds:number; contestedSeconds:number; redScore:number; blueScore:number; playerObjectiveSeconds?:number };
+    frontier?: { ammoRemaining:number };
+  };
 }
 
 /** Older hosted SQLite files predate the dedicated Wonder slot.
@@ -101,6 +106,17 @@ export interface MatchResultInput {
  * No owned weapons, named presets or progression rows are dropped here.
  */
 let wonderSlotSchemaReady:Promise<void>|null=null;
+let matchModeStatsSchemaReady:Promise<void>|null=null;
+async function ensureMatchModeStatsColumn():Promise<void>{
+  if(!matchModeStatsSchemaReady){
+    matchModeStatsSchemaReady=(async()=>{
+      const columns=await db.$queryRawUnsafe<Array<{name:string}>>('PRAGMA table_info("MatchRecord")');
+      if(columns.length&&!columns.some(column=>column.name==="modeStats"))
+        await db.$executeRawUnsafe('ALTER TABLE "MatchRecord" ADD COLUMN "modeStats" TEXT NOT NULL DEFAULT \'{}\'');
+    })().catch(error=>{matchModeStatsSchemaReady=null;throw error});
+  }
+  return matchModeStatsSchemaReady;
+}
 export function ensureWonderSlotColumn():Promise<void>{
   if(!wonderSlotSchemaReady){
     wonderSlotSchemaReady=(async()=>{
@@ -755,6 +771,7 @@ export async function getSurvivalProgress(playerKey:string):Promise<SurvivalProg
 }
 
 export async function applyMatchResult(input: MatchResultInput): Promise<AwardResult> {
+  await ensureMatchModeStatsColumn();
   const survivalTier = normalizeSurvivalTier(input.survivalTier);
   const survivalProgressBefore = input.mode === "survival" ? await getSurvivalProgress(input.playerKey) : null;
   if (input.mode === "survival") input.won = survivalTier === "default" && !!input.won && (input.survivalWaves ?? 0) >= 30;
@@ -1173,6 +1190,7 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
         durationSec: input.durationSec ?? 0,
         weaponId: input.weaponId ?? "rifle_ar",
         waves: survivalWaves,
+        modeStats: JSON.stringify(input.modeStats ?? {}),
       },
     });
     // Active Career Contracts advance atomically with this completed match.
@@ -1190,6 +1208,7 @@ export async function applyMatchResult(input: MatchResultInput): Promise<AwardRe
 // --- Profile enrichment: recent matches, achievements, daily challenge progress ---
 export interface MatchRecordView {
   id: string;
+  modeStats?: MatchResultInput["modeStats"];
   mode: string;
   online: boolean;
   kills: number;
@@ -1237,6 +1256,7 @@ export interface AchievementView {
 }
 
 export async function getRecentMatches(playerKey: string, limit = 20): Promise<MatchRecordView[]> {
+  await ensureMatchModeStatsColumn();
   const player = await getOrCreatePlayer(playerKey);
   const records = await db.matchRecord.findMany({
     where: { playerId: player.id },
@@ -1244,7 +1264,7 @@ export async function getRecentMatches(playerKey: string, limit = 20): Promise<M
     take: limit,
   });
   return records.map((r) => ({
-    id: r.id, mode: r.mode, online: r.online, kills: r.kills, deaths: r.deaths,
+    id: r.id, mode: r.mode, modeStats: (()=>{try{return JSON.parse(r.modeStats||"{}")}catch{return {}}})(), online: r.online, kills: r.kills, deaths: r.deaths,
     headshots: r.headshots, score: r.score, placement: r.placement, won: r.won,
     durationSec: r.durationSec, weaponId: r.weaponId, waves: r.waves, playedAt: r.playedAt.toISOString(),
   }));
