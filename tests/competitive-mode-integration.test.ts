@@ -36,7 +36,7 @@ describe("new competitive mode integration",()=>{
     const steps=featureBoxes(stair!);
     expect(steps.length).toBeGreaterThan(10);
     const landing=steps[steps.length-1];
-    expect(landing.pos[1]+landing.size[1]).toBeCloseTo(platform!.y??0,1);
+    expect(landing.pos[1]+landing.size[1]).toBeCloseTo((platform!.y??0)+platform!.h,1);
     expect(Math.abs(landing.pos[0]-platform!.x)).toBeLessThan(platform!.w/2+landing.size[0]);
     expect(MAP_DOCUMENTS.dustwater.blueprint.features.some(feature=>feature.kind==="platform"&&(feature.y??0)+feature.h>=5.4)).toBe(true);
   });
