@@ -34,6 +34,17 @@ describe("Search & Destroy", () => {
     expect(dropSearchDestroyBomb(dropped,"attacker",[2,0,2])?.type).toBe("dropped");
     expect(applySearchDestroyAction(dropped,{kind:"pickup",playerId:"mate",team:"red",alive:true,pos:[2,0,2]},sites,100)?.type).toBe("picked_up");
   });
+  test("releasing interaction cancels plant and defuse progress",()=>{
+    const state=createSearchDestroyState(0,"attacker",[0,0,0]);state.phase="live";
+    applySearchDestroyAction(state,{kind:"plant",playerId:"attacker",team:"red",alive:true,pos:[0,0,0],siteId:"A"},sites,0);
+    expect(state.bomb.plantProgress?.playerId).toBe("attacker");
+    applySearchDestroyAction(state,{kind:"cancel",playerId:"attacker",team:"red",alive:true,pos:[0,0,0]},sites,1000);
+    expect(state.bomb.plantProgress).toBeNull();
+    const planted=createSearchDestroyState(0,"attacker",[0,0,0]);planted.phase="planted";planted.bomb.status="planted";planted.bomb.pos=[0,0,0];
+    applySearchDestroyAction(planted,{kind:"defuse",playerId:"defender",team:"blue",alive:true,pos:[0,0,0]},sites,0);
+    applySearchDestroyAction(planted,{kind:"cancel",playerId:"defender",team:"blue",alive:true,pos:[0,0,0]},sites,1000);
+    expect(planted.bomb.defuseProgress).toBeNull();
+  });
   test("plants at the selected site and resets an interrupted defuse",()=>{
     const state=createSearchDestroyState(0,"attacker",[0,0,0]);state.phase="live";
     applySearchDestroyAction(state,{kind:"plant",playerId:"attacker",team:"red",alive:true,pos:[30,0,0],siteId:"B"},sites,0);
