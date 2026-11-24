@@ -4,7 +4,7 @@ import {
   SEARCH_DESTROY_RULES, HARDPOINT_RULES, FRONTIER_RULES,
   createSearchDestroyState, beginNextSearchDestroyRound, finishSearchDestroyRound,
   applySearchDestroyAction, dropSearchDestroyBomb, tickSearchDestroy,
-  createHardpointState, tickHardpoint, frontierWeaponAllowed, frontierWeaponIdAllowed, frontierReserveAmmo, frontierMovementSpeed,
+  createHardpointState, tickHardpoint, frontierWeaponAllowed, frontierWeaponIdAllowed, frontierReserveAmmo, frontierMovementSpeed, distributedObjectivePosition,
 } from "../src/lib/game-mode-rules";
 
 describe("Search & Destroy", () => {
@@ -62,6 +62,15 @@ describe("Search & Destroy", () => {
     expect(tickSearchDestroy(state,alive,1000)[0]).toMatchObject({type:"round_won",winner:"blue",reason:"timeout"});
     const planted=createSearchDestroyState(0,"attacker",[0,0,0]); planted.phase="planted"; planted.bomb.status="planted"; planted.bomb.detonatesAt=40000;
     expect(tickSearchDestroy(planted,[{...alive[0],alive:false},{...alive[1],alive:false}],2000)[0]).toMatchObject({type:"round_won",winner:"red"});
+  });
+});
+describe("Objective bot positioning",()=>{
+  test("assigns stable but distinct positions around the same objective",()=>{
+    const anchor:[number,number,number]=[10,0,20];
+    const a=distributedObjectivePosition(anchor,"bot-alpha"),b=distributedObjectivePosition(anchor,"bot-bravo");
+    expect(a).not.toEqual(b);
+    expect(distributedObjectivePosition(anchor,"bot-alpha")).toEqual(a);
+    expect(Math.hypot(a[0]-anchor[0],a[2]-anchor[2])).toBeGreaterThanOrEqual(3.2);
   });
 });
 describe("Hardpoint", () => {
