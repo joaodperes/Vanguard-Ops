@@ -2742,10 +2742,17 @@ function updateRoomBots(room:Room,now:number):void{
     }
     if(room.mode==="searchdestroy"&&room.searchDestroyState){
       const state=room.searchDestroyState;
-      if(state.phase==="planted"&&bot.team!==state.attackerTeam)bot.ai.wanderTarget=[...state.bomb.pos];
+      if(state.phase==="planted")bot.ai.wanderTarget=[...state.bomb.pos];
       else if(state.phase==="live"&&bot.team===state.attackerTeam){
         if(state.bomb.status==="dropped")bot.ai.wanderTarget=[...state.bomb.pos];
         else if(state.bomb.carrierId===bot.id){const sites=[[-12,0,-15],[15,0,25]];bot.ai.wanderTarget=[...sites.sort((a,b)=>Math.hypot(a[0]-bot.pos[0],a[2]-bot.pos[2])-Math.hypot(b[0]-bot.pos[0],b[2]-bot.pos[2]))[0]] as Vec3;}
+        else {const carrier=allCombatants(room).find(c=>c.id===state.bomb.carrierId);if(carrier)bot.ai.wanderTarget=[...carrier.pos];}
+      }else if(state.phase==="live"&&bot.team!==state.attackerTeam){
+        const carrier=allCombatants(room).find(c=>c.id===state.bomb.carrierId);
+        const sites=[[-12,0,-15],[15,0,25]];
+        const goal=carrier?sites.sort((a,b)=>Math.hypot(a[0]-carrier.pos[0],a[2]-carrier.pos[2])-Math.hypot(b[0]-carrier.pos[0],b[2]-carrier.pos[2]))[0]:
+          sites.sort((a,b)=>Math.hypot(a[0]-bot.pos[0],a[2]-bot.pos[2])-Math.hypot(b[0]-bot.pos[0],b[2]-bot.pos[2]))[0];
+        bot.ai.wanderTarget=[...goal] as Vec3;
       }
     }
     updateBotAI(room,bot,now);
