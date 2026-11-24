@@ -932,7 +932,7 @@ function snapshot(room: Room): S2C {
       ctfBases: {red:ctfBase("red",room.map),blue:ctfBase("blue",room.map)}, ctfRulesVersion: 2 } : {}),
     ...(room.hardpointState ? { hardpoint: room.hardpointState } : {}),
     ...(room.searchDestroyState ? { searchDestroy: room.searchDestroyState } : {}),
-    ...(room.frontierAmmoRemaining ? { frontierAmmoRemaining: Object.fromEntries(room.frontierAmmoRemaining) } : {}),
+    ...(room.mode==="frontier" ? { frontierAmmoRemaining: Object.fromEntries([...room.players.values()].map(player=>{const mag=weaponById(player.weaponId).stats.magSize;return [player.id,room.frontierAmmoRemaining?.get(player.id)??(mag+frontierReserveAmmo(mag*3))];})) } : {}),
     ...(reactorObjective(room.map)?{
       orbitalCharge:room.orbitalCharge,
       orbitalHolders:[...room.orbitalHolders],orbitalRulesVersion:ORBITAL_RULES_VERSION,
