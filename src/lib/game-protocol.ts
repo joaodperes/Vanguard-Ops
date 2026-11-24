@@ -1465,7 +1465,7 @@ export type C2S =
   | { t: "quickMelee" }
   | { t: "collectScavenger"; id: string }
   | { t: "useEquipment" } // intent only; server validates the item, aim and stock
-  | { t: "modeInteract"; action: "plant" | "defuse" | "pickup"; siteId?: "A" | "B" }
+  | { t: "modeInteract"; action: "plant" | "defuse" | "pickup" | "cancel"; siteId?: "A" | "B" }
   | { t: "chooseSurvivalUpgrade"; upgradeId: SurvivalUpgradeId }
   | { t: "rerollSurvivalUpgrade" }
   | { t: "setSurvivalPause"; paused: boolean }
