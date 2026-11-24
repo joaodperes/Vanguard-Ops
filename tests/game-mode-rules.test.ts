@@ -34,6 +34,17 @@ describe("Search & Destroy", () => {
     expect(dropSearchDestroyBomb(dropped,"attacker",[2,0,2])?.type).toBe("dropped");
     expect(applySearchDestroyAction(dropped,{kind:"pickup",playerId:"mate",team:"red",alive:true,pos:[2,0,2]},sites,100)?.type).toBe("picked_up");
   });
+  test("plants at the selected site and resets an interrupted defuse",()=>{
+    const state=createSearchDestroyState(0,"attacker",[0,0,0]);state.phase="live";
+    applySearchDestroyAction(state,{kind:"plant",playerId:"attacker",team:"red",alive:true,pos:[30,0,0],siteId:"B"},sites,0);
+    expect(applySearchDestroyAction(state,{kind:"plant",playerId:"attacker",team:"red",alive:true,pos:[30,0,0],siteId:"B"},sites,5000)?.type).toBe("planted");
+    expect(state.bomb.pos).toEqual([30,0,0]);
+    expect(applySearchDestroyAction(state,{kind:"defuse",playerId:"defender",team:"blue",alive:true,pos:[30,0,0]},sites,6000)).toBeNull();
+    expect(applySearchDestroyAction(state,{kind:"defuse",playerId:"defender",team:"blue",alive:true,pos:[45,0,0]},sites,9000)).toBeNull();
+    expect(applySearchDestroyAction(state,{kind:"defuse",playerId:"defender",team:"blue",alive:true,pos:[30,0,0]},sites,10000)).toBeNull();
+    expect(applySearchDestroyAction(state,{kind:"defuse",playerId:"defender",team:"blue",alive:true,pos:[30,0,0]},sites,16999)).toBeNull();
+    expect(applySearchDestroyAction(state,{kind:"defuse",playerId:"defender",team:"blue",alive:true,pos:[30,0,0]},sites,17000)?.type).toBe("defused");
+  });
   test("defender wins on timeout before plant; planted attackers win after defenders are eliminated", () => {
     const state=createSearchDestroyState(0,"attacker",[0,0,0]); state.phase="live"; state.roundEndsAt=1000;
     const alive:ModeCombatant[]=[{id:"a",team:"red",alive:true,pos:[0,0,0]},{id:"d",team:"blue",alive:true,pos:[0,0,0]}];
