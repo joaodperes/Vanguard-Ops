@@ -511,7 +511,7 @@
         "h": 1.8,
         "kind": "cover",
         "label": "Creekside rock",
-        "material": "stone"
+        "material": "reinforced"
       },
       {
         "id": "south-rock-2",
@@ -522,7 +522,7 @@
         "h": 1.8,
         "kind": "cover",
         "label": "Creekside rock",
-        "material": "stone"
+        "material": "reinforced"
       },
       {
         "id": "north-crates",
