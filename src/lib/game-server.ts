@@ -25,7 +25,7 @@ import { roomMapCandidates, roomTeamSizeForMap, winningRoomMap } from "./room-fl
 import { recommendedTeamSize, type RoomStatus, isValidKillConfirmedTagLifetimeMs, killConfirmedTagExpiresAt } from "./game-protocol";
 import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,ORBITAL_RULES_VERSION,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,orbitalPulseTargets,orbitalReaperEquipped,ORBITAL_REAPER_SPEED_MULTIPLIER} from "./orbital-reactor";
 import { advanceMatchElapsed } from "./match-clock";
-import { createHardpointState, tickHardpoint, createSearchDestroyState, beginNextSearchDestroyRound, tickSearchDestroy, applySearchDestroyAction, dropSearchDestroyBomb, frontierWeaponAllowed, type HardpointState, type SearchDestroyState, type SearchDestroySite } from "./game-mode-rules";
+import { createHardpointState, tickHardpoint, createSearchDestroyState, beginNextSearchDestroyRound, tickSearchDestroy, applySearchDestroyAction, dropSearchDestroyBomb, frontierWeaponAllowed, frontierReserveAmmo, type HardpointState, type SearchDestroyState, type SearchDestroySite } from "./game-mode-rules";
 import { fullWonderCharges, drainedWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, refundWonderCharge, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
 import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
@@ -127,6 +127,7 @@ interface BotAI {
   nextShotAt: number;
   nextDecisionAt: number;
   ammoInMag: number;
+  frontierAmmoRemaining?: number;
   reloadingUntil: number;
   strafeDir: number;
   moveSpeed: number;
@@ -185,6 +186,7 @@ interface Room {
   roundNumber?: number;
   hardpointState?: HardpointState;
   searchDestroyState?: SearchDestroyState;
+  frontierAmmoRemaining?: Map<string,number>;
   cleanupTimer?: ReturnType<typeof setTimeout>;
   id: string;
   mode: GameMode;
@@ -470,6 +472,7 @@ function spawnBots(room: Room) {
     // weaponId is overridden to the first tier of the per-match weapon list.
     const gungameWeaponId = room.mode === "gungame" ? (room.gungameWeapons[0] ?? GUN_GAME_TYPE_PROGRESSION_FALLBACK[0]) : loadout.weaponId;
     ai.ammoInMag = botMagazineCapacity(gungameWeaponId,botActiveAttachments(loadout.weaponId,gungameWeaponId,loadout.attachments,loadout.secondaryWeaponId,loadout.secondaryAttachments));
+    if(room.mode==="frontier"){const mag=ai.ammoInMag;ai.frontierAmmoRemaining=mag+frontierReserveAmmo(mag*3);}
     const bot: PlayerNet & { ai: BotAI; loadout: LoadoutWire } = {
       id, name: "Bot-" + id.slice(4, 8).toUpperCase(), team: team as any, isBot: true,
       pos: sp, yaw: 0, pitch: 0, health: MAX_HEALTH, alive: true,
@@ -929,6 +932,7 @@ function snapshot(room: Room): S2C {
       ctfBases: {red:ctfBase("red",room.map),blue:ctfBase("blue",room.map)}, ctfRulesVersion: 2 } : {}),
     ...(room.hardpointState ? { hardpoint: room.hardpointState } : {}),
     ...(room.searchDestroyState ? { searchDestroy: room.searchDestroyState } : {}),
+    ...(room.frontierAmmoRemaining ? { frontierAmmoRemaining: Object.fromEntries(room.frontierAmmoRemaining) } : {}),
     ...(reactorObjective(room.map)?{
       orbitalCharge:room.orbitalCharge,
       orbitalHolders:[...room.orbitalHolders],orbitalRulesVersion:ORBITAL_RULES_VERSION,
@@ -3283,6 +3287,13 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         last[acceptedHand]=now;
         room.akimboLastHandShot.set(key,last);
       }
+      if(room.mode==="frontier"){
+        room.frontierAmmoRemaining??=new Map();
+        const mag=weapon.stats.magSize;
+        const remaining=room.frontierAmmoRemaining.get(p.id)??(mag+frontierReserveAmmo(mag*3));
+        if(remaining<=0)return;
+        room.frontierAmmoRemaining.set(p.id,remaining-1);
+      }
       p.lastShotAt = now;
       clearSpawnProtection(room, p); // accepted shot immediately removes visual shield + immunity
       const loadout = room.loadouts.get(p.id);
@@ -4167,7 +4178,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       }
     }
     // shooting
-    if (!ai.sprinting && clearShot && reacted && now > ai.nextShotAt && ai.ammoInMag > 0 && now > ai.reloadingUntil && !burstPaused && (weapon.id!==ORBITAL_REAPER_ID||dist<=ORBITAL_PULSE_RADIUS)) {
+    if (!ai.sprinting && clearShot && reacted && now > ai.nextShotAt && ai.ammoInMag > 0 && (room.mode!=="frontier"||(ai.frontierAmmoRemaining??0)>0) && now > ai.reloadingUntil && !burstPaused && (weapon.id!==ORBITAL_REAPER_ID||dist<=ORBITAL_PULSE_RADIUS)) {
       const aimYaw = bot.yaw + ai.sprayDriftYaw + (Math.random() - 0.5) * (baseAimJitter + distSpread + missSpread);
       const aimPitch = bot.pitch + ai.sprayDriftPitch + (Math.random() - 0.5) * (baseAimJitter + distSpread + missSpread);
       const dir = dirFromYawPitch(aimYaw, aimPitch);
@@ -4211,6 +4222,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
           suppressed:activeAttachments.barrel==="barrel_suppressor"});
       }
       if(weapon.category!=="melee")ai.ammoInMag--;
+      if(room.mode==="frontier")ai.frontierAmmoRemaining=Math.max(0,(ai.frontierAmmoRemaining??0)-1);
       clearSpawnProtection(room, bot); // bot firing also cancels its protective shield
       ai.lastFiredAt = now;
       // Accumulate spray drift from this shot.
