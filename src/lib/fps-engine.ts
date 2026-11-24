@@ -258,6 +258,7 @@ export interface HudState {
   ctfFlags?: CtfFlags;
   hardpoint?: import("./game-mode-rules").HardpointState;
   searchDestroy?: import("./game-mode-rules").SearchDestroyState;
+  frontierAmmoRemaining?: Record<string,number>;
   orbitalCharge?: number;
   orbitalKillsRequired?:number;
   orbitalReaper?: boolean;
@@ -1061,6 +1062,7 @@ export class FPSEngine {
   private ctfFlags: CtfFlags = createCtfFlags();
   private hardpointState?: import("./game-mode-rules").HardpointState;
   private searchDestroyState?: import("./game-mode-rules").SearchDestroyState;
+  private frontierAmmoRemaining?:number;
   private modeInteractHeld=false;
   private modeInteractSentAt=0;
   private frontierDodgeReadyAt=0;
@@ -7136,6 +7138,7 @@ export class FPSEngine {
         this.teamScores = msg.teamScores;
         this.hardpointState=msg.hardpoint;
         this.searchDestroyState=msg.searchDestroy;
+        if(msg.frontierAmmoRemaining)this.frontierAmmoRemaining=msg.frontierAmmoRemaining[this.selfId];
         this.trackScoreDeficit();
         if(this.opts.mode==="ctf")this.ctfCaptures=msg.scores[this.selfId]??this.ctfCaptures;
         if(reactorObjective(this.map)){
@@ -13651,6 +13654,7 @@ export class FPSEngine {
       ctfFlags: this.opts.mode === "ctf" ? this.ctfFlags : undefined,
       hardpoint: this.hardpointState,
       searchDestroy: this.searchDestroyState,
+      frontierAmmoRemaining: this.frontierAmmoRemaining,
       orbitalKillsRequired:reactorObjective(this.map)?.killsRequired,
       orbitalCharge:reactorObjective(this.map)?this.orbitalCharge:undefined,
       orbitalReaper:reactorObjective(this.map)?this.orbitalWeaponActive:undefined,
