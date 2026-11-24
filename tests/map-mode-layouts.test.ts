@@ -11,7 +11,7 @@ import {useGame} from "../src/lib/game-store";
 
 describe("mode availability and spawn capacity",()=>{
  test("TDM and Kill Confirmed each have nine maps, with opposite Afterlight variants removed",()=>{
-  expect(MAP_LIST).toHaveLength(11);
+  expect(MAP_LIST).toHaveLength(12);
   expect(MAP_LIST.filter(m=>mapAllowedForMode("tdm",m.id))).toHaveLength(9);
   expect(MAP_LIST.filter(m=>mapAllowedForMode("killconfirmed",m.id))).toHaveLength(9);
   expect(mapAllowedForMode("tdm","arena_neon")).toBe(false); // Afterlight City (night)
