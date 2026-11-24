@@ -1621,7 +1621,7 @@ export type S2C =
   | { t: "knifeAmmo"; charges: number; rechargeMs: number }
   | { t: "burnFx"; victimId: string; durationMs: number } // Immediate Dragon's Breath visuals; snapshots remain authoritative
   | { t: "shotFx"; origin: Vec3; dir: Vec3; weaponId: string; attackerId: string; skinId: string; suppressed: boolean; coverPower?: number; traceStop?: number }
-  | { t: "matchEnd"; standings: { id: string; name: string; team: string; kills: number; deaths: number; score: number; assists?: number; isBot: boolean }[]; winnerTeam: string | null; teamScores?: { red: number; blue: number } }
+  | { t: "matchEnd"; standings: { id: string; name: string; team: string; kills: number; deaths: number; score: number; assists?: number; isBot: boolean }[]; winnerTeam: string | null; teamScores?: { red: number; blue: number }; modeStats?: { searchDestroy?: { redRounds:number; blueRounds:number; roundsPlayed:number }; hardpoint?: { redObjectiveSeconds:number; blueObjectiveSeconds:number; contestedSeconds:number; redScore:number; blueScore:number } } }
   | { t: "chat"; name: string; text: string; team: string }
   | { t: "error"; message: string }
   | { t: "reloadFx"; playerId: string }
