@@ -432,7 +432,7 @@
         "w": 12,
         "d": 10,
         "h": 0.6,
-        "y": 5.4,
+        "y": 4.8,
         "kind": "platform",
         "label": "Water tower lookout"
       },
@@ -805,7 +805,20 @@
           ]
         ]
       }
-    }
+    },
+    "hazards": [
+      {
+        "id": "dustwater_saloon_door",
+        "type": "destructible_wall",
+        "x": -12,
+        "z": -22,
+        "y": 2,
+        "w": 6,
+        "d": 0.8,
+        "h": 4,
+        "hp": 180
+      }
+    ]
   },
   "theme": {
     "biome": "western",
@@ -919,32 +932,32 @@
       },
       {
         "kind": "sign",
-        "x": -25,
-        "z": -18,
+        "x": -35,
+        "z": -34,
         "text": "BOMB SITE A · HILL 1"
       },
       {
         "kind": "sign",
-        "x": 25,
-        "z": -18,
+        "x": 20,
+        "z": -34,
         "text": "HILL 2"
       },
       {
         "kind": "sign",
-        "x": 1,
-        "z": 0,
+        "x": 0,
+        "z": 8,
         "text": "HILL 3"
       },
       {
         "kind": "sign",
-        "x": -23,
-        "z": 20,
+        "x": -20,
+        "z": 38,
         "text": "HILL 4"
       },
       {
         "kind": "sign",
-        "x": 25,
-        "z": 20,
+        "x": 35,
+        "z": 38,
         "text": "BOMB SITE B · HILL 5"
       }
     ],
