@@ -432,7 +432,7 @@
         "w": 12,
         "d": 10,
         "h": 0.6,
-        "y": 6,
+        "y": 5.4,
         "kind": "platform",
         "label": "Water tower lookout"
       },
@@ -457,19 +457,6 @@
         "kind": "cover",
         "label": "Water tower support",
         "material": "reinforced"
-      },
-      {
-        "id": "water-tower-stairs",
-        "x": 0,
-        "z": -31,
-        "w": 4,
-        "d": 12,
-        "h": 6,
-        "kind": "stairs",
-        "label": "Water tower stairs",
-        "axis": "z",
-        "sign": 1,
-        "autoStairs": true
       },
       {
         "id": "creek-bridge",
