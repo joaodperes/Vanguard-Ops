@@ -1,7 +1,7 @@
 import type { MapId } from "@/lib/game-protocol";
 import {
   Building2, Castle, Factory, Landmark, LockKeyhole, Map as MapIcon, MoonStar,
-  Orbit, Ship, Snowflake, Trees, Waves, type LucideIcon,
+  Orbit, Ship, Snowflake, Trees, Waves, Compass, type LucideIcon,
 } from "lucide-react";
 
 /**
@@ -23,6 +23,7 @@ export const MAP_ICONS: Record<MapId, LucideIcon> = {
   orbital_nexus: Orbit,       // orbital station
   floodgate: Waves,           // hydroelectric dam
   whiteout_depot: Snowflake,  // frozen rail depot
+  dustwater: Compass,          // frontier boomtown
 };
 
 export function getMapIcon(mapId: MapId | string): LucideIcon {
