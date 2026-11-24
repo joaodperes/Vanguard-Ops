@@ -259,7 +259,6 @@ export interface HudState {
   hardpoint?: import("./game-mode-rules").HardpointState;
   searchDestroy?: import("./game-mode-rules").SearchDestroyState;
   frontierAmmoRemaining?: number;
-  frontierAmmoRemaining?: Record<string,number>;
   orbitalCharge?: number;
   orbitalKillsRequired?:number;
   orbitalReaper?: boolean;
