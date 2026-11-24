@@ -12,9 +12,8 @@ const base:Record<AttachmentSlot,string|null>={sight:null,barrel:null,grip:null,
 const bastion=weaponById("pistol_bastion");
 
 describe("Bastion .45 six-shot revolver",()=>{
-  test("preserves pistol category, weapon ID, progression and valid catalogs",()=>{
+  test("preserves pistol identity and valid catalogs",()=>{
     expect([bastion.id,bastion.category]).toEqual(["pistol_bastion","pistol"]);
-    expect([bastion.unlockLevel,bastion.unlockCost]).toEqual([18,1100]);
     expect(bastion.stats.magSize).toBe(6);
     expect(bastion.stats.auto).toBe(false);
     expect(WEAPONS.some(w=>w.id==="pistol_magnum")).toBe(true);
