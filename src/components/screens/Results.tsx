@@ -80,7 +80,7 @@ export function Results() {
           <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tight">
             {mission ? `Operations · ${mission.title}` : isSurvival
               ? `${SURVIVAL_TIER_INFO[r.survivalTier ?? playConfig.survivalTier ?? "default"].label} Survival`
-              : `${playConfig.mode === "ctf" ? "Capture the Flag" : playConfig.mode === "gungame" ? "Gun Game" : playConfig.mode === "tdm" ? "Team Deathmatch" : playConfig.mode === "killconfirmed" ? "Kill Confirmed" : "Free-For-All"} · ${leftEarly ? "Match Left" : "Match Over"}`}
+              : `${playConfig.mode === "ctf" ? "Capture the Flag" : playConfig.mode === "searchdestroy" ? "Search & Destroy" : playConfig.mode === "hardpoint" ? "Hardpoint" : playConfig.mode === "frontier" ? "Frontier" : playConfig.mode === "gungame" ? "Gun Game" : playConfig.mode === "tdm" ? "Team Deathmatch" : playConfig.mode === "killconfirmed" ? "Kill Confirmed" : "Free-For-All"} · ${leftEarly ? "Match Left" : "Match Over"}`}
           </h1>
           {!isSurvival&&!mission && (
             <p className="text-white/50 mt-2">
