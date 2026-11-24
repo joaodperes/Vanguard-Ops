@@ -841,7 +841,7 @@
         "w": 18,
         "d": 14,
         "h": 7,
-        "use": "shop",
+        "use": "office",
         "facade": "brick",
         "roofAccess": true
       },
