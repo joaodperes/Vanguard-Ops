@@ -934,7 +934,7 @@
         "kind": "sign",
         "x": -35,
         "z": -34,
-        "text": "BOMB SITE A · HILL 1"
+        "text": "BOMB SITE A"
       },
       {
         "kind": "sign",
@@ -958,7 +958,19 @@
         "kind": "sign",
         "x": 35,
         "z": 38,
-        "text": "BOMB SITE B · HILL 5"
+        "text": "BOMB SITE B"
+      },
+      {
+        "kind": "sign",
+        "x": -20,
+        "z": -34,
+        "text": "HILL 1"
+      },
+      {
+        "kind": "sign",
+        "x": 20,
+        "z": 38,
+        "text": "HILL 5"
       }
     ],
     "surfaces": {
