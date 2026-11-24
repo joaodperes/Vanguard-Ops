@@ -281,6 +281,9 @@ export interface HudState {
   scoreboard: ScoreRow[];
   killFeed: KillFeedEntry[];
   lastDeath?: { killer:string; weaponId:string; attachments:string[] };
+  spectatorTargetName?: string;
+  spectatorTargetIndex?: number;
+  spectatorTargetCount?: number;
   lastElimination?: { at: number; victim: string; headshot: boolean };
   hitMarker: number;     // timestamp of last hit
   headshotMarker?: number;  // Round 20g: timestamp of last headshot hit (distinct visual)
@@ -1315,6 +1318,7 @@ export class FPSEngine {
   private survivalMaxReinforcements = 0;
   private survivalDowned = false;
   private lastDeath: HudState["lastDeath"];
+  private spectatorTargetId?: string;
   private survivalPrepLeft = 0;
   private survivalWaveActive = false;
   // Round 18-b: wave banner — set to performance.now() when a wave starts.
@@ -4648,6 +4652,10 @@ export class FPSEngine {
     on(document, "contextmenu", (e) => e.preventDefault());
     on(window, "keydown", (e) => {
       if (this.inputSuspended || (!this.pointerLocked&&!(this.touchMode||this.controllerActive)&&!this.controllerActive)) return;
+      if(this.opts.mode==="searchdestroy"&&!this.alive&&(this.pointerLocked||this.touchMode||this.controllerActive)&&
+        (e.code==="ArrowRight"||e.code==="ArrowLeft")){
+        e.preventDefault();if(!e.repeat)this.cycleSpectatorTarget(e.code==="ArrowRight"?1:-1);return;
+      }
       const code=canonicalKey(this.controls.keyBindings,e.code);if(!code)return;
       // Record the edge in the browser event itself. Even a fast tap that starts
       // and ends between render frames must be eligible for jump buffering.
@@ -4716,6 +4724,18 @@ export class FPSEngine {
     this.weaponAudio.setFeedbackVolume(levels.combatOutputPercent * this.flashAudioFactor);
   }
 
+  /** Cycle through living teammates while eliminated in Search & Destroy. */
+  cycleSpectatorTarget(direction:number){
+    if(this.opts.mode!=="searchdestroy"||this.alive||!direction)return;
+    const targets=[...this.combatants.values()]
+      .filter(c=>c.id!==this.selfId&&c.alive&&c.team===this.opts.team)
+      .sort((a,b)=>a.name.localeCompare(b.name)||a.id.localeCompare(b.id));
+    if(!targets.length){this.spectatorTargetId=undefined;return;}
+    const current=targets.findIndex(c=>c.id===this.spectatorTargetId);
+    const next=current<0?(direction>0?0:targets.length-1):(current+Math.sign(direction)+targets.length)%targets.length;
+    this.spectatorTargetId=targets[next].id;
+    this.emitHud(performance.now());
+  }
   setModeInteractHeld(held:boolean){
     if(this.modeInteractHeld&&!held&&this.opts.mode==="searchdestroy"&&this.opts.online&&this.socket?.connected)
       this.socket.emit("message",{t:"modeInteract",action:"cancel"} as C2S);
@@ -11685,13 +11705,17 @@ export class FPSEngine {
     // Physics remains exact; ease only the first-person camera across stair risers.
     if(this.cameraFeetY===null||Math.abs(this.cameraFeetY-this.pos.y)>3)this.cameraFeetY=this.pos.y;
     else this.cameraFeetY+=(this.pos.y-this.cameraFeetY)*Math.min(1,dt*11);
-    const spectatorTarget=this.opts.mode==="searchdestroy"&&!this.alive
+    const spectatorTargets=this.opts.mode==="searchdestroy"&&!this.alive
       ?[...this.combatants.values()].filter(c=>c.id!==this.selfId&&c.alive&&c.team===this.opts.team)
-        .sort((a,b)=>Math.hypot(a.pos[0]-this.pos.x,a.pos[2]-this.pos.z)-Math.hypot(b.pos[0]-this.pos.x,b.pos[2]-this.pos.z))[0]
-      :undefined;
+      :[];
+    let spectatorTarget=spectatorTargets.find(c=>c.id===this.spectatorTargetId);
+    if(spectatorTargets.length&&!spectatorTarget){
+      spectatorTarget=[...spectatorTargets].sort((a,b)=>
+        Math.hypot(a.pos[0]-this.pos.x,a.pos[2]-this.pos.z)-Math.hypot(b.pos[0]-this.pos.x,b.pos[2]-this.pos.z))[0];
+      this.spectatorTargetId=spectatorTarget.id;
+    }else if(!spectatorTargets.length)this.spectatorTargetId=undefined;
     if(spectatorTarget){
-      // S&D deaths are permanent for the round: follow the nearest living
-      // teammate instead of leaving the spectator camera at the death location.
+      // S&D deaths are permanent for the round: follow the selected living teammate.
       this.camera.position.set(spectatorTarget.pos[0],spectatorTarget.pos[1]+EYE_HEIGHT,spectatorTarget.pos[2]);
       this.camera.rotation.set(spectatorTarget.pitch??0,(spectatorTarget.yaw??0)+Math.PI,0,"YXZ");
     }else{
@@ -13638,6 +13662,17 @@ export class FPSEngine {
       :undefined;
     const radarNow = Date.now();
     for (const [id, ping] of this.radarPings) if (ping.expiresAt <= radarNow) this.radarPings.delete(id);
+    const spectatorTargets=this.opts.mode==="searchdestroy"&&!this.alive
+      ?[...this.combatants.values()].filter(c=>c.id!==this.selfId&&c.alive&&c.team===this.opts.team)
+        .sort((a,b)=>a.name.localeCompare(b.name)||a.id.localeCompare(b.id))
+      :[];
+    let spectatorIndex=spectatorTargets.findIndex(c=>c.id===this.spectatorTargetId);
+    if(spectatorTargets.length&&spectatorIndex<0){
+      const nearest=[...spectatorTargets].sort((a,b)=>
+        Math.hypot(a.pos[0]-this.pos.x,a.pos[2]-this.pos.z)-Math.hypot(b.pos[0]-this.pos.x,b.pos[2]-this.pos.z))[0];
+      this.spectatorTargetId=nearest.id;
+      spectatorIndex=spectatorTargets.findIndex(c=>c.id===nearest.id);
+    }
     const scoreboard: ScoreRow[] = [];
     if (this.opts.online) {
       for (const c of this.combatants.values()) {
@@ -13738,6 +13773,9 @@ export class FPSEngine {
       scoreboard,
       killFeed: this.killFeed,
       lastDeath: this.lastDeath,
+      spectatorTargetName:spectatorIndex>=0?spectatorTargets[spectatorIndex].name:undefined,
+      spectatorTargetIndex:spectatorIndex>=0?spectatorIndex+1:undefined,
+      spectatorTargetCount:spectatorTargets.length,
       lastElimination: this.lastElimination,
       hitMarker: this.hitMarkerAt,
       headshotMarker: this.headshotMarkerAt,  // Round 20g: headshot marker
