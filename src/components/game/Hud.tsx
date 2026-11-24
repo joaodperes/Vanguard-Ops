@@ -422,7 +422,7 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
                     <span className={`text-amber-200 font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>#{ranking.rank}<span className="text-white/40 font-normal">/{ranking.players}</span></span>
                   </div>
                 </>
-              ) : mode === "tdm" ? (
+              ) : mode === "tdm" || mode === "hardpoint" || mode === "frontier" ? (
                 <>
                   <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1.5 px-2 py-1" : "gap-2 px-3 py-1.5"}`}>
                     <span className="text-red-300 font-bold text-[10px]">R</span>
@@ -436,7 +436,7 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
                     <span className={`text-white font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{hud.kills}<span className="text-white/30">/</span>{hud.deaths}</span>
                   </div>
                 </>
-              ) : mode === "killconfirmed" || mode === "ctf" ? (
+              ) : mode === "killconfirmed" || mode === "ctf" || mode === "searchdestroy" ? (
                 <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1.5 px-2 py-1" : "gap-2 px-3 py-1.5"}`}>
                   <span className={`text-emerald-300 font-bold uppercase ${isTouch ? "text-[9px]" : "text-[10px]"}`}>Team</span>
                   <span className={`text-emerald-200 font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{teamScores.own}</span>
@@ -893,13 +893,13 @@ export function Hud({ hud, onExit, onExitMech, mode, crosshairColor = "#22c55e",
           (Red / Blue) so friendlies and enemies are visually grouped. In all
           other modes (ffa / gungame / survival) it remains a single flat table. */}
       {(showScoreboard||hud.controllerScoreboard) && hud.alive !== undefined && (hud.pointerLocked || !!hud.matchEnding) && (
-        (mode === "tdm" || mode === "killconfirmed" || mode === "ctf") ? (
+        (mode === "tdm" || mode === "killconfirmed" || mode === "ctf" || mode === "searchdestroy" || mode === "hardpoint" || mode === "frontier") ? (
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[640px] max-w-[94vw]">
             <div className="bg-black/80 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden">
               {/* header bar */}
               <div className="px-4 py-2.5 bg-white/5 border-b border-white/10 flex items-center gap-2">
                 <Users className="w-4 h-4 text-white/70" />
-                <span className="text-white font-bold tracking-wider uppercase text-sm">{mode === "ctf" ? "Capture the Flag · Captures" : mode === "killconfirmed" ? "Kill Confirmed · Points" : "Team Deathmatch · Kills"}</span>
+                <span className="text-white font-bold tracking-wider uppercase text-sm">{mode === "ctf" ? "Capture the Flag · Captures" : mode === "killconfirmed" ? "Kill Confirmed · Points" : mode === "searchdestroy" ? "Search & Destroy · Eliminations" : mode === "hardpoint" ? "Hardpoint · Objective Time" : mode === "frontier" ? "Frontier · Eliminations" : "Team Deathmatch · Kills"}</span>
                 <span className="ml-auto text-white/40 text-xs">Hold TAB</span>
               </div>
               <div className="px-4 py-2 border-b border-white/10 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-white/65">
