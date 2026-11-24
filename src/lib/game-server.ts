@@ -2251,14 +2251,14 @@ function refillPlayerWonderAmmo(room: Room, p: PlayerNet) {
 }
 
 function scheduleRespawn(room: Room, p: PlayerNet) {
-  // Search & Destroy is elimination-only: players return when the next round starts.
-  if(room.mode==="searchdestroy")return;
   room.burstState.delete(p.id);
   room.poison.delete(p.id);
   room.burning.delete(p.id);
   room.specialHeat.delete(p.id);
   room.boltReadyAt.delete(p.id);
   room.boltCharges.delete(p.id);
+  // Search & Destroy is elimination-only: players return when the next round starts.
+  if(room.mode==="searchdestroy")return;
   if (room.respawnTimers.has(p.id)) return;
   const delay = room.mode === "survival" ? SURVIVAL_RESPAWN_MS : RESPAWN_DELAY_MS;
   const timer = setTimeout(() => {
