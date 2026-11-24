@@ -203,7 +203,9 @@ export function TouchControls({ engine, akimbo = false }: Props) {
       <div className="absolute bottom-8 right-6 flex items-end gap-3" style={{ touchAction: "none", transform:`translateX(${24-inset}px) scale(${scale})`,transformOrigin:"bottom right" }}>
         {/* Tactical, quick melee and reload share a thumb column. */}
         <div className="flex flex-col gap-2 items-center mb-1">
-          <ActionBtn label="Interact" icon={<ArrowUp className="w-5 h-5"/>} onDown={()=>engine?.touchInteract()} color="border-white/30 text-white"/>
+          <HoldBtn label="Interact" icon={<ArrowUp className="w-5 h-5"/>}
+            onDown={()=>engine?.setTouchInteract(true)} onUp={()=>engine?.setTouchInteract(false)}
+            color="border-white/30 text-white"/>
           <ActionBtn label="Tactical" icon={<Bomb className="w-5 h-5" />}
             onDown={() => engine?.touchUseEquipment()}
             color="border-cyan-500/50 bg-cyan-600/20 text-cyan-200" />
