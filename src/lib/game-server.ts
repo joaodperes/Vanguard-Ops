@@ -25,7 +25,7 @@ import { roomMapCandidates, roomTeamSizeForMap, winningRoomMap } from "./room-fl
 import { recommendedTeamSize, type RoomStatus, isValidKillConfirmedTagLifetimeMs, killConfirmedTagExpiresAt } from "./game-protocol";
 import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,ORBITAL_RULES_VERSION,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,orbitalPulseTargets,orbitalReaperEquipped,ORBITAL_REAPER_SPEED_MULTIPLIER} from "./orbital-reactor";
 import { advanceMatchElapsed } from "./match-clock";
-import { createHardpointState, tickHardpoint, createSearchDestroyState, beginNextSearchDestroyRound, tickSearchDestroy, applySearchDestroyAction, dropSearchDestroyBomb, frontierWeaponAllowed, frontierReserveAmmo, type HardpointState, type SearchDestroyState, type SearchDestroySite } from "./game-mode-rules";
+import { createHardpointState, tickHardpoint, createSearchDestroyState, beginNextSearchDestroyRound, tickSearchDestroy, applySearchDestroyAction, dropSearchDestroyBomb, frontierWeaponIdAllowed, frontierReserveAmmo, distributedObjectivePosition, type HardpointState, type SearchDestroyState, type SearchDestroySite } from "./game-mode-rules";
 import { fullWonderCharges, drainedWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, refundWonderCharge, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
 import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
@@ -588,9 +588,9 @@ function replaceBotOnTeam(room: Room, team: string): boolean {
 // bot-filled and at capacity. Returns the assigned team. `requested` lets the
 // joining player pick red/blue/auto for TDM.
 function frontierSafeLoadout(loadout:LoadoutWire):LoadoutWire {
-  const allowed=(id:string|undefined)=>!!id&&frontierWeaponAllowed(weaponById(id).category)&&!weaponById(id).disabled&&!weaponById(id).wonder;
-  const fallback=WEAPONS.find(w=>frontierWeaponAllowed(w.category)&&!w.disabled&&!w.wonder)?.id??"pistol_side";
-  const pistol=WEAPONS.find(w=>w.category==="pistol"&&!w.disabled&&!w.wonder)?.id??"pistol_side";
+  const allowed=(id:string|undefined)=>!!id&&frontierWeaponIdAllowed(id)&&!weaponById(id).disabled&&!weaponById(id).wonder;
+  const fallback=WEAPONS.find(w=>frontierWeaponIdAllowed(w.id)&&!w.disabled&&!w.wonder)?.id??"sniper_scout";
+  const pistol=WEAPONS.find(w=>w.id==="pistol_magnum"&&!w.disabled&&!w.wonder)?.id??"pistol_magnum";
   return {...loadout,weaponId:allowed(loadout.weaponId)?loadout.weaponId:fallback,
     secondaryWeaponId:allowed(loadout.secondaryWeaponId)?loadout.secondaryWeaponId:pistol,
     perkId:loadout.perkId==="wonder_weapon"||loadout.perkId==="explonando"?undefined:loadout.perkId,wonderWeaponId:undefined,wonderModuleId:undefined};
@@ -2745,24 +2745,33 @@ function updateRoomBots(room:Room,now:number):void{
   // Preserve the solver's bots-first ordering.
   room.actorIndex.rebuild([...room.bots.values(),...room.players.values()]);
   for(const bot of room.bots.values())if(bot.alive){
+    const botHash=[...bot.id].reduce((value,char)=>Math.imul(value^char.charCodeAt(0),16777619),2166136261)>>>0;
     if(room.mode==="hardpoint"&&room.hardpointState){
-      const points=[[-20,0,-34],[20,0,-34],[0,0,8],[-42,0,40],[42,0,40]];
+      const points:[number,number,number][]=[[-20,0,-34],[20,0,-34],[0,0,8],[-42,0,40],[42,0,40]];
       const targetIndex=room.hardpointState.phase==="transition"?room.hardpointState.nextIndex:room.hardpointState.activeIndex;
-      bot.ai.wanderTarget=[...points[targetIndex]] as Vec3;
+      bot.ai.wanderTarget=distributedObjectivePosition(points[targetIndex],bot.id,3.4);
     }
     if(room.mode==="searchdestroy"&&room.searchDestroyState){
       const state=room.searchDestroyState;
-      if(state.phase==="planted")bot.ai.wanderTarget=[...state.bomb.pos];
-      else if(state.phase==="live"&&bot.team===state.attackerTeam){
-        if(state.bomb.status==="dropped")bot.ai.wanderTarget=[...state.bomb.pos];
-        else if(state.bomb.carrierId===bot.id){const sites=[[-42,0,-40],[42,0,-40]];bot.ai.wanderTarget=[...sites.sort((a,b)=>Math.hypot(a[0]-bot.pos[0],a[2]-bot.pos[2])-Math.hypot(b[0]-bot.pos[0],b[2]-bot.pos[2]))[0]] as Vec3;}
-        else {const carrier=allCombatants(room).find(c=>c.id===state.bomb.carrierId);if(carrier)bot.ai.wanderTarget=[...carrier.pos];}
+      const sites:[number,number,number][]=[[-42,0,-40],[42,0,-40]];
+      if(state.phase==="planted"){
+        bot.ai.wanderTarget=distributedObjectivePosition(state.bomb.pos,bot.id,2.5);
+      }else if(state.phase==="live"&&bot.team===state.attackerTeam){
+        if(state.bomb.status==="dropped")bot.ai.wanderTarget=distributedObjectivePosition(state.bomb.pos,bot.id,1.5);
+        else if(state.bomb.carrierId===bot.id){
+          const chosen=sites.sort((a,b)=>Math.hypot(a[0]-bot.pos[0],a[2]-bot.pos[2])-Math.hypot(b[0]-bot.pos[0],b[2]-bot.pos[2]))[0];
+          bot.ai.wanderTarget=[...chosen];
+        }else{
+          const carrier=allCombatants(room).find(c=>c.id===state.bomb.carrierId);
+          if(carrier)bot.ai.wanderTarget=distributedObjectivePosition(carrier.pos,bot.id,2.8);
+        }
       }else if(state.phase==="live"&&bot.team!==state.attackerTeam){
         const carrier=allCombatants(room).find(c=>c.id===state.bomb.carrierId);
-        const sites=[[-42,0,-40],[42,0,-40]];
-        const goal=carrier?sites.sort((a,b)=>Math.hypot(a[0]-carrier.pos[0],a[2]-carrier.pos[2])-Math.hypot(b[0]-carrier.pos[0],b[2]-carrier.pos[2]))[0]:
-          sites.sort((a,b)=>Math.hypot(a[0]-bot.pos[0],a[2]-bot.pos[2])-Math.hypot(b[0]-bot.pos[0],b[2]-bot.pos[2]))[0];
-        bot.ai.wanderTarget=[...goal] as Vec3;
+        const guardIndex=botHash%2;
+        const guardSite=sites[guardIndex];
+        const carrierSite=carrier?sites.slice().sort((a,b)=>Math.hypot(a[0]-carrier.pos[0],a[2]-carrier.pos[2])-Math.hypot(b[0]-carrier.pos[0],b[2]-carrier.pos[2]))[0]:guardSite;
+        const goal=carrier&&Math.hypot(carrier.pos[0]-carrierSite[0],carrier.pos[2]-carrierSite[2])<15?carrierSite:guardSite;
+        bot.ai.wanderTarget=distributedObjectivePosition(goal,bot.id,2.6);
       }
     }
     updateBotAI(room,bot,now);
