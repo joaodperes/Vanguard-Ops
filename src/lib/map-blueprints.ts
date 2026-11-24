@@ -336,7 +336,7 @@ export function validateBlueprint(b: MapBlueprint): string[] {
   const validModePools=b.modeSpawns===undefined||!!b.modeSpawns&&typeof b.modeSpawns==="object"&&!Array.isArray(b.modeSpawns);
   if(!validModePools)issues.push("Mode spawn sets must be an object");
   for(const [mode,pools] of Object.entries(validModePools?b.modeSpawns??{}:{})){
-    if(!["ffa","tdm","survival","gungame","killconfirmed","ctf"].includes(mode)||!pools||typeof pools!=="object") {issues.push("Invalid mode spawn set "+mode);continue;}
+    if(!["ffa","tdm","survival","gungame","killconfirmed","ctf","searchdestroy","hardpoint","frontier"].includes(mode)||!pools||typeof pools!=="object") {issues.push("Invalid mode spawn set "+mode);continue;}
     for(const team of ["red","blue"] as const){
       if(!Array.isArray(pools[team])||!pools[team].length){issues.push(`${mode}: missing ${team} spawns`);continue;}
       for(const point of pools[team]??[])if(!Array.isArray(point)||point.length!==3||!point.every(Number.isFinite)||!insideRegions(point[0],point[2],b.regions??[],1.1))issues.push(`${mode}: invalid ${team} spawn`);
