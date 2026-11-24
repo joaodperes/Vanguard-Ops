@@ -4842,6 +4842,7 @@ export class FPSEngine {
   }
   /** In-game menu: suppress controls, even on touch devices, without resetting a match. */
   private clearInput(){
+    this.modeInteractHeld=false;
     this.keys={};this.mouseDown=false;this.manualAiming=false;this.touchFiring=false;this.touchAkimboRight=false;this.touchAiming=false;this.touchMoveX=0;this.touchMoveY=0;this.touchSprint=false;this.touchJumpQueued=false;this.mousePressedThisFrame=false;this.touchPressedThisFrame=false;this.mechRightDown=false;this.akimboRightDown=false;this.burstShotsLeft=0;this.lastJumpPressedAt=-Infinity;this.controllerNeutral=true;
   }
 
