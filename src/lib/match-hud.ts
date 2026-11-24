@@ -10,6 +10,9 @@ const MODE_HUD = {
   ctf: { title: "Capture the Flag", short: "CTF", teamBased: true, teamObjective: "CAPTURES", personalPrimary: "CAP", personalSecondary: "K", personalGoal: false },
   gungame: { title: "Gun Game", short: "GG", teamBased: false, teamObjective: "", personalPrimary: "K", personalSecondary: "D", personalGoal: false },
   survival: { title: "Standard Survival · 30 Waves", short: "SURV", teamBased: false, teamObjective: "", personalPrimary: "K", personalSecondary: "D", personalGoal: false },
+  searchdestroy: { title: "Search & Destroy", short: "S&D", teamBased: true, teamObjective: "ROUNDS", personalPrimary: "K", personalSecondary: "D", personalGoal: false },
+  hardpoint: { title: "Hardpoint", short: "HP", teamBased: true, teamObjective: "HILL SCORE", personalPrimary: "K", personalSecondary: "D", personalGoal: false },
+  frontier: { title: "Frontier", short: "FRONTIER", teamBased: true, teamObjective: "ELIMINATIONS", personalPrimary: "K", personalSecondary: "D", personalGoal: false },
 } as const satisfies Record<GameMode, {
   title: string; short: string; teamBased: boolean; teamObjective: string;
   personalPrimary: string; personalSecondary: string; personalGoal: boolean;
