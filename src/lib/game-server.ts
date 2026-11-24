@@ -651,7 +651,7 @@ function createLobbyRoom(
   const id = genId("match");
   const mode = cfg.mode;
   if(mode==="frontier")loadout=frontierSafeLoadout(loadout);
-  const map = makeEnvironmentMap(getMap((operationConfigValid(cfg)||mapAllowedForMode(mode,cfg.mapId))?cfg.mapId:mode==="ctf"?"forest_warfare":"compound",mode));
+  const map = makeEnvironmentMap(getMap((operationConfigValid(cfg)||mapAllowedForMode(mode,cfg.mapId))?cfg.mapId:mode==="ctf"?"forest_warfare":mode==="searchdestroy"||mode==="hardpoint"||mode==="frontier"?"dustwater":"compound",mode));
   const teamSize = cfg.teamSize;
   const capacity = roomCapacity(mode, teamSize, cfg.survivalPlayers === 2 ? 2 : 1);
   const config = DEFAULT_CONFIG(mode, mode === "survival" ? 0 : Math.max(0, capacity - 1));
