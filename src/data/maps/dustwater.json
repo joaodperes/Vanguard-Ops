@@ -548,6 +548,17 @@
         "sign": 1
       },
       {
+        "id": "water-tower-stair-landing",
+        "x": 5,
+        "z": -37,
+        "w": 3.4,
+        "d": 4,
+        "h": 0.6,
+        "y": 4.81,
+        "kind": "platform",
+        "label": "Water tower stair landing"
+      },
+      {
         "id": "saloon-bar-counter",
         "x": -12,
         "z": -10.4,
