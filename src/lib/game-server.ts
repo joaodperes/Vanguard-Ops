@@ -5015,7 +5015,7 @@ async function handle(socket: any, msg: C2S) {
       const room=rooms.get(socketToRoom.get(socket.id)??"");
       const player=room?.players.get(socket.id);
       if(!room||!player)return;
-      if(room.mode==="frontier"&&!frontierWeaponAllowed(weaponById(msg.weaponId).category))return;
+      if(room.mode==="frontier"&&!frontierWeaponIdAllowed(msg.weaponId))return;
       fireServerShot(room,player,msg);
       break;
     }
