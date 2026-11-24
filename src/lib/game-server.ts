@@ -2740,7 +2740,7 @@ function updateRoomBots(room:Room,now:number):void{
   room.actorIndex.rebuild([...room.bots.values(),...room.players.values()]);
   for(const bot of room.bots.values())if(bot.alive){
     if(room.mode==="hardpoint"&&room.hardpointState){
-      const points=[[-12,0,-15],[14,0,-15],[0,0,0],[-14,0,25],[15,0,25]];
+      const points=[[-24,0,-18],[22,0,-18],[0,0,0],[-22,0,20],[24,0,20]];
       bot.ai.wanderTarget=[...points[room.hardpointState.activeIndex]] as Vec3;
     }
     if(room.mode==="searchdestroy"&&room.searchDestroyState){
@@ -2748,11 +2748,11 @@ function updateRoomBots(room:Room,now:number):void{
       if(state.phase==="planted")bot.ai.wanderTarget=[...state.bomb.pos];
       else if(state.phase==="live"&&bot.team===state.attackerTeam){
         if(state.bomb.status==="dropped")bot.ai.wanderTarget=[...state.bomb.pos];
-        else if(state.bomb.carrierId===bot.id){const sites=[[-12,0,-15],[15,0,25]];bot.ai.wanderTarget=[...sites.sort((a,b)=>Math.hypot(a[0]-bot.pos[0],a[2]-bot.pos[2])-Math.hypot(b[0]-bot.pos[0],b[2]-bot.pos[2]))[0]] as Vec3;}
+        else if(state.bomb.carrierId===bot.id){const sites=[[-22,0,-18],[22,0,18]];bot.ai.wanderTarget=[...sites.sort((a,b)=>Math.hypot(a[0]-bot.pos[0],a[2]-bot.pos[2])-Math.hypot(b[0]-bot.pos[0],b[2]-bot.pos[2]))[0]] as Vec3;}
         else {const carrier=allCombatants(room).find(c=>c.id===state.bomb.carrierId);if(carrier)bot.ai.wanderTarget=[...carrier.pos];}
       }else if(state.phase==="live"&&bot.team!==state.attackerTeam){
         const carrier=allCombatants(room).find(c=>c.id===state.bomb.carrierId);
-        const sites=[[-12,0,-15],[15,0,25]];
+        const sites=[[-22,0,-18],[22,0,18]];
         const goal=carrier?sites.sort((a,b)=>Math.hypot(a[0]-carrier.pos[0],a[2]-carrier.pos[2])-Math.hypot(b[0]-carrier.pos[0],b[2]-carrier.pos[2]))[0]:
           sites.sort((a,b)=>Math.hypot(a[0]-bot.pos[0],a[2]-bot.pos[2])-Math.hypot(b[0]-bot.pos[0],b[2]-bot.pos[2]))[0];
         bot.ai.wanderTarget=[...goal] as Vec3;
@@ -2760,7 +2760,7 @@ function updateRoomBots(room:Room,now:number):void{
     }
     updateBotAI(room,bot,now);
     if(room.mode==="searchdestroy"&&room.searchDestroyState){
-      const state=room.searchDestroyState,sites:SearchDestroySite[]=[{id:"A",pos:[-12,0,-15],radius:5},{id:"B",pos:[15,0,25],radius:5}];
+      const state=room.searchDestroyState,sites:SearchDestroySite[]=[{id:"A",pos:[-22,0,-18],radius:5},{id:"B",pos:[22,0,18],radius:5}];
       if(state.phase==="live"&&bot.team===state.attackerTeam&&state.bomb.status==="dropped"&&Math.hypot(bot.pos[0]-state.bomb.pos[0],bot.pos[2]-state.bomb.pos[2])<2.6)
         applySearchDestroyAction(state,{kind:"pickup",playerId:bot.id,team:bot.team as "red"|"blue",pos:bot.pos,alive:true},sites,now);
       if(state.phase==="live"&&state.bomb.carrierId===bot.id){const site=sites.sort((a,b)=>Math.hypot(a.pos[0]-bot.pos[0],a.pos[2]-bot.pos[2])-Math.hypot(b.pos[0]-bot.pos[0],b.pos[2]-bot.pos[2]))[0];if(Math.hypot(bot.pos[0]-site.pos[0],bot.pos[2]-site.pos[2])<4)applySearchDestroyAction(state,{kind:"plant",playerId:bot.id,team:bot.team as "red"|"blue",pos:bot.pos,alive:true,siteId:site.id},sites,now);}
@@ -2960,7 +2960,7 @@ function tickRoomSimulation(room: Room) {
   }
   const now = Date.now();
   if(room.mode==="hardpoint"&&room.preMatchCountdown<=0&&room.hardpointState){
-    const zones=[[-12,0,-15],[14,0,-15],[0,0,0],[-14,0,25],[15,0,25]].map((p,i)=>({id:String(i),pos:p as Vec3,radius:6}));
+    const zones=[[-24,0,-18],[22,0,-18],[0,0,0],[-22,0,20],[24,0,20]].map((p,i)=>({id:String(i),pos:p as Vec3,radius:6}));
     const result=tickHardpoint(room.hardpointState,zones,allCombatants(room) as import("./game-mode-rules").ModeCombatant[],now,50);
     room.teamScores={...result.state.scores};
     room.config.hardpointZone=result.state.activeIndex;
@@ -4963,7 +4963,7 @@ async function handle(socket: any, msg: C2S) {
     case "modeInteract": {
       const room=rooms.get(socketToRoom.get(socket.id)??"");const player=room?.players.get(socket.id);const state=room?.searchDestroyState;
       if(!room||room.mode!=="searchdestroy"||!player?.alive||!state)return;
-      const sites:SearchDestroySite[]=[{id:"A",pos:[-12,0,-15],radius:5},{id:"B",pos:[15,0,25],radius:5}];
+      const sites:SearchDestroySite[]=[{id:"A",pos:[-22,0,-18],radius:5},{id:"B",pos:[22,0,18],radius:5}];
       const event=applySearchDestroyAction(state,{kind:msg.action,playerId:player.id,team:player.team as "red"|"blue",pos:player.pos,alive:player.alive,siteId:msg.siteId},sites,Date.now());
       if(event)io.to(room.id).emit("message",{t:"modeEvent",event} as S2C);
       break;
