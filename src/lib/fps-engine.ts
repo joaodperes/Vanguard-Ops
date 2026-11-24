@@ -5906,11 +5906,7 @@ export class FPSEngine {
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
       perWeaponActions: Object.fromEntries(this.perWeaponActions),
       perAttachmentKills: Object.fromEntries(this.perAttachmentKills),
-      modeStats:{
-        ...(this.searchDestroyState?{searchDestroy:{redRounds:this.searchDestroyState.roundWins.red,blueRounds:this.searchDestroyState.roundWins.blue,roundsPlayed:this.searchDestroyState.round}}:{}),
-        ...(this.hardpointState?{hardpoint:{redObjectiveSeconds:Math.floor(this.hardpointState.objectiveMs.red/1000),blueObjectiveSeconds:Math.floor(this.hardpointState.objectiveMs.blue/1000),contestedSeconds:Math.floor(this.hardpointState.contestedMs/1000),redScore:Math.floor(this.hardpointState.scores.red),blueScore:Math.floor(this.hardpointState.scores.blue)}}:{}),
-        ...(this.opts.mode==="frontier"?{frontier:{ammoRemaining:this.frontierAmmoRemaining??0}}:{}),
-      },
+      modeStats:{...modeStats,...(this.opts.mode==="frontier"?{frontier:{ammoRemaining:this.frontierAmmoRemaining??0}}:{})},
       confirmations: this.confirmations, denials: this.denials,
       ...(this.operation ? {operation:{...this.operation}} : {}),
       ...(isSurvival ? { survivalWaves: this.getSurvivalClearedWaves(), survivalTier: this.survivalTier } as any : {}),
@@ -7796,7 +7792,7 @@ export class FPSEngine {
         }
         break;
       case "matchEnd":
-        this.finalizeMatch(msg.standings, msg.winnerTeam, msg.teamScores);
+        this.finalizeMatch(msg.standings, msg.winnerTeam, msg.teamScores, msg.modeStats);
         break;
       case "squadCommand": this.squadOrder=msg.order; break;
       case "chat":
@@ -10350,7 +10346,7 @@ export class FPSEngine {
     });
   }
 
-  private finalizeMatch(standings: any, winnerTeam: string | null, teamScores?: { red: number; blue: number }) {
+  private finalizeMatch(standings: any, winnerTeam: string | null, teamScores?: { red: number; blue: number }, modeStats?: MatchEndResult["modeStats"]) {
     if (this.matchEnded) return;
     // A score-limit matchEnd may arrive without another periodic snapshot.
     // Apply the server's definitive scores and each player's final K/D first.
