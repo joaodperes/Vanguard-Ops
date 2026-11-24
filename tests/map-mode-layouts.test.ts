@@ -19,8 +19,8 @@ describe("mode availability and spawn capacity",()=>{
   expect(mapAllowedForMode("killconfirmed","terminal")).toBe(false);
   expect(mapAllowedForMode("killconfirmed","arena_neon")).toBe(true);
   for(const map of MAP_LIST){
-   expect(mapAllowedForMode("tdm",map.id)).toBe(map.id!=="arena_neon"&&map.id!=="emberhold");
-   expect(mapAllowedForMode("killconfirmed",map.id)).toBe(map.id!=="terminal"&&map.id!=="emberhold");
+   expect(mapAllowedForMode("tdm",map.id)).toBe(map.id!=="arena_neon"&&map.id!=="emberhold"&&map.id!=="dustwater");
+   expect(mapAllowedForMode("killconfirmed",map.id)).toBe(map.id!=="terminal"&&map.id!=="emberhold"&&map.id!=="dustwater");
   }
   for(const id of ["forest_warfare","orbital_nexus","floodgate","whiteout_depot"]){expect(mapAllowedForMode("ffa",id)).toBe(false);expect(mapAllowedForMode("survival",id)).toBe(false);}
   expect(MAP_LIST.filter(m=>mapAllowedForMode("ctf",m.id))).toHaveLength(6);
