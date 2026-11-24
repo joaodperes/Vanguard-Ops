@@ -312,6 +312,18 @@ export function Results() {
         </div>
         )}
 
+        {r.modeStats?.searchDestroy&&<div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 mb-5">
+          <div className="text-xs font-black tracking-widest text-amber-300 uppercase mb-2">Search & Destroy · Campaign Report</div>
+          <div className="flex flex-wrap gap-6 text-sm text-white/80"><span>Rounds won · RED <b>{r.modeStats.searchDestroy.redRounds}</b> / BLUE <b>{r.modeStats.searchDestroy.blueRounds}</b></span><span>Rounds played · <b>{r.modeStats.searchDestroy.roundsPlayed}</b></span></div>
+        </div>}
+        {r.modeStats?.hardpoint&&<div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 mb-5">
+          <div className="text-xs font-black tracking-widest text-emerald-300 uppercase mb-2">Hardpoint · Objective Report</div>
+          <div className="flex flex-wrap gap-6 text-sm text-white/80"><span>Objective time · RED <b>{r.modeStats.hardpoint.redObjectiveSeconds}s</b> / BLUE <b>{r.modeStats.hardpoint.blueObjectiveSeconds}s</b></span><span>Contested · <b>{r.modeStats.hardpoint.contestedSeconds}s</b></span><span>Final score · <b>{r.modeStats.hardpoint.redScore}–{r.modeStats.hardpoint.blueScore}</b></span></div>
+        </div>}
+        {r.modeStats?.frontier&&<div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 mb-5">
+          <div className="text-xs font-black tracking-widest text-amber-300 uppercase mb-2">Frontier · Ammunition Report</div>
+          <div className="text-sm text-white/80">Reserve remaining · <b>{r.modeStats.frontier.ammoRemaining} rounds</b></div>
+        </div>}
         {/* standings */}
         <div className="rounded-2xl border border-white/10 bg-zinc-900/60 overflow-hidden mb-6">
           <div className="px-5 py-3 border-b border-white/10 flex items-center gap-2">
