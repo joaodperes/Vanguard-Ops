@@ -67,6 +67,12 @@ export function calculateMatchRewards(input: MatchResultInput) {
     const denies = Math.max(0, Math.min(200, Math.floor(input.denials ?? 0)));
     breakdown.objectives.xp = confirms * REWARDS.confirmXp + denies * REWARDS.denyXp;
     breakdown.objectives.credits = confirms * REWARDS.confirmCredits + denies * REWARDS.denyCredits;
+  } else if(input.mode==="searchdestroy"){
+    const rounds=Math.max(0,Math.min(6,Math.floor(input.modeStats?.searchDestroy?.playerRoundsWon??0)));
+    breakdown.objectives.xp=rounds*25;breakdown.objectives.credits=rounds*15;
+  } else if(input.mode==="hardpoint"){
+    const seconds=Math.max(0,Math.min(600,Math.floor(input.modeStats?.hardpoint?.playerObjectiveSeconds??0)));
+    breakdown.objectives.xp=seconds*2;breakdown.objectives.credits=seconds;
   }
 
   if (input.mode !== "survival") {
