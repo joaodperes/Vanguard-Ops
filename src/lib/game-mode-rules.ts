@@ -116,6 +116,14 @@ export function dropSearchDestroyBomb(state: SearchDestroyState, playerId: strin
   state.bomb.plantProgress = null;
   return { type: "dropped", playerId, pos: [...pos] };
 }
+
+/** Release a departing player's S&D interactions and drop the bomb if they carried it. */
+export function releaseSearchDestroyPlayer(state: SearchDestroyState, playerId: string, pos: ModeVec3): SearchDestroyEvent | null {
+  const dropped = dropSearchDestroyBomb(state, playerId, pos);
+  if (state.bomb.plantProgress?.playerId === playerId) state.bomb.plantProgress = null;
+  if (state.bomb.defuseProgress?.playerId === playerId) state.bomb.defuseProgress = null;
+  return dropped;
+}
 export function applySearchDestroyAction(
   state: SearchDestroyState, action: SearchDestroyAction, sites: readonly SearchDestroySite[], now: number,
 ): SearchDestroyActionResult {
