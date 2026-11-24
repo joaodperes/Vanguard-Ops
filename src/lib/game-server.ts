@@ -2733,7 +2733,7 @@ function updateRoomBots(room:Room,now:number):void{
   room.actorIndex.rebuild([...room.bots.values(),...room.players.values()]);
   for(const bot of room.bots.values())if(bot.alive){
     if(room.mode==="hardpoint"&&room.hardpointState){
-      const points=[[-24,0,-18],[22,0,-18],[0,0,0],[-22,0,20],[24,0,20]];
+      const points=[[-12,0,-15],[14,0,-15],[0,0,0],[-14,0,25],[15,0,25]];
       bot.ai.wanderTarget=[...points[room.hardpointState.activeIndex]] as Vec3;
     }
     if(room.mode==="searchdestroy"&&room.searchDestroyState){
@@ -2741,12 +2741,12 @@ function updateRoomBots(room:Room,now:number):void{
       if(state.phase==="planted"&&bot.team!==state.attackerTeam)bot.ai.wanderTarget=[...state.bomb.pos];
       else if(state.phase==="live"&&bot.team===state.attackerTeam){
         if(state.bomb.status==="dropped")bot.ai.wanderTarget=[...state.bomb.pos];
-        else if(state.bomb.carrierId===bot.id){const sites=[[-22,0,-18],[22,0,18]];bot.ai.wanderTarget=[...sites.sort((a,b)=>Math.hypot(a[0]-bot.pos[0],a[2]-bot.pos[2])-Math.hypot(b[0]-bot.pos[0],b[2]-bot.pos[2]))[0]] as Vec3;}
+        else if(state.bomb.carrierId===bot.id){const sites=[[-12,0,-15],[15,0,25]];bot.ai.wanderTarget=[...sites.sort((a,b)=>Math.hypot(a[0]-bot.pos[0],a[2]-bot.pos[2])-Math.hypot(b[0]-bot.pos[0],b[2]-bot.pos[2]))[0]] as Vec3;}
       }
     }
     updateBotAI(room,bot,now);
     if(room.mode==="searchdestroy"&&room.searchDestroyState){
-      const state=room.searchDestroyState,sites:SearchDestroySite[]=[{id:"A",pos:[-22,0,-18],radius:5},{id:"B",pos:[22,0,18],radius:5}];
+      const state=room.searchDestroyState,sites:SearchDestroySite[]=[{id:"A",pos:[-12,0,-15],radius:5},{id:"B",pos:[15,0,25],radius:5}];
       if(state.phase==="live"&&bot.team===state.attackerTeam&&state.bomb.status==="dropped"&&Math.hypot(bot.pos[0]-state.bomb.pos[0],bot.pos[2]-state.bomb.pos[2])<2.6)
         applySearchDestroyAction(state,{kind:"pickup",playerId:bot.id,team:bot.team as "red"|"blue",pos:bot.pos,alive:true},sites,now);
       if(state.phase==="live"&&state.bomb.carrierId===bot.id){const site=sites.sort((a,b)=>Math.hypot(a.pos[0]-bot.pos[0],a.pos[2]-bot.pos[2])-Math.hypot(b.pos[0]-bot.pos[0],b.pos[2]-bot.pos[2]))[0];if(Math.hypot(bot.pos[0]-site.pos[0],bot.pos[2]-site.pos[2])<4)applySearchDestroyAction(state,{kind:"plant",playerId:bot.id,team:bot.team as "red"|"blue",pos:bot.pos,alive:true,siteId:site.id},sites,now);}
