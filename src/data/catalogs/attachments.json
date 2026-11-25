@@ -1363,7 +1363,7 @@
     "slot": "grip",
     "unlockLevel": 18,
     "unlockCost": 570,
-    "description": "Bastion .45 only: hold fire to fan the hammer at +85% rate without ADS. Hipfire spread +140%, recoil +30%. A six-shot cylinder empties fast.",
+    "description": "Left-click to fire precise single shots, and hold right-click to fan the hammer, rapidly firing with extreme spread.",
     "weaponCategories": [
       "pistol"
     ],
