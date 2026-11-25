@@ -7,9 +7,9 @@ Verdant Ruins uses [-30, 0, -5] and [30, 0, 5]; Ridgefall uses
 team spawn pools. S&D room sizes are capped at 3v3, 4v4 and 5v5 to match the
 five unique spawn points per side.
 
-Hardpoint is enabled on Dustwater, Blacksite (`bunker`) and Floodgate. It
-uses five hill positions; verify their clearance and bot routes on each arena
-before changing those coordinates or enabling another map.
+Hardpoint currently remains Dustwater-only and uses five authored hill
+positions. Before enabling it on another arena, add map-specific hill positions
+and validate their clearance and bot routes.
 
 Frontier has no fixed objective locations. It is limited to Dustwater,
 Whiteout Depot (`whiteout_depot`) and Emberhold Castle (`emberhold`), using
