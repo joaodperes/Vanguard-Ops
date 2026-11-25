@@ -32,6 +32,8 @@ describe("authored map combat layouts", () => {
     expect(features.some(feature=>feature.id==="bank-second-floor")).toBe(true);
     expect(features.some(feature=>feature.id==="church-tower-stairs")).toBe(true);
     expect(features.every(feature=>!feature.label)).toBe(true);
+    expect(dustwater.props.filter(prop=>prop.kind==="sign")).toHaveLength(0);
+    expect(dustwater.props.filter(prop=>prop.kind==="building").every(prop=>!prop.text)).toBe(true);
     const towerStairs=features.find(feature=>feature.id==="church-tower-stairs")!;
     const towerWall=features.find(feature=>feature.id==="church-tower-north-wall")!;
     const towerPerch=features.find(feature=>feature.id==="church-tower-platform")!;
