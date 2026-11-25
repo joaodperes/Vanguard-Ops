@@ -92,15 +92,7 @@ export function selectSearchDestroyCarrier<T extends ModeCombatant & { isBot?: b
   return attackers.find(player => !player.isBot) ?? attackers[0];
 }
 
-export function createSearchDestroyState(now: number, carrierId: string, carrierPos: ModeVec3): SearchDestroyState {
-  return { phase: "preparation", round: 1, attackerTeam: "red", roundWins: { red: 0, blue: 0 },
-    preparationEndsAt: now + SEARCH_DESTROY_RULES.preparationSeconds * 1000,
-    roundEndsAt: now + (SEARCH_DESTROY_RULES.preparationSeconds + SEARCH_DESTROY_RULES.roundSeconds) * 1000,
-    bomb: { status: "carried", carrierId, pos: [...carrierPos], siteId: null, plantedAt: null,
-      detonatesAt: null, plantProgress: null, defuseProgress: null },
-    lastRoundWinner: null, lastRoundReason: null };
-}
-export function beginNextSearchDestroyRound(
+export function createSearchDestroyState(now: number, carrierId: string, carrierPos: ModeVec3, roundSeconds = SEARCH_DESTROY_RULES.roundSeconds, roundsToWin = SEARCH_DESTROY_RULES.roundsToWin): SearchDestroyState {\n  const wins=Math.max(1,Math.min(9,Math.floor(roundsToWin)));\n  const seconds=Math.max(30,Math.min(600,Math.floor(roundSeconds)));\n  const maxRounds=wins*2-1;\n  return { phase: "preparation", round: 1, attackerTeam: "red", roundWins: { red: 0, blue: 0 }, roundSeconds:seconds, roundsToWin:wins, maxRounds, sideSwitchAfter:wins-1,\n    preparationEndsAt: now + SEARCH_DESTROY_RULES.preparationSeconds * 1000,\n    roundEndsAt: now + (SEARCH_DESTROY_RULES.preparationSeconds + seconds) * 1000,\n    bomb: { status: "carried", carrierId, pos: [...carrierPos], siteId: null, plantedAt: null,\n      detonatesAt: null, plantProgress: null, defuseProgress: null },\n    lastRoundWinner: null, lastRoundReason: null };\n}\nexport function beginNextSearchDestroyRound(
   state: SearchDestroyState, now: number, carrierId: string, carrierPos: ModeVec3,
 ): void {
   if (state.phase !== "round_end" || state.round >= SEARCH_DESTROY_RULES.maxRounds ||
