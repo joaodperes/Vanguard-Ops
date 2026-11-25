@@ -62,8 +62,18 @@ export function frontierLoadoutForPreset(base: LoadoutWire, presetId: FrontierLo
     wonderKillEffectId: undefined,
     weaponId: preset.primary,
     secondaryWeaponId: preset.secondary,
+    meleeWeaponId: "knife_tactical",
+    weaponSkinId: "default",
+    secondaryWeaponSkinId: "default",
+    meleeWeaponSkinId: "default",
+    primaryReticleId: undefined,
+    secondaryReticleId: undefined,
+    primaryCharmId: "none",
+    secondaryCharmId: "none",
+    meleeCharmId: "none",
     emptyPrimary: preset.emptyPrimary === true,
     attachments: { ...preset.primaryAttachments },
     secondaryAttachments: { ...preset.secondaryAttachments },
+    meleeAttachments: { sight: null, barrel: null, grip: null, magazine: null },
   };
 }
