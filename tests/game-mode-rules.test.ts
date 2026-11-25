@@ -4,7 +4,7 @@ import {
   SEARCH_DESTROY_RULES, HARDPOINT_RULES, FRONTIER_RULES,
   createSearchDestroyState, beginNextSearchDestroyRound, finishSearchDestroyRound,
   applySearchDestroyAction, dropSearchDestroyBomb, releaseSearchDestroyPlayer, tickSearchDestroy,
-  createHardpointState, tickHardpoint, frontierWeaponAllowed, frontierWeaponIdAllowed, frontierReserveAmmo, frontierMovementSpeed, distributedObjectivePosition,
+  createHardpointState, tickHardpoint, hardpointObjectiveContributors, frontierWeaponAllowed, frontierWeaponIdAllowed, frontierReserveAmmo, frontierMovementSpeed, distributedObjectivePosition,
 } from "../src/lib/game-mode-rules";
 
 describe("Search & Destroy", () => {
@@ -82,6 +82,21 @@ describe("Objective bot positioning",()=>{
     expect(Math.hypot(a[0]-anchor[0],a[2]-anchor[2])).toBeGreaterThanOrEqual(3.2);
   });
 });
+describe("Hardpoint personal objective credit",()=>{
+  test("credits only living players on the uncontested owning team",()=>{
+    const zone={id:"hill",pos:[0,0,0] as const,radius:6};
+    const players=[
+      {id:"red-on-point",team:"red" as const,alive:true,pos:[1,0,1] as const},
+      {id:"red-away",team:"red" as const,alive:true,pos:[10,0,0] as const},
+      {id:"red-dead",team:"red" as const,alive:false,pos:[0,0,0] as const},
+      {id:"blue-on-point",team:"blue" as const,alive:true,pos:[0,0,0] as const},
+    ];
+    expect(hardpointObjectiveContributors(zone,"red",players)).toEqual(["red-on-point"]);
+    expect(hardpointObjectiveContributors(zone,"contested",players)).toEqual([]);
+    expect(hardpointObjectiveContributors(zone,"neutral",players)).toEqual([]);
+  });
+});
+
 describe("Hardpoint", () => {
   test("scores one point per second for uncontested control and rotates across five zones", () => {
     expect(HARDPOINT_RULES.zoneCount).toBe(5);
