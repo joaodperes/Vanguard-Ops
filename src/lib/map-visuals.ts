@@ -17,7 +17,7 @@ export type MapSurfaceRecipes = Record<SurfaceSlot,SurfaceRecipe>;
 export const CITY_USE_FACADE_COLORS:Record<string,number>={
   house:0xac866c,cafe:0xb87d58,supermarket:0x548477,
   bakery:0xbf9569,apartments:0x8993a4,office:0x577b9c,
-  hotel:0x9e7396,library:0x8b7862,diner:0xa94d66,
+  hotel:0x9e7396,library:0x8b7862,diner:0xa94d66,church:0x9c8873,
   clinic:0x9abfc2,workshop:0x827d68,gallery:0xb0a3bb,
   florist:0x82a979,gym:0x648d96,
 };
@@ -261,11 +261,18 @@ export function mapProps(id:string,plan:MapBlueprint,theme:MapVisualTheme,extraS
 export type CityFixtureStyle = "partition"|"bed"|"sofa"|"table"|"counter"|
   "shelf"|"desk"|"cabinet"|"workbench"|"plant"|"bench"|"display"|
   "locker"|"reception"|"espresso"|"oven"|"checkout"|"treadmill"|
-  "exam_bed"|"sculpture"|"server_rack"|"television";
+  "exam_bed"|"sculpture"|"server_rack"|"television"|"pew"|"altar"|"lectern";
 export interface CityFixture { x:number;z:number;w:number;d:number;h:number;style:CityFixtureStyle }
 export function cityInteriorFixtures(p:MapProp):CityFixture[]{
   const w=p.w??20,d=p.d??20,access=p.roofAccess??true,round=p.shape==="round";
   const out:CityFixture[]=[];
+  if(p.text?.trim().toUpperCase()==="CHURCH"){
+    for(const z of [-d*.22,0,d*.22])for(const x of [-w*.18,w*.18])
+      out.push({x,z,w:2.7,d:.9,h:1.05,style:"pew"});
+    out.push({x:0,z:-d*.36,w:4.2,d:1.5,h:1.25,style:"altar"});
+    out.push({x:-2.7,z:-d*.27,w:.9,d:1,h:1.55,style:"lectern"});
+    return out;
+  }
   const wallZ=-d*.15,doorHalf=1.7,left=-w/2+.7,right=access&&!round?w/2-4.25:w/2-.7;
   if(-doorHalf-left>.35)out.push({x:(left-doorHalf)/2,z:wallZ,w:-doorHalf-left,d:.24,h:2.85,style:"partition"});
   if(right-doorHalf>.35)out.push({x:(doorHalf+right)/2,z:wallZ,w:right-doorHalf,d:.24,h:2.85,style:"partition"});
@@ -278,7 +285,7 @@ export function cityInteriorFixtures(p:MapProp):CityFixture[]{
     espresso:[1.65,.85,1.35],oven:[2.0,1.4,1.65],checkout:[1.6,1.0,1.15],
     treadmill:[1.2,2.5,1.25],exam_bed:[1.9,2.3,1.05],
     sculpture:[1.2,1.2,1.65],server_rack:[1.35,1.0,2.15],
-    television:[1.55,.45,1.45],
+    television:[1.55,.45,1.45],pew:[2.7,.9,1.05],altar:[4.2,1.5,1.25],lectern:[.9,1,1.55],
   };
   // Every function has its own fixtures and several different layouts.
   // Seed variations by the lot, not by map ID: day/night remain identical.
@@ -406,13 +413,12 @@ export function cityBuildingBoxes(p:MapProp):CoverBox[]{
     put((ax+bx)/2,h+.16,(bz+d/2)/2,(bx-ax)/2,.16,(d/2-bz)/2,"platform");
     // Interior flight occupies its own east-side aisle, climbs toward
     // the back and terminates INSIDE the roof aperture.
-    const count=Math.ceil(h/.39),tread=(d-5.2)/count;
+    const stairRise=h+.32,count=Math.ceil(stairRise/.39),tread=(d-5.2)/count;
     const crest=-d/2+3.2;
     for(let i=0;i<count;i++){
-      const height=h*(i+1)/count,z=crest+(count-1-i)*tread;
+      const height=stairRise*(i+1)/count,z=crest+(count-1-i)*tread;
       put(hatchX,height/2,z,1.15,height/2+.001,tread/2+.015,"stair");
     }
-    put(hatchX,h+.16,crest,1.45,.16,1.2,"platform");
     }else{
       // Sealed roof: no hatch, hidden stairs or fake fire-escape access.
       put(0,h+.16,0,w/2,.16,d/2,"platform");
