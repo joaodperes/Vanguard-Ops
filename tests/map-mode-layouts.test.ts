@@ -25,8 +25,8 @@ describe("mode availability and spawn capacity",()=>{
   for(const id of ["forest_warfare","orbital_nexus","floodgate","whiteout_depot"]){expect(mapAllowedForMode("ffa",id)).toBe(false);expect(mapAllowedForMode("survival",id)).toBe(false);}
   expect(MAP_LIST.filter(m=>mapAllowedForMode("ctf",m.id))).toHaveLength(6);
  });
- test("Search & Destroy, Hardpoint and Frontier expose only Dustwater's authored layouts",()=>{
-  for(const mode of ["searchdestroy","hardpoint","frontier"] as const){
+ test("Search & Destroy and Hardpoint expose only Dustwater's authored objective layouts",()=>{
+  for(const mode of ["searchdestroy","hardpoint"] as const){
    const maps=MAP_LIST.filter(map=>mapAllowedForMode(mode,map.id));
    expect(maps.map(map=>map.id)).toEqual(["dustwater"]);
    const pools=maps[0].modeSpawns?.[mode];
@@ -37,7 +37,17 @@ describe("mode availability and spawn capacity",()=>{
   }
   expect(mapAllowedForMode("hardpoint","compound")).toBe(false);
   expect(mapAllowedForMode("searchdestroy","skybridge")).toBe(false);
-  expect(mapAllowedForMode("frontier","bunker")).toBe(false);
+ });
+ test("Frontier reuses every validated TDM map and its room-size limits",()=>{
+  const tdmMaps=MAP_LIST.filter(map=>mapAllowedForMode("tdm",map.id)).map(map=>map.id).sort();
+  const frontierMaps=MAP_LIST.filter(map=>mapAllowedForMode("frontier",map.id)).map(map=>map.id).sort();
+  expect(frontierMaps).toEqual([...tdmMaps,"dustwater"].sort());
+  expect(mapAllowedForMode("frontier","arena_neon")).toBe(false);
+  for(const id of tdmMaps){
+   expect(teamSizesForMap(id,"frontier")).toEqual(teamSizesForMap(id,"tdm"));
+   expect(getMap(id,"frontier").spawns.red.length).toBeGreaterThanOrEqual(teamSizesForMap(id,"frontier").at(-1)!);
+   expect(getMap(id,"frontier").spawns.blue.length).toBeGreaterThanOrEqual(teamSizesForMap(id,"frontier").at(-1)!);
+  }
  });
  test("Emberhold takes Afterlight Day's slot in FFA, Survival and Gun Game",()=>{
   for(const mode of ["ffa","survival","gungame"] as const){
@@ -75,7 +85,7 @@ describe("mode availability and spawn capacity",()=>{
   }
  });
  test("every enabled PvP map/mode has enough unique collision-safe spawn points",()=>{
-  for(const base of MAP_LIST)for(const mode of ["tdm","killconfirmed","ctf","ffa","gungame"] as const){
+  for(const base of MAP_LIST)for(const mode of ["tdm","killconfirmed","ctf","ffa","gungame","frontier"] as const){
    if(!mapAllowedForMode(mode,base.id))continue;
    const map=makeEnvironmentMap(getMap(base.id,mode)),max=teamSizesForMap(map.id,mode).at(-1)!;
    for(const team of mode==="ffa"||mode==="gungame"?["ffa"] as const:["red","blue"] as const){
