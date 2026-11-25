@@ -493,8 +493,8 @@ export function buildFirstPersonWeapon(
       const tang = box(0,-.085,(start + end) / 2,.065,.095,end-start,darkMat);
       tang.name = "weapon_grip_tang";
     }
-    box(w/2+.009,.012,c,.018,h*.60,l*.55,darkMat); // left/right receiver plate
-    box(-w/2-.009,.012,c,.018,h*.60,l*.55,darkMat);
+    box(w/2+.009,.012,c,.018,h*.60,l*.55,woodenFurniture ? woodDarkMat : (bastion ? bastionDarkSteel : darkMat)); // left/right receiver plate
+    box(-w/2-.009,.012,c,.018,h*.60,l*.55,woodenFurniture ? woodDarkMat : (bastion ? bastionDarkSteel : darkMat));
     box(w/2+.020,.025,c-.025,.008,.025,l*.25,sig);
     // Trigger-guard silhouette under the grip/receiver.
     box(0,-.112,gripZ-.08,.013,.014,.16,edge);
@@ -505,7 +505,7 @@ export function buildFirstPersonWeapon(
     if(id==="pistol_bastion"){
       // The short round forcing cone meets the six-shot drum at the front;
       // rectangular pistol-style handguards would conceal the chamber rim.
-      tube(0,-.004,guardZ,.048,p.guardLength+.035,bodyMat,18);
+      tube(0,-.004,guardZ,.048,p.guardLength+.035,frameMat,18);
     }else{
       const handguard = box(0,-.006,guardZ,w*.88,h*.88,p.guardLength,woodenFurniture ? woodMat : bodyMat);
       handguard.name = "weapon_handguard";
@@ -547,7 +547,7 @@ export function buildFirstPersonWeapon(
   tube(0,.0,muzzle+.02,p.bore*1.22,.06,edge,14);
   if(id==="pistol_bastion"){
     // Thick, circular heavy-revolver barrel shroud (not a square slide).
-    const shroud=tube(0,-.003,barrelCenter,.052,barrelLength*.92,bodyMat,20);
+    const shroud=tube(0,-.003,barrelCenter,.052,barrelLength*.92,frameMat,20);
     shroud.name="bastion_round_barrel_shroud";
     const rim=new THREE.Mesh(new THREE.TorusGeometry(.052,.007,7,20),edge);
     rim.name="bastion_barrel_collar";
@@ -600,7 +600,7 @@ export function buildFirstPersonWeapon(
     for (const s of [-1,1]) box(s*.024,.061,c+.065,.045,.012,.06,green);
   } else if (id === "pistol_bastion") {
     // Offset exposed hammer and narrow ejector rod, clear of the rear notch.
-    const hammer=new THREE.Mesh(new THREE.CapsuleGeometry(.014,.015,4,8),darkMat);
+    const hammer=new THREE.Mesh(new THREE.CapsuleGeometry(.014,.015,4,8),bastion ? bastionDarkSteel : darkMat);
     hammer.rotation.x=-.38;
     add(hammer,.046,.067,c+l*.47);
     tube(0,-.057,muzzle+.08,.009,.22,edge,8);
