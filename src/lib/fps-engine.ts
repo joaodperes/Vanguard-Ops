@@ -144,7 +144,7 @@ import { hideFirstPersonRigOnDeath, syncFirstPersonSupportArmVisibility } from "
 import { BASTION_CARTRIDGE_SEATED_Z, BASTION_CARTRIDGE_TRAVEL_Z, BASTION_CYLINDER_OPEN_X, BASTION_REAR_SIGHT, BASTION_FRONT_SIGHT_Y, bastionReloadFrame } from "@/lib/bastion-revolver-rig";
 import { placeFirstPersonActionTarget } from "./first-person-action-target";
 import { createWeaponCharm, swingWeaponCharm, weaponCharmMountPoint } from "@/lib/weapon-charms";
-import { canStartWeaponReload, crossbowReloadCycleMs, crossbowReloadControlsCadence, isFanHammer, isAkimboWeapon, akimboHandCapacity, akimboPumpStroke, akimboHandReady, akimboReloadDip, akimboCrossDrawAmount, type AkimboHand } from "@/lib/weapon-mechanics";
+import { canStartWeaponReload, crossbowReloadCycleMs, crossbowReloadControlsCadence, isFanHammer, isAkimboWeapon, akimboHandCapacity, akimboPumpStroke, akimboHandReady, akimboReloadDip, akimboCrossDrawAmount, FAN_HAMMER_FIRE_RATE, FAN_HAMMER_SPREAD_MULTIPLIER, type AkimboHand } from "@/lib/weapon-mechanics";
 import { cosmeticById } from "@/lib/cosmetics";
 import { coatsAllWeaponParts } from "@/lib/weapon-finish";
 import {
@@ -1022,6 +1022,7 @@ export class FPSEngine {
   // input
   private keys: Record<string, boolean> = {};
   private mouseDown = false;
+  private fanHammerDown = false;
   private mechRightDown=false;
   private mechRightPressed=false;
   private lastMechPrimaryAt=0;
@@ -4359,9 +4360,12 @@ export class FPSEngine {
     // the handle (at z=+0.08, forward of the grip) pointing DOWN into the fist.
     const isMeleeWeapon = wDef.category === "melee";
     const meleeHoldPitch = isMeleeWeapon ? Math.PI / 2.9 : 0;  // positive X pitch lifts -Z-pointing blades into view
-    const totalRotX = reloadPitch + this.vmRecoilPitch + sprintPitch + meleeSwingPitch + swapPitch + meleeHoldPitch +
+    const fanHammerViewmodelActive=isFanHammer(this.weaponId,this.getCurrentAttachments().grip);
+    const fanAnim=fanHammerViewmodelActive && this.fanHammerDown && !this.controls.reducedMotion ? Math.sin(now*.036)*.12 : 0;
+    const fanRoll=fanHammerViewmodelActive && this.fanHammerDown && !this.controls.reducedMotion ? Math.sin(now*.036+Math.PI/2)*.07 : 0;
+    const totalRotX = reloadPitch + this.vmRecoilPitch + sprintPitch + meleeSwingPitch + swapPitch + meleeHoldPitch + fanAnim +
       (tasered?0.035*Math.sin(twitchTime*24.5):0);
-    const totalRotZ = reloadRoll + sprintRoll + meleeSwingRoll + swapRoll +
+    const totalRotZ = reloadRoll + sprintRoll + meleeSwingRoll + swapRoll + fanRoll +
       (tasered?0.045*Math.sin(twitchTime*18.2+0.7):0);
     // Compute ONE quaternion for the complete weapon. The same quaternion must
     // rotate both each part's centre (around the grip) AND its orientation.
@@ -4692,12 +4696,13 @@ export class FPSEngine {
       if(e.button===2){
         if(this.mechActive){this.mechRightDown=true;this.mechRightPressed=true;}
         else if(this.isAkimboActive()){this.akimboRightDown=true;this.akimboRightPressedThisFrame=true;this.manualAiming=false;}
+        else if(isFanHammer(this.weaponId,this.getCurrentAttachments().grip)){this.fanHammerDown=true;this.manualAiming=false;}
         else this.manualAiming=true;
       }
     });
     on(document, "mouseup", (e) => {
       if (e.button === 0) this.mouseDown = false;
-      if (e.button === 2) {this.manualAiming = false;this.mechRightDown=false;this.akimboRightDown=false;}
+      if (e.button === 2) {this.manualAiming = false;this.fanHammerDown=false;this.mechRightDown=false;this.akimboRightDown=false;}
     });
     on(document, "contextmenu", (e) => e.preventDefault());
     on(window, "keydown", (e) => {
@@ -4960,7 +4965,7 @@ export class FPSEngine {
   /** In-game menu: suppress controls, even on touch devices, without resetting a match. */
   private clearInput(){
     this.setModeInteractHeld(false);
-    this.keys={};this.mouseDown=false;this.manualAiming=false;this.touchFiring=false;this.touchAkimboRight=false;this.touchAiming=false;this.touchMoveX=0;this.touchMoveY=0;this.touchSprint=false;this.touchJumpQueued=false;this.mousePressedThisFrame=false;this.touchPressedThisFrame=false;this.mechRightDown=false;this.akimboRightDown=false;this.burstShotsLeft=0;this.lastJumpPressedAt=-Infinity;this.controllerNeutral=true;
+    this.keys={};this.mouseDown=false;this.fanHammerDown=false;this.manualAiming=false;this.touchFiring=false;this.touchAkimboRight=false;this.touchAiming=false;this.touchMoveX=0;this.touchMoveY=0;this.touchSprint=false;this.touchJumpQueued=false;this.mousePressedThisFrame=false;this.touchPressedThisFrame=false;this.mechRightDown=false;this.akimboRightDown=false;this.burstShotsLeft=0;this.lastJumpPressedAt=-Infinity;this.controllerNeutral=true;
   }
 
   setInputSuspended(suspended: boolean) {
@@ -4968,6 +4973,7 @@ export class FPSEngine {
     this.inputSuspended = suspended;
     this.keys = {};
     this.mouseDown = false;
+    this.fanHammerDown = false;
     this.mousePressedThisFrame = false;
     this.manualAiming = false;
     this.touchMoveX = 0;
@@ -9410,7 +9416,7 @@ export class FPSEngine {
   // BOTH gun-fire and melee attacks — melee weapons route through tryMeleeAttack
   // instead of the ray-based gun path so they feel like real melee (short-range
   // arc hit, swing animation, no ammo, no tracer).
-  private fireOneShot(w: WeaponDef, akimboHand?: AkimboHand) {
+  private fireOneShot(w: WeaponDef, akimboHand?: AkimboHand, fanHammerShot = false) {
     if (!this.alive || this.reloading || this.matchEnded || performance.now() < this.swapReadyAt) return;
     if (w.disabled || !!this.mechActive || shieldBlocksFire(w.id,this.shieldRaised(),this.riotShieldHp)) return;
     // Can't fire while sprinting — must release sprint or ADS first (arcade rule).
@@ -9594,7 +9600,7 @@ export class FPSEngine {
     // restores hipfire after 95ms rather than the ordinary 300ms.
     const sprintRecovery=this.aiming?1:sprintRecoverySpreadMultiplier(
       now,this.lastSprintAt,this.getCurrentAttachments().grip);
-    const spread = shotSpread(this.eff, w.category, this.aiming, this.currentSpread, this.shotBloom, steadyAds)*taserSpread*sprintRecovery;
+    const spread = shotSpread(this.eff, w.category, this.aiming, this.currentSpread, this.shotBloom, steadyAds)*taserSpread*sprintRecovery*(fanHammerShot?FAN_HAMMER_SPREAD_MULTIPLIER:1);
     // Buckshot pellets originate at the true crosshair ray. Their individual
     // deviations are resolved once by the shared shotgun pattern function.
     const multiPelletShotgun = w.category === "shotgun" && !w.wonder && (this.eff.pellets ?? 1) > 1;
@@ -9658,7 +9664,7 @@ export class FPSEngine {
       this.socket?.emit("message", {
         t:"shot", origin, dir, weaponId:this.weaponId,
         skinId:this.getCurrentSkinId(), aiming:akimboHand?false:this.aiming,
-        akimboHand,
+        akimboHand, fanHammerShot,
       } as C2S);
       // Multiplayer tracers use the server's accepted, spread-adjusted shotFx
       // direction, not a speculative local ray that might register elsewhere.
@@ -11451,12 +11457,14 @@ export class FPSEngine {
       if(isThrowingKnife(this.weaponId))this.ammoInMag=refreshedKnives.charges;
     }
     const akimbo=this.isAkimboActive();
-    const wantFire = !this.inputSuspended && ((this.mouseDown&&this.pointerLocked) ||
+    const fanHammerActive=isFanHammer(this.weaponId,this.getCurrentAttachments().grip);
+    const fanHammerTrigger=fanHammerActive && ((this.fanHammerDown&&this.pointerLocked) || ((this.touchMode||this.controllerActive)&&this.touchAiming));
+    const wantFire = !this.inputSuspended && ((this.mouseDown&&this.pointerLocked) || fanHammerTrigger ||
       (akimbo&&!this.mechActive&&this.akimboRightDown&&this.pointerLocked) ||
       ((this.touchMode||this.controllerActive)&&(this.touchFiring||(akimbo&&this.touchAkimboRight))));
     const inputActive = !this.inputSuspended && (this.pointerLocked || this.touchMode || this.controllerActive);
     // Effective aim: manually held ADS (RMB / ADS button) OR auto-ADS-while-firing.
-    const fanHammer=isFanHammer(this.weaponId,this.getCurrentAttachments().grip);
+    const fanHammer=fanHammerActive;
     const wantsAds = !this.mechActive && !fanHammer && !akimbo && (this.manualAiming || (this.weaponId!==RIOT_SHIELD_ID && this.autoAdsOnFire && wantFire && this.alive));
     // Shift / mobile auto-sprint takes priority: ADS cannot silently cancel sprint.
     this.aiming = !this.equipmentAction && !this.reloading && wantsAds &&
@@ -11512,9 +11520,15 @@ export class FPSEngine {
          this.akimboRightPressedThisFrame||this.touchAkimboRightPressedThisFrame))this.startReload();
       this.mousePressedThisFrame=false;this.touchPressedThisFrame=false;
       this.akimboRightPressedThisFrame=false;this.touchAkimboRightPressedThisFrame=false;
-    } else if (!this.equipmentAction && (wantFire || this.burstShotsLeft > 0)) {
+    } else if (!this.equipmentAction && (wantFire || this.burstShotsLeft > 0 || fanHammerActive && this.fanHammerDown)) {
       const w = weaponById(this.weaponId);
       const now = performance.now();
+      // Fan Hammer uses the right trigger for held rapid-fire; left remains semi-auto.
+      if(fanHammerActive && fanHammerTrigger){
+        const fanGap=1000/FAN_HAMMER_FIRE_RATE;
+        if(this.ammoInMag>0 && now-this.lastShotAt>=fanGap*.88 && !this.reloading && !this.sprinting && this.alive && !this.matchEnded)
+          this.fireOneShot(w,undefined,true);
+      }
       // Semi-auto and burst weapons used to skip fireOneShot at zero ammo.
       if(wantFire && (this.mousePressedThisFrame || this.touchPressedThisFrame) &&
          this.ammoInMag<=0 && !this.reloading && !usesWonderCharges(w) &&
@@ -11545,7 +11559,11 @@ export class FPSEngine {
         const isAuto = this.eff.auto;
         const isBurst = (w.stats.burst ?? 1) > 1;
         const isSemi = !isAuto && !isBurst;
-        if (isAuto) {
+        if(fanHammerActive){
+          // The left trigger stays semiautomatic while the right trigger fans.
+          if((this.mousePressedThisFrame||this.touchPressedThisFrame)&&this.ammoInMag>0&&now-this.lastShotAt>1000/Math.max(1,this.eff.fireRate)*.9)
+            this.fireOneShot(w);
+        } else if (isAuto) {
           // Full-auto: fire continuously while trigger is held, gated by fireRate.
           if (now - this.lastShotAt > 1000 / Math.max(1, this.eff.fireRate) * 0.9) {
             this.fireOneShot(w);
