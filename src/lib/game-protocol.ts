@@ -30,10 +30,10 @@ export function isAfterlightCityMap(mapId: MapId | string): boolean {
   return mapId === "terminal" || mapId === "arena_neon";
 }
 export function teamSizesForMap(mapId: MapId | string, mode: GameMode = "tdm"): readonly TeamSize[] {
-  if (mode === "searchdestroy" || mode === "hardpoint") return [3,4,5,7];
+  if (mode === "searchdestroy" || mode === "hardpoint") return [3,4,5];
   // Frontier has no fixed objective geometry, so reuse the validated TDM
-  // capacity for each map rather than imposing Dustwater's room-size limits.
-  if (mode === "frontier") return teamSizesForMap(mapId,"tdm");
+  // capacity for each map. Dustwater's dedicated Frontier pool has five points.
+  if (mode === "frontier") return mapId === "dustwater" ? [3,4,5] : teamSizesForMap(mapId,"tdm");
   if (mapId === "bunker") return mode === "ffa" || mode === "gungame" ? [3,4] : [3,5];
   if (isAfterlightCityMap(mapId)) return [5,7,9,16];
   // Castle is dense at 32 operatives: cap every supported mode at 12 per side / 24 total.
