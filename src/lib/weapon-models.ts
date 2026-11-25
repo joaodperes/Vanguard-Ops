@@ -59,7 +59,7 @@ export const WEAPON_VISUALS: Record<string, Profile> = {
   shotgun_combat:  { receiver: [.14,.16,.39],  guardLength:.32, barrelLength:.24, bore:.035, stock:"folding",   magazine:"box",      body:"ribbed",  features:["vent","rail"],signature:0x70a8ba },
   rifle_dm:        { receiver: [.123,.13,.57], guardLength:.42, barrelLength:.34, bore:.025, stock:"precision", magazine:"straight", body:"slim",   features:["scope","rail"],signature:0xb48a60 },
   dmr_scout:       { receiver: [.105,.115,.39],guardLength:.36, barrelLength:.36, bore:.021, stock:"wire",      magazine:"straight", body:"tapered",features:["rail"],signature:0x70a66c },
-  dmr_heavy:       { receiver: [.15,.155,.62],guardLength:.43, barrelLength:.43, bore:.030, stock:"fixed",     magazine:"box",      body:"tapered",features:["scope","bipod"],signature:0x657dd2 },
+  dmr_heavy:       { receiver: [.15,.155,.62],guardLength:.43, barrelLength:.43, bore:.030, stock:"fixed",     magazine:"none",     body:"tapered",features:[],signature:0x657dd2 },
   sniper_lr:       { receiver: [.115,.13,.60], guardLength:.46, barrelLength:.56, bore:.025, stock:"precision", magazine:"straight", body:"slim",features:["scope","bipod"],signature:0x678da1 },
   sniper_scout:    { receiver: [.105,.115,.47],guardLength:.34, barrelLength:.42, bore:.020, stock:"fixed",     magazine:"straight",body:"tapered",features:["scope"],signature:0x78ac9f },
   sniper_heavy:    { receiver: [.205,.21,.75], guardLength:.48, barrelLength:.66, bore:.048, stock:"heavy",     magazine:"box",      body:"block",features:["scope","bipod","brake","vent"],signature:0xc0704a },
