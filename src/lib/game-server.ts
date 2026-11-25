@@ -5204,7 +5204,7 @@ async function handle(socket: any, msg: C2S) {
     }
     case "queueLoadout": {
       const room = rooms.get(socketToRoom.get(socket.id) ?? "");
-      if (!room || room.state !== "playing" || room.ended || room.mode === "gungame") return;
+      if (!room || room.state !== "playing" || room.ended || room.mode === "gungame" || room.mode === "frontier") return;
       const playerKey = room.playerKeys.get(socket.id);
       if (!room.players.has(socket.id) || !playerKey) return;
       // The packet is untrusted: check ownership, perks, skins and attachments

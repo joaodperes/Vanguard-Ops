@@ -23,7 +23,7 @@ export function Minimap({ radar, compact, objective, intel, bomb }: { radar: Non
   return (
     <div className={`absolute top-14 right-4 overflow-hidden rounded-xl border border-white/25 bg-zinc-950/90 backdrop-blur-md shadow-xl ${compact ? "w-32 h-32" : "w-44 h-44"}`}
       aria-label="Minimap">
-      <svg viewBox="0 0 100 100" className="w-full h-full" role="img" aria-label="Minimap: green allies, red temporarily tracked enemies revealed by gunfire, yellow player">
+      <svg viewBox="0 0 100 100" className="w-full h-full" role="img" aria-label="Minimap: green allies, red temporarily tracked enemies, orange dropped bomb, yellow player">
         <rect x="1" y="1" width="98" height="98" rx="3" fill="#101923" stroke="#64748b" strokeWidth="1" />
         {[20, 40, 60, 80].map(v => <g key={v} stroke="#475569" strokeOpacity="0.35" strokeWidth="0.55"><path d={`M${v} 0 V100 M0 ${v} H100`} /></g>)}
         {/* Draw the playable area as a single translucent fill, without internal join lines. */}
