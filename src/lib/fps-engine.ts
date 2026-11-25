@@ -1095,6 +1095,7 @@ export class FPSEngine {
   private searchDestroyPlants=0;
   private searchDestroyDefuses=0;
   private searchDestroyRoundNotice?: {text:string;at:number};
+  private searchDestroyRoundFinaleStartedAt = 0;
   private frontierAmmoRemaining?:number;
   private modeInteractHeld=false;
   private modeInteractSentAt=0;
@@ -2378,12 +2379,12 @@ export class FPSEngine {
       const glow = new THREE.Mesh(new THREE.RingGeometry(5.35, 6.25, 64),
         new THREE.MeshBasicMaterial({color:0x38bdf8,transparent:true,opacity:0.48,side:THREE.DoubleSide,depthWrite:false}));
       glow.rotation.x = -Math.PI / 2; glow.position.set(pos[0],pos[1]+0.12,pos[2]); group.add(glow);
-      const boundary = new THREE.Mesh(new THREE.CylinderGeometry(6.15,6.15,2.8,64,1,true),
+      const boundary = new THREE.Mesh(new THREE.CylinderGeometry(6.15,6.15,1.0,64,1,true),
         new THREE.MeshBasicMaterial({color:0x38bdf8,transparent:true,opacity:0.10,side:THREE.DoubleSide,depthWrite:false}));
-      boundary.position.set(pos[0],pos[1]+1.4,pos[2]); group.add(boundary);
+      boundary.position.set(pos[0],pos[1]+.5,pos[2]); group.add(boundary);
       const top = new THREE.Mesh(new THREE.TorusGeometry(6.15,0.075,8,64),
         new THREE.MeshBasicMaterial({color:0x7dd3fc,transparent:true,opacity:0.85,depthWrite:false}));
-      top.rotation.x=Math.PI/2; top.position.set(pos[0],pos[1]+2.8,pos[2]); group.add(top);
+      top.rotation.x=Math.PI/2; top.position.set(pos[0],pos[1]+1.0,pos[2]); group.add(top);
       group.visible=false; this.scene.add(group); return group;
     });
   }
@@ -2632,7 +2633,7 @@ export class FPSEngine {
         // Add architectural identity and themed, collision-matched furniture
         // WITHOUT placing an unrelated solid box over an enterable doorway.
         const daylight=biome==="city_day";
-        const use=p.use??"house";
+        const use=p.text?.trim().toUpperCase()==="CHURCH"?"church":p.use??"house";
         const isRound=p.shape==="round";
         const facadeColor=new THREE.Color(CITY_USE_FACADE_COLORS[use]??0x9f8f87);
         facadeColor.lerp(new THREE.Color(CITY_FACADE_TINTS[p.facade??"brick"]),.39);
@@ -2655,7 +2656,8 @@ export class FPSEngine {
           ["house","apartments","hotel"].includes(use)?0x746655:
           ["clinic","gym"].includes(use)?0x91a1a2:
           ["florist","gallery"].includes(use)?0x777a66:
-          ["workshop","supermarket"].includes(use)?0x54585a:0x69727b,
+          ["workshop","supermarket"].includes(use)?0x54585a:
+          use==="church"?0x756047:0x69727b,
           roughness:["clinic","supermarket"].includes(use)?.52:.88});
         cube(group,interiorFloor,0,.035,0,w-.9,.07,d-.9);
         if(["house","apartments","hotel","library"].includes(use)){
@@ -2666,8 +2668,15 @@ export class FPSEngine {
           ["clinic","office"].includes(use)?0x76c6c9:
           ["bakery","cafe","diner"].includes(use)?0xdfac73:
           ["gym","workshop"].includes(use)?0xdbb24f:
-          ["gallery","florist"].includes(use)?0xb4b985:0xc6a48c,
+          ["gallery","florist"].includes(use)?0xb4b985:use==="church"?0xd2bd91:0xc6a48c,
           roughness:.72,emissive:daylight?0x070706:0x16100a,emissiveIntensity:.20});
+        if(use==="church"){
+          const cross=new THREE.MeshStandardMaterial({color:daylight?0x6c5135:0xb49a6b,roughness:.8});
+          cube(group,cross,0,3.05,-d/2+.56,.20,2.15,.16);
+          cube(group,cross,0,3.55,-d/2+.56,1.25,.20,.16);
+          const stainedGlass=new THREE.MeshStandardMaterial({color:0x718b9a,roughness:.32,metalness:.08,emissive:0x172a38,emissiveIntensity:.2});
+          for(const side of [-1,1])cube(group,stainedGlass,side*(w/2-.24),3.3,-d*.05,.10,1.35,1.0);
+        }
         for(const side of [-1,1]){
           cube(group,accentMat,side*w*.29,Math.min(3.3,h*.64),-d/2+.53,
             Math.min(2.9,w*.20),.85,.12);
@@ -2703,7 +2712,19 @@ export class FPSEngine {
               part(wood,side*(fw/2-.13),fh*.31,0,.25,fh*.5,fd*.9);
             if(style==="sofa")
               for(const side of [-1,1])part(fabric,side*fw*.21,.67,fd*.12,fw*.34,.13,fd*.40);
-          }else if(style==="table"||style==="desk"||style==="workbench"){
+          }else if(style==="pew"){
+            part(wood,0,.37,0,fw,.24,fd*.82);
+            part(wood,0,.77,-fd*.34,fw,.62,.14);
+            for(const side of [-1,1])part(wood,side*(fw*.40),.19,0,.16,.38,fd*.72);
+          }else if(style==="altar"){
+            part(wood,0,.46,0,fw*.86,.82,fd*.76);
+            part(fabric,0,.91,0,fw,.12,fd);
+            part(display,0,1.01,-fd*.28,fw*.68,.06,.12);
+          }else if(style==="lectern"){
+            part(wood,0,.20,0,fw*.65,.38,fd*.65);
+            part(wood,0,.79,0,.20,1.18,.20);
+            part(wood,0,1.39,-fd*.12,fw,.20,fd*.76);
+}else if(style==="table"||style==="desk"||style==="workbench"){
             part(style==="workbench"?metal:wood,0,fh*.83,0,fw,.17,fd);
             for(const side of [-1,1])
               part(wood,side*fw*.40,fh*.40,0,.18,fh*.76,fd*.67);
@@ -2861,23 +2882,7 @@ export class FPSEngine {
           for(const side of [-1,1])
             cube(group,display,side*(doorWidth/2+.72),2.86,d/2+1.37,.20,.48,.11);
         }
-                // Purpose-specific fascia: no misleading painted door on a solid wall.
-        if(p.text && p.text.trim().toUpperCase() !== "RESIDENCE"){
-          const canvas=document.createElement("canvas");
-          canvas.width=512;canvas.height=96;
-          const ctx=canvas.getContext("2d");
-          if(ctx){
-            ctx.fillStyle=daylight?"#f6ecdf":"#252638";
-            ctx.fillRect(0,0,512,96);
-            ctx.fillStyle=daylight?"#283845":"#fff0c1";
-            ctx.font="bold 42px sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";
-            ctx.fillText(p.text.slice(0,18),256,48,488);
-            const tex=new THREE.CanvasTexture(canvas);tex.colorSpace=THREE.SRGBColorSpace;
-            const sign=new THREE.Mesh(new THREE.PlaneGeometry(Math.min(w*.72,15),1.25),
-              new THREE.MeshBasicMaterial({map:tex,transparent:true,side:THREE.DoubleSide}));
-            sign.position.set(0,Math.min(h-.7,3.65),d/2+.64);group.add(sign);
-          }
-        }
+                // Building-name signs are intentionally omitted; p.text is semantic metadata only.
         if(p.text?.trim().toUpperCase()==="CHURCH"){
           const tx=w*.22,tz=0;
           const towerStone=new THREE.MeshStandardMaterial({color:0x9c8873,roughness:.88});
@@ -7981,6 +7986,7 @@ export class FPSEngine {
               text:msg.event.winner===this.opts.team?"ROUND WON":"ROUND LOST",
               at:Date.now(),
             };
+            this.searchDestroyRoundFinaleStartedAt=performance.now();
           }
         }
         break;
@@ -11292,6 +11298,16 @@ export class FPSEngine {
       }
       return;
     }
+    if(this.opts.mode==="searchdestroy"&&this.searchDestroyState?.phase==="round_end"){
+      const now=performance.now(),started=this.searchDestroyRoundFinaleStartedAt||now;
+      this.updateCombatantMeshes(dt*MATCH_FINALE_PLAYBACK_RATE,now);
+      this.explosionEffects?.update(started+(now-started)*MATCH_FINALE_PLAYBACK_RATE,this.camera.position);
+      this.camera.position.set(this.pos.x,this.pos.y+EYE_HEIGHT,this.pos.z);
+      this.camera.rotation.set(this.pitch,this.yaw+Math.PI,0,"YXZ");
+      if(now-this.lastHudAt>80){this.lastHudAt=now;this.emitHud(now);}
+      return;
+    }
+    this.searchDestroyRoundFinaleStartedAt=0;
     this.tickDeathBombs();
     this.tickBulletSpitters();
     if (this.opts.mode === "killconfirmed") this.animateKillConfirmedTags(performance.now());
@@ -13939,7 +13955,7 @@ export class FPSEngine {
       hardpoint: this.hardpointState,
       searchDestroy: this.searchDestroyState,
        searchDestroyRoundNotice:this.searchDestroyRoundNotice,
-       searchDestroyInteraction:(()=>{const s=this.searchDestroyState;if(!s||!this.alive||s.phase==="preparation"||s.phase==="round_end"||s.phase==="match_end")return undefined;const sites=searchDestroySitesForMap(this.map.id,this.map.size);let kind:"plant"|"defuse"|"pickup"|undefined,label="",progress=0;if(s.bomb.status==="dropped"&&this.opts.team===s.attackerTeam&&Math.hypot(this.pos.x-s.bomb.pos[0],this.pos.z-s.bomb.pos[2])<=SEARCH_DESTROY_RULES.interactionRadius){kind="pickup";label="HOLD E TO PICK UP BOMB";}else if(s.phase==="planted"&&this.opts.team!==s.attackerTeam&&Math.hypot(this.pos.x-s.bomb.pos[0],this.pos.z-s.bomb.pos[2])<=SEARCH_DESTROY_RULES.interactionRadius){kind="defuse";label="HOLD E TO DEFUSE";const p=s.bomb.defuseProgress;progress=p?.playerId===this.selfId?Math.min(100,Math.max(0,(Date.now()-p.startedAt)/(SEARCH_DESTROY_RULES.defuseSeconds*1000)*100)):0;}else if(s.phase==="live"&&s.bomb.carrierId===this.selfId){const site=sites.reduce((a,b)=>Math.hypot(this.pos.x-a.pos[0],this.pos.z-a.pos[2])<=Math.hypot(this.pos.x-b.pos[0],this.pos.z-b.pos[2])?a:b);const inRange=Math.hypot(this.pos.x-site.pos[0],this.pos.z-site.pos[2])<=site.radius;kind="plant";label=inRange?`HOLD E TO PLANT AT SITE ${site.id}`:`CARRY BOMB TO SITE ${site.id}`;const p=s.bomb.plantProgress;progress=p?.playerId===this.selfId?Math.min(100,Math.max(0,(Date.now()-p.startedAt)/(SEARCH_DESTROY_RULES.plantSeconds*1000)*100)):0;}return kind?{kind,label,progress}:undefined;})(),
+       searchDestroyInteraction:(()=>{const s=this.searchDestroyState;if(!s||!this.alive||s.phase==="preparation"||s.phase==="round_end"||s.phase==="match_end")return undefined;const sites=searchDestroySitesForMap(this.map.id,this.map.size);let kind:"plant"|"defuse"|"pickup"|undefined,label="",progress=0;if(s.bomb.status==="dropped"&&this.opts.team===s.attackerTeam&&Math.hypot(this.pos.x-s.bomb.pos[0],this.pos.z-s.bomb.pos[2])<=SEARCH_DESTROY_RULES.pickupRadius){kind="pickup";label="HOLD E TO PICK UP BOMB";}else if(s.phase==="planted"&&this.opts.team!==s.attackerTeam&&Math.hypot(this.pos.x-s.bomb.pos[0],this.pos.z-s.bomb.pos[2])<=SEARCH_DESTROY_RULES.interactionRadius){kind="defuse";label="HOLD E TO DEFUSE";const p=s.bomb.defuseProgress;progress=p?.playerId===this.selfId?Math.min(100,Math.max(0,(Date.now()-p.startedAt)/(SEARCH_DESTROY_RULES.defuseSeconds*1000)*100)):0;}else if(s.phase==="live"&&s.bomb.carrierId===this.selfId){const site=sites.reduce((a,b)=>Math.hypot(this.pos.x-a.pos[0],this.pos.z-a.pos[2])<=Math.hypot(this.pos.x-b.pos[0],this.pos.z-b.pos[2])?a:b);const inRange=Math.hypot(this.pos.x-site.pos[0],this.pos.z-site.pos[2])<=site.radius;if(inRange){kind="plant";label="HOLD E TO PLANT";const p=s.bomb.plantProgress;progress=p?.playerId===this.selfId?Math.min(100,Math.max(0,(Date.now()-p.startedAt)/(SEARCH_DESTROY_RULES.plantSeconds*1000)*100)):0;}}return kind?{kind,label,progress}:undefined;})(),
       searchDestroyCarrierName: this.searchDestroyState?.bomb.status==="carried"&&
         this.opts.team===this.searchDestroyState.attackerTeam&&this.searchDestroyState.bomb.carrierId
           ? this.combatants.get(this.searchDestroyState.bomb.carrierId)?.name : undefined,
