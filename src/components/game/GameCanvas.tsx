@@ -75,7 +75,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, operationId
     let engine: FPSEngine;
     try {
       engine = new FPSEngine(containerRef.current, {
-      mode, botCount, online, firingRange, previewMap, loadout, playerName, playerKey, team: "ffa", socketPort: 3003,
+      mode, botCount, online, firingRange, previewMap, loadout: mode==="frontier"?frontierLoadoutForPreset(loadout,"scout"):loadout, playerName, playerKey, team: "ffa", socketPort: 3003,
       mapId,
       gungamePreset: roomConnect?.config?.gungamePreset,
       gungameMultiplier: roomConnect?.config?.gungameMultiplier,
