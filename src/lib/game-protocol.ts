@@ -1409,6 +1409,8 @@ export interface LoadoutWire {
   /** Persisted tactical selection; validated against the player's saved loadout. */
   equipmentId?: import("./equipment").EquipmentId;
   weaponId: string;
+  /** Frontier Gunslinger intentionally has no primary slot; weaponId is a safe placeholder. */
+  emptyPrimary?: boolean;
   // Secondary (sidearm, or an additional primary with Well Prepared) and melee ids — used by the engine to support
   // in-match weapon swapping (keys 1/2/3, or on-screen buttons on mobile).
   secondaryWeaponId?: string;
@@ -1493,6 +1495,7 @@ export type C2S =
   | { t: "chat"; text: string }
   | { t: "weaponSwap"; slot: "primary" | "secondary" | "melee" | "wonder" }   // player changed weapon slot
   | { t: "queueLoadout"; loadout: LoadoutWire }  // validated by server; equips on next respawn
+  | { t: "queueFrontierLoadout"; presetId: import("./game-mode-rules").FrontierLoadoutPresetId }
   // ---- Room lobby system ----
   | { t: "voteMap"; mapId: MapId }
   | { t: "readyNextRound" }
@@ -1642,7 +1645,7 @@ export type S2C =
   | { t: "knifeAmmo"; charges: number; rechargeMs: number }
   | { t: "burnFx"; victimId: string; durationMs: number } // Immediate Dragon's Breath visuals; snapshots remain authoritative
   | { t: "shotFx"; origin: Vec3; dir: Vec3; weaponId: string; attackerId: string; skinId: string; suppressed: boolean; coverPower?: number; traceStop?: number }
-  | { t: "matchEnd"; standings: { id: string; name: string; team: string; kills: number; deaths: number; score: number; assists?: number; isBot: boolean }[]; winnerTeam: string | null; teamScores?: { red: number; blue: number }; modeStats?: { searchDestroy?: { redRounds:number; blueRounds:number; roundsPlayed:number }; hardpoint?: { redObjectiveSeconds:number; blueObjectiveSeconds:number; contestedSeconds:number; redScore:number; blueScore:number; playerObjectiveSeconds?:number } } }
+  | { t: "matchEnd"; standings: { id: string; name: string; team: string; kills: number; deaths: number; score: number; assists?: number; isBot: boolean }[]; winnerTeam: string | null; teamScores?: { red: number; blue: number }; modeStats?: { searchDestroy?: { redRounds:number; blueRounds:number; roundsPlayed:number; playerRoundsWon?:number; plants?:number; defuses?:number }; hardpoint?: { redObjectiveSeconds:number; blueObjectiveSeconds:number; contestedSeconds:number; redScore:number; blueScore:number; playerObjectiveSeconds?:number } } }
   | { t: "chat"; name: string; text: string; team: string }
   | { t: "error"; message: string }
   | { t: "reloadFx"; playerId: string }
