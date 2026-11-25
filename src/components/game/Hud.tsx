@@ -582,7 +582,7 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
         </button>
       </div>
 
-      {hud.radar && <Minimap radar={hud.radar} compact={isTouch} objective={hud.operationWaypoint} intel={hud.operation?.intel ? undefined:hud.operationIntel} />}
+      {hud.radar && <Minimap radar={hud.radar} compact={isTouch} objective={hud.operationWaypoint} intel={hud.operation?.intel ? undefined:hud.operationIntel} bomb={hud.searchDestroy?.bomb.status==="dropped" ? {x:hud.searchDestroy.bomb.pos[0],z:hud.searchDestroy.bomb.pos[2]} : undefined} />}
 
       {/* bottom left: health + regen cooldown + sprint indicator (desktop only —
           mobile uses the centered bottom cluster below). */}

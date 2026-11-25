@@ -13,10 +13,12 @@ function outlineForRegions(regions: NonNullable<NonNullable<HudState["radar"]>["
   return outline;
 }
 /** North-up tactical radar: allies persist, enemy positions track movement only while nearby gunfire reveals them. */
-export function Minimap({ radar, compact, objective, intel }: { radar: NonNullable<HudState["radar"]>; compact?: boolean; objective?: {x:number;z:number}; intel?: {x:number;z:number} }) {
+export function Minimap({ radar, compact, objective, intel, bomb }: { radar: NonNullable<HudState["radar"]>; compact?: boolean; objective?: {x:number;z:number}; intel?: {x:number;z:number}; bomb?: {x:number;z:number} }) {
   const clamp = (n: number) => Math.max(2, Math.min(98, n));
   const selfX = clamp(50 + 50 * radar.playerX / Math.max(1, radar.size));
   const selfZ = clamp(50 + 50 * radar.playerZ / Math.max(1, radar.size));
+  const bombX = bomb ? clamp(50 + 50 * bomb.x / Math.max(1,radar.size)) : undefined;
+  const bombZ = bomb ? clamp(50 + 50 * bomb.z / Math.max(1,radar.size)) : undefined;
   const heading = 180 - radar.yaw * (180 / Math.PI);
   return (
     <div className={`absolute top-14 right-4 overflow-hidden rounded-xl border border-white/25 bg-zinc-950/90 backdrop-blur-md shadow-xl ${compact ? "w-32 h-32" : "w-44 h-44"}`}
@@ -44,12 +46,13 @@ export function Minimap({ radar, compact, objective, intel }: { radar: NonNullab
         ))}
         {objective&&<text x={clamp(objective.x)} y={clamp(objective.z)+2} textAnchor="middle" fill="#fbbf24" stroke="#111" strokeWidth=".3" fontSize="8">◆</text>}
         {intel&&<text x={clamp(intel.x)} y={clamp(intel.z)+2} textAnchor="middle" fill="#fff" stroke="#111" strokeWidth=".3" fontSize="8">◇</text>}
+        {bombX!==undefined&&bombZ!==undefined&&<g transform={`translate(${bombX} ${bombZ})`}><path d="M0,-5 L5,0 L0,5 L-5,0 Z" fill="#fb923c" stroke="#fff" strokeWidth="1"/><circle r="1.2" fill="#111827"/></g>}
         <g transform={`translate(${selfX} ${selfZ}) rotate(${heading})`}>
           <path d="M0,-5 L3.6,4 L0,1.7 L-3.6,4 Z" fill="#fde68a" stroke="#111827" strokeWidth="0.8" />
         </g>
         <text x="50" y="8" textAnchor="middle" fontSize="5.5" fill="#cbd5e1" fontWeight="bold">N</text>
       </svg>
-      <div className="absolute bottom-1 left-1.5 text-[8px] font-semibold tracking-widest text-white/65">○ ALLY · ◇ ENEMY · ▲ YOU</div>
+      <div className="absolute bottom-1 left-1.5 text-[8px] font-semibold tracking-widest text-white/65">○ ALLY · ◇ ENEMY · ✹ BOMB · ▲ YOU</div>
     </div>
   );
 }
