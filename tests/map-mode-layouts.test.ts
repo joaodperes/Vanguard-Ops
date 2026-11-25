@@ -38,7 +38,7 @@ describe("mode availability and spawn capacity",()=>{
   expect(MAP_LIST.filter(map=>mapAllowedForMode("hardpoint",map.id)).map(map=>map.id).sort()).toEqual(["bunker","dustwater","floodgate"]);
   const sites=searchDestroySitesForMap("dustwater",getMap("dustwater").size);
   expect(sites.map(site=>site.id)).toEqual(["A","B"]);
-  expect(sites[1].pos).toEqual([42,0,-40]);
+  expect(sites[1].pos).toEqual([-10,0,22.5]);
   expect(sites[0].pos).not.toEqual(sites[1].pos);
   expect(mapAllowedForMode("hardpoint","compound")).toBe(false);
   for(const mode of ["searchdestroy","hardpoint","frontier"] as const)expect(teamSizesForMap("dustwater",mode)).toEqual([3,4,5]);
