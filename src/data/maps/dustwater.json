@@ -1074,7 +1074,7 @@
         "use": "diner",
         "facade": "timber",
         "roofAccess": true,
-        "text": ""
+        "text": "DINER"
       },
       {
         "kind": "building",
@@ -1086,7 +1086,7 @@
         "use": "library",
         "facade": "brick",
         "roofAccess": true,
-        "text": ""
+        "text": "LIBRARY"
       },
       {
         "kind": "building",
@@ -1098,7 +1098,7 @@
         "use": "office",
         "facade": "brick",
         "roofAccess": true,
-        "text": ""
+        "text": "OFFICE"
       },
       {
         "kind": "building",
@@ -1110,7 +1110,7 @@
         "use": "workshop",
         "facade": "industrial",
         "roofAccess": true,
-        "text": ""
+        "text": "WORKSHOP"
       },
       {
         "kind": "lamp",
