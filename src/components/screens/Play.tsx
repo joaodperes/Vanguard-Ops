@@ -341,7 +341,7 @@ export function Play() {
                 {(roomConfig.mode === "ffa" || roomConfig.mode === "tdm" || roomConfig.mode === "killconfirmed" || roomConfig.mode === "ctf" || roomConfig.mode === "frontier" || roomConfig.mode === "hardpoint" || roomConfig.mode === "searchdestroy") && (
                   <div className="relative min-h-0">
                     <Section className="h-full" icon={<Target className="w-4 h-4 text-rose-400" />} title="Match Limits" hint={roomConfig.mode === "searchdestroy" ? "Configure match time and round wins" : roomConfig.mode === "killconfirmed" ? "Choose tag and time limits" : "Set the score target and/or time limit (at least one required)"}>
-                    <div className="grid grid-cols-1 gap-3 items-start">
+                    <div className={roomConfig.mode === "ctf" ? "grid grid-cols-1 sm:grid-cols-2 gap-3 items-start" : "grid grid-cols-1 gap-3 items-start"}>
                       {roomConfig.mode !== "searchdestroy" && <>
                       <div className="min-w-0 rounded-xl border border-white/5 bg-black/20 p-3">
                         <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Trophy className="w-3 h-3" /> {roomConfig.mode === "ctf" ? "Flag Captures to Win" : roomConfig.mode === "hardpoint" ? "Capture Score Target" : roomConfig.mode === "killconfirmed" ? "Confirmed Tags Target" : "Kill Target"}</Label>
@@ -424,7 +424,7 @@ export function Play() {
                         </div>
                       )}
                       {(roomConfig.scoreLimit === 0 && roomConfig.timeLimit === 0) && (
-                        <div className="text-rose-400 text-xs font-semibold flex items-center gap-1.5">
+                        <div className={`${roomConfig.mode === "ctf" ? "sm:col-span-2 " : ""}text-rose-400 text-xs font-semibold flex items-center gap-1.5`}>
                           <AlertTriangle className="w-3 h-3" /> At least one limit must be set for the match to end.
                         </div>
                       )}
