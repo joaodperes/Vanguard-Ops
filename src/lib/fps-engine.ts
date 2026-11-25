@@ -4833,7 +4833,7 @@ export class FPSEngine {
     let action:"plant"|"defuse"|"pickup"|undefined,siteId:"A"|"B"|undefined;
     if(state.bomb.status==="dropped"&&this.opts.team===state.attackerTeam)action="pickup";
     else if(state.phase==="planted"&&this.opts.team!==state.attackerTeam)action="defuse";
-    else if(state.phase==="live"&&state.bomb.carrierId===this.selfId){action="plant";const sites:[number,number,number][]=[[-42,0,-40],[42,0,-40]];siteId=Math.hypot(this.pos.x-sites[0][0],this.pos.z-sites[0][2])<=Math.hypot(this.pos.x-sites[1][0],this.pos.z-sites[1][2])?"A":"B";}
+    else if(state.phase==="live"&&state.bomb.carrierId===this.selfId){action="plant";const sites:[number,number,number][]=[[-42,0,-40],[-14,0,25]];siteId=Math.hypot(this.pos.x-sites[0][0],this.pos.z-sites[0][2])<=Math.hypot(this.pos.x-sites[1][0],this.pos.z-sites[1][2])?"A":"B";}
     if(action){this.socket.emit("message",{t:"modeInteract",action,siteId});this.modeInteractSentAt=now;}
   }
 
