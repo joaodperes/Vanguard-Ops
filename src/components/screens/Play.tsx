@@ -343,23 +343,23 @@ export function Play() {
                     <Section className="h-full" icon={<Target className="w-4 h-4 text-rose-400" />} title="Match Limits" hint={roomConfig.mode === "searchdestroy" ? "Configure match time and round wins" : roomConfig.mode === "killconfirmed" ? "Choose tag and time limits" : "Set the score target and/or time limit (at least one required)"}>
                     <div className="grid grid-cols-1 gap-3 items-start">
                       {roomConfig.mode !== "searchdestroy" && <>
-                      <div className={"min-w-0 rounded-xl border border-white/5 bg-black/20 p-3"}>
+                      <div className="min-w-0 rounded-xl border border-white/5 bg-black/20 p-3">
                         <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Trophy className="w-3 h-3" /> {roomConfig.mode === "ctf" ? "Flag Captures to Win" : roomConfig.mode === "hardpoint" ? "Capture Score Target" : roomConfig.mode === "killconfirmed" ? "Confirmed Tags Target" : "Kill Target"}</Label>
                         <div className="flex flex-wrap gap-1.5">
                           {(roomConfig.mode === "ctf" ? [0, 1, 2, 3, 5, 7] : roomConfig.mode === "hardpoint" ? [0, 100, 150, 200, 250, 300] : roomConfig.mode === "killconfirmed" ? [0, 15, 30, 40, 50, 75, 100] : [0, 15, 25, 30, 40, 50, 60, 75, 100]).map((s) => (
                             <button key={s} onClick={() => setRoomConfig({ scoreLimit: s, ...(roomConfig.mode === "ctf" && s === 0 && roomConfig.timeLimit === 0 ? { timeLimit: 600 } : {}) })}
-                              className={`${"px-2.5 py-1.5"} rounded-lg text-xs font-bold transition-colors ${roomConfig.scoreLimit === s ? "bg-rose-500/20 text-rose-300 border border-rose-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
+                              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors ${roomConfig.scoreLimit === s ? "bg-rose-500/20 text-rose-300 border border-rose-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
                               {s === 0 ? "No limit" : s}
                             </button>
                           ))}
                         </div>
                       </div>
-                      <div className={"min-w-0 rounded-xl border border-white/5 bg-black/20 p-3"}>
+                      <div className="min-w-0 rounded-xl border border-white/5 bg-black/20 p-3">
                         <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Time Limit</Label>
                         <div className="flex flex-wrap gap-1.5">
                           {(roomConfig.mode === "killconfirmed" ? [0, 300, 600, 900, 1200] : [0, 180, 300, 360, 480, 600, 900]).map((t) => (
                             <button key={t} onClick={() => setRoomConfig({ timeLimit: t, ...(roomConfig.mode === "ctf" && t === 0 && roomConfig.scoreLimit === 0 ? { scoreLimit: 3 } : {}) })}
-                              className={`${"px-2.5 py-1.5"} rounded-lg text-xs font-bold transition-colors ${roomConfig.timeLimit === t ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
+                              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors ${roomConfig.timeLimit === t ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
                               {t === 0 ? "No limit" : `${t / 60}m`}
                             </button>
                           ))}
@@ -368,14 +368,14 @@ export function Play() {
                       </>}
                       {roomConfig.mode === "searchdestroy" && (
                         <> 
-                          <div className="min-w-0 rounded-xl border border-white/5 bg-black/20 p-2">
+                          <div className="min-w-0 rounded-xl border border-white/5 bg-black/20 p-3">
                             <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Match Time</Label>
-                            <div className="flex flex-wrap gap-1.5">{[60,90,120,150,180,240,300].map(seconds=><button key={seconds} type="button" aria-pressed={roomConfig.searchDestroyRoundTimeSeconds===seconds} onClick={()=>setRoomConfig({searchDestroyRoundTimeSeconds:seconds})} className={`px-2 py-1 rounded-lg text-xs font-bold ${roomConfig.searchDestroyRoundTimeSeconds===seconds?"bg-cyan-500/20 text-cyan-300 border border-cyan-500/40":"bg-zinc-900/50 text-white/50 border border-white/10"}`}>{seconds/60}m{seconds%60?`${seconds%60}s`:""}</button>)}</div>
+                            <div className="flex flex-wrap gap-1.5">{[60,90,120,150,180,240,300].map(seconds=><button key={seconds} type="button" aria-pressed={roomConfig.searchDestroyRoundTimeSeconds===seconds} onClick={()=>setRoomConfig({searchDestroyRoundTimeSeconds:seconds})} className={`px-2.5 py-1.5 rounded-lg text-xs font-bold ${roomConfig.searchDestroyRoundTimeSeconds===seconds?"bg-cyan-500/20 text-cyan-300 border border-cyan-500/40":"bg-zinc-900/50 text-white/50 border border-white/10"}`}>{seconds/60}m{seconds%60?`${seconds%60}s`:""}</button>)}</div>
                             <p className="text-white/35 text-[11px] mt-1.5">Attackers must plant before this timer expires.</p>
                           </div>
-                          <div className="min-w-0 rounded-xl border border-white/5 bg-black/20 p-2">
+                          <div className="min-w-0 rounded-xl border border-white/5 bg-black/20 p-3">
                             <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Trophy className="w-3 h-3" /> Round Wins</Label>
-                            <div className="flex flex-wrap gap-1.5">{[3,4,5,6,7,8].map(wins=><button key={wins} type="button" aria-pressed={roomConfig.searchDestroyRoundsToWin===wins} onClick={()=>setRoomConfig({searchDestroyRoundsToWin:wins})} className={`px-2 py-1 rounded-lg text-xs font-bold ${roomConfig.searchDestroyRoundsToWin===wins?"bg-rose-500/20 text-rose-300 border border-rose-500/40":"bg-zinc-900/50 text-white/50 border border-white/10"}`}>{wins}</button>)}</div>
+                            <div className="flex flex-wrap gap-1.5">{[3,4,5,6,7,8].map(wins=><button key={wins} type="button" aria-pressed={roomConfig.searchDestroyRoundsToWin===wins} onClick={()=>setRoomConfig({searchDestroyRoundsToWin:wins})} className={`px-2.5 py-1.5 rounded-lg text-xs font-bold ${roomConfig.searchDestroyRoundsToWin===wins?"bg-rose-500/20 text-rose-300 border border-rose-500/40":"bg-zinc-900/50 text-white/50 border border-white/10"}`}>{wins}</button>)}</div>
                             <p className="text-white/35 text-[11px] mt-1.5">Teams switch sides halfway; the match ends at the selected wins.</p>
                           </div>
                         </>
@@ -395,12 +395,12 @@ export function Play() {
                         </div>
                       )}
                       {roomConfig.mode === "killconfirmed" && (
-                        <div className="min-w-0 rounded-xl border border-white/5 bg-black/20 p-2">
+                        <div className="min-w-0 rounded-xl border border-white/5 bg-black/20 p-3">
                           <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Tag Lifetime</Label>
                           <div className="flex flex-wrap gap-1.5">
                             {KC_TAG_LIFETIME_OPTIONS_MS.map((ms) => (
                               <button key={ms} type="button" onClick={() => setRoomConfig({ tagLifetimeMs: ms })}
-                                className={`px-2 py-1 rounded-lg text-xs font-bold transition-colors ${roomConfig.tagLifetimeMs === ms ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
+                                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors ${roomConfig.tagLifetimeMs === ms ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
                                 {ms === KC_TAG_LIFETIME_INFINITE_MS ? "Infinite" : `${ms / 1000}s`}
                               </button>
                             ))}
@@ -409,13 +409,13 @@ export function Play() {
                         </div>
                       )}
                       {roomConfig.mode === "killconfirmed" && (
-                        <div className="min-w-0 rounded-xl border border-white/5 bg-black/20 p-2">
+                        <div className="min-w-0 rounded-xl border border-white/5 bg-black/20 p-3">
                           <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Shield className="w-3 h-3" /> Denial Scoring</Label>
                           <div className="flex flex-wrap gap-1.5" role="group" aria-label="Denial Scoring">
                             {([{ enabled: false, label: "Off" }, { enabled: true, label: "+1 Point" }] as const).map((option) => (
                               <button key={option.label} type="button" aria-pressed={roomConfig.denialScoreEnabled === option.enabled}
                                 onClick={() => setRoomConfig({ denialScoreEnabled: option.enabled })}
-                                className={`px-2 py-1 rounded-lg text-xs font-bold transition-colors ${roomConfig.denialScoreEnabled === option.enabled ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
+                                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors ${roomConfig.denialScoreEnabled === option.enabled ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
                                 {option.label}
                               </button>
                             ))}
@@ -424,7 +424,7 @@ export function Play() {
                         </div>
                       )}
                       {(roomConfig.scoreLimit === 0 && roomConfig.timeLimit === 0) && (
-                        <div className="sm:col-span-2 text-rose-400 text-xs font-semibold flex items-center gap-1.5">
+                        <div className="text-rose-400 text-xs font-semibold flex items-center gap-1.5">
                           <AlertTriangle className="w-3 h-3" /> At least one limit must be set for the match to end.
                         </div>
                       )}
