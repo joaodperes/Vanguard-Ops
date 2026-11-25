@@ -878,7 +878,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
     // the human player is on defence or no human attacker is present.
     const carrier=selectSearchDestroyCarrier(allCombatants(room) as import("./game-mode-rules").ModeCombatant[],"red");
     room.searchDestroyState=carrier
-      ? createSearchDestroyState(room.startTime,carrier.id,carrier.pos,cfg.searchDestroyRoundTimeSeconds??120,cfg.searchDestroyRoundsToWin??6)
+      ? createSearchDestroyState(room.startTime,carrier.id,carrier.pos,room.config.searchDestroyRoundTimeSeconds??120,room.config.searchDestroyRoundsToWin??6)
       : undefined;
     room.config.timeLimit=0;room.timeLeft=0;
   }
