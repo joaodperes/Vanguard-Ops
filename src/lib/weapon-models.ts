@@ -524,13 +524,9 @@ export function buildFirstPersonWeapon(
     // Low front sight foot actually TOUCHES the round barrel shroud.
     box(0,.046,muzzle+.08,.021,.020,.034,metal);
   }
-  if (id === "dmr_heavy") {
-    // Classic service-rifle top bridge and aperture block for an M1-inspired profile.
-    box(0,.105,c+.035,.105,.022,.20,metal);
-    box(0,.135,c+.075,.075,.045,.055,edge);
-    box(0,.158,c+.075,.025,.012,.045,darkMat);
-    for (const side of [-1,1]) box(side*.061,.095,c+.075,.012,.035,.085,metal);
-  }
+  // Executioner DMR uses the shared sight system. Its former raised receiver
+  // bridge/aperture block sat in the ADS sightline and obstructed both iron
+  // sights and mounted optics, so no extra top-mounted sight housing is added.
   // Three experimental weapon platforms. All meshes use the normal `add`
   // callback so the FPS engine can animate them and dispose them on swap.
   if (id === "rifle_electron") {
