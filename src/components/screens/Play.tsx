@@ -224,7 +224,8 @@ export function Play() {
       tagLifetimeMs: mode === "killconfirmed" ? roomConfig.tagLifetimeMs : undefined,
       ctfFlagResetMs: mode === "ctf" ? roomConfig.ctfFlagResetMs : undefined,
       denialScoreEnabled: mode === "killconfirmed" ? roomConfig.denialScoreEnabled : undefined, 
-      searchDestroyRoundTimeSeconds: mode === "searchdestroy" ? roomConfig.searchDestroyRoundTimeSeconds : undefined,\n      searchDestroyRoundsToWin: mode === "searchdestroy" ? roomConfig.searchDestroyRoundsToWin : undefined,
+      searchDestroyRoundTimeSeconds: mode === "searchdestroy" ? roomConfig.searchDestroyRoundTimeSeconds : undefined,;
+      searchDestroyRoundsToWin: mode === "searchdestroy" ? roomConfig.searchDestroyRoundsToWin : undefined,
     };
     if (!(await prepareMatchLoadout())) return;
     setRoomConnect({ kind: "create", config, roomName: config.roomName || `${profile?.name ?? "Host"}'s Room` });
