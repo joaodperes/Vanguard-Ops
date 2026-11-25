@@ -19,7 +19,7 @@ export const MAP_PROP_KINDS = [
 
 export const CITY_BUILDING_USES = [
   "house","cafe","supermarket","bakery","apartments","office","hotel",
-  "library","diner","clinic","workshop","gallery","florist","gym",
+  "library","diner","church","clinic","workshop","gallery","florist","gym",
 ] as const;
 export const CITY_BUILDING_SHAPES = ["rect","narrow","round"] as const;
 export const CITY_BUILDING_FACADES = ["brick","stucco","concrete","glass","timber","industrial"] as const;
