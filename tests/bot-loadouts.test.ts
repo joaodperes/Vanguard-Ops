@@ -26,7 +26,7 @@ describe("bot perk and weapon policy", () => {
     const explicit=computeEffectiveStats(weaponById("rifle_ar"),emptyBotAttachments());
     expect(base.magSize).toBe(explicit.magSize);
     expect(base.sightType).toBe(explicit.sightType);
-    expect(botMagazineCapacity("rifle_ar",undefined as any)).toBe(base.magSize);
+    expect(botMagazineCapacity("rifle_ar",undefined)).toBe(base.magSize);
   });
   test("excludes Battle-Hardened in every mode", () => {
     expect(STANDARD_BOT_PERKS).not.toContain("battle_hardened");
