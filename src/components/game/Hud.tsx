@@ -767,7 +767,7 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
                 {hud.turretDeployPending ? "PLANTING…" : hud.turretDeployFailed ? "RETRY PLANT" : hud.ammo > 0 ? "PLANT READY" : "RECHARGING"}
               </span>
             ) : (
-              <>{mode === "frontier" && <span className="text-amber-300/70 text-[8px] font-bold">MAG/RES</span>}<span className={`tabular-nums font-bold text-xs ${lowAmmo ? "text-rose-400 animate-pulse" : ammoPct < 0.5 ? "text-amber-300" : "text-white"}`}>{hud.ammo}</span><span className="text-white/40 text-[9px]">/{mode === "frontier" ? frontierReserve : hud.magSize}</span></>
+              <>{mode === "frontier" && <span className="text-amber-300/70 text-[8px] font-bold">MAG/RES</span>}<span className={`tabular-nums font-bold text-xs ${lowAmmo ? "text-rose-400 animate-pulse" : ammoPct < 0.5 ? "text-amber-300" : "text-white"}`}>{mode === "frontier" ? frontierCurrentMagazine : hud.ammo}</span><span className="text-white/40 text-[9px]">/{mode === "frontier" ? frontierReserve : hud.magSize}</span></>
             )}
             {hud.boltCharges !== undefined && <span className="text-emerald-400 text-[9px]">+{hud.boltCharges} bolts</span>}
             {hud.equipmentName && mode !== "gungame" && mode !== "frontier" && <span className="text-cyan-300 text-[9px]">T {hud.equipmentCharges ?? 0}{(hud.equipmentRechargeMs??0)>0 ? ` +${Math.ceil((hud.equipmentRechargeMs??0)/1000)}s` : ""}</span>}
