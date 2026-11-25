@@ -1482,7 +1482,7 @@ export type C2S =
   | { t:"squadOrder";kind:import("./squad-coordination").SquadCommand;pos:Vec3 }
   | { t: "state"; pos: Vec3; yaw: number; pitch: number; aiming: boolean; firing: boolean; reloading: boolean; alive: boolean; sprinting?: boolean }
   | { t: "shot"; origin: Vec3; dir: Vec3; weaponId: string; skinId: string; aiming?: boolean; akimboHand?: "left" | "right"; fanHammerShot?: boolean }   // server-side raycast; shotgun ADS is sampled at fire-time
-  | { t: "reload" }
+  | { t: "reload"; frontierAkimboReloadCount?: 1 | 2 }
   | { t: "harbingerDesignate" } // ADS requests a new visible priority target for the deployed drone
   | { t: "deployTurret" } // a placed device, not a bullet ray / ordinary shot
   | { t: "enterMech"; dropId: string }
