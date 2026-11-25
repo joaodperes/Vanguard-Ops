@@ -4239,11 +4239,12 @@ export class FPSEngine {
     this.poseFirstPersonArm(restPosition,restRotation,blend);
   }
 
-  // ADS fix: when aiming, move viewmodel well below camera centerline and pull closer,
-  // so the bulk of the weapon drops out of view and the camera "looks down the barrel".
-  // The sight mesh is hidden during ADS so it never blocks the screen.
-  // On touch devices, the Fire/ADS buttons cluster in the bottom-right corner, so we
-  // shift the hipfire viewmodel toward the bottom-centre/left to stay visible.
+  // ADS presents a proper shouldered firing stance: bring the physical sight
+  // (rear notch / optic centre) onto the camera's eye line, while keeping the
+  // receiver and magazine below it. Weapons without a physical sight retain a
+  // conservative low-body pose so their geometry does not cover the aim point.
+  // Hipfire stays offset to the right; on touch devices it is slightly more central
+  // so the weapon remains clear of the bottom-right action buttons.
   private positionViewmodel() {
     // Handoff at the midpoint, with the old weapon already out of view.
     // Gameplay weaponId/stats/readiness were switched by the caller immediately.
@@ -4291,9 +4292,20 @@ export class FPSEngine {
     const receiverHeight = (WEAPON_VISUALS[visualWeaponId]?.receiver?.[1] ?? .18)
       * (this.vmScale/FIRST_PERSON_COMPACT_SCALE);
     const clearance=adsClearance(wDef,this.sightDef.type,receiverHeight);
+    // Sight geometry is authored in weapon-local units and then scaled with the
+    // complete viewmodel. Cancel that exact mounted height so the rear aperture /
+    // optic centre sits on screen centre instead of leaving the weapon down at chest
+    // level. Iron sights have a small raised notch above their mount; Bastion uses
+    // its separately authored rear-sight coordinate.
+    const sightMountHeight=adsClearance(wDef,this.sightDef.type,
+      WEAPON_VISUALS[visualWeaponId]?.receiver?.[1] ?? .18).sightMountY*this.vmScale;
+    const sightCenterHeight=visualWeaponId==="pistol_bastion" && this.sightDef.type==="iron"
+      ? BASTION_REAR_SIGHT.y*this.vmScale
+      : sightMountHeight+(this.sightDef.type==="iron"?.013*this.vmScale:0);
+    const adsBodyY=this.sightMesh ? -sightCenterHeight : clearance.bodyY;
     const adsTarget = isMagnifiedSight || isSniperScoped
-      ? { x: 0, y: Math.min(clearance.bodyY,-.34), z: -.24 }
-      : { x: 0, y: clearance.bodyY, z: -.43 };
+      ? { x: 0, y: adsBodyY, z: -.24 }
+      : { x: 0, y: adsBodyY, z: -.43 };
     // Rigid ADS: the optic has a real mount, not a screen-space sight lift.
     // Sprint pose: weapon lowered + tilted inward (tucked run stance).
     const sprintTarget = this.viewmodelAkimbo ? {x:0,y:-.38,z:-.40} : { x: 0.32, y: -0.32, z: -0.40 };
