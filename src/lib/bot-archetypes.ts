@@ -3,8 +3,14 @@
  * Match-specific weapons (e.g. Gun Game) always override the preferred loadout.
  */
 import { WEAPONS, type WeaponCategory } from "./game-data";
+import type { FrontierLoadoutPresetId } from "./game-mode-rules";
 
 export type BotArchetype = "rusher" | "rifleman" | "marksman" | "support";
+
+/** Frontier mirrors the four bot combat identities with its four curated kits. */
+export const FRONTIER_BOT_PRESET_BY_ARCHETYPE: Record<BotArchetype, FrontierLoadoutPresetId> = {
+  rusher: "breacher", rifleman: "scout", marksman: "hunter", support: "gunslinger",
+};
 
 const LINEUP: readonly BotArchetype[] = ["rusher", "rifleman", "marksman", "support"];
 export function botArchetypeForSlot(teamSlot: number): BotArchetype {
