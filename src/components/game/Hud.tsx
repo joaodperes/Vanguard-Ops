@@ -105,7 +105,10 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
   const healthPct = hud.health / hud.maxHealth;
   const ammoPct = hud.magSize > 0 ? hud.ammo / hud.magSize : 0;
   const lowAmmo = ammoPct < 0.25 && hud.ammo > 0;
-  const frontierReserve = Math.max(0,(hud.frontierAmmoRemaining ?? (hud.magSize + Math.max(1,Math.floor(hud.magSize*3*0.65)))) - hud.ammo);
+  const frontierCurrentMagazine = hud.akimbo
+    ? (hud.akimboLeftAmmo ?? 0) + (hud.akimboRightAmmo ?? 0)
+    : hud.ammo;
+  const frontierReserve = Math.max(0,(hud.frontierAmmoRemaining ?? (hud.magSize + Math.max(1,Math.floor(hud.magSize*3*0.65)))) - frontierCurrentMagazine);
   const clockText = formatMatchClock(hud);
   const scoreboardRuleLabels = scoreboardRules(mode, hud);
   const matchInfo = matchHudInfo(mode, hud.survivalTier, !!hud.operation);
@@ -670,13 +673,23 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
             <span className="text-[11px] text-white/55">{hud.ammo} deployment charge · Fire to plant</span>
           </div>
         ) : hud.akimbo ? (
-          <div className="flex flex-col items-end">
-            <div className="flex items-end gap-3">
-              <span className="text-xs text-white/60">{isTouch ? "LEFT" : "LMB · LEFT"} <b className="text-white text-2xl tabular-nums">{hud.akimboLeftAmmo ?? 0}</b><span className="text-white/40">/{hud.akimboHandMagSize ?? 6}</span></span>
-              <span className="text-xs text-white/60">{isTouch ? "RIGHT" : "RMB · RIGHT"} <b className="text-white text-2xl tabular-nums">{hud.akimboRightAmmo ?? 0}</b><span className="text-white/40">/{hud.akimboHandMagSize ?? 6}</span></span>
+          mode === "frontier" ? (
+            <div className="flex flex-col items-end">
+              <span className="mb-0.5 text-[9px] font-bold tracking-widest text-amber-300/65">MAG / RESERVE</span>
+              <div className="flex items-end justify-end gap-1">
+                <span className="text-4xl font-bold tabular-nums text-white">{frontierCurrentMagazine}</span>
+                <span className="text-white/40 text-lg mb-1">/ {frontierReserve}</span>
+              </div>
             </div>
-            <div className="text-[10px] text-amber-300/70 mt-1">{isTouch ? "BOTH BUTTONS = BOTH GUNS · NO ADS" : "BOTH BUTTONS = SIMULTANEOUS SHOTS · NO ADS · R RELOAD"}</div>
-          </div>
+          ) : (
+            <div className="flex flex-col items-end">
+              <div className="flex items-end gap-3">
+                <span className="text-xs text-white/60">{isTouch ? "LEFT" : "LMB · LEFT"} <b className="text-white text-2xl tabular-nums">{hud.akimboLeftAmmo ?? 0}</b><span className="text-white/40">/{hud.akimboHandMagSize ?? 6}</span></span>
+                <span className="text-xs text-white/60">{isTouch ? "RIGHT" : "RMB · RIGHT"} <b className="text-white text-2xl tabular-nums">{hud.akimboRightAmmo ?? 0}</b><span className="text-white/40">/{hud.akimboHandMagSize ?? 6}</span></span>
+              </div>
+              <div className="text-[10px] text-amber-300/70 mt-1">{isTouch ? "BOTH BUTTONS = BOTH GUNS · NO ADS" : "BOTH BUTTONS = SIMULTANEOUS SHOTS · NO ADS · R RELOAD"}</div>
+            </div>
+          )
         ) : (
           <div className="flex flex-col items-end">
             {mode === "frontier" && <span className="mb-0.5 text-[9px] font-bold tracking-widest text-amber-300/65">MAG / RESERVE</span>}
