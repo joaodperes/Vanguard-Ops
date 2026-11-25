@@ -11,7 +11,7 @@ describe("new competitive mode integration",()=>{
     expect(validateMapDocument(MAP_DOCUMENTS.dustwater)).toEqual([]);
     for(const mode of ["searchdestroy","hardpoint","frontier"] as const)
       expect(mapAllowedForMode(mode,"dustwater")).toBe(true);
-    expect(mapAllowedForMode("searchdestroy","compound")).toBe(false);
+    expect(mapAllowedForMode("searchdestroy","compound")).toBe(true);\n    expect(mapAllowedForMode("searchdestroy","skybridge")).toBe(true);
     expect(mapAllowedForMode("hardpoint","compound")).toBe(false);
     expect(mapAllowedForMode("frontier","compound")).toBe(true);
   });
