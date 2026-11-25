@@ -43,6 +43,18 @@ describe("authored map combat layouts", () => {
     expect(new Set(dustwater.spawns.ffa.map(point=>point.join(","))).size).toBe(dustwater.spawns.ffa.length);
     expect(dustwater.props.filter(prop=>prop.kind==="dynamite")).toHaveLength(2);
   });
+  test("Dustwater saloon destructible doorway fits its street-facing wall opening",()=>{
+    const features=MAP_BLUEPRINTS.maps.dustwater.features;
+    const left=features.find(feature=>feature.id==="saloon-north-wall-left")!;
+    const right=features.find(feature=>feature.id==="saloon-north-wall-right")!;
+    const door=MAP_BLUEPRINTS.maps.dustwater.hazards?.find(hazard=>hazard.id==="dustwater_saloon_door")!;
+    const gapStart=left.x+left.w/2;
+    const gapEnd=right.x-right.w/2;
+    expect(gapEnd-gapStart).toBeGreaterThanOrEqual(8);
+    expect(door.x-door.w/2).toBeGreaterThanOrEqual(gapStart);
+    expect(door.x+door.w/2).toBeLessThanOrEqual(gapEnd);
+    expect(door.type).toBe("destructible_wall");
+  });
   test("all maps have dedicated tactical cover and playable spawns", () => {
     expect(MAP_LIST).toHaveLength(12);
     for (const map of MAP_LIST) {
