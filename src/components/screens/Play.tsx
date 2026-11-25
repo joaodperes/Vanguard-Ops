@@ -210,7 +210,7 @@ export function Play() {
       mode,
       mapId: selectedMap,
       teamSize,
-      fillWithBots: mode === "survival" ? false : roomConfig.fillWithBots,
+      fillWithBots: mode === "survival" ? false : mode === "frontier" ? true : roomConfig.fillWithBots,
       password: roomConfig.password.trim() ? roomConfig.password.trim() : null,
       roomName: roomConfig.roomName.trim() || undefined,
       botDifficulty: roomConfig.botDifficulty,
@@ -331,17 +331,10 @@ export function Play() {
                   <p className="text-xs text-white/50 mb-3">Choose a mode, then create a room with your preferred settings or browse active rooms.</p>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {(["ffa", "tdm", "killconfirmed", "ctf", "survival", "gungame", "searchdestroy", "hardpoint", "frontier"] as GameMode[]).map((m) => (
-                      <ModePickCard key={m} mode={m} selected={roomConfig.mode === m} onSelect={(mode) => setRoomConfig({ mode, mapId: mapAllowedForMode(mode,roomConfig.mapId)?roomConfig.mapId:mode==="ctf"?"forest_warfare":mode==="searchdestroy"||mode==="hardpoint"||mode==="frontier"?"dustwater":"compound", scoreLimit: MATCH_MODES[mode].defaultScoreLimit, timeLimit: MATCH_MODES[mode].defaultTimeLimit * 60 })} />
+                      <ModePickCard key={m} mode={m} selected={roomConfig.mode === m} onSelect={(mode) => setRoomConfig({ mode, fillWithBots: mode === "frontier" ? true : roomConfig.fillWithBots, mapId: mapAllowedForMode(mode,roomConfig.mapId)?roomConfig.mapId:mode==="ctf"?"forest_warfare":mode==="searchdestroy"||mode==="hardpoint"||mode==="frontier"?"dustwater":"compound", scoreLimit: MATCH_MODES[mode].defaultScoreLimit, timeLimit: MATCH_MODES[mode].defaultTimeLimit * 60 })} />
                     ))}
                   </div>
-                  {roomConfig.mode === "frontier" && (
-                    <div className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
-                      <div className="text-amber-200 text-xs font-bold uppercase tracking-wider mb-1">Frontier Arsenal</div>
-                      <p className="text-white/60 text-xs leading-relaxed">
-                        Frontier starts with the Scout kit. During a match, open Pause → Change Loadout to queue Scout, Breacher, Hunter or Gunslinger for your next respawn. Gunslinger has no primary weapon.
-                      </p>
-                    </div>
-                  )}
+
                 </Section>
                 {(roomConfig.mode === "ffa" || roomConfig.mode === "tdm" || roomConfig.mode === "killconfirmed" || roomConfig.mode === "ctf" || roomConfig.mode === "frontier") && (
                   <div className="relative min-h-0">
@@ -592,7 +585,7 @@ export function Play() {
                 {roomConfig.mode !== "survival" && (
                   <Section icon={<Gauge className="w-4 h-4 text-rose-400" />} title="Bot Fill & Difficulty" hint="Play without bots or choose their skill. Only active bot matches use difficulty-based rewards.">
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {BOT_DIFFICULTY_OPTIONS.map((d) => {
+                      {BOT_DIFFICULTY_OPTIONS.filter(d => roomConfig.mode !== "frontier" || d.id !== "none").map((d) => {
                         const selected = d.id === "none" ? !roomConfig.fillWithBots : roomConfig.fillWithBots && roomConfig.botDifficulty === d.id;
                         return (
                           <button
