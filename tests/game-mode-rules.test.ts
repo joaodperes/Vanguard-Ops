@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { ModeCombatant } from "../src/lib/game-mode-rules";
+import { calculateMatchRewards } from "../src/lib/match-rewards";
 import {
   SEARCH_DESTROY_RULES, HARDPOINT_RULES, FRONTIER_RULES,
   createSearchDestroyState, beginNextSearchDestroyRound, finishSearchDestroyRound,
@@ -122,5 +123,26 @@ describe("Frontier", () => {
     expect(frontierReserveAmmo(30)).toBe(Math.floor(30*FRONTIER_RULES.reserveAmmoMultiplier));
     expect(frontierMovementSpeed(10,true)).toBeGreaterThan(10);
     expect(FRONTIER_RULES.dodgeCooldownMs).toBe(3000);
+  });
+});
+
+
+describe("objective-based mode rewards",()=>{
+  test("Hardpoint pays personal objective time rather than the team's total",()=>{
+    const rewards=calculateMatchRewards({
+      playerKey:"test",kills:0,deaths:0,headshots:0,won:false,mode:"hardpoint",score:0,completed:true,
+      modeStats:{hardpoint:{redObjectiveSeconds:90,blueObjectiveSeconds:90,contestedSeconds:0,redScore:90,blueScore:90,playerObjectiveSeconds:30}},
+    });
+    expect(rewards.breakdown.objectives).toEqual({xp:60,credits:30});
+  });
+  test("Search & Destroy pays per won round in addition to the match-win bonus",()=>{
+    const rewards=calculateMatchRewards({
+      playerKey:"test",kills:0,deaths:0,headshots:0,won:true,mode:"searchdestroy",score:0,completed:true,
+      placement:1,participants:6,
+      modeStats:{searchDestroy:{redRounds:6,blueRounds:4,roundsPlayed:10,playerRoundsWon:6}},
+    });
+    expect(rewards.breakdown.objectives).toEqual({xp:150,credits:90});
+    expect(rewards.breakdown.matchPerformance.xp).toBeGreaterThanOrEqual(150);
+    expect(rewards.breakdown.matchPerformance.credits).toBeGreaterThanOrEqual(25);
   });
 });
