@@ -94,7 +94,7 @@ export interface MatchResultInput {
   mapId?: string;
   perAttachmentKills?: Record<string, number>;
   modeStats?: {
-    searchDestroy?: { redRounds:number; blueRounds:number; roundsPlayed:number; playerRoundsWon?:number };
+    searchDestroy?: { redRounds:number; blueRounds:number; roundsPlayed:number; playerRoundsWon?:number; plants?:number; defuses?:number };
     hardpoint?: { redObjectiveSeconds:number; blueObjectiveSeconds:number; contestedSeconds:number; redScore:number; blueScore:number; playerObjectiveSeconds?:number };
     frontier?: { ammoRemaining:number };
   };
