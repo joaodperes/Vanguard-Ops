@@ -340,7 +340,7 @@ export function Play() {
                 </Section>
                 {(roomConfig.mode === "ffa" || roomConfig.mode === "tdm" || roomConfig.mode === "killconfirmed" || roomConfig.mode === "ctf" || roomConfig.mode === "frontier" || roomConfig.mode === "hardpoint" || roomConfig.mode === "searchdestroy") && (
                   <div className="relative min-h-0">
-                    <Section className="lg:absolute lg:inset-0 lg:overflow-y-auto" icon={<Target className="w-4 h-4 text-rose-400" />} title="Match Limits" hint={roomConfig.mode === "searchdestroy" ? "Configure the round timer and rounds needed to win" : roomConfig.mode === "killconfirmed" ? "Choose tag and time limits" : "Set the score target and/or time limit (at least one required)"}>
+                    <Section className="h-full" icon={<Target className="w-4 h-4 text-rose-400" />} title="Match Limits" hint={roomConfig.mode === "searchdestroy" ? "Configure match time and round wins" : roomConfig.mode === "killconfirmed" ? "Choose tag and time limits" : "Set the score target and/or time limit (at least one required)"}>
                     <div className={roomConfig.mode === "killconfirmed" ? "grid grid-cols-1 sm:grid-cols-2 gap-2 items-start" : "grid grid-cols-1 sm:grid-cols-2 gap-3 items-start"}>
                       {roomConfig.mode !== "searchdestroy" && <>
                       <div className={roomConfig.mode === "killconfirmed" ? "min-w-0 rounded-xl border border-white/5 bg-black/20 p-2" : "min-w-0 rounded-xl border border-white/5 bg-black/20 p-3"}>
@@ -369,12 +369,12 @@ export function Play() {
                       {roomConfig.mode === "searchdestroy" && (
                         <> 
                           <div className="min-w-0 rounded-xl border border-white/5 bg-black/20 p-2">
-                            <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Match Time (per round)</Label>
+                            <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Match Time</Label>
                             <div className="flex flex-wrap gap-1.5">{[60,90,120,150,180,240,300].map(seconds=><button key={seconds} type="button" aria-pressed={roomConfig.searchDestroyRoundTimeSeconds===seconds} onClick={()=>setRoomConfig({searchDestroyRoundTimeSeconds:seconds})} className={`px-2 py-1 rounded-lg text-xs font-bold ${roomConfig.searchDestroyRoundTimeSeconds===seconds?"bg-cyan-500/20 text-cyan-300 border border-cyan-500/40":"bg-zinc-900/50 text-white/50 border border-white/10"}`}>{seconds/60}m{seconds%60?`${seconds%60}s`:""}</button>)}</div>
                             <p className="text-white/35 text-[11px] mt-1.5">Attackers must plant before this timer expires.</p>
                           </div>
                           <div className="min-w-0 rounded-xl border border-white/5 bg-black/20 p-2">
-                            <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Trophy className="w-3 h-3" /> Round Wins to Match Victory</Label>
+                            <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Trophy className="w-3 h-3" /> Round Wins</Label>
                             <div className="flex flex-wrap gap-1.5">{[3,4,5,6,7,8].map(wins=><button key={wins} type="button" aria-pressed={roomConfig.searchDestroyRoundsToWin===wins} onClick={()=>setRoomConfig({searchDestroyRoundsToWin:wins})} className={`px-2 py-1 rounded-lg text-xs font-bold ${roomConfig.searchDestroyRoundsToWin===wins?"bg-rose-500/20 text-rose-300 border border-rose-500/40":"bg-zinc-900/50 text-white/50 border border-white/10"}`}>{wins}</button>)}</div>
                             <p className="text-white/35 text-[11px] mt-1.5">Teams switch sides halfway; the match ends at the selected wins.</p>
                           </div>
