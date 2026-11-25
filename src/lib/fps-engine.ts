@@ -335,7 +335,7 @@ export interface HudState {
   // blocked until stamina regens above a small threshold.
   stamina: number;
   staminaCooldownMs: number;
-  frontierDashCooldownMs?: number;  // 0 when regen is active, > 0 while waiting
+  frontierDashCooldownMs?: number; // Frontier dash recharge remaining (0..3000ms)
   // Equipped weapon slot. Drives the HUD's weapon-slot indicator (1/2/3).
   weaponSlot: WeaponSlot;
   // Per-slot weapon names (so the HUD can show all three slots' weapons).
