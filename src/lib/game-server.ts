@@ -3080,6 +3080,7 @@ function tickRoomSimulation(room: Room) {
       if(carrier)beginNextSearchDestroyRound(state,now,carrier.id,carrier.pos);
     }
     const events=tickSearchDestroy(state,allCombatants(room) as import("./game-mode-rules").ModeCombatant[],now);
+    for(const event of events)io.to(room.id).emit("message",{t:"modeEvent",event} as S2C);
     room.teamScores={...state.roundWins};
     const verdict=events.find((e):e is Extract<import("./game-mode-rules").SearchDestroyEvent,{type:"match_won"}>=>e.type==="match_won");
     if(verdict){endMatch(room,"other",verdict.winner);return;}
