@@ -38,8 +38,8 @@ export const COMPETITIVE_MODE_GUIDES = {
   },
   hardpoint: {
     label: "Hardpoint",
-    objective: "Capture the active hill and keep it uncontested to earn one point per second. The hill rotates through five locations with a short transition between them.",
-    tip: "Rotate before the hill moves. One teammate should hold the zone while others deny enemy approaches.",
+    objective: "Capture the active hill and keep it uncontested to earn one point per second. Five hill locations rotate in a randomized order each match; the HUD shows the current hill's status and location, with a countdown during the final ten seconds.",
+    tip: "Use the zone label (NW, NE, CENTER, SW or SE) to orient toward the active hill. Rotate before it moves; one teammate should hold the zone while others deny enemy approaches.",
   },
   frontier: {
     label: "Frontier",
