@@ -2253,6 +2253,11 @@ function applyQueuedLoadout(room: Room, p: PlayerNet) {
   room.pendingLoadouts.delete(p.id);
   room.loadouts.set(p.id, queued);
   p.weaponId = queued.emptyPrimary?(queued.secondaryWeaponId??"pistol_side"):queued.weaponId;
+  if(room.mode==="frontier"){
+    room.frontierAmmoRemaining??=new Map();
+    const mag=weaponById(p.weaponId).stats.magSize;
+    room.frontierAmmoRemaining.set(p.id,mag+frontierReserveAmmo(mag*3));
+  }
   p.weaponSkinId = queued.weaponSkinId;
   p.playerSkinId = queued.playerSkinId;
   p.charmId = queued.primaryCharmId ?? "none";
