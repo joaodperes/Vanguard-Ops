@@ -1342,14 +1342,15 @@ export const mapAllowedForMode = (mode: GameMode, id: MapId | string): boolean =
     const pools = map.modeSpawns?.[mode];
     return id === "dustwater" && !!pools && pools.red.length >= 3 && pools.blue.length >= 3;
   }
-  // Frontier is a combat-only ruleset, not an objective mode. Every map already
-  // approved for TDM can safely reuse its tested red/blue spawns and capacity.
+  // Frontier rotates across exactly three arenas: Whiteout Depot, Emberhold
+  // Castle and Dustwater. Keep the other map families out of this ruleset.
   if (mode === "frontier") {
     if (id === "dustwater") {
       const pools = map.modeSpawns?.frontier;
       return !!pools && pools.red.length >= 3 && pools.blue.length >= 3;
     }
-    return supportsMapMode(map,"tdm") && map.spawns.red.length >= 3 && map.spawns.blue.length >= 3;
+    return (id === "whiteout_depot" || id === "emberhold") &&
+      map.spawns.red.length >= 3 && map.spawns.blue.length >= 3;
   }
   return supportsMapMode(map,mode);
 };
