@@ -259,7 +259,9 @@ export interface HudState {
   playerTeam?: string; // authoritative viewer team, also available before scoreboard synchronization
   ctfFlags?: CtfFlags;
   hardpoint?: import("./game-mode-rules").HardpointState;
-  searchDestroy?: import("./game-mode-rules").SearchDestroyState;\n  searchDestroyInteraction?: { label: string; progress: number; kind: "plant" | "defuse" | "pickup" };\n  searchDestroyRoundNotice?: { text: string; at: number };
+  searchDestroy?: import("./game-mode-rules").SearchDestroyState;
+  searchDestroyInteraction?: { label: string; progress: number; kind: "plant" | "defuse" | "pickup" };
+  searchDestroyRoundNotice?: { text: string; at: number };
   searchDestroyCarrierName?: string;
   searchDestroyBombDistance?: number;
   isBombCarrier?: boolean;
