@@ -25,7 +25,7 @@ import { roomMapCandidates, roomTeamSizeForMap, winningRoomMap } from "./room-fl
 import { recommendedTeamSize, type RoomStatus, isValidKillConfirmedTagLifetimeMs, killConfirmedTagExpiresAt } from "./game-protocol";
 import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,ORBITAL_RULES_VERSION,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,orbitalPulseTargets,orbitalReaperEquipped,ORBITAL_REAPER_SPEED_MULTIPLIER} from "./orbital-reactor";
 import { advanceMatchElapsed } from "./match-clock";
-import { createHardpointState, tickHardpoint, createSearchDestroyState, beginNextSearchDestroyRound, tickSearchDestroy, applySearchDestroyAction, dropSearchDestroyBomb, releaseSearchDestroyPlayer, frontierWeaponIdAllowed, frontierReserveAmmo, distributedObjectivePosition, type HardpointState, type SearchDestroyState, type SearchDestroySite } from "./game-mode-rules";
+import { createHardpointState, tickHardpoint, hardpointObjectiveContributors, createSearchDestroyState, beginNextSearchDestroyRound, tickSearchDestroy, applySearchDestroyAction, dropSearchDestroyBomb, releaseSearchDestroyPlayer, frontierWeaponIdAllowed, frontierReserveAmmo, distributedObjectivePosition, type HardpointState, type SearchDestroyState, type SearchDestroySite } from "./game-mode-rules";
 import { fullWonderCharges, drainedWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, refundWonderCharge, type WonderChargeState } from "./wonder-charge";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
 import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
@@ -188,6 +188,7 @@ interface Room {
   resultsReady?: Set<string>;
   roundNumber?: number;
   hardpointState?: HardpointState;
+  hardpointPlayerObjectiveMs: Map<string, number>;
   searchDestroyState?: SearchDestroyState;
   frontierAmmoRemaining?: Map<string,number>;
   cleanupTimer?: ReturnType<typeof setTimeout>;
@@ -612,6 +613,7 @@ function addHumanToRoom(room: Room, socketId: string, p: PlayerNet, loadout: Loa
   room.players.set(socketId, p);
   room.sockets.set(socketId, socketId);
   room.scores.set(socketId, 0);
+  room.hardpointPlayerObjectiveMs.set(socketId, 0);
   room.loadouts.set(socketId, loadout);
   return team;
 }
@@ -678,6 +680,7 @@ function createLobbyRoom(
     id, mode, config, map,
     operation:config.operationId ? createOperationState(config.operationId,cfg.botDifficulty):undefined,
     players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(), pendingLoadouts: new Map(), playerKeys: new Map(),
+    hardpointPlayerObjectiveMs: new Map(),
     assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(map), overtime: false, orbitalCharge:0, orbitalHolders:new Set<string>(), tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
     startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
     state: "lobby",
@@ -724,6 +727,7 @@ function createLobbyRoom(
   room.players.set(socketId, host);
   room.sockets.set(socketId, socketId);
   room.scores.set(socketId, 0);
+  room.hardpointPlayerObjectiveMs.set(socketId, 0);
   room.loadouts.set(socketId, loadout);
   if (isGungame) room.gungameProgress.set(socketId, 0);
   // NOTE: do NOT spawn bots or start the tick here — the room waits in lobby
@@ -778,7 +782,11 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   if (room.hostSocketId !== socketId) return false;  // only the host can start
   room.state = "playing";
   room.startTime = Date.now();
-  if(room.mode==="hardpoint")room.hardpointState=createHardpointState(room.startTime);
+  if(room.mode==="hardpoint"){
+    room.hardpointState=createHardpointState(room.startTime);
+    room.hardpointPlayerObjectiveMs.clear();
+    for(const player of room.players.values())room.hardpointPlayerObjectiveMs.set(player.id,0);
+  }
   if(room.mode==="searchdestroy"){
     const carrier=[...room.players.values()].find(p=>p.team==="red")??[...room.players.values()][0];
     room.searchDestroyState=carrier?createSearchDestroyState(room.startTime,carrier.id,carrier.pos):undefined;
@@ -2440,11 +2448,21 @@ function endMatch(room: Room, reason: "other" | "gungame_victory" = "other", win
   // Decisive scores can end the server's 20Hz tick before its next snapshot.
   // Deliver one final authoritative state, then the verdict in socket order.
   io.to(room.id).emit("message", snapshot(room));
-  io.to(room.id).emit("message", { t: "matchEnd", standings, winnerTeam,
-    teamScores: { ...room.teamScores }, modeStats:{
-      ...(room.searchDestroyState?{searchDestroy:{redRounds:room.searchDestroyState.roundWins.red,blueRounds:room.searchDestroyState.roundWins.blue,roundsPlayed:room.searchDestroyState.round}}:{}),
-      ...(room.hardpointState?{hardpoint:{redObjectiveSeconds:Math.floor(room.hardpointState.objectiveMs.red/1000),blueObjectiveSeconds:Math.floor(room.hardpointState.objectiveMs.blue/1000),contestedSeconds:Math.floor(Math.max(room.hardpointState.contestedMs.red,room.hardpointState.contestedMs.blue)/1000),redScore:Math.floor(room.hardpointState.scores.red),blueScore:Math.floor(room.hardpointState.scores.blue)}}:{}),
-    }} as S2C);
+  const sharedModeStats={
+    ...(room.searchDestroyState?{searchDestroy:{redRounds:room.searchDestroyState.roundWins.red,blueRounds:room.searchDestroyState.roundWins.blue,roundsPlayed:room.searchDestroyState.round}}:{}),
+    ...(room.hardpointState?{hardpoint:{redObjectiveSeconds:Math.floor(room.hardpointState.objectiveMs.red/1000),blueObjectiveSeconds:Math.floor(room.hardpointState.objectiveMs.blue/1000),contestedSeconds:Math.floor(Math.max(room.hardpointState.contestedMs.red,room.hardpointState.contestedMs.blue)/1000),redScore:Math.floor(room.hardpointState.scores.red),blueScore:Math.floor(room.hardpointState.scores.blue)}}:{}),
+  };
+  // Objective rewards are personal: never give every teammate the whole team's
+  // Hardpoint time. Send each human their own contribution with shared totals.
+  for(const player of room.players.values()){
+    const playerModeStats={
+      ...sharedModeStats,
+      ...(sharedModeStats.hardpoint?{hardpoint:{...sharedModeStats.hardpoint,
+        playerObjectiveSeconds:Math.floor((room.hardpointPlayerObjectiveMs.get(player.id)??0)/1000)}}:{}),
+    };
+    io.to(player.id).emit("message",{t:"matchEnd",standings,winnerTeam,
+      teamScores:{...room.teamScores},modeStats:playerModeStats} as S2C);
+  }
   room.resultsReady = new Set();
   room.mapVotes = {};
   room.mapCandidates = roomMapCandidates(room.mode,room.map.id,room.teamSize,room.roundNumber,room.config.operationId,room.players.size,room.capacity===2?2:1);
@@ -2987,6 +3005,12 @@ function tickRoomSimulation(room: Room) {
   if(room.mode==="hardpoint"&&room.preMatchCountdown<=0&&room.hardpointState){
     const zones=[[-20,0,-34],[20,0,-34],[0,0,8],[-42,0,40],[42,0,40]].map((p,i)=>({id:String(i),pos:p as Vec3,radius:6}));
     const result=tickHardpoint(room.hardpointState,zones,allCombatants(room) as import("./game-mode-rules").ModeCombatant[],now,50);
+    const activeZone=zones[result.state.activeIndex];
+    if(activeZone){
+      for(const playerId of hardpointObjectiveContributors(activeZone,result.state.owner,[...room.players.values()] as import("./game-mode-rules").ModeCombatant[])){
+        room.hardpointPlayerObjectiveMs.set(playerId,(room.hardpointPlayerObjectiveMs.get(playerId)??0)+50);
+      }
+    }
     room.teamScores={...result.state.scores};
     room.config.hardpointZone=result.state.activeIndex;
     room.config.hardpointProgress=Math.max(result.state.objectiveMs.red,result.state.objectiveMs.blue);
