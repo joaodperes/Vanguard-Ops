@@ -25,7 +25,7 @@ import { roomMapCandidates, roomTeamSizeForMap, winningRoomMap } from "./room-fl
 import { recommendedTeamSize, type RoomStatus, isValidKillConfirmedTagLifetimeMs, killConfirmedTagExpiresAt } from "./game-protocol";
 import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,ORBITAL_RULES_VERSION,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,orbitalPulseTargets,orbitalReaperEquipped,ORBITAL_REAPER_SPEED_MULTIPLIER} from "./orbital-reactor";
 import { advanceMatchElapsed } from "./match-clock";
-import { createHardpointState, tickHardpoint, hardpointObjectiveContributors, createSearchDestroyState, beginNextSearchDestroyRound, tickSearchDestroy, applySearchDestroyAction, dropSearchDestroyBomb, releaseSearchDestroyPlayer, frontierWeaponIdAllowed, frontierReserveAmmo, distributedObjectivePosition, selectSearchDestroyCarrier, type HardpointState, type SearchDestroyState, type SearchDestroySite } from "./game-mode-rules";
+import { createHardpointState, tickHardpoint, hardpointObjectiveContributors, createSearchDestroyState, beginNextSearchDestroyRound, tickSearchDestroy, applySearchDestroyAction, dropSearchDestroyBomb, releaseSearchDestroyPlayer, frontierWeaponIdAllowed, frontierReserveAmmo, distributedObjectivePosition, selectSearchDestroyCarrier, searchDestroySitesForMap, type HardpointState, type SearchDestroyState, type SearchDestroySite } from "./game-mode-rules";
 import { fullWonderCharges, drainedWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, refundWonderCharge, type WonderChargeState } from "./wonder-charge";
 import { frontierLoadoutForPreset, isFrontierLoadoutPresetId } from "./frontier-loadouts";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
@@ -878,7 +878,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
     // the human player is on defence or no human attacker is present.
     const carrier=selectSearchDestroyCarrier(allCombatants(room) as import("./game-mode-rules").ModeCombatant[],"red");
     room.searchDestroyState=carrier
-      ? createSearchDestroyState(room.startTime,carrier.id,carrier.pos)
+      ? createSearchDestroyState(room.startTime,carrier.id,carrier.pos,cfg.searchDestroyRoundTimeSeconds??120,cfg.searchDestroyRoundsToWin??6)
       : undefined;
     room.config.timeLimit=0;room.timeLeft=0;
   }
