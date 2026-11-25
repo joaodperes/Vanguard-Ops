@@ -1338,11 +1338,11 @@ export const CTF_MAP_IDS: readonly MapId[] = MAP_LIST.filter(m=>supportsMapMode(
 export const mapAllowedForMode = (mode: GameMode, id: MapId | string): boolean => {
   const map = MAPS[id];
   if (!map) return false;
-  // Search & Destroy is currently Dustwater-only. Hardpoint uses a shared
-  // five-zone layout on Dustwater, Blacksite, and Floodgate.
+  // S&D supports Dustwater (dedicated spawns) plus Verdant Ruins and Ridgefall
+  // using their regular team spawn pools and map-relative bomb sites.
   if (mode === "searchdestroy") {
-    const pools = map.modeSpawns?.[mode];
-    return id === "dustwater" && !!pools && pools.red.length >= 3 && pools.blue.length >= 3;
+    if (id === "dustwater") { const pools=map.modeSpawns?.searchdestroy; return !!pools && pools.red.length>=3 && pools.blue.length>=3; }
+    return (id === "compound" || id === "skybridge") && map.spawns.red.length>=3 && map.spawns.blue.length>=3;
   }
   if (mode === "hardpoint") return id === "dustwater" || id === "bunker" || id === "floodgate";
   // Frontier rotates across exactly three arenas: Whiteout Depot, Emberhold
