@@ -59,6 +59,14 @@ export interface SearchDestroyState {
   lastRoundReason: "detonation" | "elimination" | "timeout" | "defuse" | null;
 }
 export interface SearchDestroySite { id: "A" | "B"; pos: ModeVec3; radius: number }
+/** Search & Destroy objective sites. Dustwater retains its authored sites; Verdant Ruins (compound) and Ridgefall (skybridge) use map-relative site locations. */
+export function searchDestroySitesForMap(mapId: string, mapSize: number): SearchDestroySite[] {
+  if (mapId === "dustwater") return [{id:"A",pos:[-42,0,-40],radius:5},{id:"B",pos:[42,0,-40],radius:5}];
+  const extent=Math.max(24,Math.min(62,mapSize*0.43));
+  const depth=Math.max(12,Math.min(42,mapSize*0.30));
+  return [{id:"A",pos:[-extent,0,-depth],radius:5},{id:"B",pos:[extent,0,-depth],radius:5}];
+}
+
 export interface SearchDestroyAction {
   kind: "plant" | "defuse" | "pickup" | "drop" | "cancel"; playerId: string; team: ModeTeam;
   pos: ModeVec3; alive: boolean; siteId?: "A" | "B";
@@ -99,7 +107,7 @@ export function beginNextSearchDestroyRound(
       Math.max(state.roundWins.red, state.roundWins.blue) >= SEARCH_DESTROY_RULES.roundsToWin) return;
   state.round += 1; state.phase = "preparation";
   state.preparationEndsAt = now + SEARCH_DESTROY_RULES.preparationSeconds * 1000;
-  state.roundEndsAt = now + (SEARCH_DESTROY_RULES.preparationSeconds + SEARCH_DESTROY_RULES.roundSeconds) * 1000;
+  state.roundEndsAt = now + (SEARCH_DESTROY_RULES.preparationSeconds + state.roundSeconds) * 1000;
   state.bomb = { status: "carried", carrierId, pos: [...carrierPos], siteId: null,
     plantedAt: null, detonatesAt: null, plantProgress: null, defuseProgress: null };
 }
@@ -110,10 +118,10 @@ export function finishSearchDestroyRound(
   state.roundWins[winner] += 1; state.lastRoundWinner = winner; state.lastRoundReason = reason;
   state.phase = "round_end";
   const events: SearchDestroyEvent[] = [{ type: "round_won", winner, reason, round: state.round }];
-  if (state.roundWins[winner] >= SEARCH_DESTROY_RULES.roundsToWin || state.round >= SEARCH_DESTROY_RULES.maxRounds) {
+  if (state.roundWins[winner] >= state.roundsToWin || state.round >= state.maxRounds) {
     state.phase = "match_end"; events.push({ type: "match_won", winner }); return events;
   }
-  if (state.round === SEARCH_DESTROY_RULES.sideSwitchAfter) {
+  if (state.round === state.sideSwitchAfter) {
     state.attackerTeam = otherTeam(state.attackerTeam);
     events.push({ type: "side_switch", attackerTeam: state.attackerTeam });
   }
