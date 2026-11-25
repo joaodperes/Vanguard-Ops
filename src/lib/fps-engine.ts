@@ -13879,6 +13879,7 @@ export class FPSEngine {
       deaths: this.deaths,
       score: this.opts.online ? (this.combatants.get(this.selfId)?.score ?? (this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills)) : (this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills),
       teamScores: this.teamScores,
+      teamAlive:{red:[...this.combatants.values()].filter(c=>c.alive&&c.team==="red").length+(this.alive&&this.opts.team==="red"&&!this.combatants.has(this.selfId)?1:0),blue:[...this.combatants.values()].filter(c=>c.alive&&c.team==="blue").length+(this.alive&&this.opts.team==="blue"&&!this.combatants.has(this.selfId)?1:0)},
       playerTeam: this.opts.team as string,
       ctfFlags: this.opts.mode === "ctf" ? this.ctfFlags : undefined,
       hardpoint: this.hardpointState,
