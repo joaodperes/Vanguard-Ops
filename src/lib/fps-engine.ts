@@ -11352,7 +11352,7 @@ export class FPSEngine {
         this.spectatorTargetId=spectatorTarget.id;
       }else if(!spectatorTargets.length)this.spectatorTargetId=undefined;
       if(spectatorTarget){
-        this.camera.position.set(spectatorTarget.pos[0]-Math.sin(spectatorTarget.yaw??0)*0.35,spectatorTarget.pos[1]+EYE_HEIGHT+0.25,spectatorTarget.pos[2]-Math.cos(spectatorTarget.yaw??0)*0.35);
+        this.camera.position.set(spectatorTarget.pos[0]-Math.sin(spectatorTarget.yaw??0)*0.85,spectatorTarget.pos[1]+EYE_HEIGHT+0.65,spectatorTarget.pos[2]-Math.cos(spectatorTarget.yaw??0)*0.85);
         this.camera.rotation.set(spectatorTarget.pitch??0,(spectatorTarget.yaw??0)+Math.PI,0,"YXZ");
       }else{
         this.camera.position.set(this.pos.x,this.pos.y+EYE_HEIGHT,this.pos.z);
