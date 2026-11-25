@@ -4,7 +4,7 @@
  */
 export type ModeTeam = "red" | "blue";
 export type ModeVec3 = readonly [number, number, number];
-export interface ModeCombatant { id: string; team: ModeTeam; alive: boolean; pos: ModeVec3 }
+export interface ModeCombatant { id: string; team: ModeTeam; alive: boolean; isBot?: boolean; pos: ModeVec3 }
 
 export const SEARCH_DESTROY_RULES = Object.freeze({
   roundSeconds: 120, preparationSeconds: 5, plantSeconds: 5, defuseSeconds: 7,
@@ -60,7 +60,7 @@ export interface SearchDestroyState {
 }
 export interface SearchDestroySite { id: "A" | "B"; pos: ModeVec3; radius: number }
 export interface SearchDestroyAction {
-  kind: "plant" | "defuse" | "pickup" | "cancel"; playerId: string; team: ModeTeam;
+  kind: "plant" | "defuse" | "pickup" | "drop" | "cancel"; playerId: string; team: ModeTeam;
   pos: ModeVec3; alive: boolean; siteId?: "A" | "B";
 }
 export type SearchDestroyEvent =
@@ -75,6 +75,14 @@ export type SearchDestroyActionResult = SearchDestroyEvent | null;
 const otherTeam = (team: ModeTeam): ModeTeam => team === "red" ? "blue" : "red";
 const distance2D = (a: ModeVec3, b: ModeVec3) => Math.hypot(a[0] - b[0], a[2] - b[2]);
 const inside = (p: ModeVec3, q: ModeVec3, radius: number) => distance2D(p, q) <= radius;
+
+/** Prefer a living human attacker, but allow an attacker-side bot to carry the bomb when no human is on that side. */
+export function selectSearchDestroyCarrier<T extends ModeCombatant & { isBot?: boolean }>(
+  players: readonly T[], attackerTeam: ModeTeam,
+): T | undefined {
+  const attackers = players.filter(player => player.alive && player.team === attackerTeam);
+  return attackers.find(player => !player.isBot) ?? attackers[0];
+}
 
 export function createSearchDestroyState(now: number, carrierId: string, carrierPos: ModeVec3): SearchDestroyState {
   return { phase: "preparation", round: 1, attackerTeam: "red", roundWins: { red: 0, blue: 0 },
@@ -135,6 +143,10 @@ export function applySearchDestroyAction(
     return null;
   }
   if (!action.alive) return null;
+  if (action.kind === "drop") {
+    if (action.team !== state.attackerTeam) return null;
+    return dropSearchDestroyBomb(state, action.playerId, action.pos);
+  }
   if (action.kind === "pickup") {
     if (state.phase !== "live" || action.team !== state.attackerTeam || state.bomb.status !== "dropped" ||
         !inside(action.pos, state.bomb.pos, SEARCH_DESTROY_RULES.interactionRadius)) return null;

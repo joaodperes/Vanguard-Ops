@@ -25,7 +25,7 @@ import { roomMapCandidates, roomTeamSizeForMap, winningRoomMap } from "./room-fl
 import { recommendedTeamSize, type RoomStatus, isValidKillConfirmedTagLifetimeMs, killConfirmedTagExpiresAt } from "./game-protocol";
 import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,ORBITAL_RULES_VERSION,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,orbitalPulseTargets,orbitalReaperEquipped,ORBITAL_REAPER_SPEED_MULTIPLIER} from "./orbital-reactor";
 import { advanceMatchElapsed } from "./match-clock";
-import { createHardpointState, tickHardpoint, hardpointObjectiveContributors, createSearchDestroyState, beginNextSearchDestroyRound, tickSearchDestroy, applySearchDestroyAction, dropSearchDestroyBomb, releaseSearchDestroyPlayer, frontierWeaponIdAllowed, frontierReserveAmmo, distributedObjectivePosition, type HardpointState, type SearchDestroyState, type SearchDestroySite } from "./game-mode-rules";
+import { createHardpointState, tickHardpoint, hardpointObjectiveContributors, createSearchDestroyState, beginNextSearchDestroyRound, tickSearchDestroy, applySearchDestroyAction, dropSearchDestroyBomb, releaseSearchDestroyPlayer, frontierWeaponIdAllowed, frontierReserveAmmo, distributedObjectivePosition, selectSearchDestroyCarrier, type HardpointState, type SearchDestroyState, type SearchDestroySite } from "./game-mode-rules";
 import { fullWonderCharges, drainedWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, refundWonderCharge, type WonderChargeState } from "./wonder-charge";
 import { frontierLoadoutForPreset, isFrontierLoadoutPresetId } from "./frontier-loadouts";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
@@ -380,7 +380,12 @@ function resolveGungameWeapons(preset?: string, multiplier?: number): string[] {
 }
 
 function pickSpawn(team: string, room: Room): Vec3 {
-  return chooseSpawn(room,room.map,team,[...room.players.values(),...room.bots.values()].filter(p=>p.alive));
+  // S&D spawns follow round role, not team colour, so the side switch also
+  // switches which end of Dustwater each team deploys from.
+  const spawnTeam = room.mode === "searchdestroy"
+    ? (team === (room.searchDestroyState?.attackerTeam ?? "red") ? "red" : "blue")
+    : team;
+  return chooseSpawn(room,room.map,spawnTeam,[...room.players.values(),...room.bots.values()].filter(p=>p.alive));
 }
 
 function assignTeam(mode: GameMode, room: Room, requested?: "red" | "blue" | "auto"): string {
@@ -800,11 +805,6 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
     room.hardpointPlayerObjectiveMs.clear();
     for(const player of room.players.values())room.hardpointPlayerObjectiveMs.set(player.id,0);
   }
-  if(room.mode==="searchdestroy"){
-    const carrier=[...room.players.values()].find(p=>p.team==="red")??[...room.players.values()][0];
-    room.searchDestroyState=carrier?createSearchDestroyState(room.startTime,carrier.id,carrier.pos):undefined;
-    room.config.timeLimit=0;room.timeLeft=0;
-  }
   room.environmentTime = 0;
   room.floodgateBreachAt=null;
   if(room.map.id==="floodgate")setFloodgateFreightStage(room.map,null);
@@ -869,6 +869,15 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   }
   // Spawn bots to fill empty slots (survival spawns per-wave instead).
   if (room.fillWithBots && room.mode !== "survival") spawnBots(room);
+  if(room.mode==="searchdestroy"){
+    // Resolve after bot fill: an attacker-side bot can carry the bomb when
+    // the human player is on defence or no human attacker is present.
+    const carrier=selectSearchDestroyCarrier(allCombatants(room) as import("./game-mode-rules").ModeCombatant[],"red");
+    room.searchDestroyState=carrier
+      ? createSearchDestroyState(room.startTime,carrier.id,carrier.pos)
+      : undefined;
+    room.config.timeLimit=0;room.timeLeft=0;
+  }
   for(const bot of room.bots.values())
     if(bot.loadout.perkId==="wonder_weapon" &&
        !room.wonderCharges.has(bot.id+":"+bot.loadout.wonderWeaponId))
@@ -2807,7 +2816,10 @@ function updateRoomBots(room:Room,now:number):void{
       if(state.phase==="planted"){
         bot.ai.wanderTarget=distributedObjectivePosition(state.bomb.pos,bot.id,2.5);
       }else if(state.phase==="live"&&bot.team===state.attackerTeam){
-        if(state.bomb.status==="dropped")bot.ai.wanderTarget=distributedObjectivePosition(state.bomb.pos,bot.id,1.5);
+        const engagedEnemy=!!bot.ai.targetId&&allCombatants(room).some(c=>
+          c.id===bot.ai.targetId&&c.alive&&c.team!==bot.team);
+        if(state.bomb.status==="dropped"&&!engagedEnemy)
+          bot.ai.wanderTarget=distributedObjectivePosition(state.bomb.pos,bot.id,1.5);
         else if(state.bomb.carrierId===bot.id){
           const chosen=sites.sort((a,b)=>Math.hypot(a[0]-bot.pos[0],a[2]-bot.pos[2])-Math.hypot(b[0]-bot.pos[0],b[2]-bot.pos[2]))[0];
           bot.ai.wanderTarget=[...chosen];
@@ -3045,8 +3057,16 @@ function tickRoomSimulation(room: Room) {
   if(room.mode==="searchdestroy"&&room.preMatchCountdown<=0&&room.searchDestroyState){
     const state=room.searchDestroyState;
     if(state.phase==="round_end"){
-      for(const c of allCombatants(room)){c.alive=true;c.health=MAX_HEALTH;c.pos=pickSpawn(c.team,room);c.spawnProtectedUntil=now+1200;}
-      const carrier=allCombatants(room).find(p=>p.team===state.attackerTeam&&p.alive)||allCombatants(room).find(p=>p.alive);
+      const actors=allCombatants(room);
+      for(const c of actors){
+        c.alive=true;c.health=MAX_HEALTH;c.pos=pickSpawn(c.team,room);c.spawnProtectedUntil=now+1800;
+        // Survivors also need a respawn event: otherwise their predicted local
+        // position stays at the previous round's final location.
+        if(!c.isBot)io.to(c.id).emit("message",{
+          t:"respawn",playerId:c.id,pos:[...c.pos] as Vec3,health:MAX_HEALTH,
+        } as S2C);
+      }
+      const carrier=selectSearchDestroyCarrier(actors as import("./game-mode-rules").ModeCombatant[],state.attackerTeam);
       if(carrier)beginNextSearchDestroyRound(state,now,carrier.id,carrier.pos);
     }
     const events=tickSearchDestroy(state,allCombatants(room) as import("./game-mode-rules").ModeCombatant[],now);

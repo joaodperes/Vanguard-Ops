@@ -259,6 +259,9 @@ export interface HudState {
   ctfFlags?: CtfFlags;
   hardpoint?: import("./game-mode-rules").HardpointState;
   searchDestroy?: import("./game-mode-rules").SearchDestroyState;
+  searchDestroyCarrierName?: string;
+  searchDestroyBombDistance?: number;
+  isBombCarrier?: boolean;
   frontierAmmoRemaining?: number;
   orbitalCharge?: number;
   orbitalKillsRequired?:number;
@@ -2817,6 +2820,20 @@ export class FPSEngine {
             sign.position.set(0,Math.min(h-.7,3.65),d/2+.64);group.add(sign);
           }
         }
+        if(p.text?.trim().toUpperCase()==="CHURCH"){
+          const tx=w*.22,tz=0;
+          const towerStone=new THREE.MeshStandardMaterial({color:0x9c8873,roughness:.88});
+          const spireMat=new THREE.MeshStandardMaterial({color:0x57483d,roughness:.9});
+          const spire=new THREE.Mesh(new THREE.ConeGeometry(2.65,3.1,4),spireMat);
+          spire.position.set(tx,h+4.15,tz);spire.rotation.y=Math.PI/4;spire.castShadow=true;group.add(spire);
+          for(const side of [-1,1]){
+            cube(group,towerStone,tx+side*1.85,h+1.55,tz,.28,3.1,.28);
+            cube(group,towerStone,tx,h+1.55,tz+side*1.85,3.7,3.1,.28);
+          }
+          cube(group,towerStone,tx,h+3.0,tz,4.2,.28,4.2);
+          cube(group,trim,tx,h+5.95,tz,.22,1.15,.22);
+          cube(group,trim,tx,h+6.15,tz,.9,.18,.22);
+        }
       }else if(p.kind==="dock"){
         const timber=new THREE.MeshStandardMaterial({color:0xa87b52,roughness:.9});
         cube(group,timber,0,.43,0,w,.7,d);
@@ -2928,6 +2945,20 @@ export class FPSEngine {
           const pl=new THREE.PointLight(this.map.id==="floodgate"?(p.color??"#ffd39c"):0xffce90,
             this.map.id==="floodgate"?1.25:.52,this.map.id==="floodgate"?28:12);
           pl.position.set(.95,postH-.32,0);group.add(pl);
+        }
+      }else if(p.kind==="dynamite"){
+        // A low-profile site marker: timber crate with bundled red dynamite.
+        cube(group,wood,0,.42,0,1.35,.84,1.05);
+        cube(group,trim,0,.88,0,1.42,.12,1.12);
+        const stickMat=new THREE.MeshStandardMaterial({color:0x9b3028,roughness:.72});
+        const capMat=new THREE.MeshStandardMaterial({color:0xd8c6a0,roughness:.8});
+        for(const offset of [-.42,0,.42]){
+          const stick=new THREE.Mesh(new THREE.CylinderGeometry(.13,.13,.95,8),stickMat);
+          stick.rotation.z=Math.PI/2;stick.position.set(offset,1.12,0);group.add(stick);
+          for(const end of [-1,1]){
+            const cap=new THREE.Mesh(new THREE.CylinderGeometry(.14,.14,.07,8),capMat);
+            cap.rotation.z=Math.PI/2;cap.position.set(offset+end*.49,1.12,0);group.add(cap);
+          }
         }
       }else if(p.kind==="sign"){
         cube(group,masonry,0,2.15,0,.3,4.3,.3);
@@ -4667,11 +4698,12 @@ export class FPSEngine {
     });
     on(document, "contextmenu", (e) => e.preventDefault());
     on(window, "keydown", (e) => {
-      if (this.inputSuspended || (!this.pointerLocked&&!(this.touchMode||this.controllerActive)&&!this.controllerActive)) return;
-      if(this.opts.mode==="searchdestroy"&&!this.alive&&(this.pointerLocked||this.touchMode||this.controllerActive)&&
+      // Spectator controls must work after pointer lock is released on death.
+      if(this.opts.mode==="searchdestroy"&&!this.alive&&
         (e.code==="ArrowRight"||e.code==="ArrowLeft")){
         e.preventDefault();if(!e.repeat)this.cycleSpectatorTarget(e.code==="ArrowRight"?1:-1);return;
       }
+      if (this.inputSuspended || (!this.pointerLocked&&!(this.touchMode||this.controllerActive)&&!this.controllerActive)) return;
       const code=canonicalKey(this.controls.keyBindings,e.code);if(!code)return;
       // Record the edge in the browser event itself. Even a fast tap that starts
       // and ends between render frames must be eligible for jump buffering.
@@ -4684,6 +4716,10 @@ export class FPSEngine {
         if(this.opts.mode==="searchdestroy"){e.preventDefault();this.modeInteractHeld=true;}
         else if(this.opts.mode==="frontier"){e.preventDefault();this.triggerFrontierDodge();}
         else this.enterNearbyMech();
+      }
+      if(code==="KeyB"&&!e.repeat&&this.opts.mode==="searchdestroy"&&
+        (this.pointerLocked||this.touchMode||this.controllerActive)){
+        e.preventDefault();this.dropSearchDestroyBomb();
       }
       if (code === "KeyX" && !e.repeat && (this.pointerLocked||this.touchMode) && this.mechActive) {
         e.preventDefault();
@@ -4756,6 +4792,13 @@ export class FPSEngine {
     if(this.modeInteractHeld&&!held&&this.opts.mode==="searchdestroy"&&this.opts.online&&this.socket?.connected)
       this.socket.emit("message",{t:"modeInteract",action:"cancel"} as C2S);
     this.modeInteractHeld=held;
+  }
+  /** Drop the bomb without dying; the server validates team, carrier and phase. */
+  dropSearchDestroyBomb(){
+    const state=this.searchDestroyState;
+    if(this.opts.mode!=="searchdestroy"||!this.alive||!state||state.phase!=="live"||
+      state.bomb.carrierId!==this.selfId||!this.opts.online||!this.socket?.connected)return;
+    this.socket.emit("message",{t:"modeInteract",action:"drop"} as C2S);
   }
   /** Touch interaction mirrors keyboard/controller mode actions. */
   setTouchInteract(held:boolean){
@@ -7862,8 +7905,11 @@ export class FPSEngine {
         break;
       case "modeEvent":
         if(this.opts.mode==="searchdestroy"){
-          if(msg.event.type==="planted"&&msg.event.playerId===this.selfId)this.searchDestroyPlants++;
-          else if(msg.event.type==="defused"&&msg.event.playerId===this.selfId)this.searchDestroyDefuses++;
+          if(msg.event.type==="planted"){
+            // Shared non-directional cue; it does not announce the site.
+            this.sound.play("countdown_tick",{volume:.9});
+            if(msg.event.playerId===this.selfId)this.searchDestroyPlants++;
+          }else if(msg.event.type==="defused"&&msg.event.playerId===this.selfId)this.searchDestroyDefuses++;
         }
         break;
       case "ctfEvent":
@@ -11253,9 +11299,24 @@ export class FPSEngine {
     // effect of the gun continuing to sway/recoil while the player is dead.
     if (!this.alive && !this.matchEnded) {
       this.updateRiotModels(); // hide the local panel and continue remote stance updates
-      // Keep the camera at the death position (don't follow movement — there is none).
-      this.camera.position.set(this.pos.x, this.pos.y + EYE_HEIGHT, this.pos.z);
-      this.camera.rotation.set(this.pitch, this.yaw + Math.PI, 0, "YXZ");
+      // Follow the selected living teammate in S&D. The dead-player branch
+      // returns before the normal camera update below, so it must do this here.
+      const spectatorTargets=this.opts.mode==="searchdestroy"
+        ? [...this.combatants.values()].filter(c=>c.id!==this.selfId&&c.alive&&c.team===this.opts.team)
+        : [];
+      let spectatorTarget=spectatorTargets.find(c=>c.id===this.spectatorTargetId);
+      if(spectatorTargets.length&&!spectatorTarget){
+        spectatorTarget=[...spectatorTargets].sort((a,b)=>
+          Math.hypot(a.pos[0]-this.pos.x,a.pos[2]-this.pos.z)-Math.hypot(b.pos[0]-this.pos.x,b.pos[2]-this.pos.z))[0];
+        this.spectatorTargetId=spectatorTarget.id;
+      }else if(!spectatorTargets.length)this.spectatorTargetId=undefined;
+      if(spectatorTarget){
+        this.camera.position.set(spectatorTarget.pos[0],spectatorTarget.pos[1]+EYE_HEIGHT,spectatorTarget.pos[2]);
+        this.camera.rotation.set(spectatorTarget.pitch??0,(spectatorTarget.yaw??0)+Math.PI,0,"YXZ");
+      }else{
+        this.camera.position.set(this.pos.x,this.pos.y+EYE_HEIGHT,this.pos.z);
+        this.camera.rotation.set(this.pitch,this.yaw+Math.PI,0,"YXZ");
+      }
       // Hide the entire first-person rig. In particular the articulated
       // support ARM is a separate camera child, not a vmPart: hiding only
       // the glove left a detached raised forearm after combat/lava deaths.
@@ -13765,6 +13826,14 @@ export class FPSEngine {
       ctfFlags: this.opts.mode === "ctf" ? this.ctfFlags : undefined,
       hardpoint: this.hardpointState,
       searchDestroy: this.searchDestroyState,
+      searchDestroyCarrierName: this.searchDestroyState?.bomb.status==="carried"&&
+        this.opts.team===this.searchDestroyState.attackerTeam&&this.searchDestroyState.bomb.carrierId
+          ? this.combatants.get(this.searchDestroyState.bomb.carrierId)?.name : undefined,
+      isBombCarrier: this.searchDestroyState?.phase==="live"&&
+        this.searchDestroyState.bomb.status==="carried"&&this.searchDestroyState.bomb.carrierId===this.selfId,
+      searchDestroyBombDistance: this.searchDestroyState?.bomb.status==="dropped"
+        ? Math.round(Math.hypot(this.pos.x-this.searchDestroyState.bomb.pos[0],this.pos.z-this.searchDestroyState.bomb.pos[2]))
+        : undefined,
       frontierAmmoRemaining: this.frontierAmmoRemaining,
       orbitalKillsRequired:reactorObjective(this.map)?.killsRequired,
       orbitalCharge:reactorObjective(this.map)?this.orbitalCharge:undefined,

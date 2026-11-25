@@ -4,7 +4,7 @@ import { calculateMatchRewards } from "../src/lib/match-rewards";
 import { frontierLoadoutForPreset } from "../src/lib/frontier-loadouts";
 import {
   SEARCH_DESTROY_RULES, HARDPOINT_RULES, FRONTIER_RULES,
-  createSearchDestroyState, beginNextSearchDestroyRound, finishSearchDestroyRound,
+  createSearchDestroyState, selectSearchDestroyCarrier, beginNextSearchDestroyRound, finishSearchDestroyRound,
   applySearchDestroyAction, dropSearchDestroyBomb, releaseSearchDestroyPlayer, tickSearchDestroy,
   createHardpointState, tickHardpoint, hardpointObjectiveContributors, frontierWeaponAllowed, frontierWeaponIdAllowed, frontierReserveAmmo, frontierMovementSpeed, distributedObjectivePosition,
 } from "../src/lib/game-mode-rules";
@@ -35,6 +35,19 @@ describe("Search & Destroy", () => {
     const dropped=createSearchDestroyState(0,"attacker",[1,0,1]); dropped.phase="live";
     expect(dropSearchDestroyBomb(dropped,"attacker",[2,0,2])?.type).toBe("dropped");
     expect(applySearchDestroyAction(dropped,{kind:"pickup",playerId:"mate",team:"red",alive:true,pos:[2,0,2]},sites,100)?.type).toBe("picked_up");
+  });
+  test("allows a living carrier to manually drop the bomb without dying",()=>{
+    const state=createSearchDestroyState(0,"carrier",[1,0,1]);state.phase="live";
+    const event=applySearchDestroyAction(state,{kind:"drop",playerId:"carrier",team:"red",alive:true,pos:[4,0,5]},sites,100);
+    expect(event?.type).toBe("dropped");
+    expect(state.bomb).toMatchObject({status:"dropped",carrierId:null,pos:[4,0,5]});
+  });
+  test("assigns the bomb to an attacker bot when no human attacker is present",()=>{
+    const players=[
+      {id:"defender",team:"blue" as const,alive:true,isBot:false,pos:[0,0,0] as [number,number,number]},
+      {id:"attacker-bot",team:"red" as const,alive:true,isBot:true,pos:[5,0,0] as [number,number,number]},
+    ];
+    expect(selectSearchDestroyCarrier(players,"red")?.id).toBe("attacker-bot");
   });
   test("disconnecting a carrier drops the bomb and disconnecting an actor cancels progress",()=>{
     const state=createSearchDestroyState(0,"carrier",[1,0,1]);state.phase="live";

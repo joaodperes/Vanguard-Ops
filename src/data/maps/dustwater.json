@@ -711,6 +711,134 @@
         "kind": "cover",
         "label": "Depot loading counter",
         "material": "thin_wood"
+      },
+      {
+        "id": "saloon-second-floor",
+        "kind": "platform",
+        "x": -12,
+        "z": -14,
+        "w": 17,
+        "d": 8,
+        "h": 0.3,
+        "y": 3.8,
+        "autoStairs": false,
+        "label": "Saloon upper floor"
+      },
+      {
+        "id": "saloon-second-floor-stairs",
+        "kind": "stairs",
+        "x": -18,
+        "z": -15,
+        "w": 2.4,
+        "d": 8,
+        "h": 4.1,
+        "axis": "z",
+        "sign": 1,
+        "label": "Saloon interior stairs"
+      },
+      {
+        "id": "bank-second-floor",
+        "kind": "platform",
+        "x": -14,
+        "z": 27,
+        "w": 14,
+        "d": 8,
+        "h": 0.3,
+        "y": 3.8,
+        "autoStairs": false,
+        "label": "Bank upper floor"
+      },
+      {
+        "id": "bank-second-floor-stairs",
+        "kind": "stairs",
+        "x": -20,
+        "z": 25,
+        "w": 2.4,
+        "d": 8,
+        "h": 4.1,
+        "axis": "z",
+        "sign": 1,
+        "label": "Bank interior stairs"
+      },
+      {
+        "id": "church-tower-north-wall",
+        "kind": "cover",
+        "x": 18,
+        "z": -17.5,
+        "w": 5,
+        "d": 0.45,
+        "h": 3.6,
+        "y": 7,
+        "label": "Church tower north wall"
+      },
+      {
+        "id": "church-tower-west-wall",
+        "kind": "cover",
+        "x": 15.5,
+        "z": -15,
+        "w": 0.45,
+        "d": 5,
+        "h": 3.6,
+        "y": 7,
+        "label": "Church tower west wall"
+      },
+      {
+        "id": "church-tower-east-wall",
+        "kind": "cover",
+        "x": 20.5,
+        "z": -15,
+        "w": 0.45,
+        "d": 5,
+        "h": 3.6,
+        "y": 7,
+        "label": "Church tower east wall"
+      },
+      {
+        "id": "church-tower-south-wall-left",
+        "kind": "cover",
+        "x": 16.5,
+        "z": -12.5,
+        "w": 2,
+        "d": 0.45,
+        "h": 3.6,
+        "y": 7,
+        "label": "Church tower south wall"
+      },
+      {
+        "id": "church-tower-south-wall-right",
+        "kind": "cover",
+        "x": 19.5,
+        "z": -12.5,
+        "w": 2,
+        "d": 0.45,
+        "h": 3.6,
+        "y": 7,
+        "label": "Church tower south wall"
+      },
+      {
+        "id": "church-tower-stairs",
+        "kind": "stairs",
+        "x": 18,
+        "z": -15,
+        "w": 2.2,
+        "d": 6,
+        "h": 3.6,
+        "y": 7,
+        "axis": "z",
+        "sign": 1,
+        "label": "Church tower stairs"
+      },
+      {
+        "id": "church-tower-platform",
+        "kind": "platform",
+        "x": 18,
+        "z": -15,
+        "w": 5,
+        "d": 5,
+        "h": 0.3,
+        "y": 10.6,
+        "autoStairs": false,
+        "label": "Church tower lookout"
       }
     ],
     "spawns": {
@@ -805,56 +933,56 @@
       "searchdestroy": {
         "red": [
           [
-            -42,
+            -34,
             0,
-            -8
+            32
           ],
           [
-            -42,
+            -17,
             0,
-            0
+            38
           ],
           [
-            -42,
             0,
-            8
+            0,
+            40
           ],
           [
-            -38,
+            17,
             0,
-            -16
+            38
           ],
           [
-            -38,
+            34,
             0,
-            16
+            32
           ]
         ],
         "blue": [
           [
-            42,
+            -34,
             0,
-            -8
+            -32
           ],
           [
-            42,
+            -17,
             0,
-            0
+            -38
           ],
           [
-            42,
             0,
-            8
+            0,
+            -40
           ],
           [
-            38,
+            17,
             0,
-            -16
+            -38
           ],
           [
-            38,
+            34,
             0,
-            16
+            -32
           ]
         ]
       },
@@ -1007,7 +1135,7 @@
         "x": -12,
         "z": -15,
         "w": 22,
-        "d": 14,
+        "d": 20,
         "h": 7,
         "use": "diner",
         "facade": "timber",
@@ -1018,18 +1146,19 @@
         "x": 14,
         "z": -15,
         "w": 18,
-        "d": 14,
+        "d": 20,
         "h": 7,
-        "use": "office",
-        "facade": "timber",
-        "roofAccess": true
+        "use": "library",
+        "facade": "brick",
+        "roofAccess": true,
+        "text": "CHURCH"
       },
       {
         "kind": "building",
         "x": -14,
         "z": 25,
         "w": 18,
-        "d": 14,
+        "d": 20,
         "h": 7,
         "use": "office",
         "facade": "brick",
@@ -1064,12 +1193,6 @@
       },
       {
         "kind": "sign",
-        "x": 14,
-        "z": -23,
-        "text": "SHERIFF"
-      },
-      {
-        "kind": "sign",
         "x": -14,
         "z": 17,
         "text": "BANK"
@@ -1097,12 +1220,6 @@
       },
       {
         "kind": "sign",
-        "x": -42,
-        "z": -40,
-        "text": "BOMB SITE A"
-      },
-      {
-        "kind": "sign",
         "x": 20,
         "z": -34,
         "text": "HILL 2"
@@ -1121,12 +1238,6 @@
       },
       {
         "kind": "sign",
-        "x": 42,
-        "z": -40,
-        "text": "BOMB SITE B"
-      },
-      {
-        "kind": "sign",
         "x": -20,
         "z": -34,
         "text": "HILL 1"
@@ -1136,6 +1247,22 @@
         "x": 42,
         "z": 40,
         "text": "HILL 5"
+      },
+      {
+        "kind": "dynamite",
+        "x": -42,
+        "z": -40,
+        "w": 2.8,
+        "d": 1.6,
+        "h": 1.2
+      },
+      {
+        "kind": "dynamite",
+        "x": 42,
+        "z": -40,
+        "w": 2.8,
+        "d": 1.6,
+        "h": 1.2
       }
     ],
     "surfaces": {
