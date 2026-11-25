@@ -2842,7 +2842,7 @@ function updateRoomBots(room:Room,now:number):void{
     }
     updateBotAI(room,bot,now);
     if(room.mode==="searchdestroy"&&room.searchDestroyState){
-      const state=room.searchDestroyState,sites:SearchDestroySite[]=[{id:"A",pos:[-42,0,-40],radius:5},{id:"B",pos:[42,0,-40],radius:5}];
+      const state=room.searchDestroyState,sites:SearchDestroySite[]=[{id:"A",pos:[-42,0,-40],radius:5},{id:"B",pos:[-14,0,25],radius:5}];
       if(state.phase==="live"&&bot.team===state.attackerTeam&&state.bomb.status==="dropped"&&Math.hypot(bot.pos[0]-state.bomb.pos[0],bot.pos[2]-state.bomb.pos[2])<2.6)
         applySearchDestroyAction(state,{kind:"pickup",playerId:bot.id,team:bot.team as "red"|"blue",pos:bot.pos,alive:true},sites,now);
       if(state.phase==="live"&&state.bomb.carrierId===bot.id){const site=sites.sort((a,b)=>Math.hypot(a.pos[0]-bot.pos[0],a.pos[2]-bot.pos[2])-Math.hypot(b.pos[0]-bot.pos[0],b.pos[2]-bot.pos[2]))[0];if(Math.hypot(bot.pos[0]-site.pos[0],bot.pos[2]-site.pos[2])<4)applySearchDestroyAction(state,{kind:"plant",playerId:bot.id,team:bot.team as "red"|"blue",pos:bot.pos,alive:true,siteId:site.id},sites,now);}
@@ -5092,7 +5092,7 @@ async function handle(socket: any, msg: C2S) {
     case "modeInteract": {
       const room=rooms.get(socketToRoom.get(socket.id)??"");const player=room?.players.get(socket.id);const state=room?.searchDestroyState;
       if(!room||room.mode!=="searchdestroy"||!player||!state)return;
-      const sites:SearchDestroySite[]=[{id:"A",pos:[-42,0,-40],radius:5},{id:"B",pos:[42,0,-40],radius:5}];
+      const sites:SearchDestroySite[]=[{id:"A",pos:[-42,0,-40],radius:5},{id:"B",pos:[-14,0,25],radius:5}];
       const event=applySearchDestroyAction(state,{kind:msg.action,playerId:player.id,team:player.team as "red"|"blue",pos:player.pos,alive:player.alive,siteId:msg.siteId},sites,Date.now());
       if(event?.type==="planted"||event?.type==="defused"){
         const stats=room.searchDestroyPlayerActions.get(player.id)??{plants:0,defuses:0};
