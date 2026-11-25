@@ -7926,6 +7926,8 @@ export class FPSEngine {
         this.emitLobbyState();
         break;
       case "matchStarted":
+        // A queued kit also applies when a fresh round starts before the player dies.
+        if(this.pendingLoadout)this.equipQueuedLoadout();
         // Server transitioned the room from lobby → playing. Hide the lobby
         // overlay and reset the match clock so the timer/score display starts fresh.
         this.lobbyActive = false;
