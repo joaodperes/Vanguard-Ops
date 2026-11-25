@@ -48,15 +48,14 @@ describe("mode availability and spawn capacity",()=>{
   expect(mapAllowedForMode("hardpoint","compound")).toBe(false);
   for(const mode of ["searchdestroy","hardpoint","frontier"] as const)expect(teamSizesForMap("dustwater",mode)).toEqual([3,4,5]);
  });
- test("Frontier reuses every validated TDM map and its room-size limits",()=>{
-  const tdmMaps=MAP_LIST.filter(map=>mapAllowedForMode("tdm",map.id)).map(map=>map.id).sort();
+ test("Frontier has exactly three approved maps and a three-map rotation",()=>{
   const frontierMaps=MAP_LIST.filter(map=>mapAllowedForMode("frontier",map.id)).map(map=>map.id).sort();
-  expect(frontierMaps).toEqual([...tdmMaps,"dustwater"].sort());
-  expect(mapAllowedForMode("frontier","arena_neon")).toBe(false);
-  for(const id of tdmMaps){
-   expect(teamSizesForMap(id,"frontier")).toEqual(teamSizesForMap(id,"tdm"));
-   expect(getMap(id,"frontier").spawns.red.length).toBeGreaterThanOrEqual(teamSizesForMap(id,"frontier").at(-1)!);
-   expect(getMap(id,"frontier").spawns.blue.length).toBeGreaterThanOrEqual(teamSizesForMap(id,"frontier").at(-1)!);
+  expect(frontierMaps).toEqual(["dustwater","emberhold","whiteout_depot"].sort());
+  expect(mapAllowedForMode("frontier","compound")).toBe(false);
+  for(const id of frontierMaps){
+   const teamSize=teamSizesForMap(id,"frontier").at(-1)!;
+   expect(getMap(id,"frontier").spawns.red.length).toBeGreaterThanOrEqual(teamSize);
+   expect(getMap(id,"frontier").spawns.blue.length).toBeGreaterThanOrEqual(teamSize);
   }
  });
  test("Emberhold takes Afterlight Day's slot in FFA, Survival and Gun Game",()=>{
