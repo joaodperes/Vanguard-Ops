@@ -22,7 +22,7 @@ describe("new competitive mode integration",()=>{
       [-20,0,-34],[20,0,-34],[0,0,8],[-42,0,40],[42,0,40],
     ];
     for(const point of objectives){
-      expect(botPositionEmbedded(dustwater.cover,point)).toBe(false);
+      expect(botPositionEmbedded(dustwater.cover,point),`embedded objective ${point.join(",")}`).toBe(false);
       expect(dustwater.regions?.some(r=>Math.abs(point[0]-r.x)<=r.w/2&&Math.abs(point[2]-r.z)<=r.d/2)).toBe(true);
     }
   });
