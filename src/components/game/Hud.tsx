@@ -1076,7 +1076,7 @@ function TeamPanel({ team, score, rows, selfTeam, scoreLabel, limit, teamAlive, 
                   {r.team === selfTeam && (
                     <Shield className={`w-3 h-3 shrink-0 ${allyColor}`} aria-label="Ally" />
                   )}
-                  <span className={r.isSelf ? "text-emerald-300 font-semibold" : "text-white/90"}>{r.name}</span>{mode==="searchdestroy"&&r.isBombCarrier&&<Bomb className="w-3.5 h-3.5 text-amber-300" aria-label="Bomb carrier" /> }
+                  <span className={r.isSelf ? "text-emerald-300 font-semibold" : "text-white/90"}>{r.name}</span>
                   {r.isBot && <span className="ml-1 text-white/30 text-[10px]">BOT</span>}
                 </span>
               </td>
