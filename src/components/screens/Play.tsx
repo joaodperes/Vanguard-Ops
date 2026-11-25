@@ -364,7 +364,7 @@ export function Play() {
                           ))}
                         </div>
                       </div>
-                      </>}\n                      {roomConfig.mode === "ctf" && (
+                      {roomConfig.mode === "ctf" && (
                         <div className="min-w-0 rounded-xl border border-white/5 bg-black/20 p-3">
                           <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Dropped Flag Reset</Label>
                           <div className="flex flex-wrap gap-1.5">
