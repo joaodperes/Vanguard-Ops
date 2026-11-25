@@ -680,6 +680,10 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
                 <span className="text-4xl font-bold tabular-nums text-white">{frontierCurrentMagazine}</span>
                 <span className="text-white/40 text-lg mb-1">/ {frontierReserve}</span>
               </div>
+              <div className="mt-1 flex gap-2 text-[10px] text-white/55 tabular-nums">
+                <span>LEFT <b className="text-white/85">{hud.akimboLeftAmmo ?? 0}/{hud.akimboHandMagSize ?? 0}</b></span>
+                <span>RIGHT <b className="text-white/85">{hud.akimboRightAmmo ?? 0}/{hud.akimboHandMagSize ?? 0}</b></span>
+              </div>
             </div>
           ) : (
             <div className="flex flex-col items-end">
