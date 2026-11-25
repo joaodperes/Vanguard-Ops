@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { ModeCombatant } from "../src/lib/game-mode-rules";
 import { calculateMatchRewards } from "../src/lib/match-rewards";
+import { frontierLoadoutForPreset } from "../src/lib/frontier-loadouts";
 import {
   SEARCH_DESTROY_RULES, HARDPOINT_RULES, FRONTIER_RULES,
   createSearchDestroyState, beginNextSearchDestroyRound, finishSearchDestroyRound,
@@ -118,6 +119,10 @@ describe("Frontier", () => {
     expect(frontierWeaponAllowed("assault")).toBe(false);
     expect(frontierWeaponIdAllowed("pistol_magnum")).toBe(true);
     expect(frontierWeaponIdAllowed("sniper_scout")).toBe(true);
+    expect(frontierWeaponIdAllowed("pistol_bastion")).toBe(true);
+    expect(frontierWeaponIdAllowed("pistol_side")).toBe(true);
+    expect(frontierWeaponIdAllowed("pistol_ghost")).toBe(true);
+    expect(frontierWeaponIdAllowed("crossbow_reclaimer")).toBe(true);
     expect(frontierWeaponIdAllowed("pistol_machine")).toBe(false);
     expect(frontierWeaponIdAllowed("wonder_phasebreaker")).toBe(false);
     expect(frontierReserveAmmo(30)).toBe(Math.floor(30*FRONTIER_RULES.reserveAmmoMultiplier));
@@ -127,6 +132,20 @@ describe("Frontier", () => {
 });
 
 
+describe("Frontier curated loadouts",()=>{
+  const base={weaponId:"rifle_ar",weaponSkinId:"default",playerSkinId:"default",attachments:{sight:null,barrel:null,grip:null,magazine:null}} as const;
+  test("builds the four fixed kits with their intended attachments",()=>{
+    const scout=frontierLoadoutForPreset(base as any,"scout");
+    expect(scout).toMatchObject({weaponId:"sniper_scout",secondaryWeaponId:"pistol_bastion",attachments:{sight:"sight_hunter"},secondaryAttachments:{grip:"grip_fan_hammer"}});
+    const breacher=frontierLoadoutForPreset(base as any,"breacher");
+    expect(breacher).toMatchObject({weaponId:"shotgun_br",secondaryWeaponId:"pistol_side"});
+    const hunter=frontierLoadoutForPreset(base as any,"hunter");
+    expect(hunter).toMatchObject({weaponId:"crossbow_reclaimer",secondaryWeaponId:"pistol_ghost",attachments:{magazine:"mag_bolt_heavy"}});
+    const gunslinger=frontierLoadoutForPreset(base as any,"gunslinger");
+    expect(gunslinger).toMatchObject({weaponId:"pistol_side",secondaryWeaponId:"pistol_bastion",emptyPrimary:true,secondaryAttachments:{barrel:"barrel_ported",grip:"grip_akimbo",magazine:"mag_rev_speedloader"}});
+  });
+});
+
 describe("objective-based mode rewards",()=>{
   test("Hardpoint pays personal objective time rather than the team's total",()=>{
     const rewards=calculateMatchRewards({
@@ -134,6 +153,13 @@ describe("objective-based mode rewards",()=>{
       modeStats:{hardpoint:{redObjectiveSeconds:90,blueObjectiveSeconds:90,contestedSeconds:0,redScore:90,blueScore:90,playerObjectiveSeconds:30}},
     });
     expect(rewards.breakdown.objectives).toEqual({xp:60,credits:30});
+  });
+  test("Search & Destroy rewards confirmed plants and defuses for the player who completes them",()=>{
+    const rewards=calculateMatchRewards({
+      playerKey:"test",kills:0,deaths:0,headshots:0,won:false,mode:"searchdestroy",score:0,completed:true,
+      modeStats:{searchDestroy:{redRounds:3,blueRounds:2,roundsPlayed:5,playerRoundsWon:3,plants:2,defuses:1}},
+    });
+    expect(rewards.breakdown.objectives).toEqual({xp:300,credits:75});
   });
   test("Search & Destroy pays per won round in addition to the match-win bonus",()=>{
     const rewards=calculateMatchRewards({
