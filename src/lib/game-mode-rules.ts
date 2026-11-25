@@ -228,3 +228,16 @@ export function tickHardpoint(
   const team = state.owner; state.scores[team] += deltaMs / 1000; state.objectiveMs[team] += deltaMs;
   return { state, scored: team, rotated };
 }
+
+/** Human contributors currently earning uncontested Hardpoint time. */
+export function hardpointObjectiveContributors(
+  zone: HardpointZone,
+  owner: HardpointState["owner"],
+  players: readonly ModeCombatant[],
+): string[] {
+  if (owner !== "red" && owner !== "blue") return [];
+  const radius = zone.radius ?? HARDPOINT_RULES.captureRadius;
+  return players
+    .filter(player => player.alive && player.team === owner && inside(player.pos, zone.pos, radius))
+    .map(player => player.id);
+}
