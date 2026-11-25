@@ -145,13 +145,6 @@ export function MainMenu() {
 
       </main>
 
-      <footer className="mt-auto border-t border-white/10 bg-black/40 py-4">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between text-xs text-white/40">
-          <span>VANGUARD OPS · Browser FPS · v1.0</span>
-          <span className="hidden sm:inline">WASD · Mouse · Shift · Space · R · Tab</span>
-        </div>
-      </footer>
-
       <style>{`
         @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
       `}</style>
