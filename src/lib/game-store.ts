@@ -34,7 +34,7 @@ export interface RoomConfig {
   timeLimit: number;   // seconds (0 = no time limit)
   tagLifetimeMs: number; // Kill Confirmed dogtag lifetime in ms; -1 means infinite
   ctfFlagResetMs: number; // CTF dropped flag reset timer, -1 = never
-  denialScoreEnabled: boolean; // friendly recoveries earn +1 team point
+  denialScoreEnabled: boolean; // friendly recoveries earn +1 team point\n  searchDestroyRoundTimeSeconds: number;\n  searchDestroyRoundsToWin: number;
   gungamePreset: "all" | "cqc" | "long_range";
   gungameMultiplier: number;
   survivalPlayers: 1 | 2;
