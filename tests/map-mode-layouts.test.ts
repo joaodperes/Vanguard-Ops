@@ -37,6 +37,8 @@ describe("mode availability and spawn capacity",()=>{
   }
   expect(mapAllowedForMode("hardpoint","compound")).toBe(false);
   expect(mapAllowedForMode("searchdestroy","skybridge")).toBe(false);
+  for(const mode of ["searchdestroy","hardpoint","frontier"] as const)
+   expect(teamSizesForMap("dustwater",mode)).toEqual([3,4,5]);
  });
  test("Frontier reuses every validated TDM map and its room-size limits",()=>{
   const tdmMaps=MAP_LIST.filter(map=>mapAllowedForMode("tdm",map.id)).map(map=>map.id).sort();
