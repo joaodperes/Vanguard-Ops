@@ -209,14 +209,17 @@ export function tickSearchDestroy(
 
 export interface HardpointZone { id: string; pos: ModeVec3; radius?: number }
 export interface HardpointState {
-  activeIndex: number; nextIndex: number; phase: "active" | "transition"; phaseEndsAt: number;
+  activeIndex: number; nextIndex: number; zoneOrder: number[]; rotationIndex: number;
+  phase: "active" | "transition"; phaseEndsAt: number;
   scores: Record<ModeTeam, number>; objectiveMs: Record<ModeTeam, number>;
   captures: Record<ModeTeam, number>; contestedMs: Record<ModeTeam, number>;
   owner: ModeTeam | "contested" | "neutral";
 }
 export interface HardpointTickResult { state: HardpointState; scored: ModeTeam | null; rotated: boolean }
-export function createHardpointState(now: number): HardpointState {
-  return { activeIndex: 0, nextIndex: 1, phase: "active",
+export function createHardpointState(now: number, zoneCount = HARDPOINT_RULES.zoneCount, randomize = false): HardpointState {
+  const zoneOrder = Array.from({length: zoneCount}, (_,i)=>i);
+  if(randomize)for(let i=zoneOrder.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[zoneOrder[i],zoneOrder[j]]=[zoneOrder[j],zoneOrder[i]];}
+  return { activeIndex: zoneOrder[0]??0, nextIndex: zoneOrder[1]??zoneOrder[0]??0, zoneOrder, rotationIndex: 0, phase: "active",
     phaseEndsAt: now + HARDPOINT_RULES.rotationSeconds * 1000,
     scores: { red: 0, blue: 0 }, objectiveMs: { red: 0, blue: 0 },
     captures: { red: 0, blue: 0 }, contestedMs: { red: 0, blue: 0 }, owner: "neutral" };
@@ -229,10 +232,11 @@ export function tickHardpoint(
   if (now >= state.phaseEndsAt) {
     if (state.phase === "active") {
       state.phase = "transition"; state.phaseEndsAt = now + HARDPOINT_RULES.transitionSeconds * 1000;
-      state.nextIndex = (state.activeIndex + 1) % zones.length; state.owner = "neutral";
+      state.nextIndex = state.zoneOrder[(state.rotationIndex + 1) % zones.length] ?? (state.activeIndex + 1) % zones.length; state.owner = "neutral";
     } else {
       state.phase = "active"; state.activeIndex = state.nextIndex;
-      state.nextIndex = (state.activeIndex + 1) % zones.length;
+      state.rotationIndex = (state.rotationIndex + 1) % zones.length;
+      state.nextIndex = state.zoneOrder[(state.rotationIndex + 1) % zones.length] ?? (state.activeIndex + 1) % zones.length;
       state.phaseEndsAt = now + HARDPOINT_RULES.rotationSeconds * 1000;
       state.owner = "neutral"; rotated = true;
     }
