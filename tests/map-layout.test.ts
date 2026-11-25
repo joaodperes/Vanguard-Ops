@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { MAP_LIST } from "../src/lib/game-protocol";
+import { MAP_LIST, mapForMode } from "../src/lib/game-protocol";
 import { MAP_BLUEPRINTS } from "../src/lib/map-blueprints";
 import { TACTICAL_COVER, OUTER_SPAWNS } from "../src/lib/map-tactics";
 import { MAP_FOOTPRINT } from "../src/lib/map-footprint";
@@ -7,6 +7,19 @@ import { makeEnvironmentMap } from "../src/lib/dynamic-environment";
 import { botPositionEmbedded } from "../src/lib/bot-physics";
 
 describe("authored map combat layouts", () => {
+  test("Dustwater S&D separates the two spawn ends and includes climbable upper floors",()=>{
+    const dustwater=MAP_LIST.find(map=>map.id==="dustwater")!;
+    const searchDestroy=mapForMode(dustwater,"searchdestroy");
+    expect(searchDestroy.spawns.red).toHaveLength(5);
+    expect(searchDestroy.spawns.blue).toHaveLength(5);
+    expect(searchDestroy.spawns.red.every(point=>point[2]>20)).toBe(true);
+    expect(searchDestroy.spawns.blue.every(point=>point[2]<-20)).toBe(true);
+    const features=MAP_BLUEPRINTS.maps.dustwater.features;
+    expect(features.some(feature=>feature.id==="saloon-second-floor")).toBe(true);
+    expect(features.some(feature=>feature.id==="bank-second-floor")).toBe(true);
+    expect(features.some(feature=>feature.id==="church-tower-stairs")).toBe(true);
+    expect(dustwater.props.filter(prop=>prop.kind==="dynamite")).toHaveLength(2);
+  });
   test("all maps have dedicated tactical cover and playable spawns", () => {
     expect(MAP_LIST).toHaveLength(12);
     for (const map of MAP_LIST) {
