@@ -4,6 +4,7 @@ import { useGame } from "@/lib/game-store";
 import type { PlayerProfileView } from "@/lib/player-service";
 import type { GameMode } from "@/lib/game-protocol";
 import { weaponById } from "@/lib/game-data";
+import { FRONTIER_LOADOUTS } from "@/lib/frontier-loadouts";
 import { perkById } from "@/lib/perks";
 import { equipmentById } from "@/lib/equipment";
 import { Backpack, Check, Loader2 } from "lucide-react";
@@ -13,6 +14,7 @@ interface Props {
   mode: GameMode;
   queuedPresetId: string | null;
   onPresetEquipped: (profile: PlayerProfileView, presetId: string) => void;
+  onFrontierLoadoutSelected: (presetId: import("@/lib/game-mode-rules").FrontierLoadoutPresetId) => void;
 }
 
 /** In-match loadout changes are restricted to previously saved Armory presets.
@@ -20,11 +22,49 @@ interface Props {
  * The server resolves each preset ID against the player's saved snapshots and
  * validates ownership before this component queues the confirmed kit.
  */
-export function SavedLoadoutPicker({ mode, queuedPresetId, onPresetEquipped }: Props) {
+export function SavedLoadoutPicker({ mode, queuedPresetId, onPresetEquipped, onFrontierLoadoutSelected }: Props) {
   const { playerKey, profile, setProfile } = useGame();
   const [busyId, setBusyId] = useState<string | null>(null);
   const presets = profile?.savedLoadouts ?? [];
   const gunGame = mode === "gungame";
+
+  if (mode === "frontier") {
+    return (
+      <section aria-label="Frontier loadout presets" className="space-y-4">
+        <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-100">
+          Choose one of four fixed Frontier kits. Your selection takes effect on your next respawn; it does not change your current life.
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {FRONTIER_LOADOUTS.map(preset => {
+            const selected = queuedPresetId === `frontier:${preset.id}`;
+            const primaryName = preset.emptyPrimary ? "No primary weapon" : weaponById(preset.primary).name;
+            return (
+              <button key={preset.id} type="button" onClick={() => onFrontierLoadoutSelected(preset.id)}
+                disabled={selected} aria-pressed={selected}
+                className={`rounded-xl border p-4 text-left transition-colors disabled:cursor-default ${selected
+                  ? "border-emerald-500/50 bg-emerald-500/10"
+                  : "border-white/15 bg-white/[0.04] hover:border-amber-500/50 hover:bg-amber-500/[0.08]"}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-bold text-white">{preset.name}</span>
+                  <span className={`text-xs font-semibold ${selected ? "text-emerald-300" : "text-amber-300"}`}>
+                    {selected ? "Queued" : "Choose"}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs text-white/65">{preset.role}</p>
+                <div className="mt-3 space-y-1 text-xs">
+                  <p className="text-white/80"><span className="text-white/40">Primary:</span> {primaryName}</p>
+                  <p className="text-white/80"><span className="text-white/40">Secondary:</span> {weaponById(preset.secondary).name}</p>
+                </div>
+                {preset.id === "scout" && <p className="mt-2 text-[11px] text-amber-200/70">Hunter Scope · Fan the Hammer</p>}
+                {preset.id === "hunter" && <p className="mt-2 text-[11px] text-amber-200/70">Heavy Arrows</p>}
+                {preset.id === "gunslinger" && <p className="mt-2 text-[11px] text-amber-200/70">Akimbo · Ported Barrel · Speedloader</p>}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+    );
+  }
 
   const equip = async (presetId: string) => {
     if (busyId || queuedPresetId === presetId) return;
