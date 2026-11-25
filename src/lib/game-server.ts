@@ -27,6 +27,7 @@ import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbit
 import { advanceMatchElapsed } from "./match-clock";
 import { createHardpointState, tickHardpoint, hardpointObjectiveContributors, createSearchDestroyState, beginNextSearchDestroyRound, tickSearchDestroy, applySearchDestroyAction, dropSearchDestroyBomb, releaseSearchDestroyPlayer, frontierWeaponIdAllowed, frontierReserveAmmo, distributedObjectivePosition, type HardpointState, type SearchDestroyState, type SearchDestroySite } from "./game-mode-rules";
 import { fullWonderCharges, drainedWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, refundWonderCharge, type WonderChargeState } from "./wonder-charge";
+import { frontierLoadoutForPreset } from "./frontier-loadouts";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
 import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
 import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineInReach, stormEnemy, stormTargetPoint, nextStormChainTarget, STORM_MINE_ARM_MS, STORM_MINE_LIFETIME_MS, STORM_MINE_TARGET_COOLDOWN_MS, STORM_MAX_MINES_PER_OWNER, STORM_MAX_DIRECT_HITS_PER_TARGET, STORM_DIRECT_DAMAGE, STORM_MINE_DAMAGE, STORM_CHAIN_JUMPS, STORM_MINE_JUMPS, STORM_CHAIN_DECAY, STORM_MINE_CHAIN_RADIUS, type StormVictim } from "./stormweaver";
@@ -190,6 +191,7 @@ interface Room {
   hardpointState?: HardpointState;
   hardpointPlayerObjectiveMs: Map<string, number>;
   searchDestroyState?: SearchDestroyState;
+  searchDestroyPlayerActions: Map<string,{plants:number;defuses:number}>;
   frontierAmmoRemaining?: Map<string,number>;
   cleanupTimer?: ReturnType<typeof setTimeout>;
   id: string;
@@ -596,13 +598,15 @@ function frontierSafeLoadout(loadout:LoadoutWire):LoadoutWire {
   // Stable defaults must not depend on the weapon catalog's display order.
   const fallback="sniper_scout";
   const pistol="pistol_magnum";
-  return {...loadout,weaponId:allowed(loadout.weaponId)?loadout.weaponId:fallback,
-    secondaryWeaponId:allowed(loadout.secondaryWeaponId)?loadout.secondaryWeaponId:pistol,
+  const weaponId=allowed(loadout.weaponId)?loadout.weaponId:fallback;
+  const secondaryWeaponId=allowed(loadout.secondaryWeaponId)?loadout.secondaryWeaponId:pistol;
+  const emptyPrimary=loadout.emptyPrimary===true&&loadout.weaponId==="pistol_side"&&secondaryWeaponId==="pistol_bastion";
+  return {...loadout,weaponId,secondaryWeaponId,emptyPrimary,
     perkId:loadout.perkId==="wonder_weapon"||loadout.perkId==="explonando"?undefined:loadout.perkId,wonderWeaponId:undefined,wonderModuleId:undefined};
 }
 
 function addHumanToRoom(room: Room, socketId: string, p: PlayerNet, loadout: LoadoutWire, requested?: "red" | "blue" | "auto"): string {
-  if(room.mode==="frontier"){loadout=frontierSafeLoadout(loadout);p.weaponId=loadout.weaponId;}
+  if(room.mode==="frontier"){loadout=frontierSafeLoadout(loadout);p.weaponId=loadout.emptyPrimary?(loadout.secondaryWeaponId??"pistol_side"):loadout.weaponId;}
   const team = assignTeam(room.mode, room, requested);
   p.team = team as any;
   // If the room is bot-filled and this team is full, replace a bot with the human.
@@ -615,6 +619,7 @@ function addHumanToRoom(room: Room, socketId: string, p: PlayerNet, loadout: Loa
   room.sockets.set(socketId, socketId);
   room.scores.set(socketId, 0);
   room.hardpointPlayerObjectiveMs.set(socketId, 0);
+  room.searchDestroyPlayerActions.set(socketId,{plants:0,defuses:0});
   room.loadouts.set(socketId, loadout);
   return team;
 }
@@ -681,7 +686,7 @@ function createLobbyRoom(
     id, mode, config, map,
     operation:config.operationId ? createOperationState(config.operationId,cfg.botDifficulty):undefined,
     players: new Map(), sockets: new Map(), bots: new Map(), loadouts: new Map(), pendingLoadouts: new Map(), playerKeys: new Map(),
-    hardpointPlayerObjectiveMs: new Map(),
+    hardpointPlayerObjectiveMs: new Map(), searchDestroyPlayerActions: new Map(),
     assists: new Map(), damageContributions: new Map(), scores: new Map(), teamScores: { red: 0, blue: 0 }, flags: createCtfFlags(map), overtime: false, orbitalCharge:0, orbitalHolders:new Set<string>(), tags: new Map(), tagConfirmations: new Map(), tagDenials: new Map(),
     startTime: Date.now(), timeLeft: config.timeLimit, ended: false,
     state: "lobby",
@@ -783,6 +788,10 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   if (room.hostSocketId !== socketId) return false;  // only the host can start
   room.state = "playing";
   room.startTime = Date.now();
+  if(room.mode==="searchdestroy"){
+    room.searchDestroyPlayerActions.clear();
+    for(const player of room.players.values())room.searchDestroyPlayerActions.set(player.id,{plants:0,defuses:0});
+  }
   if(room.mode==="hardpoint"){
     room.hardpointState=createHardpointState(room.startTime);
     room.hardpointPlayerObjectiveMs.clear();
@@ -2243,7 +2252,7 @@ function applyQueuedLoadout(room: Room, p: PlayerNet) {
   if (!queued || p.isBot) return;
   room.pendingLoadouts.delete(p.id);
   room.loadouts.set(p.id, queued);
-  p.weaponId = queued.weaponId;
+  p.weaponId = queued.emptyPrimary?(queued.secondaryWeaponId??"pistol_side"):queued.weaponId;
   p.weaponSkinId = queued.weaponSkinId;
   p.playerSkinId = queued.playerSkinId;
   p.charmId = queued.primaryCharmId ?? "none";
@@ -2456,8 +2465,13 @@ function endMatch(room: Room, reason: "other" | "gungame_victory" = "other", win
   // Objective rewards are personal: never give every teammate the whole team's
   // Hardpoint time. Send each human their own contribution with shared totals.
   for(const [socketId] of room.players){
+    const player=room.players.get(socketId);
+    const searchStats=room.searchDestroyPlayerActions.get(socketId)??{plants:0,defuses:0};
     const playerModeStats={
       ...sharedModeStats,
+      ...(sharedModeStats.searchDestroy?{searchDestroy:{...sharedModeStats.searchDestroy,
+        playerRoundsWon:player?.team==="red"?sharedModeStats.searchDestroy.redRounds:sharedModeStats.searchDestroy.blueRounds,
+        plants:searchStats.plants,defuses:searchStats.defuses}}:{}),
       ...(sharedModeStats.hardpoint?{hardpoint:{...sharedModeStats.hardpoint,
         playerObjectiveSeconds:Math.floor((room.hardpointPlayerObjectiveMs.get(socketId)??0)/1000)}}:{}),
     };
@@ -5048,6 +5062,11 @@ async function handle(socket: any, msg: C2S) {
       if(!room||room.mode!=="searchdestroy"||!player||!state)return;
       const sites:SearchDestroySite[]=[{id:"A",pos:[-42,0,-40],radius:5},{id:"B",pos:[42,0,-40],radius:5}];
       const event=applySearchDestroyAction(state,{kind:msg.action,playerId:player.id,team:player.team as "red"|"blue",pos:player.pos,alive:player.alive,siteId:msg.siteId},sites,Date.now());
+      if(event?.type==="planted"||event?.type==="defused"){
+        const stats=room.searchDestroyPlayerActions.get(player.id)??{plants:0,defuses:0};
+        if(event.type==="planted")stats.plants++;else stats.defuses++;
+        room.searchDestroyPlayerActions.set(player.id,stats);
+      }
       if(event)io.to(room.id).emit("message",{t:"modeEvent",event} as S2C);
       break;
     }
@@ -5145,6 +5164,16 @@ async function handle(socket: any, msg: C2S) {
       io.to(room.id).emit("message", { t: "boltRecovered", id: bolt.id, ownerId: socket.id } as S2C);
       break;
     }
+    case "queueFrontierLoadout": {
+      const room=rooms.get(socketToRoom.get(socket.id)??"");
+      if(!room||room.mode!=="frontier"||room.state!=="playing"||room.ended||!room.players.has(socket.id))return;
+      const current=room.loadouts.get(socket.id);
+      if(!current)return;
+      const loadout=frontierSafeLoadout(frontierLoadoutForPreset(current,msg.presetId));
+      room.pendingLoadouts.set(socket.id,loadout);
+      socket.emit("message",{t:"loadoutQueued",loadout} as S2C);
+      break;
+    }
     case "queueLoadout": {
       const room = rooms.get(socketToRoom.get(socket.id) ?? "");
       if (!room || room.state !== "playing" || room.ended || room.mode === "gungame") return;
@@ -5174,7 +5203,10 @@ async function handle(socket: any, msg: C2S) {
       const loadout = room.loadouts.get(socket.id);
       if (!loadout) return;
       let newWeaponId = p.weaponId;
-      if (msg.slot === "primary") newWeaponId = loadout.weaponId;
+      if (msg.slot === "primary") {
+        if(loadout.emptyPrimary)return;
+        newWeaponId = loadout.weaponId;
+      }
       else if (msg.slot === "secondary") {
         newWeaponId = loadout.secondaryWeaponId ?? "pistol_side";
         const selected = WEAPONS.find(w => w.id === newWeaponId);
