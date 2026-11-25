@@ -428,7 +428,7 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
                     <span className={`text-amber-200 font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>#{ranking.rank}<span className="text-white/40 font-normal">/{ranking.players}</span></span>
                   </div>
                 </>
-              ) : mode === "tdm" || mode === "frontier" ? (
+              ) : mode === "tdm" || mode === "hardpoint" || mode === "frontier" ? (
                 <>
                   <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1.5 px-2 py-1" : "gap-2 px-3 py-1.5"}`}>
                     <span className="text-red-300 font-bold text-[10px]">R</span>
@@ -437,10 +437,10 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
                     <span className={`text-blue-300 font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{Math.round(hud.teamScores.blue)}</span>
                     <span className="text-blue-300 font-bold text-[10px]">B</span>
                   </div>
-                  <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1 px-2 py-1" : "gap-1.5 px-3 py-1.5"}`}>
+                  {mode !== "hardpoint" && <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1 px-2 py-1" : "gap-1.5 px-3 py-1.5"}`}>
                     <span className="text-white/60 text-[10px] font-bold">K/D</span>
                     <span className={`text-white font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{hud.kills}<span className="text-white/30">/</span>{hud.deaths}</span>
-                  </div>
+                  </div>}
                 </>
               ) : mode === "killconfirmed" || mode === "ctf" || mode === "searchdestroy" ? (
                 <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1.5 px-2 py-1" : "gap-2 px-3 py-1.5"}`}>
