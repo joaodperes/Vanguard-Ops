@@ -3,6 +3,18 @@ import { roomMapCandidates, roomTeamSizeForMap, winningRoomMap, roomInviteUrl } 
 import { MAP_LIST, mapAllowedForMode, teamSizeAllowed, roomCapacity, type GameMode, type RoomSummary } from "../src/lib/game-protocol";
 const summary = (extra: Partial<RoomSummary> = {}): RoomSummary => ({ id:"open",name:"Room",hostName:"Host",mode:"tdm",mapId:"compound",mapName:"Compound",teamSize:3,fillWithBots:true,hasPassword:false,humans:1,capacity:6,hasStarted:false,state:"lobby",createdAt:1,...extra });
 describe("room flow", () => {
+  test("Frontier has exactly three approved maps and a three-map rotation",()=>{
+    const frontierMaps=MAP_LIST.filter(map=>mapAllowedForMode("frontier",map.id)).map(map=>map.id).sort();
+    expect(frontierMaps).toEqual(["dustwater","emberhold","whiteout_depot"]);
+    for(const excluded of ["orbital_nexus","skybridge","bunker","terminal","arena_neon","floodgate","compound","shipyard"])
+      expect(mapAllowedForMode("frontier",excluded)).toBe(false);
+    for(const mapId of frontierMaps){
+      const candidates=roomMapCandidates("frontier",mapId,5,0,undefined,10,1);
+      expect(candidates).toHaveLength(3);
+      expect(candidates[0]).toBe(mapId);
+      expect(candidates.every(id=>frontierMaps.includes(id))).toBe(true);
+    }
+  });
   test("alternative arenas support the room mode and capacity", () => {
     for(const mode of ["ffa","tdm","killconfirmed","ctf","survival","gungame"] as GameMode[]) {
       for(const map of MAP_LIST.filter(m=>mapAllowedForMode(mode,m.id))) {
