@@ -66,7 +66,7 @@ import { survivalEnemyCount, regenDelayMs, SCAVENGER_DROP_LIFETIME_MS, SCAVENGER
 import { EXPLO_FUSE_MS, EXPLO_RADIUS, EXPLO_DAMAGE, explonandoDamage, explonandoCanHit } from "./explonando";
 import { calculateThrowPath } from "./throw-trajectory";
 import { buildGunGameWeapons, normalizeGunGameConfig, canCompleteGunGame } from "./gun-game";
-import { canStartWeaponReload, crossbowReloadCycleMs, crossbowReloadControlsCadence, isFanHammer } from "./weapon-mechanics";
+import { canStartWeaponReload, crossbowReloadCycleMs, crossbowReloadControlsCadence, isFanHammer, FAN_HAMMER_FIRE_RATE, FAN_HAMMER_SPREAD_MULTIPLIER } from "./weapon-mechanics";
 import { chooseBotPatrolPoint, botPatrolDistance } from "./bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint, botEntersHazard, botMapRouteGoal } from "./bot-routing";
 import { BotRouteBudget, botRouteJitter } from "./bot-performance-budget";
@@ -3276,8 +3276,9 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
       // omit one while the server still has it equipped). In that case allow
       // ordinary firing at the global weapon cooldown rather than dropping
       // every shot. Only a validated hand gets independent dual clocks.
+      const fanHammerShot=msg.fanHammerShot===true && room.mode!=="gungame" && isFanHammer(weapon.id,cadenceAtts?.grip);
       const interval=1000 /
-        Math.max(.1, quiver ? weapon.stats.fireRate * 3.5 : cadenceEff.fireRate);
+        Math.max(.1, fanHammerShot?FAN_HAMMER_FIRE_RATE:quiver ? weapon.stats.fireRate * 3.5 : cadenceEff.fireRate);
       if(weapon.category==="melee" &&
         now-(room.quickMeleeAt.get(p.id)??0)<interval) return;
       const burstSize = weapon.stats.burst ?? 1;
@@ -3456,7 +3457,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         const postSprint=aiming?1:sprintRecoverySpreadMultiplier(now,
           room.sprintLastAt.get(p.id)??0,attsForShot?.grip);
         const spread=shotSpread(eff,weapon.category,aiming,motion,bloom,steadyAds)*
-          (tasered?TASER_HIPFIRE_SPREAD_MULTIPLIER:1)*postSprint;
+          (tasered?TASER_HIPFIRE_SPREAD_MULTIPLIER:1)*postSprint*(fanHammerShot?FAN_HAMMER_SPREAD_MULTIPLIER:1);
         shotDir=spreadShotDirection(shotDir,spread);
         const nextBloom=eff.auto?automaticBloom(bloom,eff.fireRate,elapsed):
           Math.min(.28,bloom+shotBloomIncrease(eff.fireRate)*.32);
