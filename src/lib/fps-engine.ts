@@ -2883,7 +2883,7 @@ export class FPSEngine {
             cube(group,display,side*(doorWidth/2+.72),2.86,d/2+1.37,.20,.48,.11);
         }
                 // Building-name signs are intentionally omitted; p.text is semantic metadata only.
-        if(p.text?.trim().toUpperCase()==="CHURCH"){
+        if(use==="church"){
           const tx=w*.22,tz=0;
           const towerStone=new THREE.MeshStandardMaterial({color:0x9c8873,roughness:.88});
           const spireMat=new THREE.MeshStandardMaterial({color:0x57483d,roughness:.9});
