@@ -55,7 +55,7 @@ export interface SearchDestroyState {
     siteId: "A" | "B" | null; plantedAt: number | null; detonatesAt: number | null;
     plantProgress: { playerId: string; startedAt: number } | null;
     defuseProgress: { playerId: string; startedAt: number } | null };
-  lastRoundWinner: ModeTeam | null;
+  roundSeconds: number; roundsToWin: number; maxRounds: number; sideSwitchAfter: number;\n  lastRoundWinner: ModeTeam | null;
   lastRoundReason: "detonation" | "elimination" | "timeout" | "defuse" | null;
 }
 export interface SearchDestroySite { id: "A" | "B"; pos: ModeVec3; radius: number }
