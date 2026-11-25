@@ -156,6 +156,10 @@ describe("Frontier curated loadouts",()=>{
     expect(hunter).toMatchObject({weaponId:"crossbow_reclaimer",secondaryWeaponId:"pistol_ghost",attachments:{magazine:"mag_bolt_heavy"}});
     const gunslinger=frontierLoadoutForPreset(base as any,"gunslinger");
     expect(gunslinger).toMatchObject({weaponId:"pistol_side",secondaryWeaponId:"pistol_bastion",emptyPrimary:true,secondaryAttachments:{barrel:"barrel_ported",grip:"grip_akimbo",magazine:"mag_rev_speedloader"}});
+    for(const kit of [scout,breacher,hunter,gunslinger]){
+      expect(kit.meleeWeaponId).toBe("knife_tactical");
+      expect(kit.equipmentId).toBeUndefined();
+    }
   });
 });
 
