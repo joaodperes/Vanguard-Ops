@@ -476,7 +476,8 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
                   </div>
                 </>
               )}
-        </div>
+            </>
+          </div>
         {mode === "searchdestroy" && hud.searchDestroy && (
           <div className={`mt-1 flex max-w-[96vw] flex-col items-center gap-1 text-center ${isTouch ? "text-[9px]" : "text-[10px]"}`}>
             <div className="flex flex-wrap justify-center gap-x-3 gap-y-0.5 text-white/65">
