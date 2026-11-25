@@ -1072,6 +1072,8 @@ export class FPSEngine {
   private ctfFlags: CtfFlags = createCtfFlags();
   private hardpointState?: import("./game-mode-rules").HardpointState;
   private searchDestroyState?: import("./game-mode-rules").SearchDestroyState;
+  private searchDestroyPlants=0;
+  private searchDestroyDefuses=0;
   private frontierAmmoRemaining?:number;
   private modeInteractHeld=false;
   private modeInteractSentAt=0;
@@ -5974,6 +5976,12 @@ export class FPSEngine {
       perWeaponKills: Object.fromEntries(this.perWeaponKills),
       perWeaponActions: Object.fromEntries(this.perWeaponActions),
       perAttachmentKills: Object.fromEntries(this.perAttachmentKills),
+      ...(this.opts.mode==="searchdestroy"&&this.searchDestroyState?{modeStats:{searchDestroy:{
+        redRounds:this.searchDestroyState.roundWins.red,blueRounds:this.searchDestroyState.roundWins.blue,
+        roundsPlayed:this.searchDestroyState.round,
+        playerRoundsWon:this.opts.team==="red"?this.searchDestroyState.roundWins.red:this.searchDestroyState.roundWins.blue,
+        plants:this.searchDestroyPlants,defuses:this.searchDestroyDefuses,
+      }}}:{}),
 
       confirmations: this.confirmations, denials: this.denials,
       ...(this.operation ? {operation:{...this.operation}} : {}),
@@ -7852,6 +7860,12 @@ export class FPSEngine {
         if(msg.playerId===this.selfId)this.grantOrbitalReaper(msg.active);
         // No Reaper claim pop-ups.
         break;
+      case "modeEvent":
+        if(this.opts.mode==="searchdestroy"){
+          if(msg.event.type==="planted"&&msg.event.playerId===this.selfId)this.searchDestroyPlants++;
+          else if(msg.event.type==="defused"&&msg.event.playerId===this.selfId)this.searchDestroyDefuses++;
+        }
+        break;
       case "ctfEvent":
         if (this.opts.mode === "ctf") {
           if (msg.action === "capture" && msg.playerId === this.selfId) this.ctfCaptures++;
@@ -7968,6 +7982,7 @@ export class FPSEngine {
         // instance per match (field defaults are 0) but the explicit reset is
         // harmless and keeps the two paths symmetric.
         this.multikillsCount = 0;
+        this.searchDestroyPlants=0;this.searchDestroyDefuses=0;
         this.currentNoDeathStreak = 0;
         this.maxNoDeathStreak = 0;
         this.defenseKills = 0;
@@ -10454,7 +10469,10 @@ export class FPSEngine {
       perAttachmentKills: Object.fromEntries(this.perAttachmentKills),
       modeStats:{
         ...modeStats,
-        ...(modeStats?.searchDestroy?{searchDestroy:{...modeStats.searchDestroy,playerRoundsWon:this.opts.team==="red"?modeStats.searchDestroy.redRounds:modeStats.searchDestroy.blueRounds}}:{}),
+        ...(modeStats?.searchDestroy?{searchDestroy:{...modeStats.searchDestroy,
+          playerRoundsWon:this.opts.team==="red"?modeStats.searchDestroy.redRounds:modeStats.searchDestroy.blueRounds,
+          plants:modeStats.searchDestroy.plants??this.searchDestroyPlants,
+          defuses:modeStats.searchDestroy.defuses??this.searchDestroyDefuses}}:{}),
         ...(modeStats?.hardpoint?{hardpoint:{...modeStats.hardpoint,playerObjectiveSeconds:modeStats.hardpoint.playerObjectiveSeconds??0}}:{}),
         ...(this.opts.mode==="frontier"?{frontier:{ammoRemaining:this.frontierAmmoRemaining??0}}:{}),
       },
