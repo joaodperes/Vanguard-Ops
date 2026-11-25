@@ -7,9 +7,20 @@ import {
   botSecondaryPrimary, botMovementPerkMultiplier, botAttachmentsForMode, botActiveAttachments,
   botMagazineCapacity, emptyBotAttachments, isSurvivalOneShotWeapon,
 } from "../src/lib/bot-loadouts";
-import { BOT_ELIGIBLE_WEAPONS, botArchetypeWeapons, type BotArchetype } from "../src/lib/bot-archetypes";
+import { BOT_ELIGIBLE_WEAPONS, FRONTIER_BOT_PRESET_BY_ARCHETYPE, botArchetypeWeapons, type BotArchetype } from "../src/lib/bot-archetypes";
+import { FRONTIER_LOADOUTS, frontierLoadoutForPreset } from "../src/lib/frontier-loadouts";
 
 describe("bot perk and weapon policy", () => {
+  test("Frontier bot archetypes map one-to-one to the four player kits",()=>{
+    expect(FRONTIER_BOT_PRESET_BY_ARCHETYPE).toEqual({rusher:"breacher",rifleman:"scout",marksman:"hunter",support:"gunslinger"});
+    expect(Object.values(FRONTIER_BOT_PRESET_BY_ARCHETYPE).sort()).toEqual(["breacher","gunslinger","hunter","scout"]);
+    for(const preset of FRONTIER_LOADOUTS){
+      const loadout=frontierLoadoutForPreset({weaponId:"rifle_ar",attachments:emptyBotAttachments()} as any,preset.id);
+      expect(loadout.weaponId).toBe(preset.primary);
+      expect(loadout.secondaryWeaponId).toBe(preset.secondary);
+      expect(loadout.emptyPrimary??false).toBe(preset.emptyPrimary??false);
+    }
+  });
   test("missing bot attachment maps safely fall back to an empty set",()=>{
     const base=computeEffectiveStats(weaponById("rifle_ar"),undefined);
     const explicit=computeEffectiveStats(weaponById("rifle_ar"),emptyBotAttachments());
