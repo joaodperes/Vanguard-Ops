@@ -9832,9 +9832,10 @@ export class FPSEngine {
         if (t !== undefined) contacts.push({ target: c, t, head: shieldFirst ? false : !!body?.head,
           shield: shieldFirst, protected: (c.spawnProtectedUntil ?? 0) > Date.now() });
       }
-      const resolved = traceCoverPenetration(this.coverForRay(origin,dir,maxDistance),origin,dir,maxDistance,
-        this.eff.coverPenetration??0,this.weaponId==="wonder_phasebreaker");
-      const hits = selectBodyPenetrationHits(contacts,maxDistance,resolved.stoppedAt);
+      const resolved = resolveMaterialPenetrationShot(contacts,this.coverForRay(origin,dir,maxDistance),
+        origin,dir,maxDistance,this.eff.bodyPenetration,this.eff.coverPenetration??0,
+        this.weaponId==="wonder_phasebreaker");
+      const hits = resolved.hits;
       const cover = closestCoverHit(this.coverForRay(origin,dir,maxDistance), origin, dir, maxDistance, rayBox);
       const firstBody = selectBodyPenetrationHits(contacts, maxDistance, Infinity)[0];
       if (cover?.box.environmentId && this.environmentWalls.has(cover.box.environmentId) &&
