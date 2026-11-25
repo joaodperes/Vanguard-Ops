@@ -39,9 +39,9 @@ describe("authored map combat layouts", () => {
     const towerPlatforms=features.filter(feature=>feature.id.startsWith("church-tower-platform-"));
     expect(towerStairs.h).toBeGreaterThanOrEqual(5);
     expect(towerPlatforms).toHaveLength(4);
-    const roofY=towerPlatforms[0].y!;
+    const platformBottom=towerPlatforms[0].y!,roofY=platformBottom+towerPlatforms[0].h!;
     expect((towerStairs.y??0)+towerStairs.h).toBeCloseTo(roofY,1);
-    expect((towerWall.y??0)+towerWall.h).toBeCloseTo(roofY,1);
+    expect((towerWall.y??0)+towerWall.h).toBeCloseTo(platformBottom,1);
     expect(towerPlatforms.some(platform=>platform.w>=7)).toBe(true);
     expect(towerPlatforms.some(platform=>platform.d>=3.5)).toBe(true);
     const topStep=featureBoxes(towerStairs).reduce((best,box)=>box.pos[1]>best.pos[1]?box:best);
