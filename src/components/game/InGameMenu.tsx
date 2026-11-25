@@ -14,12 +14,13 @@ interface Props {
   onResume: () => void;
   onQuit: () => void;
   onLoadoutSaved: (profile: PlayerProfileView, presetId: string) => void;
+  onFrontierLoadoutSelected: (presetId: import("@/lib/game-mode-rules").FrontierLoadoutPresetId) => void;
   queuedPresetId: string | null;
   online: boolean;
   mode: GameMode;
 }
 
-export function InGameMenu({ page, onPageChange, onResume, onQuit, onLoadoutSaved, queuedPresetId, online, mode }: Props) {
+export function InGameMenu({ page, onPageChange, onResume, onQuit, onLoadoutSaved, onFrontierLoadoutSelected, queuedPresetId, online, mode }: Props) {
   return (
     <div role="dialog" aria-modal="true" aria-label="In-game menu"
       className="absolute inset-0 z-[65] flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-6 text-white pointer-events-auto"
@@ -47,7 +48,7 @@ export function InGameMenu({ page, onPageChange, onResume, onQuit, onLoadoutSave
         {page === "main" && (
           <div className="space-y-3 p-5 sm:p-8">
             <MenuButton icon={<Settings2 className="h-5 w-5" />} title="Settings" help="Display, controls and audio · changes apply immediately" onClick={() => onPageChange("settings")} />
-            <MenuButton icon={<Backpack className="h-5 w-5" />} title="Change Loadout" help={mode === "gungame" ? "Choose a saved preset for your next match" : "Switch to a saved preset on your next respawn"} onClick={() => onPageChange("loadout")} />
+            <MenuButton icon={<Backpack className="h-5 w-5" />} title="Change Loadout" help={mode === "gungame" ? "Choose a saved preset for your next match" : mode === "frontier" ? "Choose one of four fixed Frontier kits for your next respawn" : "Switch to a saved preset on your next respawn"} onClick={() => onPageChange("loadout")} />
             <MenuButton icon={<ScrollText className="h-5 w-5" />} title="Quests" help="Daily and weekly challenges · progress and rewards" onClick={() => onPageChange("quests")} />
             <MenuButton icon={<DoorOpen className="h-5 w-5" />} title="Quit Match" help="Leave and collect any earned match progression" onClick={() => onPageChange("quit")} danger />
             <div className="pt-2 text-xs text-white/35">Esc: close menu · Tab: scoreboard while playing</div>
@@ -56,7 +57,7 @@ export function InGameMenu({ page, onPageChange, onResume, onQuit, onLoadoutSave
         {page === "settings" && <div className="p-4 sm:p-6"><Settings embedded /></div>}
         {page === "loadout" && (
           <div className="p-4 sm:p-6">
-            <SavedLoadoutPicker mode={mode} queuedPresetId={queuedPresetId} onPresetEquipped={onLoadoutSaved} />
+            <SavedLoadoutPicker mode={mode} queuedPresetId={queuedPresetId} onPresetEquipped={onLoadoutSaved} onFrontierLoadoutSelected={onFrontierLoadoutSelected} />
           </div>
         )}
         {page === "quests" && <div className="p-4 sm:p-6"><QuestPanel /></div>}
