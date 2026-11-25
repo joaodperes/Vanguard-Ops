@@ -380,25 +380,22 @@ export function Results() {
         </div>
 
         <RoomRoundPanel results />
-        {operationFailed&&!playConfig.online&&<Button onClick={()=>{setMatchResult(null);setScreen("playing");}} className="w-full mb-3 bg-emerald-700 hover:bg-emerald-600 text-white font-bold h-12">
-          <RotateCcw className="w-4 h-4 mr-2" /> Quick Restart
-        </Button>}
         {mission&&r.won&&followingMission&&<Button
           onClick={() => setScreen("operations")}
           className="w-full mb-3 bg-amber-500 hover:bg-amber-400 text-black font-bold h-12"
         >
           <Trophy className="w-4 h-4 mr-2" /> Continue campaign · {followingMission.title}
         </Button>}
-        {mission&&r.operation?.status==='failed'&&(!roomConnect||roomConnect.kind==="create")&&<Button
+        {operationFailed&&(!roomConnect||roomConnect.kind==="create")&&<Button
           onClick={() => {
             setMatchResult(null);
             setRoomConnect(roomConnect?.kind==="create"?roomConnect:null);
-            setPlayConfig({mode:"survival",operationId:mission.id,mapId:mission.mapId,online:roomConnect?.kind==="create",botCount:0,scoreLimit:0,timeLimit:0,botDifficulty:r.operation?.difficulty??playConfig.botDifficulty,survivalTier:"default"});
+            setPlayConfig({mode:"survival",operationId:mission!.id,mapId:mission!.mapId,online:roomConnect?.kind==="create",botCount:0,scoreLimit:0,timeLimit:0,botDifficulty:r.operation?.difficulty??playConfig.botDifficulty,survivalTier:"default"});
             setScreen("playing");
           }}
           className="w-full mb-3 bg-emerald-500 hover:bg-emerald-400 text-black font-bold h-12"
         >
-          <RotateCcw className="w-4 h-4 mr-2" /> Quick Restart · {mission.title}
+          <RotateCcw className="w-4 h-4 mr-2" /> Retry Operation · {mission!.title}
         </Button>}
         <div className="flex flex-col sm:flex-row gap-3">
           <Button
