@@ -36,8 +36,8 @@ describe("authored map combat layouts", () => {
     const towerWall=features.find(feature=>feature.id==="church-tower-north-wall")!;
     const towerPerch=features.find(feature=>feature.id==="church-tower-platform")!;
     expect(towerStairs.h).toBeGreaterThanOrEqual(5);
-    expect(towerStairs.y+towerStairs.h).toBeCloseTo(towerPerch.y!,1);
-    expect(towerWall.y+towerWall.h).toBeCloseTo(towerPerch.y!,1);
+    expect((towerStairs.y??0)+towerStairs.h).toBeCloseTo(towerPerch.y!,1);
+    expect((towerWall.y??0)+towerWall.h).toBeCloseTo(towerPerch.y!,1);
     expect(towerPerch.w).toBeGreaterThanOrEqual(7);
     expect(towerPerch.d).toBeGreaterThanOrEqual(7);
     expect(new Set(dustwater.spawns.ffa.map(point=>point.join(","))).size).toBe(dustwater.spawns.ffa.length);
