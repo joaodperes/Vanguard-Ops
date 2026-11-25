@@ -59,9 +59,9 @@ export const WEAPON_VISUALS: Record<string, Profile> = {
   shotgun_combat:  { receiver: [.14,.16,.39],  guardLength:.32, barrelLength:.24, bore:.035, stock:"folding",   magazine:"box",      body:"ribbed",  features:["vent","rail"],signature:0x70a8ba },
   rifle_dm:        { receiver: [.123,.13,.57], guardLength:.42, barrelLength:.34, bore:.025, stock:"precision", magazine:"straight", body:"slim",   features:["scope","rail"],signature:0xb48a60 },
   dmr_scout:       { receiver: [.105,.115,.39],guardLength:.36, barrelLength:.36, bore:.021, stock:"wire",      magazine:"straight", body:"tapered",features:["rail"],signature:0x70a66c },
-  dmr_heavy:       { receiver: [.17,.17,.65],  guardLength:.48, barrelLength:.42, bore:.035, stock:"heavy",     magazine:"box",      body:"block", features:["scope","bipod","brake"],signature:0x657dd2 },
+  dmr_heavy:       { receiver: [.15,.155,.62],guardLength:.43, barrelLength:.43, bore:.030, stock:"fixed",     magazine:"box",      body:"tapered",features:["scope","bipod"],signature:0x657dd2 },
   sniper_lr:       { receiver: [.115,.13,.60], guardLength:.46, barrelLength:.56, bore:.025, stock:"precision", magazine:"straight", body:"slim",features:["scope","bipod"],signature:0x678da1 },
-  sniper_scout:    { receiver: [.095,.105,.40],guardLength:.25, barrelLength:.38, bore:.019, stock:"wire",      magazine:"straight", body:"tapered", features:["scope"],signature:0x78ac9f },
+  sniper_scout:    { receiver: [.105,.115,.47],guardLength:.34, barrelLength:.42, bore:.020, stock:"fixed",     magazine:"straight",body:"tapered",features:["scope"],signature:0x78ac9f },
   sniper_heavy:    { receiver: [.205,.21,.75], guardLength:.48, barrelLength:.66, bore:.048, stock:"heavy",     magazine:"box",      body:"block",features:["scope","bipod","brake","vent"],signature:0xc0704a },
   lmg_hv:          { receiver: [.165,.18,.55], guardLength:.39, barrelLength:.32, bore:.037, stock:"heavy",     magazine:"belt",     body:"block",features:["carry","bipod","vent"],signature:0xa99f68 },
   lmg_light:       { receiver: [.12,.14,.40],  guardLength:.32, barrelLength:.27, bore:.026, stock:"wire",      magazine:"curved",   body:"slim",features:["rail","bipod"],signature:0x83bd74 },
@@ -326,6 +326,10 @@ export function buildFirstPersonWeapon(
   const sig = fullSkinMaterial ?? signatureMaterial ?? new THREE.MeshBasicMaterial({ color: p.signature });
   const metal = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: 0x29313b });
   const edge = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: 0x69737e });
+  // Traditional sporting and service rifles use recognisable timber furniture.
+  const woodenFurniture = id === "sniper_scout" || id === "dmr_heavy" || id === "shotgun_br";
+  const woodMat = new THREE.MeshStandardMaterial({ color: 0x80502d, roughness: 0.82, metalness: 0.02 });
+  const woodDarkMat = new THREE.MeshStandardMaterial({ color: 0x55331f, roughness: 0.88, metalness: 0.01 });
   const box = (x:number,y:number,z:number,ww:number,hh:number,ll:number,material:THREE.Material=bodyMat) => {
     const m = new THREE.Mesh(new THREE.BoxGeometry(ww,hh,ll),material);
     add(m,x,y,z);
@@ -444,7 +448,7 @@ export function buildFirstPersonWeapon(
   if(p.magazine!=="rocket"&&id!=="pistol_bastion") {
     const pistol = id.startsWith("pistol_") || id === "launcher_rocket";
     const gripZ = pistol ? c+.08 : c + .20;
-    const grip = box(0,-.105,gripZ,.068,.16,.095,darkMat);
+    const grip = box(0,-.105,gripZ,.068,.16,.095,woodenFurniture ? woodMat : darkMat);
     grip.name = "weapon_grip";
     grip.rotation.x = -.27;
     // Compact receivers end ahead of the standard trigger/grip anchor.
@@ -472,7 +476,7 @@ export function buildFirstPersonWeapon(
       // rectangular pistol-style handguards would conceal the chamber rim.
       tube(0,-.004,guardZ,.048,p.guardLength+.035,bodyMat,18);
     }else{
-      const handguard = box(0,-.006,guardZ,w*.88,h*.88,p.guardLength,bodyMat);
+      const handguard = box(0,-.006,guardZ,w*.88,h*.88,p.guardLength,woodenFurniture ? woodMat : bodyMat);
       handguard.name = "weapon_handguard";
       const vents = id.includes("heavy") || p.features.includes("vent") ? 5 : 3;
       for(let i=0;i<vents;i++) {
@@ -519,6 +523,13 @@ export function buildFirstPersonWeapon(
     add(rim,0,-.003,muzzle+.070);
     // Low front sight foot actually TOUCHES the round barrel shroud.
     box(0,.046,muzzle+.08,.021,.020,.034,metal);
+  }
+  if (id === "dmr_heavy") {
+    // Classic service-rifle top bridge and aperture block for an M1-inspired profile.
+    box(0,.105,c+.035,.105,.022,.20,metal);
+    box(0,.135,c+.075,.075,.045,.055,edge);
+    box(0,.158,c+.075,.025,.012,.045,darkMat);
+    for (const side of [-1,1]) box(side*.061,.095,c+.075,.012,.035,.085,metal);
   }
   // Three experimental weapon platforms. All meshes use the normal `add`
   // callback so the FPS engine can animate them and dispose them on swap.
@@ -834,10 +845,26 @@ export function buildFirstPersonWeapon(
   const rearZ=c+l/2+.05;
   switch (p.stock) {
     case "fixed":{
-      // Preserve the butt position while extending the stock into the receiver.
-      const stem=box(0,-.025,rearZ+.05,.115,.135,.24,darkMat);
-      stem.name="weapon_stock_stem";
-      box(0,.05,rearZ+.07,.085,.02,.17,sig);
+      if (woodenFurniture) {
+        // One-piece walnut-style sporting/service stock with a raised comb,
+        // shaped wrist and dark butt plate. Scout reads as a hunting rifle;
+        // Executioner takes its cues from the M1-era service rifle.
+        const stock=box(0,-.035,rearZ+.055,.132,.155,.245,woodMat);
+        stock.name="wooden_rifle_stock";
+        const cheek=box(0,.043,rearZ+.015,.112,.035,.17,woodMat);
+        cheek.name="wooden_stock_comb";
+        const butt=box(0,-.035,rearZ+.181,.135,.16,.025,woodDarkMat);
+        butt.name="wooden_stock_buttplate";
+        box(0,-.105,c+.205,.074,.115,.145,woodMat);
+        for (const side of [-1,1]) {
+          const inlay=box(side*(w/2+.010),-.047,rearZ+.035,.004,.055,.155,woodDarkMat);
+          inlay.name="wood_stock_side_inlay";
+        }
+      } else {
+        const stem=box(0,-.025,rearZ+.05,.115,.135,.24,darkMat);
+        stem.name="weapon_stock_stem";
+        box(0,.05,rearZ+.07,.085,.02,.17,sig);
+      }
       break;
     }
     case "heavy":{
