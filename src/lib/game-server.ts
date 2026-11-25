@@ -606,7 +606,10 @@ function frontierSafeLoadout(loadout:LoadoutWire):LoadoutWire {
 }
 
 function addHumanToRoom(room: Room, socketId: string, p: PlayerNet, loadout: LoadoutWire, requested?: "red" | "blue" | "auto"): string {
-  if(room.mode==="frontier"){loadout=frontierSafeLoadout(loadout);p.weaponId=loadout.emptyPrimary?(loadout.secondaryWeaponId??"pistol_side"):loadout.weaponId;}
+  if(room.mode==="frontier"){
+    loadout=frontierLoadoutForPreset(frontierSafeLoadout(loadout),"scout");
+    p.weaponId=loadout.weaponId;
+  }
   const team = assignTeam(room.mode, room, requested);
   p.team = team as any;
   // If the room is bot-filled and this team is full, replace a bot with the human.
@@ -5181,7 +5184,7 @@ async function handle(socket: any, msg: C2S) {
     }
     case "queueLoadout": {
       const room = rooms.get(socketToRoom.get(socket.id) ?? "");
-      if (!room || room.state !== "playing" || room.ended || room.mode === "gungame") return;
+      if (!room || room.state !== "playing" || room.ended || room.mode === "gungame" || room.mode === "frontier") return;
       const playerKey = room.playerKeys.get(socket.id);
       if (!room.players.has(socket.id) || !playerKey) return;
       // The packet is untrusted: check ownership, perks, skins and attachments
