@@ -68,8 +68,12 @@ export function calculateMatchRewards(input: MatchResultInput) {
     breakdown.objectives.xp = confirms * REWARDS.confirmXp + denies * REWARDS.denyXp;
     breakdown.objectives.credits = confirms * REWARDS.confirmCredits + denies * REWARDS.denyCredits;
   } else if(input.mode==="searchdestroy"){
-    const rounds=Math.max(0,Math.min(6,Math.floor(input.modeStats?.searchDestroy?.playerRoundsWon??0)));
-    breakdown.objectives.xp=rounds*25;breakdown.objectives.credits=rounds*15;
+    const stats=input.modeStats?.searchDestroy;
+    const rounds=Math.max(0,Math.min(6,Math.floor(stats?.playerRoundsWon??0)));
+    const plants=Math.max(0,Math.min(11,Math.floor(stats?.plants??0)));
+    const defuses=Math.max(0,Math.min(11,Math.floor(stats?.defuses??0)));
+    breakdown.objectives.xp=rounds*25+plants*50+defuses*75;
+    breakdown.objectives.credits=rounds*15+plants*10+defuses*15;
   } else if(input.mode==="hardpoint"){
     const seconds=Math.max(0,Math.min(600,Math.floor(input.modeStats?.hardpoint?.playerObjectiveSeconds??0)));
     breakdown.objectives.xp=seconds*2;breakdown.objectives.credits=seconds;
