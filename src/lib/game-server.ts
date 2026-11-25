@@ -802,7 +802,7 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
     for(const player of room.players.values())room.searchDestroyPlayerActions.set(player.id,{plants:0,defuses:0});
   }
   if(room.mode==="hardpoint"){
-    room.hardpointState=createHardpointState(room.startTime);
+    room.hardpointState=createHardpointState(room.startTime,5,true);
     room.hardpointPlayerObjectiveMs.clear();
     for(const player of room.players.values())room.hardpointPlayerObjectiveMs.set(player.id,0);
   }
@@ -3056,7 +3056,7 @@ function tickRoomSimulation(room: Room) {
     room.teamScores={...result.state.scores};
     room.config.hardpointZone=result.state.activeIndex;
     room.config.hardpointProgress=Math.max(result.state.objectiveMs.red,result.state.objectiveMs.blue);
-    if(result.state.scores.red>=200||result.state.scores.blue>=200){endMatch(room,"other",result.state.scores.red===result.state.scores.blue?undefined:result.state.scores.red>result.state.scores.blue?"red":"blue");return;}
+    if(room.config.scoreLimit>0&&(result.state.scores.red>=room.config.scoreLimit||result.state.scores.blue>=room.config.scoreLimit)){endMatch(room,"other",result.state.scores.red===result.state.scores.blue?undefined:result.state.scores.red>result.state.scores.blue?"red":"blue");return;}
   }
   if(room.mode==="searchdestroy"&&room.preMatchCountdown<=0&&room.searchDestroyState){
     const state=room.searchDestroyState;
