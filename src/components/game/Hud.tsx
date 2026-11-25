@@ -16,7 +16,7 @@ import { LAVA_DEATH_SOURCE } from "@/lib/dynamic-environment";
 import { orbitalChargeLabel } from "@/lib/orbital-reactor";
 import { ctfFlagLine, killRank, teamScorePerspective } from "@/lib/hud-top-stats";
 import { combatIdentity } from "@/lib/combat-identity";
-import { Heart, Zap, Trophy, Skull, Clock, LogOut, Users, AlertTriangle, Crosshair as CrosshairIcon, Shield, ChevronUp, Siren, ChevronLeft, ChevronRight } from "lucide-react";
+import { Heart, Zap, Trophy, Skull, Clock, LogOut, Users, AlertTriangle, Crosshair as CrosshairIcon, Shield, ChevronUp, Siren, ChevronLeft, ChevronRight, Bomb } from "lucide-react;
 
 interface Props {
   hud: HudState;
