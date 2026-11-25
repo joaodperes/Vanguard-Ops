@@ -107,7 +107,7 @@ import { dragonBreathIgnition,dragonBreathVisualUntil } from "./incendiary-statu
 import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
 import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineInReach, stormEnemy, stormTargetPoint, nextStormChainTarget, STORM_MINE_TRIGGER_RADIUS, STORM_MINE_ARM_MS, STORM_MINE_LIFETIME_MS, STORM_MAX_MINES_PER_OWNER, STORM_MINE_TARGET_COOLDOWN_MS, STORM_MAX_DIRECT_HITS_PER_TARGET, STORM_DIRECT_DAMAGE, STORM_MINE_DAMAGE, STORM_CHAIN_JUMPS, STORM_MINE_JUMPS, STORM_CHAIN_DECAY, STORM_MINE_CHAIN_RADIUS, type StormVictim } from "./stormweaver";
 import { advanceKillChain, type KillChainState } from "./kill-chain";
-import { frontierWeaponIdAllowed } from "./game-mode-rules";
+import { frontierWeaponIdAllowed, searchDestroySitesForMap, SEARCH_DESTROY_RULES } from "./game-mode-rules";
 import { isFlagDefenseKill, largestScoreDeficit } from "./match-bonus-tracking";
 import { advanceIncrementalReload } from "./incremental-reload";
 import { shotSpread, shotBloomIncrease, recoilKickRadians, sustainedRecoilMultiplier, firingMotionFactor, spreadShotDirection } from "./weapon-accuracy";
@@ -412,7 +412,7 @@ export interface HudState {
 }
 
 export interface ScoreRow {
-  id: string; name: string; team: string; kills: number; deaths: number; score: number; isBot: boolean; isSelf: boolean;
+  id: string; name: string; team: string; kills: number; deaths: number; score: number; isBot: boolean; isSelf: boolean; isBombCarrier?: boolean;
 }
 
 export interface MatchEndResult {
@@ -1089,7 +1089,7 @@ export class FPSEngine {
   private hardpointState?: import("./game-mode-rules").HardpointState;
   private searchDestroyState?: import("./game-mode-rules").SearchDestroyState;
   private searchDestroyPlants=0;
-  private searchDestroyDefuses=0;
+  private searchDestroyDefuses=0;\n  private searchDestroyRoundNotice?: {text:string;at:number};
   private frontierAmmoRemaining?:number;
   private modeInteractHeld=false;
   private modeInteractSentAt=0;
@@ -4850,7 +4850,7 @@ export class FPSEngine {
     let action:"plant"|"defuse"|"pickup"|undefined,siteId:"A"|"B"|undefined;
     if(state.bomb.status==="dropped"&&this.opts.team===state.attackerTeam)action="pickup";
     else if(state.phase==="planted"&&this.opts.team!==state.attackerTeam)action="defuse";
-    else if(state.phase==="live"&&state.bomb.carrierId===this.selfId){action="plant";const sites:[number,number,number][]=[[-42,0,-40],[-10,0,22.5]];siteId=Math.hypot(this.pos.x-sites[0][0],this.pos.z-sites[0][2])<=Math.hypot(this.pos.x-sites[1][0],this.pos.z-sites[1][2])?"A":"B";}
+    else if(state.phase==="live"&&state.bomb.carrierId===this.selfId){action="plant";const sites=searchDestroySitesForMap(this.map.id,this.map.size);siteId=Math.hypot(this.pos.x-sites[0].pos[0],this.pos.z-sites[0].pos[2])<=Math.hypot(this.pos.x-sites[1].pos[0],this.pos.z-sites[1].pos[2])?"A":"B";}
     if(action){this.socket.emit("message",{t:"modeInteract",action,siteId});this.modeInteractSentAt=now;}
   }
 
@@ -11347,7 +11347,7 @@ export class FPSEngine {
         this.spectatorTargetId=spectatorTarget.id;
       }else if(!spectatorTargets.length)this.spectatorTargetId=undefined;
       if(spectatorTarget){
-        this.camera.position.set(spectatorTarget.pos[0],spectatorTarget.pos[1]+EYE_HEIGHT,spectatorTarget.pos[2]);
+        this.camera.position.set(spectatorTarget.pos[0]-Math.sin(spectatorTarget.yaw??0)*0.35,spectatorTarget.pos[1]+EYE_HEIGHT+0.25,spectatorTarget.pos[2]-Math.cos(spectatorTarget.yaw??0)*0.35);
         this.camera.rotation.set(spectatorTarget.pitch??0,(spectatorTarget.yaw??0)+Math.PI,0,"YXZ");
       }else{
         this.camera.position.set(this.pos.x,this.pos.y+EYE_HEIGHT,this.pos.z);
@@ -13815,13 +13815,13 @@ export class FPSEngine {
     const scoreboard: ScoreRow[] = [];
     if (this.opts.online) {
       for (const c of this.combatants.values()) {
-        scoreboard.push({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths, score: c.score, isBot: c.isBot, isSelf: c.id === this.selfId });
+        scoreboard.push({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths, score: c.score, isBot: c.isBot, isSelf: c.id === this.selfId, isBombCarrier: this.opts.mode==="searchdestroy"&&this.opts.team===this.searchDestroyState?.attackerTeam&&c.id===this.searchDestroyState?.bomb.carrierId });
       }
     } else {
       for (const c of this.combatants.values()) {
-        scoreboard.push({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths, score: this.opts.mode === "killconfirmed" || this.opts.mode === "ctf" ? c.score : c.kills, isBot: c.isBot, isSelf: false });
+        scoreboard.push({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths, score: this.opts.mode === "killconfirmed" || this.opts.mode === "ctf" ? c.score : c.kills, isBot: c.isBot, isSelf: false, isBombCarrier: this.opts.mode==="searchdestroy"&&this.opts.team===this.searchDestroyState?.attackerTeam&&c.id===this.searchDestroyState?.bomb.carrierId });
       }
-      scoreboard.push({ id: this.selfId, name: this.opts.playerName, team: this.opts.team as string, kills: this.kills, deaths: this.deaths, score: this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills, isBot: false, isSelf: true });
+      scoreboard.push({ id: this.selfId, name: this.opts.playerName, team: this.opts.team as string, kills: this.kills, deaths: this.deaths, score: this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills, isBot: false, isSelf: true, isBombCarrier: this.opts.mode==="searchdestroy"&&this.opts.team===this.searchDestroyState?.attackerTeam&&this.selfId===this.searchDestroyState?.bomb.carrierId });
     }
     scoreboard.sort((a, b) => b.score - a.score || b.kills - a.kills);
     const mechEnterAvailable=!this.mechActive&&this.alive&&this.opts.mode!=="gungame"&&
@@ -13877,7 +13877,7 @@ export class FPSEngine {
       playerTeam: this.opts.team as string,
       ctfFlags: this.opts.mode === "ctf" ? this.ctfFlags : undefined,
       hardpoint: this.hardpointState,
-      searchDestroy: this.searchDestroyState,
+      searchDestroy: this.searchDestroyState,\n       searchDestroyRoundNotice:this.searchDestroyRoundNotice,\n       searchDestroyInteraction:(()=>{const s=this.searchDestroyState;if(!s||!this.alive||s.phase==="preparation"||s.phase==="round_end"||s.phase==="match_end")return undefined;const sites=searchDestroySitesForMap(this.map.id,this.map.size);let kind:"plant"|"defuse"|"pickup"|undefined,label="",progress=0;if(s.bomb.status==="dropped"&&this.opts.team===s.attackerTeam&&Math.hypot(this.pos.x-s.bomb.pos[0],this.pos.z-s.bomb.pos[2])<=SEARCH_DESTROY_RULES.interactionRadius){kind="pickup";label="HOLD E TO PICK UP BOMB";}else if(s.phase==="planted"&&this.opts.team!==s.attackerTeam&&Math.hypot(this.pos.x-s.bomb.pos[0],this.pos.z-s.bomb.pos[2])<=SEARCH_DESTROY_RULES.interactionRadius){kind="defuse";label="HOLD E TO DEFUSE";const p=s.bomb.defuseProgress;progress=p?.playerId===this.selfId?Math.min(100,Math.max(0,(Date.now()-p.startedAt)/(SEARCH_DESTROY_RULES.defuseSeconds*1000)*100)):0;}else if(s.phase==="live"&&s.bomb.carrierId===this.selfId){const site=sites.reduce((a,b)=>Math.hypot(this.pos.x-a.pos[0],this.pos.z-a.pos[2])<=Math.hypot(this.pos.x-b.pos[0],this.pos.z-b.pos[2])?a:b);if(Math.hypot(this.pos.x-site.pos[0],this.pos.z-site.pos[2])<=site.radius){kind="plant";label=`HOLD E TO PLANT AT SITE ${site.id}`;const p=s.bomb.plantProgress;progress=p?.playerId===this.selfId?Math.min(100,Math.max(0,(Date.now()-p.startedAt)/(SEARCH_DESTROY_RULES.plantSeconds*1000)*100)):0;}}return kind?{kind,label,progress}:undefined;})(),
       searchDestroyCarrierName: this.searchDestroyState?.bomb.status==="carried"&&
         this.opts.team===this.searchDestroyState.attackerTeam&&this.searchDestroyState.bomb.carrierId
           ? this.combatants.get(this.searchDestroyState.bomb.carrierId)?.name : undefined,
