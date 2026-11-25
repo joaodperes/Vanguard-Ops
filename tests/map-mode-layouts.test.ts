@@ -2,7 +2,7 @@ import {describe,test,expect} from "bun:test";
 import {MAP_LIST,getMap,mapAllowedForMode,teamSizesForMap,teamSizeAllowed,roomCapacity,type Vec3} from "../src/lib/game-protocol";
 import {CTF_LAYOUTS} from "../src/lib/ctf-layouts";
 import {createCtfFlags,ctfHome,ctfBase,ctfTouch,ctfBotIntent,ctfStairWaypoint,CTF_PICKUP_RADIUS,CTF_CAPTURE_RADIUS} from "../src/lib/ctf-rules";
-import {spawnClear,chooseSpawn} from "../src/lib/spawn-selection";
+import {spawnClear,chooseSpawn} from "../src/lib/spawn-selection";\nimport {botPositionEmbedded} from "../src/lib/bot-physics";
 import {makeEnvironmentMap,withinEnvironment} from "../src/lib/dynamic-environment";
 import {insideRegions} from "../src/lib/map-blueprints";
 import {botTraversableEdge,botNextWaypoint} from "../src/lib/bot-routing";
@@ -33,7 +33,7 @@ describe("mode availability and spawn capacity",()=>{
     expect(mapAllowedForMode("searchdestroy",id)).toBe(true);
     expect(getMap(id,"searchdestroy").spawns.red.length).toBeGreaterThanOrEqual(5);
     expect(getMap(id,"searchdestroy").spawns.blue.length).toBeGreaterThanOrEqual(5);
-    expect(searchDestroySitesForMap(id,getMap(id).size)).toHaveLength(2);
+    const map=getMap(id,"searchdestroy");\n    const sites=searchDestroySitesForMap(id,map.size);\n    expect(sites).toHaveLength(2);\n    for(const site of sites)expect(botPositionEmbedded(map.cover,site.pos)).toBe(false);
   }
   expect(MAP_LIST.filter(map=>mapAllowedForMode("hardpoint",map.id)).map(map=>map.id).sort()).toEqual(["bunker","dustwater","floodgate"]);
   const sites=searchDestroySitesForMap("dustwater",getMap("dustwater").size);
