@@ -2379,12 +2379,12 @@ export class FPSEngine {
       const glow = new THREE.Mesh(new THREE.RingGeometry(5.35, 6.25, 64),
         new THREE.MeshBasicMaterial({color:0x38bdf8,transparent:true,opacity:0.48,side:THREE.DoubleSide,depthWrite:false}));
       glow.rotation.x = -Math.PI / 2; glow.position.set(pos[0],pos[1]+0.12,pos[2]); group.add(glow);
-      const boundary = new THREE.Mesh(new THREE.CylinderGeometry(6.15,6.15,1.0,64,1,true),
+      const boundary = new THREE.Mesh(new THREE.CylinderGeometry(6.15,6.15,0.7,64,1,true),
         new THREE.MeshBasicMaterial({color:0x38bdf8,transparent:true,opacity:0.10,side:THREE.DoubleSide,depthWrite:false}));
-      boundary.position.set(pos[0],pos[1]+.5,pos[2]); group.add(boundary);
+      boundary.position.set(pos[0],pos[1]+.35,pos[2]); group.add(boundary);
       const top = new THREE.Mesh(new THREE.TorusGeometry(6.15,0.075,8,64),
         new THREE.MeshBasicMaterial({color:0x7dd3fc,transparent:true,opacity:0.85,depthWrite:false}));
-      top.rotation.x=Math.PI/2; top.position.set(pos[0],pos[1]+1.0,pos[2]); group.add(top);
+      top.rotation.x=Math.PI/2; top.position.set(pos[0],pos[1]+.7,pos[2]); group.add(top);
       group.visible=false; this.scene.add(group); return group;
     });
   }
