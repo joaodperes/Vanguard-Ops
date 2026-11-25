@@ -11526,7 +11526,8 @@ export class FPSEngine {
       // Fan Hammer uses the right trigger for held rapid-fire; left remains semi-auto.
       if(fanHammerActive && fanHammerTrigger){
         const fanGap=1000/FAN_HAMMER_FIRE_RATE;
-        if(this.ammoInMag>0 && now-this.lastShotAt>=fanGap*.88 && !this.reloading && !this.sprinting && this.alive && !this.matchEnded)
+        if(this.ammoInMag<=0&&!this.reloading){this.sound.play("empty_click",{volume:.36});this.startReload();}
+        else if(this.ammoInMag>0 && now-this.lastShotAt>=fanGap*.88 && !this.reloading && !this.sprinting && this.alive && !this.matchEnded)
           this.fireOneShot(w,undefined,true);
       }
       // Semi-auto and burst weapons used to skip fireOneShot at zero ammo.
