@@ -8,6 +8,7 @@ import {insideRegions} from "../src/lib/map-blueprints";
 import {botTraversableEdge,botNextWaypoint} from "../src/lib/bot-routing";
 import {CoverSpatialIndex} from "../src/lib/cover-spatial-index";
 import {useGame} from "../src/lib/game-store";
+import {searchDestroySitesForMap} from "../src/lib/game-mode-rules";
 
 describe("mode availability and spawn capacity",()=>{
  test("TDM and Kill Confirmed each have nine maps, with opposite Afterlight variants removed",()=>{
@@ -32,9 +33,15 @@ describe("mode availability and spawn capacity",()=>{
    const pools=maps[0].modeSpawns?.[mode];
    expect(pools?.red).toHaveLength(5);
    expect(pools?.blue).toHaveLength(5);
+   expect(new Set(pools?.red.map(point=>point.join(","))).toHaveLength(5);
+   expect(new Set(pools?.blue.map(point=>point.join(","))).toHaveLength(5);
    expect(getMap("dustwater",mode).spawns.red).toEqual(pools?.red);
    expect(getMap("dustwater",mode).spawns.blue).toEqual(pools?.blue);
   }
+  const sites=searchDestroySitesForMap("dustwater",getMap("dustwater").size);
+  expect(sites.map(site=>site.id)).toEqual(["A","B"]);
+  expect(sites[1].pos).toEqual([-10,0,22.5]); // inside the bank interior
+  expect(sites[0].pos).not.toEqual(sites[1].pos);
   expect(mapAllowedForMode("hardpoint","compound")).toBe(false);
   expect(mapAllowedForMode("searchdestroy","skybridge")).toBe(false);
   for(const mode of ["searchdestroy","hardpoint","frontier"] as const)
