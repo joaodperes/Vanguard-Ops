@@ -473,7 +473,7 @@ function spawnBots(room: Room) {
     const archetype = botArchetypeForSlot(teamSlot);
     const rawLoadout = botLoadout(archetype,Math.floor(Math.random()*botArchetypeWeapons(archetype).length),room.mode);
     // Keep Frontier bots on the same four curated kits available to players.
-    const frontierPreset = ({rusher:"breacher",rifleman:"scout",marksman:"hunter",support:"gunslinger"} as const)[archetype];
+    const frontierPreset = FRONTIER_BOT_PRESET_BY_ARCHETYPE[archetype];
     const loadout = room.mode==="frontier"
       ? frontierSafeLoadout(frontierLoadoutForPreset(rawLoadout,frontierPreset))
       : rawLoadout;
