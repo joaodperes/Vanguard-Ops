@@ -32,7 +32,7 @@ export function SavedLoadoutPicker({ mode, queuedPresetId, onPresetEquipped, onF
     return (
       <section aria-label="Frontier loadout presets" className="space-y-4">
         <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-100">
-          Choose one of four fixed Frontier kits. Your first selection applies immediately; later changes are queued for your next respawn.
+          Choose one of four fixed Frontier kits. Your first kit choice applies immediately; changes after your first kill or death are queued for your next respawn.
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           {FRONTIER_LOADOUTS.map(preset => {
