@@ -1681,7 +1681,7 @@ export interface MatchConfig {
   objectiveBotStyle?: "balanced" | "aggressive" | "defensive";
   searchDestroyRound?: number;
   searchDestroyWins?: { red: number; blue: number }; 
-  searchDestroyRoundTimeSeconds?: number;;
+  searchDestroyRoundTimeSeconds?: number;
   searchDestroyRoundsToWin?: number;
   hardpointZone?: number;
   hardpointProgress?: number;
