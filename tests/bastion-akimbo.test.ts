@@ -1,8 +1,19 @@
 import {describe,expect,test} from "bun:test";
 import {weaponById,computeEffectiveStats,compatibleAttachments,attachmentById} from "../src/lib/game-data";
-import {isBastionAkimbo,isFanHammer,akimboHandReady,akimboHandIntervalMs,authorizedAkimboHand,akimboReloadDip,akimboCrossDrawAmount,isAkimboWeapon,akimboHandCapacity,akimboPumpStroke,AKIMBO_WEAPON_IDS,AKIMBO_CYLINDER_CAPACITY} from "../src/lib/weapon-mechanics";
+import {isBastionAkimbo,isFanHammer,akimboHandReady,akimboHandIntervalMs,authorizedAkimboHand,akimboReloadDip,akimboCrossDrawAmount,isAkimboWeapon,akimboHandCapacity,akimboPumpStroke,AKIMBO_WEAPON_IDS,AKIMBO_CYLINDER_CAPACITY,FAN_HAMMER_FIRE_RATE,FAN_HAMMER_SPREAD_MULTIPLIER,fanHammerIntervalMs} from "../src/lib/weapon-mechanics";
 
 const empty={sight:null,barrel:null,grip:null,magazine:null};
+describe("Bastion .45 Fan Hammer alternate trigger",()=>{
+  test("fan-fire cadence and spread are deliberately fast and inaccurate",()=>{
+    expect(FAN_HAMMER_FIRE_RATE).toBe(5.5);
+    expect(fanHammerIntervalMs()).toBeCloseTo(1000/5.5);
+    expect(FAN_HAMMER_SPREAD_MULTIPLIER).toBe(5);
+    expect(isFanHammer("pistol_bastion","grip_fan_hammer")).toBe(true);
+    expect(isFanHammer("pistol_bastion","grip_akimbo")).toBe(false);
+    expect(isFanHammer("pistol_side","grip_fan_hammer")).toBe(false);
+  });
+});
+
 describe("Bastion .45 Akimbo",()=>{
   test("Bastion's Akimbo grip remains incompatible with Fan the Hammer",()=>{
     expect(isBastionAkimbo("pistol_bastion","grip_akimbo")).toBe(true);
