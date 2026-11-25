@@ -338,7 +338,7 @@ export function Play() {
                     <div className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
                       <div className="text-amber-200 text-xs font-bold uppercase tracking-wider mb-1">Frontier Arsenal</div>
                       <p className="text-white/60 text-xs leading-relaxed">
-                        Frontier allows six specific weapons. An incompatible saved primary or secondary is replaced automatically with the Scout Sniper or Magnum .50. Use 1 and 2 to switch slots during play; there is no separate weapon-picker screen yet.
+                        Frontier uses four fixed weapon kits. During a match, open Pause → Change Loadout to queue Scout, Breacher, Hunter or Gunslinger for your next respawn. Gunslinger has no primary weapon.
                       </p>
                     </div>
                   )}
