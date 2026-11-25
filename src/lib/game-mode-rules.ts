@@ -93,7 +93,7 @@ export function selectSearchDestroyCarrier<T extends ModeCombatant & { isBot?: b
   return attackers.find(player => !player.isBot) ?? attackers[0];
 }
 
-export function createSearchDestroyState(now: number, carrierId: string, carrierPos: ModeVec3, roundSeconds = SEARCH_DESTROY_RULES.roundSeconds, roundsToWin = SEARCH_DESTROY_RULES.roundsToWin): SearchDestroyState {
+export function createSearchDestroyState(now: number, carrierId: string, carrierPos: ModeVec3, roundSeconds: number = SEARCH_DESTROY_RULES.roundSeconds, roundsToWin: number = SEARCH_DESTROY_RULES.roundsToWin): SearchDestroyState {
   const wins=Math.max(1,Math.min(9,Math.floor(roundsToWin)));
   const seconds=Math.max(30,Math.min(600,Math.floor(roundSeconds)));
   const maxRounds=wins*2-1;
