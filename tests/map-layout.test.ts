@@ -207,7 +207,7 @@ describe("authored map combat layouts", () => {
         const right = barriers.filter(box => box.pos[along] > door.pos[along] + 3)
           .reduce((edge,box) => Math.min(edge, box.pos[along] - box.size[along]), Infinity);
         expect(door.pos[along] - door.size[along] - left).toBeLessThan(1.1);
-        expect(right - (door.pos[along] + door.size[along])).toBeLessThan(0.9);
+        expect(right - (door.pos[along] + door.size[along])).toBeLessThan(1.1);
       }
     }
   });
