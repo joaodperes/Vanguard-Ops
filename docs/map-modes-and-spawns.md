@@ -21,9 +21,10 @@ Survival continues to allow one or two humans, independently of wave enemies. Se
 
 Search & Destroy and Hardpoint currently use Dustwater only. Both modes share
 Dustwater-authored red/blue spawn pools; Search & Destroy's A/B bomb sites and
-Hardpoint's five hill coordinates are also authored for that footprint. Their
-room sizes are capped at 3v3, 4v4 and 5v5 to match the five unique spawn points
-per side. Do not enable another map by changing only its `modes` array: add
+Hardpoint's five hill coordinates are also authored for that footprint. Bomb
+site B is inside the bank, while site A remains at the north edge. Their room
+sizes are capped at 3v3, 4v4 and 5v5 to match the five unique spawn points per
+side. Do not enable another map by changing only its `modes` array: add
 mode-specific spawn pools and map-specific bomb/hill coordinates, then validate
 objective clearance and bot routes.
 
