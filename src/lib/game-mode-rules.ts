@@ -22,6 +22,7 @@ export const FRONTIER_RULES = Object.freeze({
   allowedWeaponIds: ["sniper_scout", "sniper_lr", "dmr_scout", "pistol_magnum", "shotgun_br", "shotgun_combat", "pistol_bastion", "pistol_side", "pistol_ghost", "crossbow_reclaimer"] as const,
   disabledEquipment: true, disabledExplosives: true,
 });
+export type FrontierLoadoutPresetId = "scout" | "breacher" | "hunter" | "gunslinger";
 export type FrontierWeaponCategory = typeof FRONTIER_RULES.allowedCategories[number];
 export function frontierWeaponAllowed(category: string): category is FrontierWeaponCategory {
   return (FRONTIER_RULES.allowedCategories as readonly string[]).includes(category);
