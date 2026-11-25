@@ -2948,7 +2948,8 @@ export class FPSEngine {
         }
       }else if(p.kind==="dynamite"){
         // A low-profile site marker: timber crate with bundled red dynamite.
-        cube(group,wood,0,.42,0,1.35,.84,1.05);
+        const crateWood=new THREE.MeshStandardMaterial({color:0x805635,roughness:.92});
+        cube(group,crateWood,0,.42,0,1.35,.84,1.05);
         cube(group,trim,0,.88,0,1.42,.12,1.12);
         const stickMat=new THREE.MeshStandardMaterial({color:0x9b3028,roughness:.72});
         const capMat=new THREE.MeshStandardMaterial({color:0xd8c6a0,roughness:.8});
@@ -9831,6 +9832,9 @@ export class FPSEngine {
         if (t !== undefined) contacts.push({ target: c, t, head: shieldFirst ? false : !!body?.head,
           shield: shieldFirst, protected: (c.spawnProtectedUntil ?? 0) > Date.now() });
       }
+      const resolved = traceCoverPenetration(this.coverForRay(origin,dir,maxDistance),origin,dir,maxDistance,
+        this.eff.coverPenetration??0,this.weaponId==="wonder_phasebreaker");
+      const hits = selectBodyPenetrationHits(contacts,maxDistance,resolved.stoppedAt);
       const cover = closestCoverHit(this.coverForRay(origin,dir,maxDistance), origin, dir, maxDistance, rayBox);
       const firstBody = selectBodyPenetrationHits(contacts, maxDistance, Infinity)[0];
       if (cover?.box.environmentId && this.environmentWalls.has(cover.box.environmentId) &&

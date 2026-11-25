@@ -796,9 +796,9 @@
       {
         "id": "church-tower-south-wall-left",
         "kind": "cover",
-        "x": 16.5,
+        "x": 16,
         "z": -12.5,
-        "w": 2,
+        "w": 1,
         "d": 0.45,
         "h": 3.6,
         "y": 7,
@@ -807,9 +807,9 @@
       {
         "id": "church-tower-south-wall-right",
         "kind": "cover",
-        "x": 19.5,
+        "x": 20,
         "z": -12.5,
-        "w": 2,
+        "w": 1,
         "d": 0.45,
         "h": 3.6,
         "y": 7,
@@ -819,9 +819,9 @@
         "id": "church-tower-stairs",
         "kind": "stairs",
         "x": 18,
-        "z": -15,
+        "z": -17.2,
         "w": 2.2,
-        "d": 6,
+        "d": 4.2,
         "h": 3.6,
         "y": 7,
         "axis": "z",
@@ -1217,36 +1217,6 @@
         "kind": "antenna",
         "x": 0,
         "z": -37
-      },
-      {
-        "kind": "sign",
-        "x": 20,
-        "z": -34,
-        "text": "HILL 2"
-      },
-      {
-        "kind": "sign",
-        "x": 0,
-        "z": 8,
-        "text": "HILL 3"
-      },
-      {
-        "kind": "sign",
-        "x": -42,
-        "z": 40,
-        "text": "HILL 4"
-      },
-      {
-        "kind": "sign",
-        "x": -20,
-        "z": -34,
-        "text": "HILL 1"
-      },
-      {
-        "kind": "sign",
-        "x": 42,
-        "z": 40,
-        "text": "HILL 5"
       },
       {
         "kind": "dynamite",

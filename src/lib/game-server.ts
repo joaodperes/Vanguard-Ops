@@ -5204,13 +5204,13 @@ async function handle(socket: any, msg: C2S) {
     }
     case "queueLoadout": {
       const room = rooms.get(socketToRoom.get(socket.id) ?? "");
-      if (!room || room.state !== "playing" || room.ended || room.mode === "gungame" || room.mode === "frontier") return;
+      if (!room || room.state !== "playing" || room.ended || room.mode === "gungame") return;
       const playerKey = room.playerKeys.get(socket.id);
       if (!room.players.has(socket.id) || !playerKey) return;
       // The packet is untrusted: check ownership, perks, skins and attachments
       // against the same authoritative validation as match joining.
       const validated = await validatedMatchLoadout(playerKey, msg.loadout);
-      const loadout = room.mode==="frontier"?frontierSafeLoadout(validated):validated;
+      const loadout = validated;
       if (!room.players.has(socket.id) || room.ended) return;
       room.pendingLoadouts.set(socket.id, loadout);
       socket.emit("message", { t: "loadoutQueued", loadout } as S2C);
