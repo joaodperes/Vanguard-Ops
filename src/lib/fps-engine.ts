@@ -1089,8 +1089,7 @@ export class FPSEngine {
   private hardpointState?: import("./game-mode-rules").HardpointState;
   private searchDestroyState?: import("./game-mode-rules").SearchDestroyState;
   private searchDestroyPlants=0;
-  private searchDestroyDefuses=0;
-  private searchDestroyRoundNotice?: {text:string;at:number};
+  private searchDestroyDefuses=0;\n  private searchDestroyRoundNotice?: {text:string;at:number};
   private frontierAmmoRemaining?:number;
   private modeInteractHeld=false;
   private modeInteractSentAt=0;
@@ -11079,7 +11078,10 @@ export class FPSEngine {
       (this.opts.mode==="survival"?survivalReloadMultiplier(this.survivalUpgradeRanks,performance.now()-this.survivalLastKillAt):1);
     this.reloadEndsAt = this.reloadStartedAt + this.reloadDurationMs;
     this.sound.play(this.weaponId==="pistol_bastion" ? "revolver_reload" : "reload", { volume: 0.55 });
-    this.socket?.emit("message", { t: "reload" });
+    const frontierAkimboReloadCount=this.opts.mode==="frontier"&&this.isAkimboActive()
+      ? [this.akimboAmmo.left,this.akimboAmmo.right].filter(n=>n<akimboHandCapacity(this.eff.magSize)).length as 1|2
+      : undefined;
+    this.socket?.emit("message", { t: "reload", ...(frontierAkimboReloadCount ? {frontierAkimboReloadCount}: {}) });
   }
 
   private updateOperationBeacons() {
@@ -13878,8 +13880,7 @@ export class FPSEngine {
       playerTeam: this.opts.team as string,
       ctfFlags: this.opts.mode === "ctf" ? this.ctfFlags : undefined,
       hardpoint: this.hardpointState,
-      searchDestroy: this.searchDestroyState,
-       searchDestroyRoundNotice:this.searchDestroyRoundNotice,\n       searchDestroyInteraction:(()=>{const s=this.searchDestroyState;if(!s||!this.alive||s.phase==="preparation"||s.phase==="round_end"||s.phase==="match_end")return undefined;const sites=searchDestroySitesForMap(this.map.id,this.map.size);let kind:"plant"|"defuse"|"pickup"|undefined,label="",progress=0;if(s.bomb.status==="dropped"&&this.opts.team===s.attackerTeam&&Math.hypot(this.pos.x-s.bomb.pos[0],this.pos.z-s.bomb.pos[2])<=SEARCH_DESTROY_RULES.interactionRadius){kind="pickup";label="HOLD E TO PICK UP BOMB";}else if(s.phase==="planted"&&this.opts.team!==s.attackerTeam&&Math.hypot(this.pos.x-s.bomb.pos[0],this.pos.z-s.bomb.pos[2])<=SEARCH_DESTROY_RULES.interactionRadius){kind="defuse";label="HOLD E TO DEFUSE";const p=s.bomb.defuseProgress;progress=p?.playerId===this.selfId?Math.min(100,Math.max(0,(Date.now()-p.startedAt)/(SEARCH_DESTROY_RULES.defuseSeconds*1000)*100)):0;}else if(s.phase==="live"&&s.bomb.carrierId===this.selfId){const site=sites.reduce((a,b)=>Math.hypot(this.pos.x-a.pos[0],this.pos.z-a.pos[2])<=Math.hypot(this.pos.x-b.pos[0],this.pos.z-b.pos[2])?a:b);if(Math.hypot(this.pos.x-site.pos[0],this.pos.z-site.pos[2])<=site.radius){kind="plant";label=`HOLD E TO PLANT AT SITE ${site.id}`;const p=s.bomb.plantProgress;progress=p?.playerId===this.selfId?Math.min(100,Math.max(0,(Date.now()-p.startedAt)/(SEARCH_DESTROY_RULES.plantSeconds*1000)*100)):0;}}return kind?{kind,label,progress}:undefined;})(),
+      searchDestroy: this.searchDestroyState,\n       searchDestroyRoundNotice:this.searchDestroyRoundNotice,\n       searchDestroyInteraction:(()=>{const s=this.searchDestroyState;if(!s||!this.alive||s.phase==="preparation"||s.phase==="round_end"||s.phase==="match_end")return undefined;const sites=searchDestroySitesForMap(this.map.id,this.map.size);let kind:"plant"|"defuse"|"pickup"|undefined,label="",progress=0;if(s.bomb.status==="dropped"&&this.opts.team===s.attackerTeam&&Math.hypot(this.pos.x-s.bomb.pos[0],this.pos.z-s.bomb.pos[2])<=SEARCH_DESTROY_RULES.interactionRadius){kind="pickup";label="HOLD E TO PICK UP BOMB";}else if(s.phase==="planted"&&this.opts.team!==s.attackerTeam&&Math.hypot(this.pos.x-s.bomb.pos[0],this.pos.z-s.bomb.pos[2])<=SEARCH_DESTROY_RULES.interactionRadius){kind="defuse";label="HOLD E TO DEFUSE";const p=s.bomb.defuseProgress;progress=p?.playerId===this.selfId?Math.min(100,Math.max(0,(Date.now()-p.startedAt)/(SEARCH_DESTROY_RULES.defuseSeconds*1000)*100)):0;}else if(s.phase==="live"&&s.bomb.carrierId===this.selfId){const site=sites.reduce((a,b)=>Math.hypot(this.pos.x-a.pos[0],this.pos.z-a.pos[2])<=Math.hypot(this.pos.x-b.pos[0],this.pos.z-b.pos[2])?a:b);if(Math.hypot(this.pos.x-site.pos[0],this.pos.z-site.pos[2])<=site.radius){kind="plant";label=`HOLD E TO PLANT AT SITE ${site.id}`;const p=s.bomb.plantProgress;progress=p?.playerId===this.selfId?Math.min(100,Math.max(0,(Date.now()-p.startedAt)/(SEARCH_DESTROY_RULES.plantSeconds*1000)*100)):0;}}return kind?{kind,label,progress}:undefined;})(),
       searchDestroyCarrierName: this.searchDestroyState?.bomb.status==="carried"&&
         this.opts.team===this.searchDestroyState.attackerTeam&&this.searchDestroyState.bomb.carrierId
           ? this.combatants.get(this.searchDestroyState.bomb.carrierId)?.name : undefined,
