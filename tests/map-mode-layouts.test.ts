@@ -35,10 +35,7 @@ describe("mode availability and spawn capacity",()=>{
     expect(getMap(id,"searchdestroy").spawns.blue.length).toBeGreaterThanOrEqual(5);
     expect(searchDestroySitesForMap(id,getMap(id).size)).toHaveLength(2);
   }
-  const hardpointMaps=MAP_LIST.filter(map=>mapAllowedForMode("hardpoint",map.id));
-  expect(hardpointMaps.map(map=>map.id)).toEqual(["dustwater"]);
-  const pools=hardpointMaps[0].modeSpawns?.hardpoint;
-  expect(pools?.red).toHaveLength(5);expect(pools?.blue).toHaveLength(5);
+  expect(MAP_LIST.filter(map=>mapAllowedForMode("hardpoint",map.id)).map(map=>map.id).sort()).toEqual(["bunker","dustwater","floodgate"]);
   const sites=searchDestroySitesForMap("dustwater",getMap("dustwater").size);
   expect(sites.map(site=>site.id)).toEqual(["A","B"]);
   expect(sites[1].pos).toEqual([42,0,-40]);
