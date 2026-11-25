@@ -472,7 +472,11 @@ function spawnBots(room: Room) {
     const teamSlot = [...room.bots.values()].filter(b => b.team === team).length;
     const archetype = botArchetypeForSlot(teamSlot);
     const rawLoadout = botLoadout(archetype,Math.floor(Math.random()*botArchetypeWeapons(archetype).length),room.mode);
-    const loadout = room.mode==="frontier"?frontierSafeLoadout(rawLoadout):rawLoadout;
+    // Keep Frontier bots on the same four curated kits available to players.
+    const frontierPreset = ({rusher:"breacher",rifleman:"scout",marksman:"hunter",support:"gunslinger"} as const)[archetype];
+    const loadout = room.mode==="frontier"
+      ? frontierSafeLoadout(frontierLoadoutForPreset(rawLoadout,frontierPreset))
+      : rawLoadout;
     loadout.playerSkinId = botOperativeSkinId(room.bots.size, skinRotation);
     const difficulty = resolveBotDifficulty(room);
     const ai = makeBotAI(sp, loadout.weaponId, difficulty, 0, archetype);
