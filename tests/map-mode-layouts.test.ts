@@ -33,8 +33,8 @@ describe("mode availability and spawn capacity",()=>{
    const pools=maps[0].modeSpawns?.[mode];
    expect(pools?.red).toHaveLength(5);
    expect(pools?.blue).toHaveLength(5);
-   expect(new Set(pools?.red.map(point=>point.join(","))).toHaveLength(5);
-   expect(new Set(pools?.blue.map(point=>point.join(","))).toHaveLength(5);
+   expect(new Set(pools?.red.map(point=>point.join(","))).size).toBe(5);
+   expect(new Set(pools?.blue.map(point=>point.join(","))).size).toBe(5);
    expect(getMap("dustwater",mode).spawns.red).toEqual(pools?.red);
    expect(getMap("dustwater",mode).spawns.blue).toEqual(pools?.blue);
   }
