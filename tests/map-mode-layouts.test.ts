@@ -25,6 +25,20 @@ describe("mode availability and spawn capacity",()=>{
   for(const id of ["forest_warfare","orbital_nexus","floodgate","whiteout_depot"]){expect(mapAllowedForMode("ffa",id)).toBe(false);expect(mapAllowedForMode("survival",id)).toBe(false);}
   expect(MAP_LIST.filter(m=>mapAllowedForMode("ctf",m.id))).toHaveLength(6);
  });
+ test("Search & Destroy, Hardpoint and Frontier expose only Dustwater's authored layouts",()=>{
+  for(const mode of ["searchdestroy","hardpoint","frontier"] as const){
+   const maps=MAP_LIST.filter(map=>mapAllowedForMode(mode,map.id));
+   expect(maps.map(map=>map.id)).toEqual(["dustwater"]);
+   const pools=maps[0].modeSpawns?.[mode];
+   expect(pools?.red).toHaveLength(5);
+   expect(pools?.blue).toHaveLength(5);
+   expect(getMap("dustwater",mode).spawns.red).toEqual(pools?.red);
+   expect(getMap("dustwater",mode).spawns.blue).toEqual(pools?.blue);
+  }
+  expect(mapAllowedForMode("hardpoint","compound")).toBe(false);
+  expect(mapAllowedForMode("searchdestroy","skybridge")).toBe(false);
+  expect(mapAllowedForMode("frontier","bunker")).toBe(false);
+ });
  test("Emberhold takes Afterlight Day's slot in FFA, Survival and Gun Game",()=>{
   for(const mode of ["ffa","survival","gungame"] as const){
    expect(MAP_LIST.filter(m=>mapAllowedForMode(mode,m.id))).toHaveLength(6);
