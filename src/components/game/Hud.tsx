@@ -105,7 +105,7 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
   const healthPct = hud.health / hud.maxHealth;
   const ammoPct = hud.magSize > 0 ? hud.ammo / hud.magSize : 0;
   const lowAmmo = ammoPct < 0.25 && hud.ammo > 0;
-  const frontierReserve = frontierReserve;
+  const frontierReserve = Math.max(0,(hud.frontierAmmoRemaining ?? (hud.magSize + Math.max(1,Math.floor(hud.magSize*3*0.65)))) - hud.ammo);
   const clockText = formatMatchClock(hud);
   const scoreboardRuleLabels = scoreboardRules(mode, hud);
   const matchInfo = matchHudInfo(mode, hud.survivalTier, !!hud.operation);
