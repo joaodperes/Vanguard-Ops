@@ -60,6 +60,7 @@ export function frontierLoadoutForPreset(base: LoadoutWire, presetId: FrontierLo
   return {
     ...base,
     perkId: undefined,
+    equipmentId: undefined,
     wonderWeaponId: undefined,
     wonderModuleId: undefined,
     wonderSkinId: undefined,
