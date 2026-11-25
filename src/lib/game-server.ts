@@ -5172,7 +5172,12 @@ async function handle(socket: any, msg: C2S) {
       const reloadAtts = loadout?.secondaryWeaponId === player.weaponId ? loadout.secondaryAttachments : loadout?.attachments;
       const reloadStats = computeEffectiveStats(weaponById(player.weaponId),reloadAtts ?? {sight:null,barrel:null,grip:null,magazine:null});
       const reloadMul=(room.mode==="survival" ? survivalReloadMultiplier(room.survivalRanks.get(socket.id)??{},Date.now()-(room.survivalLastKillAt.get(socket.id)??-Infinity)):1)*(room.mode==="frontier"?1.12:1);
-      room.reloadingPlayers.set(socket.id,Date.now()+Math.max(0,reloadStats.reloadTime*1000*reloadMul));
+      let reloadMs=reloadStats.reloadTime*1000*reloadMul;
+      if(room.mode==="frontier"){
+        reloadMs*=reloadDurationMultiplier(loadout?.perkId);
+        if(msg.frontierAkimboReloadCount===1)reloadMs*=.72;
+      }
+      room.reloadingPlayers.set(socket.id,Date.now()+Math.max(0,reloadMs));
       io.to(room.id).emit("message", { t: "reloadFx", playerId: socket.id } as S2C);
       break;
     }
