@@ -2816,7 +2816,7 @@ function updateRoomBots(room:Room,now:number):void{
     }
     if(room.mode==="searchdestroy"&&room.searchDestroyState){
       const state=room.searchDestroyState;
-      const sites:[number,number,number][]=[[-42,0,-40],[42,0,-40]];
+      const sites:[number,number,number][]=[[-42,0,-40],[-14,0,25]];
       if(state.phase==="planted"){
         bot.ai.wanderTarget=distributedObjectivePosition(state.bomb.pos,bot.id,2.5);
       }else if(state.phase==="live"&&bot.team===state.attackerTeam){
