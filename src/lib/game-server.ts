@@ -593,8 +593,9 @@ function replaceBotOnTeam(room: Room, team: string): boolean {
 // joining player pick red/blue/auto for TDM.
 function frontierSafeLoadout(loadout:LoadoutWire):LoadoutWire {
   const allowed=(id:string|undefined)=>!!id&&frontierWeaponIdAllowed(id)&&!weaponById(id).disabled&&!weaponById(id).wonder;
-  const fallback=WEAPONS.find(w=>frontierWeaponIdAllowed(w.id)&&!w.disabled&&!w.wonder)?.id??"sniper_scout";
-  const pistol=WEAPONS.find(w=>w.id==="pistol_magnum"&&!w.disabled&&!w.wonder)?.id??"pistol_magnum";
+  // Stable defaults must not depend on the weapon catalog's display order.
+  const fallback="sniper_scout";
+  const pistol="pistol_magnum";
   return {...loadout,weaponId:allowed(loadout.weaponId)?loadout.weaponId:fallback,
     secondaryWeaponId:allowed(loadout.secondaryWeaponId)?loadout.secondaryWeaponId:pistol,
     perkId:loadout.perkId==="wonder_weapon"||loadout.perkId==="explonando"?undefined:loadout.perkId,wonderWeaponId:undefined,wonderModuleId:undefined};
