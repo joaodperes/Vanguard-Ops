@@ -7509,6 +7509,7 @@ export class FPSEngine {
         break;
       case "loadoutQueued":
         this.pendingLoadout = msg.loadout;
+        if(msg.applyImmediately)this.equipQueuedLoadout();
         break;
       case "respawn":
         if (msg.playerId === this.selfId) {
