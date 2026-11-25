@@ -1114,6 +1114,7 @@ export class FPSEngine {
   private orbitalMotes:{mesh:THREE.Mesh;origin:Vec3;start:number}[]=[];
   private orbitalPulseRings:{mesh:THREE.Mesh;at:number}[]=[];
   private ctfMarkers: Partial<Record<FlagTeam, THREE.Mesh>> = {};
+  private hardpointZoneMarkers: THREE.Group[] = [];
   private ctfBases: Record<FlagTeam, Vec3> = {red:ctfBase("red"),blue:ctfBase("blue")};
   private ctfRulesVerified = false;
   private floodgateServerRulesVersion:number|undefined;
@@ -2366,6 +2367,43 @@ export class FPSEngine {
       const marker=ctfDeliveryMarker(team,ctfBase(team,this.map));
       this.scene.add(marker);this.ctfMarkers[team]=marker;
     }
+  }
+
+  private ensureHardpointZoneMarkers() {
+    if (this.hardpointZoneMarkers.length) return;
+    const positions: Vec3[] = [[-20,0,-34],[20,0,-34],[0,0,8],[-42,0,40],[42,0,40]];
+    this.hardpointZoneMarkers = positions.map((pos) => {
+      const group = new THREE.Group();
+      const glow = new THREE.Mesh(new THREE.RingGeometry(5.35, 6.25, 64),
+        new THREE.MeshBasicMaterial({color:0x38bdf8,transparent:true,opacity:0.48,side:THREE.DoubleSide,depthWrite:false}));
+      glow.rotation.x = -Math.PI / 2; glow.position.set(pos[0],pos[1]+0.12,pos[2]); group.add(glow);
+      const boundary = new THREE.Mesh(new THREE.CylinderGeometry(6.15,6.15,2.8,64,1,true),
+        new THREE.MeshBasicMaterial({color:0x38bdf8,transparent:true,opacity:0.10,side:THREE.DoubleSide,depthWrite:false}));
+      boundary.position.set(pos[0],pos[1]+1.4,pos[2]); group.add(boundary);
+      const top = new THREE.Mesh(new THREE.TorusGeometry(6.15,0.075,8,64),
+        new THREE.MeshBasicMaterial({color:0x7dd3fc,transparent:true,opacity:0.85,depthWrite:false}));
+      top.rotation.x=Math.PI/2; top.position.set(pos[0],pos[1]+2.8,pos[2]); group.add(top);
+      group.visible=false; this.scene.add(group); return group;
+    });
+  }
+
+  private updateHardpointZoneMarkers() {
+    if (this.opts.mode !== "hardpoint" || !this.hardpointState) {
+      for (const marker of this.hardpointZoneMarkers) marker.visible=false;
+      return;
+    }
+    this.ensureHardpointZoneMarkers();
+    const target=this.hardpointState.phase==="transition"?this.hardpointState.nextIndex:this.hardpointState.activeIndex;
+    this.hardpointZoneMarkers.forEach((marker,index)=>{
+      const active=index===target; marker.visible=active;
+      const color=this.hardpointState?.phase==="transition"?0xfbbf24:0x38bdf8;
+      marker.traverse(child=>{
+        if(child instanceof THREE.Mesh && child.material instanceof THREE.MeshBasicMaterial){
+          child.material.color.setHex(color);
+          child.material.opacity=child.geometry instanceof THREE.RingGeometry?0.52:child.geometry instanceof THREE.CylinderGeometry?0.12:0.9;
+        }
+      });
+    });
   }
 
   private updateCtfFlagsVisuals() {
@@ -7288,6 +7326,7 @@ export class FPSEngine {
         }
         this.teamScores = msg.teamScores;
         this.hardpointState=msg.hardpoint;
+        this.updateHardpointZoneMarkers();
         this.searchDestroyState=msg.searchDestroy;
         if(msg.frontierAmmoRemaining)this.frontierAmmoRemaining=msg.frontierAmmoRemaining[this.selfId];
         this.trackScoreDeficit();
