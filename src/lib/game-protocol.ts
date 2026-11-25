@@ -30,7 +30,10 @@ export function isAfterlightCityMap(mapId: MapId | string): boolean {
   return mapId === "terminal" || mapId === "arena_neon";
 }
 export function teamSizesForMap(mapId: MapId | string, mode: GameMode = "tdm"): readonly TeamSize[] {
-  if (mode === "searchdestroy" || mode === "hardpoint" || mode === "frontier") return [3,4,5,7];
+  if (mode === "searchdestroy" || mode === "hardpoint") return [3,4,5,7];
+  // Frontier has no fixed objective geometry, so reuse the validated TDM
+  // capacity for each map rather than imposing Dustwater's room-size limits.
+  if (mode === "frontier") return teamSizesForMap(mapId,"tdm");
   if (mapId === "bunker") return mode === "ffa" || mode === "gungame" ? [3,4] : [3,5];
   if (isAfterlightCityMap(mapId)) return [5,7,9,16];
   // Castle is dense at 32 operatives: cap every supported mode at 12 per side / 24 total.
@@ -1330,17 +1333,23 @@ export const CTF_MAP_IDS: readonly MapId[] = MAP_LIST.filter(m=>supportsMapMode(
   const rank=(id:string)=>{const i=priority.indexOf(id);return i<0?priority.length:i;};
   return rank(a)-rank(b);
 });
-const OBJECTIVE_MODE_IDS = new Set<GameMode>(["searchdestroy","hardpoint","frontier"]);
 export const mapAllowedForMode = (mode: GameMode, id: MapId | string): boolean => {
   const map = MAPS[id];
   if (!map) return false;
-  // These modes currently share Dustwater's authored objective geometry. Do
-  // not let a generic legacy spawn pool make an untested map selectable.
-  // Requiring both team pools also prevents a client/server mismatch where the
-  // picker falls back to Dustwater but the authoritative server rejects it.
-  if (OBJECTIVE_MODE_IDS.has(mode)) {
+  // Search & Destroy and Hardpoint use Dustwater-authored objective locations
+  // and dedicated team spawn pools. Other maps need their own layouts first.
+  if (mode === "searchdestroy" || mode === "hardpoint") {
     const pools = map.modeSpawns?.[mode];
     return id === "dustwater" && !!pools && pools.red.length >= 3 && pools.blue.length >= 3;
+  }
+  // Frontier is a combat-only ruleset, not an objective mode. Every map already
+  // approved for TDM can safely reuse its tested red/blue spawns and capacity.
+  if (mode === "frontier") {
+    if (id === "dustwater") {
+      const pools = map.modeSpawns?.frontier;
+      return !!pools && pools.red.length >= 3 && pools.blue.length >= 3;
+    }
+    return supportsMapMode(map,"tdm") && map.spawns.red.length >= 3 && map.spawns.blue.length >= 3;
   }
   return supportsMapMode(map,mode);
 };
