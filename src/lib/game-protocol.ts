@@ -1705,6 +1705,8 @@ export const DEFAULT_CONFIG = (mode: GameMode, botCount: number): MatchConfig =>
   tagLifetimeMs: KC_TAG_LIFETIME_MS,
   ctfFlagResetMs: 30000,
   denialScoreEnabled: false,
+  searchDestroyRoundTimeSeconds: mode === "searchdestroy" ? 120 : undefined,
+  searchDestroyRoundsToWin: mode === "searchdestroy" ? 6 : undefined,
   survivalTier: mode === "survival" ? "default" : undefined,
 });
 
