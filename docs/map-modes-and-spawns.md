@@ -17,6 +17,25 @@ CTF supports Forest Warfare, Orbital Nexus, Floodgate, Whiteout Depot and two tr
 
 Survival continues to allow one or two humans, independently of wave enemies. Selecting a different map starts at its recommended size; changing mode clamps an unsupported size to the nearest available maximum. The shared `teamSizesForMap(mapId, mode)` / `teamSizeAllowed(mapId, count, mode)` contract drives menu options and server validation. The value `4` in `TeamSize` represents the eight-player Blacksite FFA/Gun Game option; it does not introduce 4v4 team matches. Legacy quick-match rooms also obey map/mode caps and replace a bot when a human joins a full bot-filled room. Human replacements balance against other humans, so a sequence of late joins cannot overfill one team while the opposite side still contains bots. The replaced bot is removed before the joining human’s spawn is chosen, releasing its occupied position even on pools with exactly one point per player.
 
+## Search & Destroy, Hardpoint and Frontier
+
+Search & Destroy and Hardpoint currently use Dustwater only. Both modes share
+Dustwater-authored red/blue spawn pools; Search & Destroy's A/B bomb sites and
+Hardpoint's five hill coordinates are also authored for that footprint. Their
+room sizes are capped at 3v3, 4v4 and 5v5 to match the five unique spawn points
+per side. Do not enable another map by changing only its `modes` array: add
+mode-specific spawn pools and map-specific bomb/hill coordinates, then validate
+objective clearance and bot routes.
+
+Frontier has no fixed objective locations. It is available on Dustwater and all
+maps already approved for TDM, reusing those maps' tested red/blue spawns and
+TDM room-size limits. Dustwater remains capped at 5v5; other maps retain their
+own capacity rules. Verdant Ruins and Ridgefall are the strongest next
+candidates for S&D/Hardpoint prototypes because they already have balanced
+team-side CTF spawn pools, but each still needs its own bomb sites and hill
+layout. Blacksite and Breakwater are possible compact alternatives after
+objective placement and spawn testing.
+
 ## CTF conversions
 
 `src/data/ctf-layouts.json` owns ground-level flag positions, delivery centers and ten rear spawn alternatives per team for the two conversions. Both simulations obtain the override with `getMap(mapId, mode)`; omitting the mode returns the original map for Map Studio and other modes. It never mutates `MAPS`. Ordinary team/FFA spawns remain unchanged, except Ridgefall gains three team alternatives per side and four FFA alternatives in `map-blueprints.json`, bringing it to 9/9 team and 16 FFA points.
