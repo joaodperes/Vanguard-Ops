@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { ModeCombatant } from "../src/lib/game-mode-rules";
+import { mapAllowedForMode } from "../src/lib/game-protocol";
 import { calculateMatchRewards } from "../src/lib/match-rewards";
 import { frontierLoadoutForPreset } from "../src/lib/frontier-loadouts";
 import {
@@ -113,6 +114,16 @@ describe("Hardpoint personal objective credit",()=>{
 });
 
 describe("Hardpoint", () => {
+  test("randomizes a valid five-zone rotation and enables supported arenas", () => {
+    const state=createHardpointState(123,5,true);
+    expect([...state.zoneOrder].sort((a,b)=>a-b)).toEqual([0,1,2,3,4]);
+    expect(state.activeIndex).toBe(state.zoneOrder[0]);
+    expect(state.nextIndex).toBe(state.zoneOrder[1]);
+    expect(mapAllowedForMode("hardpoint","dustwater")).toBe(true);
+    expect(mapAllowedForMode("hardpoint","bunker")).toBe(true);
+    expect(mapAllowedForMode("hardpoint","floodgate")).toBe(true);
+    expect(mapAllowedForMode("hardpoint","compound")).toBe(false);
+  });
   test("scores one point per second for uncontested control and rotates across five zones", () => {
     expect(HARDPOINT_RULES.zoneCount).toBe(5);
     const state=createHardpointState(0), zones=Array.from({length:5},(_,i)=>({id:String(i),pos:[i*20,0,0] as const}));
