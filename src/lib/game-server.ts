@@ -607,6 +607,7 @@ function frontierSafeLoadout(loadout:LoadoutWire):LoadoutWire {
   const secondaryWeaponId=allowed(loadout.secondaryWeaponId)?loadout.secondaryWeaponId:pistol;
   const emptyPrimary=loadout.emptyPrimary===true&&loadout.weaponId==="pistol_side"&&secondaryWeaponId==="pistol_bastion";
   return {...loadout,weaponId,secondaryWeaponId,emptyPrimary,
+    meleeWeaponId:"knife_tactical",equipmentId:undefined,
     perkId:loadout.perkId==="wonder_weapon"||loadout.perkId==="explonando"?undefined:loadout.perkId,wonderWeaponId:undefined,wonderModuleId:undefined};
 }
 
@@ -867,6 +868,9 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
       p.weaponSkinId = "default";
     }
   }
+  // Frontier is always a bot-filled mode. Keep the server authoritative so
+  // rooms created by older clients or direct socket requests still populate.
+  if (room.mode === "frontier") room.fillWithBots = true;
   // Spawn bots to fill empty slots (survival spawns per-wave instead).
   if (room.fillWithBots && room.mode !== "survival") spawnBots(room);
   if(room.mode==="searchdestroy"){
