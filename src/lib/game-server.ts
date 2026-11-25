@@ -2454,13 +2454,13 @@ function endMatch(room: Room, reason: "other" | "gungame_victory" = "other", win
   };
   // Objective rewards are personal: never give every teammate the whole team's
   // Hardpoint time. Send each human their own contribution with shared totals.
-  for(const player of room.players.values()){
+  for(const [socketId] of room.players){
     const playerModeStats={
       ...sharedModeStats,
       ...(sharedModeStats.hardpoint?{hardpoint:{...sharedModeStats.hardpoint,
-        playerObjectiveSeconds:Math.floor((room.hardpointPlayerObjectiveMs.get(player.id)??0)/1000)}}:{}),
+        playerObjectiveSeconds:Math.floor((room.hardpointPlayerObjectiveMs.get(socketId)??0)/1000)}}:{}),
     };
-    io.to(player.id).emit("message",{t:"matchEnd",standings,winnerTeam,
+    io.to(socketId).emit("message",{t:"matchEnd",standings,winnerTeam,
       teamScores:{...room.teamScores},modeStats:playerModeStats} as S2C);
   }
   room.resultsReady = new Set();
@@ -3007,7 +3007,10 @@ function tickRoomSimulation(room: Room) {
     const result=tickHardpoint(room.hardpointState,zones,allCombatants(room) as import("./game-mode-rules").ModeCombatant[],now,50);
     const activeZone=zones[result.state.activeIndex];
     if(activeZone){
-      for(const playerId of hardpointObjectiveContributors(activeZone,result.state.owner,[...room.players.values()] as import("./game-mode-rules").ModeCombatant[])){
+      const humans=[...room.players.entries()].map(([socketId,player])=>({
+        id:socketId,team:player.team as "red"|"blue",alive:player.alive,pos:player.pos,
+      }));
+      for(const playerId of hardpointObjectiveContributors(activeZone,result.state.owner,humans)){
         room.hardpointPlayerObjectiveMs.set(playerId,(room.hardpointPlayerObjectiveMs.get(playerId)??0)+50);
       }
     }
