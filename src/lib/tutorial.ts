@@ -43,8 +43,8 @@ export const COMPETITIVE_MODE_GUIDES = {
   },
   frontier: {
     label: "Frontier",
-    objective: "Fight through Dustwater with hunting rifles, DMRs, revolvers and shotguns. Ammunition is limited; sprinting, jumping and evasive movement are enhanced.",
-    tip: "Use E to dodge, keep moving between boardwalks and interiors, and make every shot count.",
+    objective: "Frontier is a Dustwater gunfight with hunting rifles, DMRs, revolvers, shotguns and the Reclaimer Crossbow. Choose one of four preset kits (Scout, Breacher, Hunter or Gunslinger); Gunslinger carries dual Bastion revolvers and no primary. Ammo is scarce: your magazine and reserve are one shared supply, so reloading moves rounds from reserve into the active magazine rather than creating ammo.",
+    tip: "Use E to dodge, take advantage of the enhanced sprint and jump, and move between boardwalks and interiors. Gunslinger tracks left and right cylinders separately—fire one gun at a time to conserve rounds and reload when you need to refill.",
   },
 } as const satisfies Record<CompetitiveModeId, { label: string; objective: string; tip: string }>;
 
