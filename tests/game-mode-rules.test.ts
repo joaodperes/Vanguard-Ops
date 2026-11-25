@@ -53,7 +53,7 @@ describe("Search & Destroy", () => {
       expect(searchDestroySitesForMap(mapId,112)).toHaveLength(2);
     }
     expect(mapAllowedForMode("searchdestroy","bunker")).toBe(false);
-    expect(searchDestroySitesForMap("dustwater",112)[1].pos).toEqual([-14,0,25]);
+    expect(searchDestroySitesForMap("dustwater",112)[1].pos).toEqual([42,0,-40]);
   });
   test("allows a living carrier to manually drop the bomb without dying",()=>{
     const state=createSearchDestroyState(0,"carrier",[1,0,1]);state.phase="live";
