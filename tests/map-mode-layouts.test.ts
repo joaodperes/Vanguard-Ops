@@ -26,26 +26,25 @@ describe("mode availability and spawn capacity",()=>{
   for(const id of ["forest_warfare","orbital_nexus","floodgate","whiteout_depot"]){expect(mapAllowedForMode("ffa",id)).toBe(false);expect(mapAllowedForMode("survival",id)).toBe(false);}
   expect(MAP_LIST.filter(m=>mapAllowedForMode("ctf",m.id))).toHaveLength(6);
  });
- test("Search & Destroy and Hardpoint expose only Dustwater's authored objective layouts",()=>{
-  for(const mode of ["searchdestroy","hardpoint"] as const){
-   const maps=MAP_LIST.filter(map=>mapAllowedForMode(mode,map.id));
-   expect(maps.map(map=>map.id)).toEqual(["dustwater"]);
-   const pools=maps[0].modeSpawns?.[mode];
-   expect(pools?.red).toHaveLength(5);
-   expect(pools?.blue).toHaveLength(5);
-   expect(new Set(pools?.red.map(point=>point.join(","))).size).toBe(5);
-   expect(new Set(pools?.blue.map(point=>point.join(","))).size).toBe(5);
-   expect(getMap("dustwater",mode).spawns.red).toEqual(pools?.red);
-   expect(getMap("dustwater",mode).spawns.blue).toEqual(pools?.blue);
+ test("Search & Destroy enables Dustwater, Verdant Ruins and Ridgefall; Hardpoint remains Dustwater-only",()=>{
+  const sdMaps=MAP_LIST.filter(map=>mapAllowedForMode("searchdestroy",map.id)).map(map=>map.id).sort();
+  expect(sdMaps).toEqual(["compound","dustwater","skybridge"]);
+  for(const id of ["compound","skybridge"]){
+    expect(mapAllowedForMode("searchdestroy",id)).toBe(true);
+    expect(getMap(id,"searchdestroy").spawns.red.length).toBeGreaterThanOrEqual(5);
+    expect(getMap(id,"searchdestroy").spawns.blue.length).toBeGreaterThanOrEqual(5);
+    expect(searchDestroySitesForMap(id,getMap(id).size)).toHaveLength(2);
   }
+  const hardpointMaps=MAP_LIST.filter(map=>mapAllowedForMode("hardpoint",map.id));
+  expect(hardpointMaps.map(map=>map.id)).toEqual(["dustwater"]);
+  const pools=hardpointMaps[0].modeSpawns?.hardpoint;
+  expect(pools?.red).toHaveLength(5);expect(pools?.blue).toHaveLength(5);
   const sites=searchDestroySitesForMap("dustwater",getMap("dustwater").size);
   expect(sites.map(site=>site.id)).toEqual(["A","B"]);
-  expect(sites[1].pos).toEqual([-10,0,22.5]); // inside the bank interior
+  expect(sites[1].pos).toEqual([42,0,-40]);
   expect(sites[0].pos).not.toEqual(sites[1].pos);
   expect(mapAllowedForMode("hardpoint","compound")).toBe(false);
-  expect(mapAllowedForMode("searchdestroy","skybridge")).toBe(false);
-  for(const mode of ["searchdestroy","hardpoint","frontier"] as const)
-   expect(teamSizesForMap("dustwater",mode)).toEqual([3,4,5]);
+  for(const mode of ["searchdestroy","hardpoint","frontier"] as const)expect(teamSizesForMap("dustwater",mode)).toEqual([3,4,5]);
  });
  test("Frontier reuses every validated TDM map and its room-size limits",()=>{
   const tdmMaps=MAP_LIST.filter(map=>mapAllowedForMode("tdm",map.id)).map(map=>map.id).sort();
