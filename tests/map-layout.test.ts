@@ -40,6 +40,12 @@ describe("authored map combat layouts", () => {
     expect((towerWall.y??0)+towerWall.h).toBeCloseTo(towerPerch.y!,1);
     expect(towerPerch.w).toBeGreaterThanOrEqual(7);
     expect(towerPerch.d).toBeGreaterThanOrEqual(7);
+    const towerWalls=features.filter(feature=>feature.id.startsWith("church-tower-")&&feature.id.includes("wall"));
+    for(const wall of towerWalls){
+      const overlapsX=Math.abs(towerStairs.x-wall.x)<(towerStairs.w+wall.w)/2;
+      const overlapsZ=Math.abs(towerStairs.z-wall.z)<(towerStairs.d+wall.d)/2;
+      expect(overlapsX&&overlapsZ).toBe(false);
+    }
     expect(new Set(dustwater.spawns.ffa.map(point=>point.join(","))).size).toBe(dustwater.spawns.ffa.length);
     expect(dustwater.props.filter(prop=>prop.kind==="dynamite")).toHaveLength(2);
   });
