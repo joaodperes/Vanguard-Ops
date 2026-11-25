@@ -107,6 +107,7 @@ import { dragonBreathIgnition,dragonBreathVisualUntil } from "./incendiary-statu
 import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
 import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineInReach, stormEnemy, stormTargetPoint, nextStormChainTarget, STORM_MINE_TRIGGER_RADIUS, STORM_MINE_ARM_MS, STORM_MINE_LIFETIME_MS, STORM_MAX_MINES_PER_OWNER, STORM_MINE_TARGET_COOLDOWN_MS, STORM_MAX_DIRECT_HITS_PER_TARGET, STORM_DIRECT_DAMAGE, STORM_MINE_DAMAGE, STORM_CHAIN_JUMPS, STORM_MINE_JUMPS, STORM_CHAIN_DECAY, STORM_MINE_CHAIN_RADIUS, type StormVictim } from "./stormweaver";
 import { advanceKillChain, type KillChainState } from "./kill-chain";
+import { frontierWeaponIdAllowed } from "./game-mode-rules";
 import { isFlagDefenseKill, largestScoreDeficit } from "./match-bonus-tracking";
 import { advanceIncrementalReload } from "./incremental-reload";
 import { shotSpread, shotBloomIncrease, recoilKickRadians, sustainedRecoilMultiplier, firingMotionFactor, spreadShotDirection } from "./weapon-accuracy";
@@ -1428,9 +1429,16 @@ export class FPSEngine {
     }
     // ---- Weapon slot setup ----
     // Primary comes from loadout.weaponId. Secondary/melee fall back to defaults.
-    this.primaryWeaponId = weaponById(opts.loadout.weaponId).disabled ? "rifle_ar" : opts.loadout.weaponId;
-    this.secondaryWeaponId = weaponById(opts.loadout.secondaryWeaponId ?? "pistol_side").disabled
-      ? "pistol_side" : (opts.loadout.secondaryWeaponId ?? "pistol_side");
+    const requestedPrimary = opts.loadout.weaponId;
+    const requestedSecondary = opts.loadout.secondaryWeaponId ?? "pistol_side";
+    // Match the server's Frontier-safe fallback in offline and online play.
+    // The mode has no unrestricted default loadout: use a legal rifle and
+    // revolver when the saved account loadout contains disallowed weapons.
+    this.primaryWeaponId = opts.mode === "frontier" && !frontierWeaponIdAllowed(requestedPrimary)
+      ? "sniper_scout" : weaponById(requestedPrimary).disabled ? "rifle_ar" : requestedPrimary;
+    this.secondaryWeaponId = opts.mode === "frontier" && !frontierWeaponIdAllowed(requestedSecondary)
+      ? "pistol_magnum" : weaponById(requestedSecondary).disabled
+        ? "pistol_side" : requestedSecondary;
     this.meleeWeaponId = opts.loadout.meleeWeaponId ?? "knife_tactical";
     this.wonderModuleId=opts.loadout.wonderModuleId??"";
     this.wonderSkinId=opts.loadout.wonderSkinId??"";
