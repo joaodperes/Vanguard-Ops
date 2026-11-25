@@ -10440,7 +10440,7 @@ export class FPSEngine {
       modeStats:{
         ...modeStats,
         ...(modeStats?.searchDestroy?{searchDestroy:{...modeStats.searchDestroy,playerRoundsWon:this.opts.team==="red"?modeStats.searchDestroy.redRounds:modeStats.searchDestroy.blueRounds}}:{}),
-        ...(modeStats?.hardpoint?{hardpoint:{...modeStats.hardpoint,playerObjectiveSeconds:this.opts.team==="red"?modeStats.hardpoint.redObjectiveSeconds:modeStats.hardpoint.blueObjectiveSeconds}}:{}),
+        ...(modeStats?.hardpoint?{hardpoint:{...modeStats.hardpoint,playerObjectiveSeconds:modeStats.hardpoint.playerObjectiveSeconds??0}}:{}),
         ...(this.opts.mode==="frontier"?{frontier:{ammoRemaining:this.frontierAmmoRemaining??0}}:{}),
       },
       confirmations: this.confirmations, denials: this.denials,
