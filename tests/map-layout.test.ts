@@ -12,6 +12,19 @@ describe("authored map combat layouts", () => {
     const searchDestroy=mapForMode(dustwater,"searchdestroy");
     expect(searchDestroy.spawns.red).toHaveLength(5);
     expect(searchDestroy.spawns.blue).toHaveLength(5);
+    // Dustwater's S&D / Hardpoint / Frontier capacities top out at 5v5.
+    // Each team must have five distinct initial spawn choices, not a recycled
+    // subset that causes sequential player spawns to stack.
+    for (const pool of [searchDestroy.spawns.red, searchDestroy.spawns.blue]) {
+      expect(new Set(pool.map(point=>point.join(","))).size).toBe(5);
+    }
+    for (const mode of ["searchdestroy","hardpoint","frontier"] as const) {
+      const modeSpawns=MAP_BLUEPRINTS.maps.dustwater.modeSpawns?.[mode];
+      expect(modeSpawns?.red.length).toBe(5);
+      expect(modeSpawns?.blue.length).toBe(5);
+      expect(new Set(modeSpawns!.red.map(point=>point.join(","))).size).toBe(5);
+      expect(new Set(modeSpawns!.blue.map(point=>point.join(","))).size).toBe(5);
+    }
     expect(searchDestroy.spawns.red.every(point=>point[2]>20)).toBe(true);
     expect(searchDestroy.spawns.blue.every(point=>point[2]<-20)).toBe(true);
     const features=MAP_BLUEPRINTS.maps.dustwater.features;
