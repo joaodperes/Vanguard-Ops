@@ -4280,10 +4280,9 @@ export class FPSEngine {
     const hipTarget=this.viewmodelAkimbo?{x:0,y:-.23,z:-.51+hipPull}
       :this.touchMode?{x:.22,y:-.20,z:-.50+hipPull}
       :{x:.30,y:-.18,z:-.48+hipPull};
-    // The HUD reticle and ballistic aim stay at the exact camera center.
-    // Only the viewmodel moves down: receivers, upper rails, carry handles
-    // and exposed optic mounts should not obscure targets during ADS.
-    // Magnified scopes use a HUD reticle; 1x sights remain part of the gun.
+    // The HUD reticle and ballistic aim stay at the exact camera centre.
+    // During ADS, the weapon's physical sight is aligned to that same point;
+    // magnified optics transition to the HUD scope overlay to keep the view clear.
     const visualWeaponId = this.viewmodelWeaponId || this.weaponId;
     const wDef = weaponById(visualWeaponId);
     const isSniperScoped = wDef.category === "sniper" && this.adsProgress > 0.5;
@@ -4301,7 +4300,7 @@ export class FPSEngine {
       WEAPON_VISUALS[visualWeaponId]?.receiver?.[1] ?? .18).sightMountY*this.vmScale;
     const sightCenterHeight=visualWeaponId==="pistol_bastion" && this.sightDef.type==="iron"
       ? BASTION_REAR_SIGHT.y*this.vmScale
-      : sightMountHeight+(this.sightDef.type==="iron"?.013*this.vmScale:0);
+      : sightMountHeight+(this.sightDef.type==="iron" ? .013*this.vmScale : 0);
     const adsBodyY=this.sightMesh ? -sightCenterHeight : clearance.bodyY;
     const adsTarget = isMagnifiedSight || isSniperScoped
       ? { x: 0, y: adsBodyY, z: -.24 }
