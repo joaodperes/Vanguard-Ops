@@ -27,7 +27,7 @@ import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbit
 import { advanceMatchElapsed } from "./match-clock";
 import { createHardpointState, tickHardpoint, hardpointObjectiveContributors, createSearchDestroyState, beginNextSearchDestroyRound, tickSearchDestroy, applySearchDestroyAction, dropSearchDestroyBomb, releaseSearchDestroyPlayer, frontierWeaponIdAllowed, frontierReserveAmmo, distributedObjectivePosition, type HardpointState, type SearchDestroyState, type SearchDestroySite } from "./game-mode-rules";
 import { fullWonderCharges, drainedWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, refundWonderCharge, type WonderChargeState } from "./wonder-charge";
-import { frontierLoadoutForPreset } from "./frontier-loadouts";
+import { frontierLoadoutForPreset, isFrontierLoadoutPresetId } from "./frontier-loadouts";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
 import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
 import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineInReach, stormEnemy, stormTargetPoint, nextStormChainTarget, STORM_MINE_ARM_MS, STORM_MINE_LIFETIME_MS, STORM_MINE_TARGET_COOLDOWN_MS, STORM_MAX_MINES_PER_OWNER, STORM_MAX_DIRECT_HITS_PER_TARGET, STORM_DIRECT_DAMAGE, STORM_MINE_DAMAGE, STORM_CHAIN_JUMPS, STORM_MINE_JUMPS, STORM_CHAIN_DECAY, STORM_MINE_CHAIN_RADIUS, type StormVictim } from "./stormweaver";
@@ -5174,7 +5174,7 @@ async function handle(socket: any, msg: C2S) {
     }
     case "queueFrontierLoadout": {
       const room=rooms.get(socketToRoom.get(socket.id)??"");
-      if(!room||room.mode!=="frontier"||room.state!=="playing"||room.ended||!room.players.has(socket.id))return;
+      if(!room||room.mode!=="frontier"||room.state!=="playing"||room.ended||!room.players.has(socket.id)||!isFrontierLoadoutPresetId(msg.presetId))return;
       const current=room.loadouts.get(socket.id);
       if(!current)return;
       const loadout=frontierSafeLoadout(frontierLoadoutForPreset(current,msg.presetId));
