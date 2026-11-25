@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { MAP_LIST, mapForMode } from "../src/lib/game-protocol";
-import { MAP_BLUEPRINTS } from "../src/lib/map-blueprints";
+import { MAP_BLUEPRINTS, featureBoxes } from "../src/lib/map-blueprints";
 import { TACTICAL_COVER, OUTER_SPAWNS } from "../src/lib/map-tactics";
 import { MAP_FOOTPRINT } from "../src/lib/map-footprint";
 import { makeEnvironmentMap } from "../src/lib/dynamic-environment";
@@ -36,12 +36,19 @@ describe("authored map combat layouts", () => {
     expect(dustwater.props.filter(prop=>prop.kind==="building").map(prop=>prop.text)).toEqual(["DINER","LIBRARY","OFFICE","WORKSHOP"]);
     const towerStairs=features.find(feature=>feature.id==="church-tower-stairs")!;
     const towerWall=features.find(feature=>feature.id==="church-tower-north-wall")!;
-    const towerPerch=features.find(feature=>feature.id==="church-tower-platform")!;
+    const towerPlatforms=features.filter(feature=>feature.id.startsWith("church-tower-platform-"));
     expect(towerStairs.h).toBeGreaterThanOrEqual(5);
-    expect((towerStairs.y??0)+towerStairs.h).toBeCloseTo(towerPerch.y!,1);
-    expect((towerWall.y??0)+towerWall.h).toBeCloseTo(towerPerch.y!,1);
-    expect(towerPerch.w).toBeGreaterThanOrEqual(7);
-    expect(towerPerch.d).toBeGreaterThanOrEqual(7);
+    expect(towerPlatforms).toHaveLength(4);
+    const roofY=towerPlatforms[0].y!;
+    expect((towerStairs.y??0)+towerStairs.h).toBeCloseTo(roofY,1);
+    expect((towerWall.y??0)+towerWall.h).toBeCloseTo(roofY,1);
+    expect(towerPlatforms.some(platform=>platform.w>=7)).toBe(true);
+    expect(towerPlatforms.some(platform=>platform.d>=3.5)).toBe(true);
+    const topStep=featureBoxes(towerStairs).reduce((best,box)=>box.pos[1]>best.pos[1]?box:best);
+    expect(towerPlatforms.some(platform=>
+      Math.abs(platform.x-topStep.pos[0])<(platform.w/2)+topStep.size[0] &&
+      Math.abs(platform.z-topStep.pos[2])<(platform.d/2)+topStep.size[2]
+    )).toBe(false);
     const towerWalls=features.filter(feature=>feature.id.startsWith("church-tower-")&&feature.id.includes("wall"));
     for(const wall of towerWalls){
       const overlapsX=Math.abs(towerStairs.x-wall.x)<(towerStairs.w+wall.w)/2;
