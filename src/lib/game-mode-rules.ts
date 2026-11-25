@@ -7,8 +7,8 @@ export type ModeVec3 = readonly [number, number, number];
 export interface ModeCombatant { id: string; team: ModeTeam; alive: boolean; isBot?: boolean; pos: ModeVec3 }
 
 export const SEARCH_DESTROY_RULES = Object.freeze({
-  roundSeconds: 120, preparationSeconds: 5, plantSeconds: 5, defuseSeconds: 7,
-  bombFuseSeconds: 40, roundsToWin: 6, sideSwitchAfter: 5, maxRounds: 11, interactionRadius: 2.6,
+  roundSeconds: 120, preparationSeconds: 5, roundEndMs: 2600, plantSeconds: 5, defuseSeconds: 7,
+  bombFuseSeconds: 40, roundsToWin: 6, sideSwitchAfter: 5, maxRounds: 11, interactionRadius: 2.6, pickupRadius: 3.8,
 });
 export const HARDPOINT_RULES = Object.freeze({
   matchSeconds: 600, scoreLimit: 200, zoneCount: 5, rotationSeconds: 60,
@@ -50,7 +50,7 @@ export type SearchDestroyPhase = "preparation" | "live" | "planted" | "round_end
 export type BombStatus = "carried" | "dropped" | "planted";
 export interface SearchDestroyState {
   phase: SearchDestroyPhase; round: number; attackerTeam: ModeTeam;
-  roundWins: Record<ModeTeam, number>; roundEndsAt: number; preparationEndsAt: number;
+  roundWins: Record<ModeTeam, number>; roundEndsAt: number; preparationEndsAt: number; roundEndUntil: number;
   bomb: { status: BombStatus; carrierId: string | null; pos: [number, number, number];
     siteId: "A" | "B" | null; plantedAt: number | null; detonatesAt: number | null;
     plantProgress: { playerId: string; startedAt: number } | null;
@@ -62,7 +62,7 @@ export interface SearchDestroyState {
 export interface SearchDestroySite { id: "A" | "B"; pos: ModeVec3; radius: number }
 /** Search & Destroy objective sites. Dustwater retains its authored sites; Verdant Ruins (compound) and Ridgefall (skybridge) use map-relative site locations. */
 export function searchDestroySitesForMap(mapId: string, mapSize: number): SearchDestroySite[] {
-  if (mapId === "dustwater") return [{id:"A",pos:[-42,0,-40],radius:5},{id:"B",pos:[42,0,-40],radius:5}];
+  if (mapId === "dustwater") return [{id:"A",pos:[-42,0,-40],radius:5},{id:"B",pos:[-14,0,25],radius:5}];
   if (mapId === "compound") return [{id:"A",pos:[-30,0,-5],radius:5},{id:"B",pos:[30,0,5],radius:5}];
   if (mapId === "skybridge") return [{id:"A",pos:[-30,0,50],radius:5},{id:"B",pos:[30,0,50],radius:5}];
   const extent=Math.max(24,Math.min(62,mapSize*0.43));
@@ -101,6 +101,7 @@ export function createSearchDestroyState(now: number, carrierId: string, carrier
   const maxRounds=wins*2-1;
   return { phase: "preparation", round: 1, attackerTeam: "red", roundWins: { red: 0, blue: 0 }, roundSeconds:seconds, roundsToWin:wins, maxRounds, sideSwitchAfter:wins-1,
     preparationEndsAt: now + SEARCH_DESTROY_RULES.preparationSeconds * 1000,
+    roundEndUntil: 0,
     roundEndsAt: now + (SEARCH_DESTROY_RULES.preparationSeconds + seconds) * 1000,
     bomb: { status: "carried", carrierId, pos: [...carrierPos], siteId: null, plantedAt: null,
       detonatesAt: null, plantProgress: null, defuseProgress: null },
@@ -109,23 +110,24 @@ export function createSearchDestroyState(now: number, carrierId: string, carrier
 export function beginNextSearchDestroyRound(
   state: SearchDestroyState, now: number, carrierId: string, carrierPos: ModeVec3,
 ): void {
-  if (state.phase !== "round_end" || state.round >= SEARCH_DESTROY_RULES.maxRounds ||
-      Math.max(state.roundWins.red, state.roundWins.blue) >= SEARCH_DESTROY_RULES.roundsToWin) return;
-  state.round += 1; state.phase = "preparation";
+  if (state.phase !== "round_end" || now < state.roundEndUntil || state.round >= state.maxRounds ||
+      Math.max(state.roundWins.red, state.roundWins.blue) >= state.roundsToWin) return;
+  state.round += 1; state.phase = "preparation"; state.roundEndUntil = 0;
   state.preparationEndsAt = now + SEARCH_DESTROY_RULES.preparationSeconds * 1000;
   state.roundEndsAt = now + (SEARCH_DESTROY_RULES.preparationSeconds + state.roundSeconds) * 1000;
   state.bomb = { status: "carried", carrierId, pos: [...carrierPos], siteId: null,
     plantedAt: null, detonatesAt: null, plantProgress: null, defuseProgress: null };
 }
 export function finishSearchDestroyRound(
-  state: SearchDestroyState, winner: ModeTeam, reason: NonNullable<SearchDestroyState["lastRoundReason"]>, _now: number,
+  state: SearchDestroyState, winner: ModeTeam, reason: NonNullable<SearchDestroyState["lastRoundReason"]>, now: number,
 ): SearchDestroyEvent[] {
   if (state.phase === "round_end" || state.phase === "match_end") return [];
   state.roundWins[winner] += 1; state.lastRoundWinner = winner; state.lastRoundReason = reason;
   state.phase = "round_end";
+  state.roundEndUntil = now + SEARCH_DESTROY_RULES.roundEndMs;
   const events: SearchDestroyEvent[] = [{ type: "round_won", winner, reason, round: state.round }];
   if (state.roundWins[winner] >= state.roundsToWin || state.round >= state.maxRounds) {
-    state.phase = "match_end"; events.push({ type: "match_won", winner }); return events;
+    state.phase = "match_end"; state.roundEndUntil = now; events.push({ type: "match_won", winner }); return events;
   }
   if (state.round === state.sideSwitchAfter) {
     state.attackerTeam = otherTeam(state.attackerTeam);
@@ -163,7 +165,7 @@ export function applySearchDestroyAction(
   }
   if (action.kind === "pickup") {
     if (state.phase !== "live" || action.team !== state.attackerTeam || state.bomb.status !== "dropped" ||
-        !inside(action.pos, state.bomb.pos, SEARCH_DESTROY_RULES.interactionRadius)) return null;
+        !inside(action.pos, state.bomb.pos, SEARCH_DESTROY_RULES.pickupRadius)) return null;
     state.bomb.status = "carried"; state.bomb.carrierId = action.playerId;
     return { type: "picked_up", playerId: action.playerId };
   }

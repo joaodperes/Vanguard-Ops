@@ -5,7 +5,7 @@ import { survivalPauseActive, survivalFirstChoiceDeadline, remainingSurvivalUpgr
 import { blastCanDamage, blastDistance, blastExposureDistance, blastUnobstructed } from "./explosion-damage-rules";
 import { coverPanels, coverPlacement, coverIdForBox, coverNextHp, coverExplosionDamage, coverBlastContact, DEPLOY_COVER_HP, DEPLOY_COVER_LIFETIME_MS, DEPLOY_COVER_PREFIX, type DeployedCover } from "./deployable-cover";
 import { rechargeTactical, spendTactical, reloadDurationMultiplier, recoilMultiplier, scavengerAmmoAmount, type TacticalStock } from "./perks";
-import { botPerkForMode, botPrimaryForMode, botWonderForMode, botSecondaryPrimary, botMovementPerkMultiplier, botAwarenessPerkMultiplier, botAttachmentsForMode, botActiveAttachments, botMagazineCapacity } from "./bot-loadouts";
+import { botPerkForMode, botPrimaryForMode, botWonderForMode, botSecondaryPrimary, botMovementPerkMultiplier, botAwarenessPerkMultiplier, botAttachmentsForMode, botActiveAttachments, botMagazineCapacity, emptyBotAttachments } from "./bot-loadouts";
 import {reactorObjective,objectiveDistance} from "./map-objectives";
 import {chooseSpawn} from "./spawn-selection";
 import {botOperativeSkinId, BOT_OPERATIVE_SKINS, SURVIVAL_BOSS_SKIN_ID, bossShockwaveCharge} from "./bot-appearances";
@@ -25,7 +25,7 @@ import { roomMapCandidates, roomTeamSizeForMap, winningRoomMap } from "./room-fl
 import { recommendedTeamSize, type RoomStatus, isValidKillConfirmedTagLifetimeMs, killConfirmedTagExpiresAt } from "./game-protocol";
 import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,ORBITAL_RULES_VERSION,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,orbitalPulseTargets,orbitalReaperEquipped,ORBITAL_REAPER_SPEED_MULTIPLIER} from "./orbital-reactor";
 import { advanceMatchElapsed } from "./match-clock";
-import { createHardpointState, tickHardpoint, hardpointObjectiveContributors, createSearchDestroyState, beginNextSearchDestroyRound, tickSearchDestroy, applySearchDestroyAction, dropSearchDestroyBomb, releaseSearchDestroyPlayer, frontierWeaponIdAllowed, frontierReserveAmmo, distributedObjectivePosition, selectSearchDestroyCarrier, searchDestroySitesForMap, type HardpointState, type SearchDestroyState, type SearchDestroySite } from "./game-mode-rules";
+import { createHardpointState, tickHardpoint, hardpointObjectiveContributors, createSearchDestroyState, beginNextSearchDestroyRound, tickSearchDestroy, applySearchDestroyAction, dropSearchDestroyBomb, releaseSearchDestroyPlayer, frontierWeaponIdAllowed, frontierReserveAmmo, distributedObjectivePosition, selectSearchDestroyCarrier, searchDestroySitesForMap, SEARCH_DESTROY_RULES, type HardpointState, type SearchDestroyState, type SearchDestroySite } from "./game-mode-rules";
 import { fullWonderCharges, drainedWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, refundWonderCharge, type WonderChargeState } from "./wonder-charge";
 import { frontierLoadoutForPreset, isFrontierLoadoutPresetId } from "./frontier-loadouts";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
@@ -481,12 +481,12 @@ function spawnBots(room: Room) {
     const difficulty = resolveBotDifficulty(room);
     const ai = makeBotAI(sp, loadout.weaponId, difficulty, 0, archetype);
     ai.moveSpeed*=botMovementPerkMultiplier(loadout.perkId)*(room.mode==="frontier"?1.2:1);
-    if(loadout.secondaryWeaponId)ai.secondaryAmmoInMag=botMagazineCapacity(loadout.secondaryWeaponId,loadout.secondaryAttachments!);
+    if(loadout.secondaryWeaponId)ai.secondaryAmmoInMag=botMagazineCapacity(loadout.secondaryWeaponId,loadout.secondaryAttachments);
     // In gungame, every combatant (including bots) starts on the first
     // progression weapon and advances on each kill. Their loadout's
     // weaponId is overridden to the first tier of the per-match weapon list.
     const gungameWeaponId = room.mode === "gungame" ? (room.gungameWeapons[0] ?? GUN_GAME_TYPE_PROGRESSION_FALLBACK[0]) : loadout.weaponId;
-    ai.ammoInMag = botMagazineCapacity(gungameWeaponId,botActiveAttachments(loadout.weaponId,gungameWeaponId,loadout.attachments,loadout.secondaryWeaponId,loadout.secondaryAttachments));
+    ai.ammoInMag = botMagazineCapacity(gungameWeaponId,botActiveAttachments(loadout.weaponId,gungameWeaponId,loadout.attachments??emptyBotAttachments(),loadout.secondaryWeaponId,loadout.secondaryAttachments));
     if(room.mode==="frontier"){const mag=ai.ammoInMag;ai.frontierAmmoRemaining=mag+frontierReserveAmmo(mag*3);}
     const bot: PlayerNet & { ai: BotAI; loadout: LoadoutWire } = {
       id, name: "Bot-" + id.slice(4, 8).toUpperCase(), team: team as any, isBot: true,
@@ -612,7 +612,10 @@ function frontierSafeLoadout(loadout:LoadoutWire):LoadoutWire {
   const emptyPrimary=loadout.emptyPrimary===true&&loadout.weaponId==="pistol_side"&&secondaryWeaponId==="pistol_bastion";
   return {...loadout,weaponId,secondaryWeaponId,emptyPrimary,
     meleeWeaponId:"knife_tactical",equipmentId:undefined,
-    perkId:loadout.perkId==="wonder_weapon"||loadout.perkId==="explonando"?undefined:loadout.perkId,wonderWeaponId:undefined,wonderModuleId:undefined};
+    perkId:loadout.perkId==="wonder_weapon"||loadout.perkId==="explonando"?undefined:loadout.perkId,
+    wonderWeaponId:undefined,wonderModuleId:undefined,
+    attachments:loadout.attachments??emptyBotAttachments(),
+    secondaryAttachments:loadout.secondaryAttachments??emptyBotAttachments()};
 }
 
 function addHumanToRoom(room: Room, socketId: string, p: PlayerNet, loadout: LoadoutWire, requested?: "red" | "blue" | "auto"): string {
@@ -2857,7 +2860,7 @@ function updateRoomBots(room:Room,now:number):void{
     updateBotAI(room,bot,now);
     if(room.mode==="searchdestroy"&&room.searchDestroyState){
       const state=room.searchDestroyState,sites:SearchDestroySite[]=searchDestroySitesForMap(room.map.id,room.map.size);
-      if(state.phase==="live"&&bot.team===state.attackerTeam&&state.bomb.status==="dropped"&&Math.hypot(bot.pos[0]-state.bomb.pos[0],bot.pos[2]-state.bomb.pos[2])<2.6)
+      if(state.phase==="live"&&bot.team===state.attackerTeam&&state.bomb.status==="dropped"&&Math.hypot(bot.pos[0]-state.bomb.pos[0],bot.pos[2]-state.bomb.pos[2])<=SEARCH_DESTROY_RULES.pickupRadius)
         applySearchDestroyAction(state,{kind:"pickup",playerId:bot.id,team:bot.team as "red"|"blue",pos:bot.pos,alive:true},sites,now);
       if(state.phase==="live"&&state.bomb.carrierId===bot.id){const site=sites.sort((a,b)=>Math.hypot(a.pos[0]-bot.pos[0],a.pos[2]-bot.pos[2])-Math.hypot(b.pos[0]-bot.pos[0],b.pos[2]-bot.pos[2]))[0];if(Math.hypot(bot.pos[0]-site.pos[0],bot.pos[2]-site.pos[2])<4)applySearchDestroyAction(state,{kind:"plant",playerId:bot.id,team:bot.team as "red"|"blue",pos:bot.pos,alive:true,siteId:site.id},sites,now);}
       if(state.phase==="planted"&&bot.team!==state.attackerTeam&&Math.hypot(bot.pos[0]-state.bomb.pos[0],bot.pos[2]-state.bomb.pos[2])<2.6)
@@ -3074,7 +3077,7 @@ function tickRoomSimulation(room: Room) {
   }
   if(room.mode==="searchdestroy"&&room.preMatchCountdown<=0&&room.searchDestroyState){
     const state=room.searchDestroyState;
-    if(state.phase==="round_end"){
+    if(state.phase==="round_end"&&now>=state.roundEndUntil){
       const actors=allCombatants(room);
       for(const c of actors){
         c.alive=true;c.health=MAX_HEALTH;c.pos=pickSpawn(c.team,room);c.spawnProtectedUntil=now+1800;
@@ -3098,7 +3101,7 @@ function tickRoomSimulation(room: Room) {
   tickWonderExpansion(room,now);
   // Only run bot AI when the pre-match countdown is over.
   if (room.preMatchCountdown <= 0 &&
-      !(room.mode==="searchdestroy"&&room.searchDestroyState?.phase==="preparation")) {
+      !(room.mode==="searchdestroy"&&(room.searchDestroyState?.phase==="preparation"||room.searchDestroyState?.phase==="round_end"))) {
     updateRoomBots(room,now);
   }
   tickScavengerDrops(room, now);

@@ -129,16 +129,16 @@ export function botAttachmentsForMode(
 /** A switched primary, forced tier or temporary Wonder cannot inherit
  * stat bonuses from an unrelated gun. */
 export function botActiveAttachments(
-  primaryId: string, activeId: string, primary: BotAttachmentMap,
-  secondaryId?: string, secondary?: BotAttachmentMap,
+  primaryId: string, activeId: string, primary?: BotAttachmentMap | null,
+  secondaryId?: string, secondary?: BotAttachmentMap | null,
 ): BotAttachmentMap {
-  if (activeId === primaryId) return primary;
+  if (activeId === primaryId) return primary ?? emptyBotAttachments();
   if (secondaryId && activeId === secondaryId) return secondary ?? emptyBotAttachments();
   return emptyBotAttachments();
 }
 
-export const botMagazineCapacity = (weaponId: string, attachments: BotAttachmentMap): number =>
-  computeEffectiveStats(weaponById(weaponId), attachments).magSize;
+export const botMagazineCapacity = (weaponId: string, attachments?: BotAttachmentMap | null): number =>
+  computeEffectiveStats(weaponById(weaponId), attachments ?? emptyBotAttachments()).magSize;
 
 const pick = <T>(values: readonly T[], random: () => number): T =>
   values[Math.max(0, Math.min(values.length - 1, Math.floor(random() * values.length)))];

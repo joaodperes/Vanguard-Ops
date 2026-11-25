@@ -395,11 +395,10 @@ export function computeEffectiveStats(weapon: WeaponDef, atts?: Partial<Record<A
     sight: atts?.sight ?? null, barrel: atts?.barrel ?? null,
     grip: atts?.grip ?? null, magazine: atts?.magazine ?? null,
   };
-  atts = attachments;
   const base = { ...weapon.stats };
   const acc: Record<string, number> = {};
   for (const slot of ["sight", "barrel", "grip", "magazine"] as AttachmentSlot[]) {
-    const id = atts[slot];
+    const id = attachments[slot];
     if (!id) continue;
     const def = attachmentById(id);
     if (!def || !compatibleAttachments(weapon.id,slot).includes(id)) continue;
@@ -410,15 +409,15 @@ export function computeEffectiveStats(weapon: WeaponDef, atts?: Partial<Record<A
   const pct = (val: number, key: string) => base[key as keyof WeaponStats] as number * (1 + (acc[key] ?? 0) / 100);
   // This attachment changes the firing action. Enforce the exact allowlist
   // so illegal/forged secondary attachments cannot activate fanning.
-  const fanHammer = isFanHammer(weapon.id, atts.grip) &&
+  const fanHammer = isFanHammer(weapon.id, attachments.grip) &&
     compatibleAttachments(weapon.id,"grip").includes("grip_fan_hammer");
-  const akimbo = isAkimboWeapon(weapon.id,atts.grip) &&
+  const akimbo = isAkimboWeapon(weapon.id,attachments.grip) &&
     compatibleAttachments(weapon.id,"grip").includes("grip_akimbo");
   // Shell choice is a magazine attachment but alters projectile behavior. All
   // these values go through EffectiveStats so offline and server agree.
-  const ammoAttachment = attachmentById(atts.magazine ?? "");
+  const ammoAttachment = attachmentById(attachments.magazine ?? "");
   // Magazine ammo effects are opt-in and must be legal for this exact weapon.
-  const barrelAttachment = attachmentById(atts.barrel ?? "");
+  const barrelAttachment = attachmentById(attachments.barrel ?? "");
   const piercingAmmo = [ammoAttachment,barrelAttachment].find(a =>
     a?.bodyPenetration && compatibleAttachments(weapon.id,a.slot).includes(a.id))?.bodyPenetration;
   const bodyPenetration = !piercingAmmo ? base.bodyPenetration
@@ -448,11 +447,11 @@ export function computeEffectiveStats(weapon: WeaponDef, atts?: Partial<Record<A
   // per hand BEFORE doubling so odd combined totals cannot lose a cartridge.
   const akimboCapacity = akimbo ? 2*Math.max(1,Math.round(base.magSize*(1+(magBonus-100)/100))) : 0;
   // Resolve sight type from the equipped sight attachment (iron if none).
-  const sightDef = sightDefForAttachments(atts, weapon.baseSightType);
+  const sightDef = sightDefForAttachments(attachments, weapon.baseSightType);
   // Percentage-only ADS spread penalties have no effect on zero-spread snipers.
   // Low-magnification optics can enforce a small absolute precision penalty.
   // Ignore floors from sights that aren't compatible with this weapon.
-  const sightSpreadFloor = !atts.sight || compatibleAttachments(weapon.id, "sight").includes(atts.sight)
+  const sightSpreadFloor = !attachments.sight || compatibleAttachments(weapon.id, "sight").includes(attachments.sight)
     ? (sightDef.adsSpreadFloor ?? 0) : 0;
   const aimedSpreadBase = Math.max(base.adsSpread, sightSpreadFloor);
   return {
@@ -460,7 +459,7 @@ export function computeEffectiveStats(weapon: WeaponDef, atts?: Partial<Record<A
     bodyPenetration,
     coverPenetration: coverPenetration > 0 ? coverPenetration : undefined,
     shotgunAmmo: shell,
-    auto: fanHammer || (weapon.id === "crossbow_reclaimer" && atts.magazine === "mag_bolt_quiver" &&
+    auto: fanHammer || (weapon.id === "crossbow_reclaimer" && attachments.magazine === "mag_bolt_quiver" &&
       compatibleAttachments(weapon.id,"magazine").includes("mag_bolt_quiver")) ? true : base.auto,
     pellets: shellTuning?.pellets ?? base.pellets,
     fireRate: pct(base.fireRate, "fireRate") * (shellTuning?.rateMul ?? 1) * (fanHammer ? FAN_HAMMER_RATE_MULTIPLIER : 1),
