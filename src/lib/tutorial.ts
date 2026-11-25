@@ -33,8 +33,8 @@ export const COMPETITIVE_MODE_GUIDES = {
   },
   searchdestroy: {
     label: "Search & Destroy",
-    objective: "Attackers plant the bomb at site A or B and protect it until detonation. Defenders eliminate attackers or complete the seven-second defuse. Operatives do not respawn during a round.",
-    tip: "Attackers: move together and hold E at a site to plant. Defenders: stop the plant, or hold E beside the planted bomb to defuse.",
+    objective: "Attackers carry the bomb to site A or B, hold E for five seconds to plant it, then protect it through the 40-second fuse. Defenders can stop the plant, eliminate the attackers before a plant, or hold E beside the planted bomb for seven seconds to defuse. Operatives do not respawn during a round.",
+    tip: "Attackers: move together, hold E to plant or pick up a dropped bomb, and press B to drop it deliberately. Defenders: stop the plant or defuse before the fuse expires. The bomb timer keeps running even if every attacker is eliminated.",
   },
   hardpoint: {
     label: "Hardpoint",
