@@ -87,6 +87,14 @@ describe("Search & Destroy", () => {
     expect(tickSearchDestroy(state,alive,1000)[0]).toMatchObject({type:"round_won",winner:"blue",reason:"timeout"});
     const planted=createSearchDestroyState(0,"attacker",[0,0,0]); planted.phase="planted"; planted.bomb.status="planted"; planted.bomb.detonatesAt=40000;
     expect(tickSearchDestroy(planted,[{...alive[0],alive:false},{...alive[1],alive:false}],2000)[0]).toMatchObject({type:"round_won",winner:"red"});
+    const detonating=createSearchDestroyState(0,"attacker",[0,0,0]);
+    detonating.phase="planted";detonating.bomb.status="planted";detonating.bomb.detonatesAt=40000;
+    const attackerEliminated:ModeCombatant[]=[
+      {id:"a",team:"red",alive:false,pos:[0,0,0]},
+      {id:"d",team:"blue",alive:true,pos:[0,0,0]},
+    ];
+    expect(tickSearchDestroy(detonating,attackerEliminated,40000)[0])
+      .toMatchObject({type:"round_won",winner:"red",reason:"detonation"});
   });
 });
 describe("Objective bot positioning",()=>{
