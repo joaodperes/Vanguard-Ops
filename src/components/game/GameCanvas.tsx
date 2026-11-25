@@ -53,7 +53,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, operationId
   const [lobby, setLobby] = useState<LobbyState | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPage, setMenuPage] = useState<InGameMenuPage>("main");
-  const [queuedPresetId, setQueuedPresetId] = useState<string | null>(null);
+  const [queuedPresetId, setQueuedPresetId] = useState<string | null>(mode==="frontier"?"frontier:scout":null);
   const menuOpenRef = useRef(false);
   const upgradePendingRef = useRef(false);
   const menuPageRef = useRef<InGameMenuPage>("main");
