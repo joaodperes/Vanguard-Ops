@@ -1448,7 +1448,8 @@ export class FPSEngine {
     this.wonderSkinId=opts.loadout.wonderSkinId??"";
     this.wonderKillEffectId=opts.loadout.wonderKillEffectId??"";
     this.wonderWeaponId = opts.mode !== "gungame" && opts.loadout.perkId === "wonder_weapon" && !!WEAPONS.find(w=>w.id===opts.loadout.wonderWeaponId && w.wonder&&!w.disabled) ? opts.loadout.wonderWeaponId! : "";
-    this.weaponId = this.primaryWeaponId;
+    this.currentSlot = opts.mode==="frontier"&&opts.loadout.emptyPrimary?"secondary":"primary";
+    this.weaponId = opts.mode==="frontier"&&opts.loadout.emptyPrimary?this.secondaryWeaponId:this.primaryWeaponId;
     // Gun Game: the local player starts on the FIRST progression weapon,
     // regardless of their equipped loadout. Effective stats + viewmodel are
     // rebuilt from the progression weapon (so the HUD shows the right mag
@@ -1496,8 +1497,8 @@ export class FPSEngine {
       this.eff = computeEffectiveStats(ggW, emptyAtts);
       this.sightDef = sightDefForType(this.eff.sightType);
     } else {
-      this.eff = this.primaryEff;
-      this.sightDef = this.primarySight;
+      this.eff = opts.mode==="frontier"&&opts.loadout.emptyPrimary?this.secondaryEff:this.primaryEff;
+      this.sightDef = opts.mode==="frontier"&&opts.loadout.emptyPrimary?this.secondarySight:this.primarySight;
     }
     this.ammoInMag = this.eff.magSize;
     // New offline matches are protected after the pre-match countdown completes.
@@ -4811,6 +4812,13 @@ export class FPSEngine {
     } else this.pendingLoadout = next;
   }
 
+  queueFrontierLoadout(presetId: import("./game-mode-rules").FrontierLoadoutPresetId, next: LoadoutWire) {
+    if (this.opts.mode !== "frontier" || this.disposed) return;
+    if (this.opts.online) {
+      if (this.socket?.connected) this.socket.emit("message", { t: "queueFrontierLoadout", presetId });
+    } else this.pendingLoadout = next;
+  }
+
   /** Apply queued kit only at spawn, never refill/change mid-life. */
   private equipQueuedLoadout() {
     const next = this.pendingLoadout;
@@ -4834,9 +4842,10 @@ export class FPSEngine {
     this.secondarySight = sightDefForType(this.secondaryEff.sightType);
     this.meleeSight = sightDefForType(this.meleeEff.sightType);
     this.wonderSight = sightDefForType(this.wonderEff.sightType);
-    this.currentSlot = "primary"; this.lastSlot = "secondary";
-    this.weaponId = this.primaryWeaponId;
-    this.eff = this.primaryEff; this.sightDef = this.primarySight;
+    this.currentSlot = next.emptyPrimary ? "secondary" : "primary"; this.lastSlot = this.currentSlot==="secondary"?"primary":"secondary";
+    this.weaponId = next.emptyPrimary ? this.secondaryWeaponId : this.primaryWeaponId;
+    this.eff = next.emptyPrimary ? this.secondaryEff : this.primaryEff;
+    this.sightDef = next.emptyPrimary ? this.secondarySight : this.primarySight;
     // Every loadout change starts its selected Wonder completely drained.
     this.wonderStates.clear();
     const selected=WEAPONS.find(w=>w.id===this.wonderWeaponId);
@@ -4851,7 +4860,7 @@ export class FPSEngine {
     this.throwingKnifeState=fullThrowingKnives();
     this.meleeAmmoInMag = isThrowingKnife(this.meleeWeaponId)?this.throwingKnifeState.charges:this.meleeEff.magSize;
     this.wonderAmmoInMag = this.wonderEff.magSize;
-    this.ammoInMag = this.primaryAmmoInMag;
+    this.ammoInMag = next.emptyPrimary ? this.secondaryAmmoInMag : this.primaryAmmoInMag;
     this.aiming = false; this.adsProgress = 0; this.manualAiming = false;
     this.reloading = false; this.equipmentAction = null;
     this.equipmentCharges = equipmentById(next.equipmentId).charges;
@@ -5861,6 +5870,7 @@ export class FPSEngine {
     if (this.equipmentAction || this.survivalDowned) return;
     if (this.opts.mode === "gungame") return;  // gungame auto-advances; no manual swap
     if (this.opts.mode === "frontier" && slot !== "primary" && slot !== "secondary") return;
+    if (this.opts.mode === "frontier" && this.opts.loadout.emptyPrimary && slot === "primary") return;
     if (this.currentSlot === slot) return;
     if (slot === "wonder" && !this.wonderWeaponId) return;
     if (!this.alive) return;
