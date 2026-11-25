@@ -110,6 +110,10 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
     : hud.ammo;
   const frontierReserve = Math.max(0,(hud.frontierAmmoRemaining ?? (hud.magSize + Math.max(1,Math.floor(hud.magSize*3*0.65)))) - frontierCurrentMagazine);
   const clockText = formatMatchClock(hud);
+  const searchDestroyTimerEnd = hud.searchDestroy?.phase === "planted" ? hud.searchDestroy.bomb.detonatesAt :
+    hud.searchDestroy?.phase === "preparation" ? hud.searchDestroy.preparationEndsAt : hud.searchDestroy?.roundEndsAt;
+  const searchDestroyClockText = searchDestroyTimerEnd
+    ? `${Math.max(0, Math.ceil((searchDestroyTimerEnd - Date.now()) / 1000))}s` : "—";
   const scoreboardRuleLabels = scoreboardRules(mode, hud);
   const matchInfo = matchHudInfo(mode, hud.survivalTier, !!hud.operation);
 
@@ -413,7 +417,7 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
             <>
               <div className={`backdrop-blur rounded-lg border flex items-center ${isTouch ? "gap-1 px-2 py-1" : "gap-1.5 px-3 py-1.5"} ${clockEnding ? "bg-rose-950/75 border-rose-500/50" : "bg-black/65 border-white/10"}`}>
                 <Clock className={`w-3 h-3 ${clockEnding ? "text-rose-300" : "text-white/60"}`} />
-                <span className={`font-bold tabular-nums ${isTouch ? "text-xs" : "text-sm"} ${clockEnding ? "text-rose-300" : "text-white"}`}>{clockText}</span>
+                <span className={`font-bold tabular-nums ${isTouch ? "text-xs" : "text-sm"} ${clockEnding ? "text-rose-300" : "text-white"}`}>{mode === "searchdestroy" ? searchDestroyClockText : clockText}</span>
                 {hud.ctfOvertime && <span className="text-amber-300 text-[9px] font-black">OT</span>}
               </div>
               {mode === "ffa" ? (
@@ -442,7 +446,15 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
                     <span className={`text-white font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{hud.kills}<span className="text-white/30">/</span>{hud.deaths}</span>
                   </div>}
                 </>
-              ) : mode === "killconfirmed" || mode === "ctf" || mode === "searchdestroy" ? (
+              ) : mode === "searchdestroy" && hud.searchDestroy ? (
+                <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex flex-wrap items-center justify-center ${isTouch ? "gap-x-2 gap-y-1 px-2 py-1" : "gap-x-3 gap-y-1 px-3 py-1.5"}`}>
+                  <span className="text-red-300 text-[10px] font-black tabular-nums">RED {hud.searchDestroy.roundWins.red}</span>
+                  <span className="text-white/35">–</span>
+                  <span className="text-blue-300 text-[10px] font-black tabular-nums">BLUE {hud.searchDestroy.roundWins.blue}</span>
+                  <span className={`font-black uppercase ${hud.playerTeam === hud.searchDestroy.attackerTeam ? "text-amber-300" : "text-cyan-300"} ${isTouch ? "text-[9px]" : "text-[10px]"}`}>{hud.playerTeam === hud.searchDestroy.attackerTeam ? "ATTACKERS" : "DEFENDERS"}</span>
+                  <span className="text-white/65 text-[10px] font-bold tabular-nums">R {hud.teamAlive?.red ?? 0} · B {hud.teamAlive?.blue ?? 0} ALIVE</span>
+                </div>
+              ) : mode === "killconfirmed" || mode === "ctf" ? (
                 <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1.5 px-2 py-1" : "gap-2 px-3 py-1.5"}`}>
                   <span className={`text-emerald-300 font-bold uppercase ${isTouch ? "text-[9px]" : "text-[10px]"}`}>Team</span>
                   <span className={`text-emerald-200 font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{teamScores.own}</span>
@@ -462,9 +474,26 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
                   </div>
                 </>
               )}
-            </>
-          )}
-        </div>
+        {mode === "searchdestroy" && hud.searchDestroy && (
+          <div className={`mt-1 flex max-w-[96vw] flex-col items-center gap-1 text-center ${isTouch ? "text-[9px]" : "text-[10px]"}`}>
+            <div className="flex flex-wrap justify-center gap-x-3 gap-y-0.5 text-white/65">
+              <span>{hud.searchDestroy.phase.toUpperCase()} · {hud.searchDestroy.bomb.status === "planted" ? `BOMB PLANTED AT SITE ${hud.searchDestroy.bomb.siteId}` : hud.searchDestroy.bomb.status === "dropped" ? "BOMB DROPPED" : "BOMB CARRIED"}</span>
+              {hud.searchDestroyCarrierName && <span className="text-amber-200">CARRIER · {hud.searchDestroyCarrierName}</span>}
+              {hud.searchDestroyBombDistance !== undefined && <span className="text-amber-200">BOMB · {hud.searchDestroyBombDistance}m AWAY</span>}
+              {hud.isBombCarrier && <span className="text-amber-200">B TO DROP</span>}
+            </div>
+            {hud.searchDestroyInteraction && (
+              <div className="flex w-full flex-col items-center gap-1" role="status" aria-live="polite">
+                <span className="font-black text-amber-100">{hud.searchDestroyInteraction.label} · {hud.searchDestroyInteraction.progress > 0 ? Math.round(hud.searchDestroyInteraction.progress) + "%" : "READY"}</span>
+                {hud.searchDestroyInteraction.kind !== "pickup" && <div className="h-1.5 w-48 max-w-full overflow-hidden rounded bg-white/15"><div className="h-full bg-amber-400 transition-[width] duration-100" style={{ width: hud.searchDestroyInteraction.progress + "%" }} /></div>}
+              </div>
+            )}
+            {isTouch && hud.isBombCarrier && <button type="button" onClick={onDropBomb} className="pointer-events-auto rounded-md border border-amber-300/50 bg-amber-500/20 px-4 py-1 text-[10px] font-black tracking-widest text-amber-100">DROP BOMB</button>}
+          </div>
+        )}
+        {mode === "hardpoint" && hud.hardpoint && <div className="absolute top-16 left-1/2 z-30 -translate-x-1/2 text-center">
+          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/40 bg-black/65 px-3 py-1.5 text-[11px] font-black tracking-wider text-emerald-200 shadow-lg"><span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"/>{hud.hardpoint.phase === "transition" ? "ROTATING" : hud.hardpoint.owner === "contested" ? "CONTESTED" : hud.hardpoint.owner === "neutral" ? "NEUTRAL" : hud.hardpoint.owner === hud.playerTeam ? "FRIENDLY" : "ENEMY"}{Math.max(0,Math.ceil((hud.hardpoint.phaseEndsAt-Date.now())/1000))<=10&&<span className="text-amber-300">· {Math.max(0,Math.ceil((hud.hardpoint.phaseEndsAt-Date.now())/1000))}s</span>}</div>
+        </div>}
 
         {(mode==="hardpoint"||mode==="searchdestroy"||mode==="frontier")&&<div className={mode==="hardpoint"?"absolute top-16 left-1/2 z-30 -translate-x-1/2 text-center":"absolute top-16 left-1/2 z-30 w-[min(92vw,34rem)] max-w-[92vw] -translate-x-1/2 rounded-lg border border-white/15 bg-black/70 px-3 py-1.5 text-center text-xs font-bold tracking-wider text-white shadow-xl"}>
           {mode==="hardpoint"&&hud.hardpoint ? <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/40 bg-black/65 px-3 py-1.5 text-[11px] font-black tracking-wider text-emerald-200 shadow-lg"><span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"/>{hud.hardpoint.phase==="transition"?"ROTATING":hud.hardpoint.owner==="contested"?"CONTESTED":hud.hardpoint.owner==="neutral"?"NEUTRAL":hud.hardpoint.owner===hud.playerTeam?"FRIENDLY":"ENEMY"}{Math.max(0,Math.ceil((hud.hardpoint.phaseEndsAt-Date.now())/1000))<=10&&<span className="text-amber-300">· {Math.max(0,Math.ceil((hud.hardpoint.phaseEndsAt-Date.now())/1000))}s</span>}</div> : hud.searchDestroy ? <><div className="text-amber-300">SEARCH & DESTROY · ROUND {hud.searchDestroy.round}/{hud.searchDestroy.maxRounds}</div><div className="mt-1 text-white/75">RED {hud.teamAlive?.red??0} ALIVE — BLUE {hud.teamAlive?.blue??0} ALIVE · {hud.playerTeam===hud.searchDestroy.attackerTeam?"YOU ATTACK":"YOU DEFEND"} · {hud.searchDestroy.phase.toUpperCase()} · {hud.searchDestroy.bomb.status==="planted"?"BOMB PLANTED":hud.searchDestroy.bomb.status==="dropped"?"BOMB DROPPED":"BOMB CARRIED"}</div><div className="mt-1 text-amber-100/70">{hud.searchDestroy.phase==="preparation"?"PREPARATION "+Math.max(0,Math.ceil((hud.searchDestroy.preparationEndsAt-Date.now())/1000))+"s":hud.searchDestroy.phase==="planted"&&hud.searchDestroy.bomb.detonatesAt?"SITE "+hud.searchDestroy.bomb.siteId+" · DETONATION "+Math.max(0,Math.ceil((hud.searchDestroy.bomb.detonatesAt-Date.now())/1000))+"s":"ROUND "+Math.max(0,Math.ceil((hud.searchDestroy.roundEndsAt-Date.now())/1000))+"s"} {hud.isBombCarrier?"· B TO DROP":""}</div>{hud.searchDestroyCarrierName&&<div className="mt-1 text-amber-200/90">BOMB CARRIER · {hud.searchDestroyCarrierName}</div>}{hud.searchDestroyBombDistance!==undefined&&<div className="mt-1 text-amber-200/90">BOMB DROPPED · {hud.searchDestroyBombDistance}m AWAY</div>}{hud.searchDestroyInteraction&&<div className="mt-1.5"><div className="text-amber-100 font-black">{hud.searchDestroyInteraction.label} · {hud.searchDestroyInteraction.progress>0?Math.round(hud.searchDestroyInteraction.progress)+"%":"READY"}</div>{hud.searchDestroyInteraction.kind!=="pickup"&&<div className="mx-auto mt-1 h-1.5 w-48 max-w-full overflow-hidden rounded bg-white/15"><div className="h-full bg-amber-400 transition-[width] duration-100" style={{width:hud.searchDestroyInteraction.progress+"%"}}/></div>}</div>}{isTouch&&hud.isBombCarrier&&<button type="button" onClick={onDropBomb} className="pointer-events-auto mt-2 rounded-md border border-amber-300/50 bg-amber-500/20 px-4 py-1.5 text-[10px] font-black tracking-widest text-amber-100">DROP BOMB</button>}</> : null}
