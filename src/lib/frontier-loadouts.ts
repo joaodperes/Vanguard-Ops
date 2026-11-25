@@ -50,6 +50,10 @@ export const FRONTIER_LOADOUTS: readonly {
   },
 ] as const;
 
+export function isFrontierLoadoutPresetId(value: unknown): value is FrontierLoadoutPresetId {
+  return typeof value === "string" && FRONTIER_LOADOUTS.some((preset) => preset.id === value);
+}
+
 export function frontierLoadoutForPreset(base: LoadoutWire, presetId: FrontierLoadoutPresetId): LoadoutWire {
   const preset = FRONTIER_LOADOUTS.find((item) => item.id === presetId);
   if (!preset) return { ...base, emptyPrimary: false };
