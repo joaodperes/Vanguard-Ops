@@ -43,7 +43,7 @@ describe("mode availability and spawn capacity",()=>{
   const sites=searchDestroySitesForMap("dustwater",getMap("dustwater").size);
   expect(sites.map(site=>site.id)).toEqual(["A","B"]);
   expect(sites[1].pos).toEqual([-10,0,22.5]);
-  expect(sites[0].pos).not.toEqual(sites[1].pos);
+  expect(sites[0].pos).not.toEqual(sites[1].pos);\n  for(const site of sites)expect(botPositionEmbedded(getMap("dustwater").cover,site.pos)).toBe(false);
   expect(mapAllowedForMode("hardpoint","compound")).toBe(false);
   for(const mode of ["searchdestroy","hardpoint","frontier"] as const)expect(teamSizesForMap("dustwater",mode)).toEqual([3,4,5]);
  });
