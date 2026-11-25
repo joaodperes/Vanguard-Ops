@@ -47,7 +47,7 @@ export function SavedLoadoutPicker({ mode, queuedPresetId, onPresetEquipped, onF
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-bold text-white">{preset.name}</span>
                   <span className={`text-xs font-semibold ${selected ? "text-emerald-300" : "text-amber-300"}`}>
-                    {selected ? "Queued" : "Choose"}
+                    {selected ? "Selected" : "Choose"}
                   </span>
                 </div>
                 <p className="mt-2 text-xs text-white/65">{preset.role}</p>
