@@ -687,7 +687,11 @@ function createLobbyRoom(
     if (typeof cfg.timeLimit === "number" && cfg.timeLimit >= 0) config.timeLimit = cfg.timeLimit;
     if (mode === "killconfirmed" && isValidKillConfirmedTagLifetimeMs(cfg.tagLifetimeMs ?? config.tagLifetimeMs)) config.tagLifetimeMs = cfg.tagLifetimeMs ?? config.tagLifetimeMs;
     if (mode === "killconfirmed") config.denialScoreEnabled = cfg.denialScoreEnabled === true;
-    if (mode === "ctf") config.ctfFlagResetMs = ctfResetMs(cfg.ctfFlagResetMs);\n    if (mode === "searchdestroy") {\n      config.searchDestroyRoundTimeSeconds = Math.max(60,Math.min(300,Math.floor(cfg.searchDestroyRoundTimeSeconds??120)));\n      config.searchDestroyRoundsToWin = Math.max(3,Math.min(8,Math.floor(cfg.searchDestroyRoundsToWin??6)));\n    }
+    if (mode === "ctf") config.ctfFlagResetMs = ctfResetMs(cfg.ctfFlagResetMs);
+    if (mode === "searchdestroy") {
+      config.searchDestroyRoundTimeSeconds = Math.max(60,Math.min(300,Math.floor(cfg.searchDestroyRoundTimeSeconds??120)));
+      config.searchDestroyRoundsToWin = Math.max(3,Math.min(8,Math.floor(cfg.searchDestroyRoundsToWin??6)));
+    }
   }
   // Gun Game: score limit will be set when the match starts (gungameWeapons resolved).
   // Use a placeholder for now; startMatchInRoom overwrites it.
