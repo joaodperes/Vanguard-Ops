@@ -981,7 +981,7 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
                       <tr key={r.id} className={`border-t border-white/5 ${r.isSelf ? "bg-emerald-500/10" : ""}`}>
                         <td className="px-4 py-1.5">
                           <span className={`inline-block w-2 h-2 rounded-full mr-2 ${teamDot(r.team)}`} />
-                          <span className={r.isSelf ? "text-emerald-300 font-semibold" : "text-white/90"}>{r.name}</span>{mode==="searchdestroy"&&r.isBombCarrier&&<Bomb className="w-3.5 h-3.5 text-amber-300" aria-label="Bomb carrier" title="Bomb carrier" />}
+                          <span className={r.isSelf ? "text-emerald-300 font-semibold" : "text-white/90"}>{r.name}</span>
                           {r.isBot && <span className="ml-1.5 text-white/30 text-xs">BOT</span>}
                         </td>
                         <td className="text-center px-2 py-1.5 text-white tabular-nums">{r.kills}</td>
@@ -1076,7 +1076,7 @@ function TeamPanel({ team, score, rows, selfTeam, scoreLabel, limit, teamAlive, 
                   {r.team === selfTeam && (
                     <Shield className={`w-3 h-3 shrink-0 ${allyColor}`} aria-label="Ally" />
                   )}
-                  <span className={r.isSelf ? "text-emerald-300 font-semibold" : "text-white/90"}>{r.name}</span>
+                  <span className={r.isSelf ? "text-emerald-300 font-semibold" : "text-white/90"}>{r.name}</span>{mode==="searchdestroy"&&r.isBombCarrier&&<Bomb className="w-3.5 h-3.5 text-amber-300" aria-label="Bomb carrier" /> }
                   {r.isBot && <span className="ml-1 text-white/30 text-[10px]">BOT</span>}
                 </span>
               </td>
