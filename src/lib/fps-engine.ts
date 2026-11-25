@@ -2523,8 +2523,8 @@ export class FPSEngine {
         for(let i=0;i<3;i++){
           // Broader, lower crowns overlap the bole so the trunk does not show
           // through the foliage at normal gameplay camera angles.
-          const canopy=new THREE.Mesh(new THREE.ConeGeometry(h*(.38-i*.045),h*.44,7),i===1?leafDark:leaf);
-          canopy.position.y=h*(.34+i*.18);canopy.castShadow=i===0;group.add(canopy);
+          const canopy=new THREE.Mesh(new THREE.ConeGeometry(h*(.4-i*.045),h*.56,7),i===1?leafDark:leaf);
+          canopy.position.y=h*(.28+i*.18);canopy.castShadow=i===0;group.add(canopy);
         }
       }else if(p.kind==="bush"){
         const bush=new THREE.Mesh(new THREE.IcosahedronGeometry(Math.max(.7,h*.6),0),leaf);
