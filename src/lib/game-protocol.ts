@@ -1345,15 +1345,13 @@ export const mapAllowedForMode = (mode: GameMode, id: MapId | string): boolean =
     return (id === "compound" || id === "skybridge") && map.spawns.red.length>=3 && map.spawns.blue.length>=3;
   }
   if (mode === "hardpoint") return id === "dustwater" || id === "bunker" || id === "floodgate";
-  // Frontier rotates across exactly three arenas: Whiteout Depot, Emberhold
-  // Castle and Dustwater. Keep the other map families out of this ruleset.
+  // Frontier reuses the validated TDM arena rotation, plus Dustwater.
   if (mode === "frontier") {
     if (id === "dustwater") {
       const pools = map.modeSpawns?.frontier;
       return !!pools && pools.red.length >= 3 && pools.blue.length >= 3;
     }
-    return (id === "whiteout_depot" || id === "emberhold") &&
-      map.spawns.red.length >= 3 && map.spawns.blue.length >= 3;
+    return mapAllowedForMode("tdm",id);
   }
   return supportsMapMode(map,mode);
 };
