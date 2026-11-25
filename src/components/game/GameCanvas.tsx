@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { InGameMenu, type InGameMenuPage } from "./InGameMenu";
 import { escapeMenuAction, ignorePointerLockRelease, initialPointerLockMenuState, pointerLockMenuTransition } from "@/lib/in-game-menu-controls";
 import { isPrimaryWeaponCategory } from "@/lib/game-data";
+import { frontierLoadoutForPreset } from "@/lib/frontier-loadouts";
 
 interface Props {
   loadout: LoadoutWire;
@@ -260,6 +261,13 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, operationId
     engineRef.current?.queueLoadout(wire);
     setQueuedPresetId(presetId);
   };
+  const queueFrontierLoadout = (presetId: import("@/lib/game-mode-rules").FrontierLoadoutPresetId) => {
+    if(mode!=="frontier")return;
+    const wire=frontierLoadoutForPreset(loadout,presetId);
+    engineRef.current?.queueFrontierLoadout(presetId,wire);
+    setQueuedPresetId(`frontier:${presetId}`);
+  };
+
   const changeMenuPage = (page: InGameMenuPage) => {
     menuPageRef.current = page;
     setMenuPage(page);
