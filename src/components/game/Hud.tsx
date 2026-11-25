@@ -432,15 +432,15 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
                 <>
                   <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1.5 px-2 py-1" : "gap-2 px-3 py-1.5"}`}>
                     <span className="text-red-300 font-bold text-[10px]">R</span>
-                    <span className={`text-red-300 font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{hud.teamScores.red}</span>
+                    <span className={`text-red-300 font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{Math.round(hud.teamScores.red)}</span>
                     <span className="text-white/30">–</span>
-                    <span className={`text-blue-300 font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{hud.teamScores.blue}</span>
+                    <span className={`text-blue-300 font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{Math.round(hud.teamScores.blue)}</span>
                     <span className="text-blue-300 font-bold text-[10px]">B</span>
                   </div>
-                  <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1 px-2 py-1" : "gap-1.5 px-3 py-1.5"}`}>
+                  {mode !== "hardpoint" && <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1 px-2 py-1" : "gap-1.5 px-3 py-1.5"}`}>
                     <span className="text-white/60 text-[10px] font-bold">K/D</span>
                     <span className={`text-white font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{hud.kills}<span className="text-white/30">/</span>{hud.deaths}</span>
-                  </div>
+                  </div>}
                 </>
               ) : mode === "killconfirmed" || mode === "ctf" || mode === "searchdestroy" ? (
                 <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1.5 px-2 py-1" : "gap-2 px-3 py-1.5"}`}>
@@ -466,8 +466,8 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
           )}
         </div>
 
-        {(mode==="hardpoint"||mode==="searchdestroy"||mode==="frontier")&&<div className="absolute top-16 left-1/2 z-30 w-[min(92vw,44rem)] max-w-[92vw] -translate-x-1/2 rounded-lg border border-white/15 bg-black/75 px-4 py-2 text-center text-xs font-bold tracking-wider text-white shadow-xl">
-          {mode==="hardpoint"&&hud.hardpoint ? <><div className="text-emerald-300">HARDPOINT · ZONE {hud.hardpoint.activeIndex+1}/5 · {hud.hardpoint.phase==="transition"?"ROTATING":hud.hardpoint.owner.toUpperCase()} · {Math.max(0,Math.ceil((hud.hardpoint.phaseEndsAt-Date.now())/1000))}s</div><div className="mt-1 text-white/75">RED {Math.floor(hud.hardpoint.scores.red)} — {Math.floor(hud.hardpoint.scores.blue)} BLUE · {hud.hardpoint.owner==="contested"?"CONTESTED":"HOLD THE ZONE"}<div className="mt-1 text-white/55">OBJECTIVE TIME {Math.floor(hud.hardpoint.objectiveMs.red/1000)}s RED / {Math.floor(hud.hardpoint.objectiveMs.blue/1000)}s BLUE</div></div></> : hud.searchDestroy ? <><div className="text-amber-300">SEARCH & DESTROY · ROUND {hud.searchDestroy.round}/11</div><div className="mt-1 text-white/75">RED {hud.searchDestroy.roundWins.red} — {hud.searchDestroy.roundWins.blue} BLUE · {hud.playerTeam===hud.searchDestroy.attackerTeam?"YOU ATTACK":"YOU DEFEND"} · {hud.searchDestroy.phase.toUpperCase()} · {hud.searchDestroy.bomb.status==="planted"?"BOMB PLANTED":hud.searchDestroy.bomb.status==="dropped"?"BOMB DROPPED":"BOMB CARRIED"}</div><div className="mt-1 text-amber-100/70">{hud.searchDestroy.phase==="preparation"?`PREPARATION ${Math.max(0,Math.ceil((hud.searchDestroy.preparationEndsAt-Date.now())/1000))}s`:hud.searchDestroy.phase==="planted"&&hud.searchDestroy.bomb.detonatesAt?`SITE ${hud.searchDestroy.bomb.siteId} · DETONATION ${Math.max(0,Math.ceil((hud.searchDestroy.bomb.detonatesAt-Date.now())/1000))}s`:`ROUND ${Math.max(0,Math.ceil((hud.searchDestroy.roundEndsAt-Date.now())/1000))}s`} · Hold E to interact{hud.isBombCarrier?" · B TO DROP":""}</div>{hud.searchDestroyCarrierName&&<div className="mt-1 text-amber-200/90">BOMB CARRIER · {hud.searchDestroyCarrierName}</div>}{hud.searchDestroyBombDistance!==undefined&&<div className="mt-1 text-amber-200/90">BOMB DROPPED · {hud.searchDestroyBombDistance}m AWAY</div>}{isTouch&&hud.isBombCarrier&&<button type="button" onClick={onDropBomb} className="pointer-events-auto mt-2 rounded-md border border-amber-300/50 bg-amber-500/20 px-4 py-1.5 text-[10px] font-black tracking-widest text-amber-100">DROP BOMB</button>}</> : null}
+        {(mode==="hardpoint"||mode==="searchdestroy"||mode==="frontier")&&<div className={mode==="hardpoint"?"absolute top-16 left-1/2 z-30 -translate-x-1/2 text-center":"absolute top-16 left-1/2 z-30 w-[min(92vw,44rem)] max-w-[92vw] -translate-x-1/2 rounded-lg border border-white/15 bg-black/75 px-4 py-2 text-center text-xs font-bold tracking-wider text-white shadow-xl"}>
+          {mode==="hardpoint"&&hud.hardpoint ? <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/40 bg-black/65 px-3 py-1.5 text-[11px] font-black tracking-wider text-emerald-200 shadow-lg"><span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"/>{hud.hardpoint.phase==="transition"?"ROTATING":hud.hardpoint.owner==="contested"?"CONTESTED":hud.hardpoint.owner==="neutral"?"NEUTRAL":hud.hardpoint.owner===hud.playerTeam?"FRIENDLY":"ENEMY"} · ZONE {(hud.hardpoint.phase==="transition"?hud.hardpoint.nextIndex:hud.hardpoint.activeIndex)+1} ({["NW","NE","CENTER","SW","SE"][hud.hardpoint.phase==="transition"?hud.hardpoint.nextIndex:hud.hardpoint.activeIndex]??"?"}){Math.max(0,Math.ceil((hud.hardpoint.phaseEndsAt-Date.now())/1000))<10&&<span className="text-amber-300">· {Math.max(0,Math.ceil((hud.hardpoint.phaseEndsAt-Date.now())/1000))}s</span>}</div> : hud.searchDestroy ? <><div className="text-amber-300">SEARCH & DESTROY · ROUND {hud.searchDestroy.round}/11</div><div className="mt-1 text-white/75">RED {hud.searchDestroy.roundWins.red} — {hud.searchDestroy.roundWins.blue} BLUE · {hud.playerTeam===hud.searchDestroy.attackerTeam?"YOU ATTACK":"YOU DEFEND"} · {hud.searchDestroy.phase.toUpperCase()} · {hud.searchDestroy.bomb.status==="planted"?"BOMB PLANTED":hud.searchDestroy.bomb.status==="dropped"?"BOMB DROPPED":"BOMB CARRIED"}</div><div className="mt-1 text-amber-100/70">{hud.searchDestroy.phase==="preparation"?`PREPARATION ${Math.max(0,Math.ceil((hud.searchDestroy.preparationEndsAt-Date.now())/1000))}s`:hud.searchDestroy.phase==="planted"&&hud.searchDestroy.bomb.detonatesAt?`SITE ${hud.searchDestroy.bomb.siteId} · DETONATION ${Math.max(0,Math.ceil((hud.searchDestroy.bomb.detonatesAt-Date.now())/1000))}s`:`ROUND ${Math.max(0,Math.ceil((hud.searchDestroy.roundEndsAt-Date.now())/1000))}s`} · Hold E to interact{hud.isBombCarrier?" · B TO DROP":""}</div>{hud.searchDestroyCarrierName&&<div className="mt-1 text-amber-200/90">BOMB CARRIER · {hud.searchDestroyCarrierName}</div>}{hud.searchDestroyBombDistance!==undefined&&<div className="mt-1 text-amber-200/90">BOMB DROPPED · {hud.searchDestroyBombDistance}m AWAY</div>}{isTouch&&hud.isBombCarrier&&<button type="button" onClick={onDropBomb} className="pointer-events-auto mt-2 rounded-md border border-amber-300/50 bg-amber-500/20 px-4 py-1.5 text-[10px] font-black tracking-widest text-amber-100">DROP BOMB</button>}</> : null}
         </div>}
         {mode === "ctf" && hud.ctfFlags && flagLine && (
           <>
@@ -679,6 +679,10 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
               <div className="flex items-end justify-end gap-1">
                 <span className="text-4xl font-bold tabular-nums text-white">{frontierCurrentMagazine}</span>
                 <span className="text-white/40 text-lg mb-1">/ {frontierReserve}</span>
+              </div>
+              <div className="mt-1 flex gap-2 text-[10px] text-white/55 tabular-nums">
+                <span>LEFT <b className="text-white/85">{hud.akimboLeftAmmo ?? 0}/{hud.akimboHandMagSize ?? 0}</b></span>
+                <span>RIGHT <b className="text-white/85">{hud.akimboRightAmmo ?? 0}/{hud.akimboHandMagSize ?? 0}</b></span>
               </div>
             </div>
           ) : (
@@ -945,8 +949,8 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
                 </div>
                 {/* team panels */}
               <div className="flex flex-col sm:flex-row gap-2 p-2 max-h-[50vh] overflow-y-auto custom-scroll">
-                <TeamPanel team="red" score={hud.teamScores.red} rows={hud.scoreboard.filter(r => r.team === "red")} selfTeam={selfTeam} limit={hud.scoreLimit} scoreLabel={mode === "ctf" ? "Cap" : mode === "killconfirmed" ? "Pts" : "Scr"} />
-                <TeamPanel team="blue" score={hud.teamScores.blue} rows={hud.scoreboard.filter(r => r.team === "blue")} selfTeam={selfTeam} limit={hud.scoreLimit} scoreLabel={mode === "ctf" ? "Cap" : mode === "killconfirmed" ? "Pts" : "Scr"} />
+                <TeamPanel team="red" score={Math.round(hud.teamScores.red)} rows={hud.scoreboard.filter(r => r.team === "red")} selfTeam={selfTeam} limit={hud.scoreLimit} scoreLabel={mode === "ctf" ? "Cap" : mode === "killconfirmed" ? "Pts" : "Scr"} />
+                <TeamPanel team="blue" score={Math.round(hud.teamScores.blue)} rows={hud.scoreboard.filter(r => r.team === "blue")} selfTeam={selfTeam} limit={hud.scoreLimit} scoreLabel={mode === "ctf" ? "Cap" : mode === "killconfirmed" ? "Pts" : "Scr"} />
               </div>
             </div>
           </div>

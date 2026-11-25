@@ -28,6 +28,9 @@ describe("new-player tutorial", () => {
       expect(COMPETITIVE_MODE_GUIDES[id].objective.length).toBeGreaterThan(50);
       expect(COMPETITIVE_MODE_GUIDES[id].tip.length).toBeGreaterThan(20);
     }
+    expect(COMPETITIVE_MODE_GUIDES.frontier.objective).toContain("Gunslinger");
+    expect(COMPETITIVE_MODE_GUIDES.frontier.objective).toContain("reserve");
+    expect(COMPETITIVE_MODE_GUIDES.frontier.tip).toContain("left and right cylinders");
   });
 
   test("new players are offered training; existing, completed and skipped profiles are left alone", () => {

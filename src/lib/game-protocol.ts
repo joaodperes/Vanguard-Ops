@@ -118,7 +118,9 @@ export interface CreateRoomConfig {
   timeLimit?: number;       // seconds (0 = no time limit)
   tagLifetimeMs?: number;   // Kill Confirmed dogtag lifetime in ms; -1 means infinite
   ctfFlagResetMs?: number;  // CTF dropped flag return timer; -1 means never
-  denialScoreEnabled?: boolean; // +1 team/player point for recovering friendly dogtags
+  denialScoreEnabled?: boolean; // +1 team/player point for recovering friendly dogtags 
+  searchDestroyRoundTimeSeconds?: number; // Search & Destroy round duration, seconds;
+  searchDestroyRoundsToWin?: number; // Search & Destroy rounds required to win the match
   gungamePreset?: "all" | "cqc" | "long_range";
   gungameMultiplier?: number; // whole list 1–5 times; default 1
   survivalPlayers?: 1 | 2; // max human co-op partners, defaults to solo
@@ -1336,12 +1338,13 @@ export const CTF_MAP_IDS: readonly MapId[] = MAP_LIST.filter(m=>supportsMapMode(
 export const mapAllowedForMode = (mode: GameMode, id: MapId | string): boolean => {
   const map = MAPS[id];
   if (!map) return false;
-  // Search & Destroy and Hardpoint use Dustwater-authored objective locations
-  // and dedicated team spawn pools. Other maps need their own layouts first.
-  if (mode === "searchdestroy" || mode === "hardpoint") {
+  // Search & Destroy is currently Dustwater-only. Hardpoint uses a shared
+  // five-zone layout on Dustwater, Blacksite, and Floodgate.
+  if (mode === "searchdestroy") {
     const pools = map.modeSpawns?.[mode];
     return id === "dustwater" && !!pools && pools.red.length >= 3 && pools.blue.length >= 3;
   }
+  if (mode === "hardpoint") return id === "dustwater" || id === "bunker" || id === "floodgate";
   // Frontier rotates across exactly three arenas: Whiteout Depot, Emberhold
   // Castle and Dustwater. Keep the other map families out of this ruleset.
   if (mode === "frontier") {
@@ -1478,7 +1481,7 @@ export type C2S =
   | { t: "leaveMatch" }
   | { t:"squadOrder";kind:import("./squad-coordination").SquadCommand;pos:Vec3 }
   | { t: "state"; pos: Vec3; yaw: number; pitch: number; aiming: boolean; firing: boolean; reloading: boolean; alive: boolean; sprinting?: boolean }
-  | { t: "shot"; origin: Vec3; dir: Vec3; weaponId: string; skinId: string; aiming?: boolean; akimboHand?: "left" | "right" }   // server-side raycast; shotgun ADS is sampled at fire-time
+  | { t: "shot"; origin: Vec3; dir: Vec3; weaponId: string; skinId: string; aiming?: boolean; akimboHand?: "left" | "right"; fanHammerShot?: boolean }   // server-side raycast; shotgun ADS is sampled at fire-time
   | { t: "reload" }
   | { t: "harbingerDesignate" } // ADS requests a new visible priority target for the deployed drone
   | { t: "deployTurret" } // a placed device, not a bullet ray / ordinary shot
@@ -1677,7 +1680,9 @@ export interface MatchConfig {
   mode: GameMode;
   objectiveBotStyle?: "balanced" | "aggressive" | "defensive";
   searchDestroyRound?: number;
-  searchDestroyWins?: { red: number; blue: number };
+  searchDestroyWins?: { red: number; blue: number }; 
+  searchDestroyRoundTimeSeconds?: number;;
+  searchDestroyRoundsToWin?: number;
   hardpointZone?: number;
   hardpointProgress?: number;
   botCount: number;

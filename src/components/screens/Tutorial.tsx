@@ -225,7 +225,7 @@ export function Tutorial() {
             </div>
             {mode === "pvp" ? (
               <div className="mt-4" aria-live="polite">
-                <p className="mb-3 text-xs text-white/50">Five competitive modes, five different ways to win:</p>
+                <p className="mb-3 text-xs text-white/50">Eight competitive modes, eight different ways to win:</p>
                 <ul className="grid gap-2 sm:grid-cols-2" aria-label="Competitive mode rules">
                   {COMPETITIVE_MODE_IDS.map(id => {
                     const guide = COMPETITIVE_MODE_GUIDES[id];

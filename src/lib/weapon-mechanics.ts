@@ -83,6 +83,9 @@ export function crossbowReloadControlsCadence(magazineSize: number): boolean {
 
 /** Shared, deterministic helpers for special weapons (safe for browser and Node). */
 export const FAN_HAMMER_RATE_MULTIPLIER = 1.85;
+export const FAN_HAMMER_FIRE_RATE = 5.5;
+export const FAN_HAMMER_SPREAD_MULTIPLIER = 5;
+export function fanHammerIntervalMs(): number { return 1000 / FAN_HAMMER_FIRE_RATE; }
 /** Fanning applies only to the Bastion's dedicated grip, never all revolvers. */
 export function isFanHammer(weaponId: string, grip: string | null | undefined): boolean {
   return weaponId === "pistol_bastion" && grip === "grip_fan_hammer";

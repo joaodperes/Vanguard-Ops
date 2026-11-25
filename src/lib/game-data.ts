@@ -388,7 +388,14 @@ export function burstAlignedMagSize(capacity: number, burst: number | undefined)
   return group === 1 ? rounds : Math.max(group, Math.round(rounds / group) * group);
 }
 
-export function computeEffectiveStats(weapon: WeaponDef, atts: Record<AttachmentSlot, string | null>): EffectiveStats {
+export function computeEffectiveStats(weapon: WeaponDef, atts?: Partial<Record<AttachmentSlot, string | null>> | null): EffectiveStats {
+  // Bot/legacy loadouts may omit attachment maps. Normalize to a complete empty
+  // map so stat computation cannot crash match startup (notably Frontier bots).
+  const attachments: Record<AttachmentSlot, string | null> = {
+    sight: atts?.sight ?? null, barrel: atts?.barrel ?? null,
+    grip: atts?.grip ?? null, magazine: atts?.magazine ?? null,
+  };
+  atts = attachments;
   const base = { ...weapon.stats };
   const acc: Record<string, number> = {};
   for (const slot of ["sight", "barrel", "grip", "magazine"] as AttachmentSlot[]) {

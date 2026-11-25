@@ -107,7 +107,7 @@ import { dragonBreathIgnition,dragonBreathVisualUntil } from "./incendiary-statu
 import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
 import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineInReach, stormEnemy, stormTargetPoint, nextStormChainTarget, STORM_MINE_TRIGGER_RADIUS, STORM_MINE_ARM_MS, STORM_MINE_LIFETIME_MS, STORM_MAX_MINES_PER_OWNER, STORM_MINE_TARGET_COOLDOWN_MS, STORM_MAX_DIRECT_HITS_PER_TARGET, STORM_DIRECT_DAMAGE, STORM_MINE_DAMAGE, STORM_CHAIN_JUMPS, STORM_MINE_JUMPS, STORM_CHAIN_DECAY, STORM_MINE_CHAIN_RADIUS, type StormVictim } from "./stormweaver";
 import { advanceKillChain, type KillChainState } from "./kill-chain";
-import { frontierWeaponIdAllowed } from "./game-mode-rules";
+import { frontierWeaponIdAllowed, searchDestroySitesForMap, SEARCH_DESTROY_RULES } from "./game-mode-rules";
 import { isFlagDefenseKill, largestScoreDeficit } from "./match-bonus-tracking";
 import { advanceIncrementalReload } from "./incremental-reload";
 import { shotSpread, shotBloomIncrease, recoilKickRadians, sustainedRecoilMultiplier, firingMotionFactor, spreadShotDirection } from "./weapon-accuracy";
@@ -144,7 +144,7 @@ import { hideFirstPersonRigOnDeath, syncFirstPersonSupportArmVisibility } from "
 import { BASTION_CARTRIDGE_SEATED_Z, BASTION_CARTRIDGE_TRAVEL_Z, BASTION_CYLINDER_OPEN_X, BASTION_REAR_SIGHT, BASTION_FRONT_SIGHT_Y, bastionReloadFrame } from "@/lib/bastion-revolver-rig";
 import { placeFirstPersonActionTarget } from "./first-person-action-target";
 import { createWeaponCharm, swingWeaponCharm, weaponCharmMountPoint } from "@/lib/weapon-charms";
-import { canStartWeaponReload, crossbowReloadCycleMs, crossbowReloadControlsCadence, isFanHammer, isAkimboWeapon, akimboHandCapacity, akimboPumpStroke, akimboHandReady, akimboReloadDip, akimboCrossDrawAmount, type AkimboHand } from "@/lib/weapon-mechanics";
+import { canStartWeaponReload, crossbowReloadCycleMs, crossbowReloadControlsCadence, isFanHammer, isAkimboWeapon, akimboHandCapacity, akimboPumpStroke, akimboHandReady, akimboReloadDip, akimboCrossDrawAmount, FAN_HAMMER_FIRE_RATE, FAN_HAMMER_SPREAD_MULTIPLIER, type AkimboHand } from "@/lib/weapon-mechanics";
 import { cosmeticById } from "@/lib/cosmetics";
 import { coatsAllWeaponParts } from "@/lib/weapon-finish";
 import {
@@ -412,7 +412,7 @@ export interface HudState {
 }
 
 export interface ScoreRow {
-  id: string; name: string; team: string; kills: number; deaths: number; score: number; isBot: boolean; isSelf: boolean;
+  id: string; name: string; team: string; kills: number; deaths: number; score: number; isBot: boolean; isSelf: boolean; isBombCarrier?: boolean;
 }
 
 export interface MatchEndResult {
@@ -868,7 +868,19 @@ export class FPSEngine {
   }
   private refillCurrentAkimboAmmo(){
     const capacity=akimboHandCapacity(this.eff.magSize);
-    this.akimboAmmo.left=capacity;this.akimboAmmo.right=capacity;
+    if(this.opts.mode==="frontier"&&this.frontierAmmoRemaining!==undefined){
+      // Frontier ammo is a total-round pool. Reload transfers reserve into the
+      // cylinders; it must never manufacture rounds or refill already-full hands.
+      let reserve=Math.max(0,this.frontierAmmoRemaining-this.akimboAmmo.left-this.akimboAmmo.right);
+      for(const hand of ["left","right"] as const){
+        const missing=Math.max(0,capacity-this.akimboAmmo[hand]);
+        const loaded=Math.min(missing,reserve);
+        this.akimboAmmo[hand]+=loaded;reserve-=loaded;
+      }
+      this.ammoInMag=this.akimboAmmo.left+this.akimboAmmo.right;
+    }else{
+      this.akimboAmmo.left=capacity;this.akimboAmmo.right=capacity;
+    }
     this.akimboPending.left=this.akimboPending.right=-Infinity;
   }
   private isAkimboActive():boolean{
@@ -1022,6 +1034,7 @@ export class FPSEngine {
   // input
   private keys: Record<string, boolean> = {};
   private mouseDown = false;
+  private fanHammerDown = false;
   private mechRightDown=false;
   private mechRightPressed=false;
   private lastMechPrimaryAt=0;
@@ -1076,7 +1089,7 @@ export class FPSEngine {
   private hardpointState?: import("./game-mode-rules").HardpointState;
   private searchDestroyState?: import("./game-mode-rules").SearchDestroyState;
   private searchDestroyPlants=0;
-  private searchDestroyDefuses=0;
+  private searchDestroyDefuses=0;\n  private searchDestroyRoundNotice?: {text:string;at:number};
   private frontierAmmoRemaining?:number;
   private modeInteractHeld=false;
   private modeInteractSentAt=0;
@@ -4359,9 +4372,12 @@ export class FPSEngine {
     // the handle (at z=+0.08, forward of the grip) pointing DOWN into the fist.
     const isMeleeWeapon = wDef.category === "melee";
     const meleeHoldPitch = isMeleeWeapon ? Math.PI / 2.9 : 0;  // positive X pitch lifts -Z-pointing blades into view
-    const totalRotX = reloadPitch + this.vmRecoilPitch + sprintPitch + meleeSwingPitch + swapPitch + meleeHoldPitch +
+    const fanHammerViewmodelActive=isFanHammer(this.weaponId,this.getCurrentAttachments().grip);
+    const fanAnim=fanHammerViewmodelActive && this.fanHammerDown && !this.controls.reducedMotion ? Math.sin(now*.036)*.12 : 0;
+    const fanRoll=fanHammerViewmodelActive && this.fanHammerDown && !this.controls.reducedMotion ? Math.sin(now*.036+Math.PI/2)*.07 : 0;
+    const totalRotX = reloadPitch + this.vmRecoilPitch + sprintPitch + meleeSwingPitch + swapPitch + meleeHoldPitch + fanAnim +
       (tasered?0.035*Math.sin(twitchTime*24.5):0);
-    const totalRotZ = reloadRoll + sprintRoll + meleeSwingRoll + swapRoll +
+    const totalRotZ = reloadRoll + sprintRoll + meleeSwingRoll + swapRoll + fanRoll +
       (tasered?0.045*Math.sin(twitchTime*18.2+0.7):0);
     // Compute ONE quaternion for the complete weapon. The same quaternion must
     // rotate both each part's centre (around the grip) AND its orientation.
@@ -4692,12 +4708,13 @@ export class FPSEngine {
       if(e.button===2){
         if(this.mechActive){this.mechRightDown=true;this.mechRightPressed=true;}
         else if(this.isAkimboActive()){this.akimboRightDown=true;this.akimboRightPressedThisFrame=true;this.manualAiming=false;}
+        else if(isFanHammer(this.weaponId,this.getCurrentAttachments().grip)){this.fanHammerDown=true;this.manualAiming=false;}
         else this.manualAiming=true;
       }
     });
     on(document, "mouseup", (e) => {
       if (e.button === 0) this.mouseDown = false;
-      if (e.button === 2) {this.manualAiming = false;this.mechRightDown=false;this.akimboRightDown=false;}
+      if (e.button === 2) {this.manualAiming = false;this.fanHammerDown=false;this.mechRightDown=false;this.akimboRightDown=false;}
     });
     on(document, "contextmenu", (e) => e.preventDefault());
     on(window, "keydown", (e) => {
@@ -4833,7 +4850,7 @@ export class FPSEngine {
     let action:"plant"|"defuse"|"pickup"|undefined,siteId:"A"|"B"|undefined;
     if(state.bomb.status==="dropped"&&this.opts.team===state.attackerTeam)action="pickup";
     else if(state.phase==="planted"&&this.opts.team!==state.attackerTeam)action="defuse";
-    else if(state.phase==="live"&&state.bomb.carrierId===this.selfId){action="plant";const sites:[number,number,number][]=[[-42,0,-40],[42,0,-40]];siteId=Math.hypot(this.pos.x-sites[0][0],this.pos.z-sites[0][2])<=Math.hypot(this.pos.x-sites[1][0],this.pos.z-sites[1][2])?"A":"B";}
+    else if(state.phase==="live"&&state.bomb.carrierId===this.selfId){action="plant";const sites=searchDestroySitesForMap(this.map.id,this.map.size);siteId=Math.hypot(this.pos.x-sites[0].pos[0],this.pos.z-sites[0].pos[2])<=Math.hypot(this.pos.x-sites[1].pos[0],this.pos.z-sites[1].pos[2])?"A":"B";}
     if(action){this.socket.emit("message",{t:"modeInteract",action,siteId});this.modeInteractSentAt=now;}
   }
 
@@ -4960,7 +4977,7 @@ export class FPSEngine {
   /** In-game menu: suppress controls, even on touch devices, without resetting a match. */
   private clearInput(){
     this.setModeInteractHeld(false);
-    this.keys={};this.mouseDown=false;this.manualAiming=false;this.touchFiring=false;this.touchAkimboRight=false;this.touchAiming=false;this.touchMoveX=0;this.touchMoveY=0;this.touchSprint=false;this.touchJumpQueued=false;this.mousePressedThisFrame=false;this.touchPressedThisFrame=false;this.mechRightDown=false;this.akimboRightDown=false;this.burstShotsLeft=0;this.lastJumpPressedAt=-Infinity;this.controllerNeutral=true;
+    this.keys={};this.mouseDown=false;this.fanHammerDown=false;this.manualAiming=false;this.touchFiring=false;this.touchAkimboRight=false;this.touchAiming=false;this.touchMoveX=0;this.touchMoveY=0;this.touchSprint=false;this.touchJumpQueued=false;this.mousePressedThisFrame=false;this.touchPressedThisFrame=false;this.mechRightDown=false;this.akimboRightDown=false;this.burstShotsLeft=0;this.lastJumpPressedAt=-Infinity;this.controllerNeutral=true;
   }
 
   setInputSuspended(suspended: boolean) {
@@ -4968,6 +4985,7 @@ export class FPSEngine {
     this.inputSuspended = suspended;
     this.keys = {};
     this.mouseDown = false;
+    this.fanHammerDown = false;
     this.mousePressedThisFrame = false;
     this.manualAiming = false;
     this.touchMoveX = 0;
@@ -9410,7 +9428,7 @@ export class FPSEngine {
   // BOTH gun-fire and melee attacks — melee weapons route through tryMeleeAttack
   // instead of the ray-based gun path so they feel like real melee (short-range
   // arc hit, swing animation, no ammo, no tracer).
-  private fireOneShot(w: WeaponDef, akimboHand?: AkimboHand) {
+  private fireOneShot(w: WeaponDef, akimboHand?: AkimboHand, fanHammerShot = false) {
     if (!this.alive || this.reloading || this.matchEnded || performance.now() < this.swapReadyAt) return;
     if (w.disabled || !!this.mechActive || shieldBlocksFire(w.id,this.shieldRaised(),this.riotShieldHp)) return;
     // Can't fire while sprinting — must release sprint or ADS first (arcade rule).
@@ -9594,7 +9612,7 @@ export class FPSEngine {
     // restores hipfire after 95ms rather than the ordinary 300ms.
     const sprintRecovery=this.aiming?1:sprintRecoverySpreadMultiplier(
       now,this.lastSprintAt,this.getCurrentAttachments().grip);
-    const spread = shotSpread(this.eff, w.category, this.aiming, this.currentSpread, this.shotBloom, steadyAds)*taserSpread*sprintRecovery;
+    const spread = shotSpread(this.eff, w.category, this.aiming, this.currentSpread, this.shotBloom, steadyAds)*taserSpread*sprintRecovery*(fanHammerShot?FAN_HAMMER_SPREAD_MULTIPLIER:1);
     // Buckshot pellets originate at the true crosshair ray. Their individual
     // deviations are resolved once by the shared shotgun pattern function.
     const multiPelletShotgun = w.category === "shotgun" && !w.wonder && (this.eff.pellets ?? 1) > 1;
@@ -9658,7 +9676,7 @@ export class FPSEngine {
       this.socket?.emit("message", {
         t:"shot", origin, dir, weaponId:this.weaponId,
         skinId:this.getCurrentSkinId(), aiming:akimboHand?false:this.aiming,
-        akimboHand,
+        akimboHand, fanHammerShot,
       } as C2S);
       // Multiplayer tracers use the server's accepted, spread-adjusted shotFx
       // direction, not a speculative local ray that might register elsewhere.
@@ -11024,6 +11042,8 @@ export class FPSEngine {
         this.getCurrentAttachments().magazine==="mag_bolt_heavy") return; // scavenged heavy arrows only
     if (this.reloading || this.ammoInMag >= this.eff.magSize || !this.alive ||
         !canStartWeaponReload(weaponById(this.weaponId).stats, this.ammoInMag)) return;
+    if(this.opts.mode==="frontier"&&this.frontierAmmoRemaining!==undefined&&
+      this.frontierAmmoRemaining<=this.ammoInMag)return;
     if (this.sprinting && this.activePerkId !== "field_loader") return;
     // Melee weapons don't reload.
     if (weaponById(this.weaponId).category === "melee") return;
@@ -11046,6 +11066,14 @@ export class FPSEngine {
       duration = crossbowReloadCycleMs(this.eff.reloadTime, special.quickReloadSeconds, reclaimed) / 1000;
     }
     this.reloadStartedAt = performance.now();
+    // Frontier reloads are deliberately longer, but topping up only one
+    // akimbo cylinder is quicker than servicing both.
+    if(this.opts.mode==="frontier"&&this.isAkimboActive()){
+      const capacity=akimboHandCapacity(this.eff.magSize);
+      const needsReload=[this.akimboAmmo.left,this.akimboAmmo.right].filter(n=>n<capacity).length;
+      if(needsReload===1)duration*=.72;
+    }
+    if(this.opts.mode==="frontier")duration*=1.12;
     this.reloadDurationMs = duration * 1000 * reloadDurationMultiplier(this.activePerkId) *
       (this.opts.mode==="survival"?survivalReloadMultiplier(this.survivalUpgradeRanks,performance.now()-this.survivalLastKillAt):1);
     this.reloadEndsAt = this.reloadStartedAt + this.reloadDurationMs;
@@ -11319,7 +11347,7 @@ export class FPSEngine {
         this.spectatorTargetId=spectatorTarget.id;
       }else if(!spectatorTargets.length)this.spectatorTargetId=undefined;
       if(spectatorTarget){
-        this.camera.position.set(spectatorTarget.pos[0],spectatorTarget.pos[1]+EYE_HEIGHT,spectatorTarget.pos[2]);
+        this.camera.position.set(spectatorTarget.pos[0]-Math.sin(spectatorTarget.yaw??0)*0.35,spectatorTarget.pos[1]+EYE_HEIGHT+0.25,spectatorTarget.pos[2]-Math.cos(spectatorTarget.yaw??0)*0.35);
         this.camera.rotation.set(spectatorTarget.pitch??0,(spectatorTarget.yaw??0)+Math.PI,0,"YXZ");
       }else{
         this.camera.position.set(this.pos.x,this.pos.y+EYE_HEIGHT,this.pos.z);
@@ -11433,7 +11461,10 @@ export class FPSEngine {
     } else if (this.reloading && performance.now() >= this.reloadEndsAt) {
       this.reloading = false;
       if (weaponById(this.weaponId).special?.kind === "heat") this.heatStates.set(this.weaponId, freshHeat());
-      else this.ammoInMag = this.eff.magSize;
+      else if(this.opts.mode==="frontier"&&this.frontierAmmoRemaining!==undefined){
+        const reserve=Math.max(0,this.frontierAmmoRemaining-this.ammoInMag);
+        this.ammoInMag=Math.min(this.eff.magSize,this.ammoInMag+reserve);
+      }else this.ammoInMag = this.eff.magSize;
       if(this.weaponId==="pistol_bastion")this.sound.play("revolver_close",{volume:.54});
       if(this.isAkimboActive())this.refillCurrentAkimboAmmo();
       this.saveAmmoToSlot(this.currentSlot);
@@ -11451,12 +11482,14 @@ export class FPSEngine {
       if(isThrowingKnife(this.weaponId))this.ammoInMag=refreshedKnives.charges;
     }
     const akimbo=this.isAkimboActive();
-    const wantFire = !this.inputSuspended && ((this.mouseDown&&this.pointerLocked) ||
+    const fanHammerActive=isFanHammer(this.weaponId,this.getCurrentAttachments().grip);
+    const fanHammerTrigger=fanHammerActive && ((this.fanHammerDown&&this.pointerLocked) || ((this.touchMode||this.controllerActive)&&this.touchAiming));
+    const wantFire = !this.inputSuspended && ((this.mouseDown&&this.pointerLocked) || fanHammerTrigger ||
       (akimbo&&!this.mechActive&&this.akimboRightDown&&this.pointerLocked) ||
       ((this.touchMode||this.controllerActive)&&(this.touchFiring||(akimbo&&this.touchAkimboRight))));
     const inputActive = !this.inputSuspended && (this.pointerLocked || this.touchMode || this.controllerActive);
     // Effective aim: manually held ADS (RMB / ADS button) OR auto-ADS-while-firing.
-    const fanHammer=isFanHammer(this.weaponId,this.getCurrentAttachments().grip);
+    const fanHammer=fanHammerActive;
     const wantsAds = !this.mechActive && !fanHammer && !akimbo && (this.manualAiming || (this.weaponId!==RIOT_SHIELD_ID && this.autoAdsOnFire && wantFire && this.alive));
     // Shift / mobile auto-sprint takes priority: ADS cannot silently cancel sprint.
     this.aiming = !this.equipmentAction && !this.reloading && wantsAds &&
@@ -11512,9 +11545,16 @@ export class FPSEngine {
          this.akimboRightPressedThisFrame||this.touchAkimboRightPressedThisFrame))this.startReload();
       this.mousePressedThisFrame=false;this.touchPressedThisFrame=false;
       this.akimboRightPressedThisFrame=false;this.touchAkimboRightPressedThisFrame=false;
-    } else if (!this.equipmentAction && (wantFire || this.burstShotsLeft > 0)) {
+    } else if (!this.equipmentAction && (wantFire || this.burstShotsLeft > 0 || fanHammerActive && this.fanHammerDown)) {
       const w = weaponById(this.weaponId);
       const now = performance.now();
+      // Fan Hammer uses the right trigger for held rapid-fire; left remains semi-auto.
+      if(fanHammerActive && fanHammerTrigger){
+        const fanGap=1000/FAN_HAMMER_FIRE_RATE;
+        if(this.ammoInMag<=0&&!this.reloading){this.sound.play("empty_click",{volume:.36});this.startReload();}
+        else if(this.ammoInMag>0 && now-this.lastShotAt>=fanGap*.88 && !this.reloading && !this.sprinting && this.alive && !this.matchEnded)
+          this.fireOneShot(w,undefined,true);
+      }
       // Semi-auto and burst weapons used to skip fireOneShot at zero ammo.
       if(wantFire && (this.mousePressedThisFrame || this.touchPressedThisFrame) &&
          this.ammoInMag<=0 && !this.reloading && !usesWonderCharges(w) &&
@@ -11545,7 +11585,11 @@ export class FPSEngine {
         const isAuto = this.eff.auto;
         const isBurst = (w.stats.burst ?? 1) > 1;
         const isSemi = !isAuto && !isBurst;
-        if (isAuto) {
+        if(fanHammerActive){
+          // The left trigger stays semiautomatic while the right trigger fans.
+          if((this.mousePressedThisFrame||this.touchPressedThisFrame)&&this.ammoInMag>0&&now-this.lastShotAt>1000/Math.max(1,this.eff.fireRate)*.9)
+            this.fireOneShot(w);
+        } else if (isAuto) {
           // Full-auto: fire continuously while trigger is held, gated by fireRate.
           if (now - this.lastShotAt > 1000 / Math.max(1, this.eff.fireRate) * 0.9) {
             this.fireOneShot(w);
@@ -13771,13 +13815,13 @@ export class FPSEngine {
     const scoreboard: ScoreRow[] = [];
     if (this.opts.online) {
       for (const c of this.combatants.values()) {
-        scoreboard.push({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths, score: c.score, isBot: c.isBot, isSelf: c.id === this.selfId });
+        scoreboard.push({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths, score: c.score, isBot: c.isBot, isSelf: c.id === this.selfId, isBombCarrier: this.opts.mode==="searchdestroy"&&this.opts.team===this.searchDestroyState?.attackerTeam&&c.id===this.searchDestroyState?.bomb.carrierId });
       }
     } else {
       for (const c of this.combatants.values()) {
-        scoreboard.push({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths, score: this.opts.mode === "killconfirmed" || this.opts.mode === "ctf" ? c.score : c.kills, isBot: c.isBot, isSelf: false });
+        scoreboard.push({ id: c.id, name: c.name, team: c.team, kills: c.kills, deaths: c.deaths, score: this.opts.mode === "killconfirmed" || this.opts.mode === "ctf" ? c.score : c.kills, isBot: c.isBot, isSelf: false, isBombCarrier: this.opts.mode==="searchdestroy"&&this.opts.team===this.searchDestroyState?.attackerTeam&&c.id===this.searchDestroyState?.bomb.carrierId });
       }
-      scoreboard.push({ id: this.selfId, name: this.opts.playerName, team: this.opts.team as string, kills: this.kills, deaths: this.deaths, score: this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills, isBot: false, isSelf: true });
+      scoreboard.push({ id: this.selfId, name: this.opts.playerName, team: this.opts.team as string, kills: this.kills, deaths: this.deaths, score: this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills, isBot: false, isSelf: true, isBombCarrier: this.opts.mode==="searchdestroy"&&this.opts.team===this.searchDestroyState?.attackerTeam&&this.selfId===this.searchDestroyState?.bomb.carrierId });
     }
     scoreboard.sort((a, b) => b.score - a.score || b.kills - a.kills);
     const mechEnterAvailable=!this.mechActive&&this.alive&&this.opts.mode!=="gungame"&&
@@ -13833,7 +13877,7 @@ export class FPSEngine {
       playerTeam: this.opts.team as string,
       ctfFlags: this.opts.mode === "ctf" ? this.ctfFlags : undefined,
       hardpoint: this.hardpointState,
-      searchDestroy: this.searchDestroyState,
+      searchDestroy: this.searchDestroyState,\n       searchDestroyRoundNotice:this.searchDestroyRoundNotice,\n       searchDestroyInteraction:(()=>{const s=this.searchDestroyState;if(!s||!this.alive||s.phase==="preparation"||s.phase==="round_end"||s.phase==="match_end")return undefined;const sites=searchDestroySitesForMap(this.map.id,this.map.size);let kind:"plant"|"defuse"|"pickup"|undefined,label="",progress=0;if(s.bomb.status==="dropped"&&this.opts.team===s.attackerTeam&&Math.hypot(this.pos.x-s.bomb.pos[0],this.pos.z-s.bomb.pos[2])<=SEARCH_DESTROY_RULES.interactionRadius){kind="pickup";label="HOLD E TO PICK UP BOMB";}else if(s.phase==="planted"&&this.opts.team!==s.attackerTeam&&Math.hypot(this.pos.x-s.bomb.pos[0],this.pos.z-s.bomb.pos[2])<=SEARCH_DESTROY_RULES.interactionRadius){kind="defuse";label="HOLD E TO DEFUSE";const p=s.bomb.defuseProgress;progress=p?.playerId===this.selfId?Math.min(100,Math.max(0,(Date.now()-p.startedAt)/(SEARCH_DESTROY_RULES.defuseSeconds*1000)*100)):0;}else if(s.phase==="live"&&s.bomb.carrierId===this.selfId){const site=sites.reduce((a,b)=>Math.hypot(this.pos.x-a.pos[0],this.pos.z-a.pos[2])<=Math.hypot(this.pos.x-b.pos[0],this.pos.z-b.pos[2])?a:b);if(Math.hypot(this.pos.x-site.pos[0],this.pos.z-site.pos[2])<=site.radius){kind="plant";label=`HOLD E TO PLANT AT SITE ${site.id}`;const p=s.bomb.plantProgress;progress=p?.playerId===this.selfId?Math.min(100,Math.max(0,(Date.now()-p.startedAt)/(SEARCH_DESTROY_RULES.plantSeconds*1000)*100)):0;}}return kind?{kind,label,progress}:undefined;})(),
       searchDestroyCarrierName: this.searchDestroyState?.bomb.status==="carried"&&
         this.opts.team===this.searchDestroyState.attackerTeam&&this.searchDestroyState.bomb.carrierId
           ? this.combatants.get(this.searchDestroyState.bomb.carrierId)?.name : undefined,

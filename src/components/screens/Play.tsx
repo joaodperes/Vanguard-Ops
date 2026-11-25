@@ -191,8 +191,8 @@ export function Play() {
   // ---- Create Room: launch the match via the engine ----
   const handleCreate = async () => {
     const mode = roomConfig.mode;
-    if (mode === "ctf" && roomConfig.scoreLimit === 0 && roomConfig.timeLimit === 0) {
-      toast.error("Capture the Flag requires a capture target or a time limit.");
+    if ((mode === "ctf" || mode === "hardpoint") && roomConfig.scoreLimit === 0 && roomConfig.timeLimit === 0) {
+      toast.error(mode === "ctf" ? "Capture the Flag requires a capture target or a time limit." : "Hardpoint requires a capture score target or a time limit.");
       return;
     }
     const { mapId: selectedMap, teamSize } = resolveRoomSelection(mode, roomConfig.mapId, roomConfig.teamSize);
@@ -219,11 +219,13 @@ export function Play() {
       survivalPlayers: roomConfig.survivalPlayers,
       survivalTier: mode === "survival" ? roomConfig.survivalTier : undefined,
       // Round 19i: Pass custom limits for FFA/TDM.
-      scoreLimit: (mode === "ffa" || mode === "tdm" || mode === "killconfirmed" || mode === "ctf" || mode === "frontier") ? roomConfig.scoreLimit : undefined,
-      timeLimit: (mode === "ffa" || mode === "tdm" || mode === "killconfirmed" || mode === "ctf" || mode === "frontier") ? roomConfig.timeLimit : undefined,
+      scoreLimit: (mode === "ffa" || mode === "tdm" || mode === "killconfirmed" || mode === "ctf" || mode === "frontier" || mode === "hardpoint") ? roomConfig.scoreLimit : undefined,
+      timeLimit: (mode === "ffa" || mode === "tdm" || mode === "killconfirmed" || mode === "ctf" || mode === "frontier" || mode === "hardpoint") ? roomConfig.timeLimit : undefined,
       tagLifetimeMs: mode === "killconfirmed" ? roomConfig.tagLifetimeMs : undefined,
       ctfFlagResetMs: mode === "ctf" ? roomConfig.ctfFlagResetMs : undefined,
-      denialScoreEnabled: mode === "killconfirmed" ? roomConfig.denialScoreEnabled : undefined,
+      denialScoreEnabled: mode === "killconfirmed" ? roomConfig.denialScoreEnabled : undefined, 
+      searchDestroyRoundTimeSeconds: mode === "searchdestroy" ? roomConfig.searchDestroyRoundTimeSeconds : undefined,;
+      searchDestroyRoundsToWin: mode === "searchdestroy" ? roomConfig.searchDestroyRoundsToWin : undefined,
     };
     if (!(await prepareMatchLoadout())) return;
     setRoomConnect({ kind: "create", config, roomName: config.roomName || `${profile?.name ?? "Host"}'s Room` });
@@ -331,19 +333,19 @@ export function Play() {
                   <p className="text-xs text-white/50 mb-3">Choose a mode, then create a room with your preferred settings or browse active rooms.</p>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {(["ffa", "tdm", "killconfirmed", "ctf", "survival", "gungame", "searchdestroy", "hardpoint", "frontier"] as GameMode[]).map((m) => (
-                      <ModePickCard key={m} mode={m} selected={roomConfig.mode === m} onSelect={(mode) => setRoomConfig({ mode, fillWithBots: mode === "frontier" ? true : roomConfig.fillWithBots, mapId: mapAllowedForMode(mode,roomConfig.mapId)?roomConfig.mapId:mode==="ctf"?"forest_warfare":mode==="searchdestroy"||mode==="hardpoint"||mode==="frontier"?"dustwater":"compound", scoreLimit: MATCH_MODES[mode].defaultScoreLimit, timeLimit: MATCH_MODES[mode].defaultTimeLimit * 60 })} />
+                      <ModePickCard key={m} mode={m} selected={roomConfig.mode === m} onSelect={(mode) => setRoomConfig({ mode, fillWithBots: mode === "frontier" ? true : roomConfig.fillWithBots, mapId: mapAllowedForMode(mode,roomConfig.mapId)?roomConfig.mapId:mode==="ctf"?"forest_warfare":mode==="searchdestroy"||mode==="hardpoint"||mode==="frontier"?"dustwater":"compound", scoreLimit: MATCH_MODES[mode].defaultScoreLimit, timeLimit: MATCH_MODES[mode].defaultTimeLimit * 60, searchDestroyRoundTimeSeconds: 120, searchDestroyRoundsToWin: 6 })} />
                     ))}
                   </div>
 
                 </Section>
-                {(roomConfig.mode === "ffa" || roomConfig.mode === "tdm" || roomConfig.mode === "killconfirmed" || roomConfig.mode === "ctf" || roomConfig.mode === "frontier") && (
+                {(roomConfig.mode === "ffa" || roomConfig.mode === "tdm" || roomConfig.mode === "killconfirmed" || roomConfig.mode === "ctf" || roomConfig.mode === "frontier" || roomConfig.mode === "hardpoint") && (
                   <div className="relative min-h-0">
-                    <Section className="lg:absolute lg:inset-0 lg:overflow-y-auto" icon={<Target className="w-4 h-4 text-rose-400" />} title="Match Limits" hint={roomConfig.mode === "killconfirmed" ? "Choose tag and time limits" : "Set the score target and/or time limit (at least one required)"}>
+                    <Section className="lg:absolute lg:inset-0 lg:overflow-y-auto" icon={<Target className="w-4 h-4 text-rose-400" />} title="Match Limits" hint={roomConfig.mode === "searchdestroy" ? "Configure the round timer and rounds needed to win" : roomConfig.mode === "killconfirmed" ? "Choose tag and time limits" : "Set the score target and/or time limit (at least one required)"}>
                     <div className={roomConfig.mode === "killconfirmed" ? "grid grid-cols-1 sm:grid-cols-2 gap-2 items-start" : "grid grid-cols-1 sm:grid-cols-2 gap-3 items-start"}>
                       <div className={roomConfig.mode === "killconfirmed" ? "min-w-0 rounded-xl border border-white/5 bg-black/20 p-2" : "min-w-0 rounded-xl border border-white/5 bg-black/20 p-3"}>
-                        <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Trophy className="w-3 h-3" /> {roomConfig.mode === "ctf" ? "Flag Captures to Win" : roomConfig.mode === "killconfirmed" ? "Confirmed Tags Target" : "Kill Target"}</Label>
+                        <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Trophy className="w-3 h-3" /> {roomConfig.mode === "ctf" ? "Flag Captures to Win" : roomConfig.mode === "hardpoint" ? "Capture Score Target" : roomConfig.mode === "killconfirmed" ? "Confirmed Tags Target" : "Kill Target"}</Label>
                         <div className="flex flex-wrap gap-1.5">
-                          {(roomConfig.mode === "ctf" ? [0, 1, 2, 3, 5, 7] : roomConfig.mode === "killconfirmed" ? [0, 15, 30, 40, 50, 75, 100] : [0, 15, 25, 30, 40, 50, 60, 75, 100]).map((s) => (
+                          {(roomConfig.mode === "ctf" ? [0, 1, 2, 3, 5, 7] : roomConfig.mode === "hardpoint" ? [0, 100, 150, 200, 250, 300] : roomConfig.mode === "killconfirmed" ? [0, 15, 30, 40, 50, 75, 100] : [0, 15, 25, 30, 40, 50, 60, 75, 100]).map((s) => (
                             <button key={s} onClick={() => setRoomConfig({ scoreLimit: s, ...(roomConfig.mode === "ctf" && s === 0 && roomConfig.timeLimit === 0 ? { timeLimit: 600 } : {}) })}
                               className={`${roomConfig.mode === "killconfirmed" ? "px-2 py-1" : "px-2.5 py-1.5"} rounded-lg text-xs font-bold transition-colors ${roomConfig.scoreLimit === s ? "bg-rose-500/20 text-rose-300 border border-rose-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
                               {s === 0 ? "No limit" : s}
@@ -362,7 +364,7 @@ export function Play() {
                           ))}
                         </div>
                       </div>
-                      {roomConfig.mode === "ctf" && (
+                      </>}\n                      {roomConfig.mode === "ctf" && (
                         <div className="min-w-0 rounded-xl border border-white/5 bg-black/20 p-3">
                           <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Dropped Flag Reset</Label>
                           <div className="flex flex-wrap gap-1.5">

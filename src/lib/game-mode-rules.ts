@@ -59,6 +59,14 @@ export interface SearchDestroyState {
   lastRoundReason: "detonation" | "elimination" | "timeout" | "defuse" | null;
 }
 export interface SearchDestroySite { id: "A" | "B"; pos: ModeVec3; radius: number }
+/** Search & Destroy objective sites. Dustwater retains its authored sites; Verdant Ruins (compound) and Ridgefall (skybridge) use map-relative site locations. */
+export function searchDestroySitesForMap(mapId: string, mapSize: number): SearchDestroySite[] {
+  if (mapId === "dustwater") return [{id:"A",pos:[-42,0,-40],radius:5},{id:"B",pos:[-10,0,22.5],radius:5}];
+  const extent=Math.max(24,Math.min(62,mapSize*0.43));
+  const depth=Math.max(12,Math.min(42,mapSize*0.30));
+  return [{id:"A",pos:[-extent,0,-depth],radius:5},{id:"B",pos:[extent,0,-depth],radius:5}];
+}
+
 export interface SearchDestroyAction {
   kind: "plant" | "defuse" | "pickup" | "drop" | "cancel"; playerId: string; team: ModeTeam;
   pos: ModeVec3; alive: boolean; siteId?: "A" | "B";
@@ -99,7 +107,7 @@ export function beginNextSearchDestroyRound(
       Math.max(state.roundWins.red, state.roundWins.blue) >= SEARCH_DESTROY_RULES.roundsToWin) return;
   state.round += 1; state.phase = "preparation";
   state.preparationEndsAt = now + SEARCH_DESTROY_RULES.preparationSeconds * 1000;
-  state.roundEndsAt = now + (SEARCH_DESTROY_RULES.preparationSeconds + SEARCH_DESTROY_RULES.roundSeconds) * 1000;
+  state.roundEndsAt = now + (SEARCH_DESTROY_RULES.preparationSeconds + state.roundSeconds) * 1000;
   state.bomb = { status: "carried", carrierId, pos: [...carrierPos], siteId: null,
     plantedAt: null, detonatesAt: null, plantProgress: null, defuseProgress: null };
 }
@@ -110,10 +118,10 @@ export function finishSearchDestroyRound(
   state.roundWins[winner] += 1; state.lastRoundWinner = winner; state.lastRoundReason = reason;
   state.phase = "round_end";
   const events: SearchDestroyEvent[] = [{ type: "round_won", winner, reason, round: state.round }];
-  if (state.roundWins[winner] >= SEARCH_DESTROY_RULES.roundsToWin || state.round >= SEARCH_DESTROY_RULES.maxRounds) {
+  if (state.roundWins[winner] >= state.roundsToWin || state.round >= state.maxRounds) {
     state.phase = "match_end"; events.push({ type: "match_won", winner }); return events;
   }
-  if (state.round === SEARCH_DESTROY_RULES.sideSwitchAfter) {
+  if (state.round === state.sideSwitchAfter) {
     state.attackerTeam = otherTeam(state.attackerTeam);
     events.push({ type: "side_switch", attackerTeam: state.attackerTeam });
   }
@@ -201,14 +209,17 @@ export function tickSearchDestroy(
 
 export interface HardpointZone { id: string; pos: ModeVec3; radius?: number }
 export interface HardpointState {
-  activeIndex: number; nextIndex: number; phase: "active" | "transition"; phaseEndsAt: number;
+  activeIndex: number; nextIndex: number; zoneOrder: number[]; rotationIndex: number;
+  phase: "active" | "transition"; phaseEndsAt: number;
   scores: Record<ModeTeam, number>; objectiveMs: Record<ModeTeam, number>;
   captures: Record<ModeTeam, number>; contestedMs: Record<ModeTeam, number>;
   owner: ModeTeam | "contested" | "neutral";
 }
 export interface HardpointTickResult { state: HardpointState; scored: ModeTeam | null; rotated: boolean }
-export function createHardpointState(now: number): HardpointState {
-  return { activeIndex: 0, nextIndex: 1, phase: "active",
+export function createHardpointState(now: number, zoneCount = HARDPOINT_RULES.zoneCount, randomize = false): HardpointState {
+  const zoneOrder = Array.from({length: zoneCount}, (_,i)=>i);
+  if(randomize)for(let i=zoneOrder.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[zoneOrder[i],zoneOrder[j]]=[zoneOrder[j],zoneOrder[i]];}
+  return { activeIndex: zoneOrder[0]??0, nextIndex: zoneOrder[1]??zoneOrder[0]??0, zoneOrder, rotationIndex: 0, phase: "active",
     phaseEndsAt: now + HARDPOINT_RULES.rotationSeconds * 1000,
     scores: { red: 0, blue: 0 }, objectiveMs: { red: 0, blue: 0 },
     captures: { red: 0, blue: 0 }, contestedMs: { red: 0, blue: 0 }, owner: "neutral" };
@@ -221,10 +232,11 @@ export function tickHardpoint(
   if (now >= state.phaseEndsAt) {
     if (state.phase === "active") {
       state.phase = "transition"; state.phaseEndsAt = now + HARDPOINT_RULES.transitionSeconds * 1000;
-      state.nextIndex = (state.activeIndex + 1) % zones.length; state.owner = "neutral";
+      state.nextIndex = state.zoneOrder[(state.rotationIndex + 1) % zones.length] ?? (state.activeIndex + 1) % zones.length; state.owner = "neutral";
     } else {
       state.phase = "active"; state.activeIndex = state.nextIndex;
-      state.nextIndex = (state.activeIndex + 1) % zones.length;
+      state.rotationIndex = (state.rotationIndex + 1) % zones.length;
+      state.nextIndex = state.zoneOrder[(state.rotationIndex + 1) % zones.length] ?? (state.activeIndex + 1) % zones.length;
       state.phaseEndsAt = now + HARDPOINT_RULES.rotationSeconds * 1000;
       state.owner = "neutral"; rotated = true;
     }
