@@ -119,7 +119,8 @@ export interface CreateRoomConfig {
   tagLifetimeMs?: number;   // Kill Confirmed dogtag lifetime in ms; -1 means infinite
   ctfFlagResetMs?: number;  // CTF dropped flag return timer; -1 means never
   denialScoreEnabled?: boolean; // +1 team/player point for recovering friendly dogtags 
-  searchDestroyRoundTimeSeconds?: number; // Search & Destroy round duration, seconds\n  searchDestroyRoundsToWin?: number; // Search & Destroy rounds required to win the match
+  searchDestroyRoundTimeSeconds?: number; // Search & Destroy round duration, seconds;
+  searchDestroyRoundsToWin?: number; // Search & Destroy rounds required to win the match
   gungamePreset?: "all" | "cqc" | "long_range";
   gungameMultiplier?: number; // whole list 1–5 times; default 1
   survivalPlayers?: 1 | 2; // max human co-op partners, defaults to solo
@@ -1680,7 +1681,8 @@ export interface MatchConfig {
   objectiveBotStyle?: "balanced" | "aggressive" | "defensive";
   searchDestroyRound?: number;
   searchDestroyWins?: { red: number; blue: number }; 
-  searchDestroyRoundTimeSeconds?: number;\n  searchDestroyRoundsToWin?: number;
+  searchDestroyRoundTimeSeconds?: number;;
+  searchDestroyRoundsToWin?: number;
   hardpointZone?: number;
   hardpointProgress?: number;
   botCount: number;
