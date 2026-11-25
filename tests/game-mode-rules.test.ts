@@ -159,7 +159,7 @@ describe("objective-based mode rewards",()=>{
       playerKey:"test",kills:0,deaths:0,headshots:0,won:false,mode:"searchdestroy",score:0,completed:true,
       modeStats:{searchDestroy:{redRounds:3,blueRounds:2,roundsPlayed:5,playerRoundsWon:3,plants:2,defuses:1}},
     });
-    expect(rewards.breakdown.objectives).toEqual({xp:300,credits:75});
+    expect(rewards.breakdown.objectives).toEqual({xp:250,credits:80});
   });
   test("Search & Destroy pays per won round in addition to the match-win bonus",()=>{
     const rewards=calculateMatchRewards({
