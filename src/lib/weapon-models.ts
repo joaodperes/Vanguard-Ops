@@ -323,14 +323,24 @@ export function buildFirstPersonWeapon(
   // colored signature inserts, dark rails, magazine trim and energy details.
   // Non-default skins recolor every signature insert (stock butt, magazine foot
   // and rail badges), avoiding the original weapon's gold/yellow accent bleeding through.
-  const sig = fullSkinMaterial ?? signatureMaterial ?? new THREE.MeshBasicMaterial({ color: p.signature });
-  const metal = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: 0x29313b });
-  const edge = fullSkinMaterial ?? new THREE.MeshBasicMaterial({ color: 0x69737e });
   // Traditional sporting and service rifles use recognisable timber furniture.
   const woodenFurniture = id === "sniper_scout" || id === "dmr_heavy" || id === "shotgun_br";
   const woodMat = new THREE.MeshStandardMaterial({ color: 0x80502d, roughness: 0.82, metalness: 0.02 });
   const woodDarkMat = new THREE.MeshStandardMaterial({ color: 0x55331f, roughness: 0.88, metalness: 0.01 });
-  const box = (x:number,y:number,z:number,ww:number,hh:number,ll:number,material:THREE.Material=bodyMat) => {
+  // The Bastion gets an aged, blued-steel finish rather than the clean grey
+  // polymer/metal palette used by modern sidearms. Keep this local so other
+  // weapons and shared engine materials are not mutated.
+  const bastion = id === "pistol_bastion";
+  const bastionSteel = new THREE.MeshStandardMaterial({ color: 0x45443f, roughness: 0.58, metalness: 0.82 });
+  const bastionDarkSteel = new THREE.MeshStandardMaterial({ color: 0x292a28, roughness: 0.68, metalness: 0.76 });
+  const bastionWornSteel = new THREE.MeshStandardMaterial({ color: 0x827b6b, roughness: 0.48, metalness: 0.86 });
+  const sig = fullSkinMaterial ?? signatureMaterial ?? (bastion ? bastionDarkSteel : new THREE.MeshBasicMaterial({ color: p.signature }));
+  const metal = fullSkinMaterial ?? (bastion ? bastionSteel : new THREE.MeshBasicMaterial({ color: 0x29313b }));
+  const edge = fullSkinMaterial ?? (bastion ? bastionWornSteel : new THREE.MeshBasicMaterial({ color: 0x69737e }));
+  // Wooden receivers are the visible body shell, not merely a timber fore-end.
+  const receiverMat = woodenFurniture ? woodMat : (bastion ? bastionSteel : bodyMat);
+  const frameMat = bastion ? bastionSteel : bodyMat;
+  const box = (x:number,y:number,z:number,ww:number,hh:number,ll:number,material:THREE.Material=receiverMat) => {
     const m = new THREE.Mesh(new THREE.BoxGeometry(ww,hh,ll),material);
     add(m,x,y,z);
     return m;
@@ -357,7 +367,7 @@ export function buildFirstPersonWeapon(
   shape.closePath();
   const geo = new THREE.ExtrudeGeometry(shape,{depth:w, bevelEnabled:true, bevelThickness:.006, bevelSize:.006, bevelSegments:1,steps:1});
   geo.rotateY(Math.PI/2); // polygon's local x becomes -Z; extrusion depth becomes +X
-  const receiver = new THREE.Mesh(geo,bodyMat);
+  const receiver = new THREE.Mesh(geo,receiverMat);
   receiver.name = "weapon_receiver";
   // A conventional pistol's extruded receiver fills the cylinder aperture
   // and hides the rounded chamber profile. Bastion instead uses an OPEN,
@@ -366,7 +376,7 @@ export function buildFirstPersonWeapon(
   else geo.dispose();
   if(id==="pistol_bastion"){
     const top=box(BASTION_TOPSTRAP.x,BASTION_TOPSTRAP.y,BASTION_TOPSTRAP.z,
-      BASTION_TOPSTRAP.width,BASTION_TOPSTRAP.height,BASTION_TOPSTRAP.length,bodyMat);
+      BASTION_TOPSTRAP.width,BASTION_TOPSTRAP.height,BASTION_TOPSTRAP.length,frameMat);
     top.name="bastion_topstrap";
     // A revolver needs an actual REAR FRAME, not just a top rail and six
     // floating chambers. The previous tiny square recoil-shield ended before
@@ -375,18 +385,18 @@ export function buildFirstPersonWeapon(
     // (rear of cylinder: z=-.099; front of shield: z=-.096), while remaining
     // fixed to the frame when the cylinder swings sideways for reloading.
     const recoilShield=new THREE.Mesh(
-      new THREE.CylinderGeometry(.089,.084,.066,24),bodyMat);
+      new THREE.CylinderGeometry(.089,.084,.066,24),frameMat);
     recoilShield.name="bastion_recoil_shield";
     recoilShield.rotation.x=Math.PI/2; // circular XY silhouette, barrel-parallel axis
     add(recoilShield,0,-.027,-.063);
     // Continuous rounded backstrap connects the upper frame, recoil shield,
     // hammer housing and wooden grip. Unlike the removed generic receiver,
     // this fills the rear void WITHOUT swallowing the exposed cylinder.
-    const backstrap=new THREE.Mesh(new THREE.CapsuleGeometry(.054,.126,8,16),bodyMat);
+    const backstrap=new THREE.Mesh(new THREE.CapsuleGeometry(.054,.126,8,16),frameMat);
     backstrap.name="bastion_solid_backstrap";
     backstrap.rotation.x=-.18;
     add(backstrap,0,-.128,-.006);
-    const lowerBridge=box(0,-.126,-.091,.075,.030,.112,bodyMat);
+    const lowerBridge=box(0,-.126,-.091,.075,.030,.112,frameMat);
     lowerBridge.name="bastion_lower_frame_bridge";
     // Cast side cheeks are thick, closed plates, not skinny wire outlines.
     // They overlap the round recoil shield and topstrap at their upper edge,
@@ -407,7 +417,7 @@ export function buildFirstPersonWeapon(
         bevelSize:.003,bevelSegments:2,steps:1,
       });
       geo.rotateY(Math.PI/2); // authored z/y outline -> weapon Z/Y, extrude along X
-      const cheek=new THREE.Mesh(geo,bodyMat);
+      const cheek=new THREE.Mesh(geo,frameMat);
       cheek.name=side>0?"bastion_right_frame_cheek":"bastion_left_frame_cheek";
       add(cheek,side>0?.049:-.071,0,0);
       // Barrel-to-frame yoke rails curve around the cylinder and terminate IN
@@ -424,10 +434,31 @@ export function buildFirstPersonWeapon(
       rail.name="bastion_curved_frame_rail";
       add(rail,0,0,0);
     }
-    const grip=new THREE.Mesh(new THREE.CapsuleGeometry(.045,.13,6,14),darkMat);
+    const grip=new THREE.Mesh(new THREE.CapsuleGeometry(.045,.13,6,14),bastion ? bastionDarkSteel : darkMat);
     grip.name="bastion_rounded_grip";
     grip.rotation.x=-.22;
     add(grip,0,-.183,.025);
+    // Exposed pin heads, cylinder latch and worn frame highlights give the
+    // revolver the hand-fitted, hard-used character of an old frontier sidearm.
+    for (const side of [-1,1]) {
+      for (const [z,y,r] of [[-.205,-.035,.010],[-.105,-.145,.008],[.005,-.115,.007]] as const) {
+        const pin = new THREE.Mesh(new THREE.CylinderGeometry(r,r,.006,12),bastionWornSteel);
+        pin.rotation.z=Math.PI/2;
+        add(pin,side*.073,y,z);
+      }
+      const latch = new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,.012,12),bastionDarkSteel);
+      latch.rotation.z=Math.PI/2;
+      add(latch,side*.077,.005,-.105);
+      // Small rubbed edges on the frame, deliberately subtle rather than chrome.
+      const wear = box(side*.072,-.075,-.205,.003,.012,.045,bastionWornSteel);
+      wear.name = "bastion_worn_frame_edge";
+    }
+    // A dark, worn cylinder separates visually from the frame without reading
+    // as a bright modern alloy; the flutes remain visible in side lighting.
+    const cylinderBand = new THREE.Mesh(new THREE.TorusGeometry(.073,.004,6,24),bastionWornSteel);
+    cylinderBand.name = "bastion_cylinder_wear_band";
+    cylinderBand.rotation.x=Math.PI/2;
+    add(cylinderBand,0,-.027,-.151);
     // A separately curved trigger guard connects the frame to the grip.
     const triggerLoop=new THREE.CatmullRomCurve3([
       new THREE.Vector3(-.012,-.115,-.115),
