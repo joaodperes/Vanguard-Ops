@@ -868,7 +868,19 @@ export class FPSEngine {
   }
   private refillCurrentAkimboAmmo(){
     const capacity=akimboHandCapacity(this.eff.magSize);
-    this.akimboAmmo.left=capacity;this.akimboAmmo.right=capacity;
+    if(this.opts.mode==="frontier"&&this.frontierAmmoRemaining!==undefined){
+      // Frontier ammo is a total-round pool. Reload transfers reserve into the
+      // cylinders; it must never manufacture rounds or refill already-full hands.
+      let reserve=Math.max(0,this.frontierAmmoRemaining-this.akimboAmmo.left-this.akimboAmmo.right);
+      for(const hand of ["left","right"] as const){
+        const missing=Math.max(0,capacity-this.akimboAmmo[hand]);
+        const loaded=Math.min(missing,reserve);
+        this.akimboAmmo[hand]+=loaded;reserve-=loaded;
+      }
+      this.ammoInMag=this.akimboAmmo.left+this.akimboAmmo.right;
+    }else{
+      this.akimboAmmo.left=capacity;this.akimboAmmo.right=capacity;
+    }
     this.akimboPending.left=this.akimboPending.right=-Infinity;
   }
   private isAkimboActive():boolean{
@@ -11030,6 +11042,8 @@ export class FPSEngine {
         this.getCurrentAttachments().magazine==="mag_bolt_heavy") return; // scavenged heavy arrows only
     if (this.reloading || this.ammoInMag >= this.eff.magSize || !this.alive ||
         !canStartWeaponReload(weaponById(this.weaponId).stats, this.ammoInMag)) return;
+    if(this.opts.mode==="frontier"&&this.frontierAmmoRemaining!==undefined&&
+      this.frontierAmmoRemaining<=this.ammoInMag)return;
     if (this.sprinting && this.activePerkId !== "field_loader") return;
     // Melee weapons don't reload.
     if (weaponById(this.weaponId).category === "melee") return;
@@ -11052,6 +11066,14 @@ export class FPSEngine {
       duration = crossbowReloadCycleMs(this.eff.reloadTime, special.quickReloadSeconds, reclaimed) / 1000;
     }
     this.reloadStartedAt = performance.now();
+    // Frontier reloads are deliberately longer, but topping up only one
+    // akimbo cylinder is quicker than servicing both.
+    if(this.opts.mode==="frontier"&&this.isAkimboActive()){
+      const capacity=akimboHandCapacity(this.eff.magSize);
+      const needsReload=[this.akimboAmmo.left,this.akimboAmmo.right].filter(n=>n<capacity).length;
+      if(needsReload===1)duration*=.72;
+    }
+    if(this.opts.mode==="frontier")duration*=1.12;
     this.reloadDurationMs = duration * 1000 * reloadDurationMultiplier(this.activePerkId) *
       (this.opts.mode==="survival"?survivalReloadMultiplier(this.survivalUpgradeRanks,performance.now()-this.survivalLastKillAt):1);
     this.reloadEndsAt = this.reloadStartedAt + this.reloadDurationMs;
@@ -11439,7 +11461,10 @@ export class FPSEngine {
     } else if (this.reloading && performance.now() >= this.reloadEndsAt) {
       this.reloading = false;
       if (weaponById(this.weaponId).special?.kind === "heat") this.heatStates.set(this.weaponId, freshHeat());
-      else this.ammoInMag = this.eff.magSize;
+      else if(this.opts.mode==="frontier"&&this.frontierAmmoRemaining!==undefined){
+        const reserve=Math.max(0,this.frontierAmmoRemaining-this.ammoInMag);
+        this.ammoInMag=Math.min(this.eff.magSize,this.ammoInMag+reserve);
+      }else this.ammoInMag = this.eff.magSize;
       if(this.weaponId==="pistol_bastion")this.sound.play("revolver_close",{volume:.54});
       if(this.isAkimboActive())this.refillCurrentAkimboAmmo();
       this.saveAmmoToSlot(this.currentSlot);
