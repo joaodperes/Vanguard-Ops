@@ -390,7 +390,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, operationId
           <div className="bg-black/70 backdrop-blur-sm border border-amber-500/30 rounded-xl px-8 py-6 text-center">
             <div className="text-2xl font-bold tracking-widest text-amber-300 mb-1">{tutorial ? "TAP TO TRAIN" : firingRange ? "TAP TO TEST" : "TAP TO PLAY"}</div>
             <div className="text-sm text-white/60">Left stick to move (push far = sprint) · Drag right to look</div>
-            <div className="text-xs text-white/40 mt-1">Left: Jump + weapon swap · Right: Fire + ADS + Reload + Quick Melee</div>
+            <div className="text-xs text-white/40 mt-1">Left: Jump + weapon swap · Right: Fire + ADS + Reload + Quick Melee{mode === "frontier" ? " + Dodge" : " + Tactical"}</div>
             <div className="text-xs text-white/40 mt-2">{operationId ? "Operations" : mode === "survival" ? "Survival" : mode === "ctf" ? "Capture the Flag" : mode === "tdm" ? "Team Deathmatch" : mode === "killconfirmed" ? "Kill Confirmed" : mode === "gungame" ? "Gun Game" : "Free-For-All"} · {hud?.mapName ? displayMapLabel(hud.mapName) : ""}</div>
           </div>
         </button>
