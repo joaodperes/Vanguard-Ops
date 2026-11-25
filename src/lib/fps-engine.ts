@@ -9752,18 +9752,8 @@ export class FPSEngine {
         this.damageEnvironmentWall(cover.box.environmentId, this.eff.damage);
         return null;
       }
-      const escort=this.operationEscortTarget();
-      const cartHit=escort?rayBox(origin,dir,[escort.pos[0],escort.pos[1]+.85,escort.pos[2]],[2,1.5,3]):null;
-      const resolved=resolveMaterialPenetrationShot(contacts,this.coverForRay(origin,dir,maxDistance),origin,dir,maxDistance,
-        this.eff.bodyPenetration,this.eff.coverPenetration,this.weaponId==="wonder_phasebreaker");
-      const hits=resolved.hits;
-      if(escort&&cartHit!==null&&cartHit<(hits[0]?.t??Infinity)&&cartHit<=resolved.stoppedAt){
-        const dealt=damageAtRange(this.eff.damage,cartHit,this.eff.range,this.eff)*0.65*survivalWaveDamageMul(this.survivalWave)*survivalWaveMutators(this.survivalTier,this.survivalWave).damageMul;
-        this.operation!.escortHp=Math.max(0,(this.operation!.escortHp??0)-dealt);
-        this.hitMarkerAt=performance.now();
-        if(this.operation!.escortHp<=0)this.operationNotice={kind:"objective",message:"ESCORT VEHICLE DESTROYED",at:performance.now()};
-        return null;
-      }
+      // The escort cart is an opaque, non-friendly objective collider. Player
+      // fire must not damage it; the shared cart cover box absorbs the shot.
       this.damageLocalBallisticCover(origin,dir,maxDistance,this.eff.coverPenetration??0,this.eff.damage,
         resolved.stoppedAt);
       let firstVictim: Combatant | null = null;
@@ -9827,15 +9817,8 @@ export class FPSEngine {
       const t = rayBox(origin, dir, cov.pos, cov.size);
       if (t !== null && t < blockedT) blockedT = t;
     }
-    const escort=this.operationEscortTarget();
-    const cartHit=escort?rayBox(origin,dir,[escort.pos[0],escort.pos[1]+.85,escort.pos[2]],[2,1.5,3]):null;
-    if(escort&&cartHit!==null&&cartHit<blockedT&&cartHit<(nearest?.t??Infinity)){
-      const dealt=damageAtRange(this.eff.damage,cartHit,this.eff.range,this.eff)*0.65*survivalWaveDamageMul(this.survivalWave)*survivalWaveMutators(this.survivalTier,this.survivalWave).damageMul;
-      this.operation!.escortHp=Math.max(0,(this.operation!.escortHp??0)-dealt);
-      this.hitMarkerAt=performance.now();
-      if(this.operation!.escortHp<=0)this.operationNotice={kind:"objective",message:"ESCORT VEHICLE DESTROYED",at:performance.now()};
-      return null;
-    }
+    // The cart is represented by the same opaque collision box as its visible
+    // model; only hostile AI is allowed to damage it.
     // Ordinary calibers still crack, splinter or mark the first tagged panel,
     // even when they have no penetration budget at all.
     this.damageLocalBallisticCover(origin,dir,maxWeaponHitRange(this.eff.range,this.eff),0,this.eff.damage,
@@ -13422,7 +13405,7 @@ export class FPSEngine {
       eff.bodyPenetration,eff.coverPenetration);
     let hits=resolved.hits;
     if(escort&&!isThrowingKnife(attacker.weaponId)){
-      const cartHit=rayBox(origin,dir,[escort.pos[0],escort.pos[1]+.85,escort.pos[2]],[2,1.5,3]);
+      const cartHit=rayBox(origin,dir,[escort.pos[0],escort.pos[1]+.85,escort.pos[2]],[1.25,.75,1.65]);
       if(cartHit!==null&&cartHit<(hits[0]?.t??Infinity)&&cartHit<=resolved.stoppedAt){
         const dealt=damageAtRange(eff.damage,cartHit,eff.range,eff)*0.65*survivalWaveDamageMul(this.survivalWave)*survivalWaveMutators(this.survivalTier,this.survivalWave).damageMul;
         this.operation!.escortHp=Math.max(0,(this.operation!.escortHp??0)-dealt);
