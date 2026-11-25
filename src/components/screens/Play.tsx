@@ -341,25 +341,25 @@ export function Play() {
                 {(roomConfig.mode === "ffa" || roomConfig.mode === "tdm" || roomConfig.mode === "killconfirmed" || roomConfig.mode === "ctf" || roomConfig.mode === "frontier" || roomConfig.mode === "hardpoint" || roomConfig.mode === "searchdestroy") && (
                   <div className="relative min-h-0">
                     <Section className="h-full" icon={<Target className="w-4 h-4 text-rose-400" />} title="Match Limits" hint={roomConfig.mode === "searchdestroy" ? "Configure match time and round wins" : roomConfig.mode === "killconfirmed" ? "Choose tag and time limits" : "Set the score target and/or time limit (at least one required)"}>
-                    <div className={roomConfig.mode === "killconfirmed" ? "grid grid-cols-1 sm:grid-cols-2 gap-2 items-start" : "grid grid-cols-1 sm:grid-cols-2 gap-3 items-start"}>
+                    <div className="grid grid-cols-1 gap-3 items-start">
                       {roomConfig.mode !== "searchdestroy" && <>
-                      <div className={roomConfig.mode === "killconfirmed" ? "min-w-0 rounded-xl border border-white/5 bg-black/20 p-2" : "min-w-0 rounded-xl border border-white/5 bg-black/20 p-3"}>
+                      <div className={"min-w-0 rounded-xl border border-white/5 bg-black/20 p-3"}>
                         <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Trophy className="w-3 h-3" /> {roomConfig.mode === "ctf" ? "Flag Captures to Win" : roomConfig.mode === "hardpoint" ? "Capture Score Target" : roomConfig.mode === "killconfirmed" ? "Confirmed Tags Target" : "Kill Target"}</Label>
                         <div className="flex flex-wrap gap-1.5">
                           {(roomConfig.mode === "ctf" ? [0, 1, 2, 3, 5, 7] : roomConfig.mode === "hardpoint" ? [0, 100, 150, 200, 250, 300] : roomConfig.mode === "killconfirmed" ? [0, 15, 30, 40, 50, 75, 100] : [0, 15, 25, 30, 40, 50, 60, 75, 100]).map((s) => (
                             <button key={s} onClick={() => setRoomConfig({ scoreLimit: s, ...(roomConfig.mode === "ctf" && s === 0 && roomConfig.timeLimit === 0 ? { timeLimit: 600 } : {}) })}
-                              className={`${roomConfig.mode === "killconfirmed" ? "px-2 py-1" : "px-2.5 py-1.5"} rounded-lg text-xs font-bold transition-colors ${roomConfig.scoreLimit === s ? "bg-rose-500/20 text-rose-300 border border-rose-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
+                              className={`${"px-2.5 py-1.5"} rounded-lg text-xs font-bold transition-colors ${roomConfig.scoreLimit === s ? "bg-rose-500/20 text-rose-300 border border-rose-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
                               {s === 0 ? "No limit" : s}
                             </button>
                           ))}
                         </div>
                       </div>
-                      <div className={roomConfig.mode === "killconfirmed" ? "min-w-0 rounded-xl border border-white/5 bg-black/20 p-2" : "min-w-0 rounded-xl border border-white/5 bg-black/20 p-3"}>
+                      <div className={"min-w-0 rounded-xl border border-white/5 bg-black/20 p-3"}>
                         <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Time Limit</Label>
                         <div className="flex flex-wrap gap-1.5">
                           {(roomConfig.mode === "killconfirmed" ? [0, 300, 600, 900, 1200] : [0, 180, 300, 360, 480, 600, 900]).map((t) => (
                             <button key={t} onClick={() => setRoomConfig({ timeLimit: t, ...(roomConfig.mode === "ctf" && t === 0 && roomConfig.scoreLimit === 0 ? { scoreLimit: 3 } : {}) })}
-                              className={`${roomConfig.mode === "killconfirmed" ? "px-2 py-1" : "px-2.5 py-1.5"} rounded-lg text-xs font-bold transition-colors ${roomConfig.timeLimit === t ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
+                              className={`${"px-2.5 py-1.5"} rounded-lg text-xs font-bold transition-colors ${roomConfig.timeLimit === t ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40" : "bg-zinc-900/50 text-white/50 border border-white/10 hover:border-white/20"}`}>
                               {t === 0 ? "No limit" : `${t / 60}m`}
                             </button>
                           ))}
@@ -460,32 +460,39 @@ export function Play() {
                 )}
                 {roomConfig.mode === "gungame" && (
                   <div className="relative min-h-0">
-                    <div className="lg:absolute lg:inset-0 lg:overflow-y-auto rounded-2xl border border-purple-500/20 bg-purple-500/5 p-5 space-y-4">
-                    <div>
-                      <div className="text-white font-semibold text-sm mb-1">Gun Game weapon pool</div>
-                      <p className="text-white/40 text-xs mb-2">30 tiers per cycle. The last tier of each cycle is melee; the final melee kill wins.</p>
-                      <div className="flex flex-wrap gap-2">
-                        {([ {id:"all",label:"All Weapons"},{id:"cqc",label:"Close Quarters"},{id:"long_range",label:"Long Range"}] as const).map(o => (
-                          <button type="button" key={o.id} onClick={() => setRoomConfig({gungamePreset:o.id})}
-                            className={`px-3 py-2 rounded-lg border text-xs font-semibold ${roomConfig.gungamePreset === o.id ? "bg-purple-500/20 border-purple-400/60 text-purple-200" : "bg-black/20 border-white/10 text-white/50 hover:text-white"}`}>
-                            {o.label}
-                          </button>
-                        ))}
+                    <Section
+                      className="h-full lg:absolute lg:inset-0 lg:overflow-y-auto"
+                      icon={<Target className="w-4 h-4 text-purple-400" />}
+                      title="Gun Game Match Limits"
+                      hint="Configure the weapon pool and match length"
+                    >
+                      <div className="space-y-4">
+                        <div>
+                          <div className="text-white font-semibold text-sm mb-1">Weapon Pool</div>
+                          <p className="text-white/40 text-xs mb-2">30 tiers per cycle. The last tier of each cycle is melee; the final melee kill wins.</p>
+                          <div className="flex flex-wrap gap-2">
+                            {([ {id:"all",label:"All Weapons"},{id:"cqc",label:"Close Quarters"},{id:"long_range",label:"Long Range"}] as const).map(o => (
+                              <button type="button" key={o.id} onClick={() => setRoomConfig({gungamePreset:o.id})}
+                                className={`px-3 py-2 rounded-lg border text-xs font-semibold ${roomConfig.gungamePreset === o.id ? "bg-purple-500/20 border-purple-400/60 text-purple-200" : "bg-black/20 border-white/10 text-white/50 hover:text-white"}`}>
+                                {o.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-white font-semibold text-sm mb-2">Weapon List Multiplier</div>
+                          <div className="flex flex-wrap gap-2">
+                            {([1,2,3,4,5] as const).map(n => (
+                              <button type="button" key={n} onClick={() => setRoomConfig({gungameMultiplier:n})}
+                                className={`min-w-11 px-3 py-2 rounded-lg border text-xs font-bold ${roomConfig.gungameMultiplier === n ? "bg-purple-500/20 border-purple-400/60 text-purple-200" : "bg-black/20 border-white/10 text-white/50 hover:text-white"}`}>
+                                {n}×
+                              </button>
+                            ))}
+                          </div>
+                          <p className="text-white/40 text-xs mt-2">{30 * roomConfig.gungameMultiplier} weapon tiers total; default is 1× (30 tiers).</p>
+                        </div>
                       </div>
-                    </div>
-                    <div>
-                      <div className="text-white font-semibold text-sm mb-2">Weapon list multiplier</div>
-                      <div className="flex flex-wrap gap-2">
-                        {([1,2,3,4,5] as const).map(n => (
-                          <button type="button" key={n} onClick={() => setRoomConfig({gungameMultiplier:n})}
-                            className={`min-w-11 px-3 py-2 rounded-lg border text-xs font-bold ${roomConfig.gungameMultiplier === n ? "bg-purple-500/20 border-purple-400/60 text-purple-200" : "bg-black/20 border-white/10 text-white/50 hover:text-white"}`}>
-                            {n}×
-                          </button>
-                        ))}
-                      </div>
-                      <p className="text-white/40 text-xs mt-2">{30 * roomConfig.gungameMultiplier} weapon tiers total; default is 1× (30 tiers).</p>
-                    </div>
-                    </div>
+                    </Section>
                   </div>
                 )}
               </div>
