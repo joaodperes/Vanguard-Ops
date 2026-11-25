@@ -29,7 +29,7 @@ export function RoomLobby({ state, mode, operationId, onStart, onLeave, socketCo
 
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className="relative w-full max-w-lg mx-4 rounded-2xl border border-amber-500/30 bg-gradient-to-br from-zinc-900 via-zinc-900/95 to-black p-6 shadow-2xl shadow-amber-900/30 max-h-[90dvh] overflow-y-auto">
+      <div className="relative w-[min(96vw,76rem)] max-w-none mx-auto rounded-2xl border border-amber-500/30 bg-gradient-to-br from-zinc-900 via-zinc-900/95 to-black p-5 sm:p-7 shadow-2xl shadow-amber-900/30 max-h-[96dvh] overflow-hidden">
         {/* ambient glow */}
         <div className="absolute -top-20 -right-16 w-56 h-56 rounded-full blur-3xl opacity-25" style={{ background: "radial-gradient(circle, #f59e0b, transparent 70%)" }} />
         <div className="absolute -bottom-20 -left-16 w-48 h-48 rounded-full blur-3xl opacity-20" style={{ background: "radial-gradient(circle, #f43f5e, transparent 70%)" }} />
