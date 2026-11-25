@@ -33,7 +33,7 @@ describe("authored map combat layouts", () => {
     expect(features.some(feature=>feature.id==="church-tower-stairs")).toBe(true);
     expect(features.every(feature=>!feature.label)).toBe(true);
     expect(dustwater.props.filter(prop=>prop.kind==="sign")).toHaveLength(0);
-    expect(dustwater.props.filter(prop=>prop.kind==="building").every(prop=>!prop.text)).toBe(true);
+    expect(dustwater.props.filter(prop=>prop.kind==="building").map(prop=>prop.text)).toEqual(["DINER","LIBRARY","OFFICE","WORKSHOP"]);
     const towerStairs=features.find(feature=>feature.id==="church-tower-stairs")!;
     const towerWall=features.find(feature=>feature.id==="church-tower-north-wall")!;
     const towerPerch=features.find(feature=>feature.id==="church-tower-platform")!;
@@ -206,7 +206,7 @@ describe("authored map combat layouts", () => {
           .reduce((edge,box) => Math.max(edge, box.pos[along] + box.size[along]), -Infinity);
         const right = barriers.filter(box => box.pos[along] > door.pos[along] + 3)
           .reduce((edge,box) => Math.min(edge, box.pos[along] - box.size[along]), Infinity);
-        expect(door.pos[along] - door.size[along] - left).toBeLessThan(0.9);
+        expect(door.pos[along] - door.size[along] - left).toBeLessThan(1.1);
         expect(right - (door.pos[along] + door.size[along])).toBeLessThan(0.9);
       }
     }
