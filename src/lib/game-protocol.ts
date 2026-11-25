@@ -1640,7 +1640,7 @@ export type S2C =
   | { t: "modeEvent"; event: import("./game-mode-rules").SearchDestroyEvent }
   | { t: "tagCollected"; tagId: string; collectorId: string; action: "confirm" | "deny" }
   | { t: "respawn"; playerId: string; pos: Vec3; health: number }
-  | { t: "loadoutQueued"; loadout: LoadoutWire } // authoritative validated pending loadout
+  | { t: "loadoutQueued"; loadout: LoadoutWire; applyImmediately?: boolean } // validated queued kit; first-life choices can apply immediately
   | { t: "radarPing"; attackerId: string; pos: Vec3; expiresAt: number; durationMs?: number }
   | { t: "protectionEnded"; playerId: string }
   | { t: "knifeAmmo"; charges: number; rechargeMs: number }
