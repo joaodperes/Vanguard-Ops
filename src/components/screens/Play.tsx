@@ -330,7 +330,7 @@ export function Play() {
                 <Section className="h-full" icon={<Swords className="w-4 h-4 text-amber-400" />} title="Game Mode" hint="Choose the match type">
                   <p className="text-xs text-white/50 mb-3">Choose a mode, then create a room with your preferred settings or browse active rooms.</p>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {(["ffa", "tdm", "killconfirmed", "ctf", "searchdestroy", "hardpoint", "frontier", "survival", "gungame"] as GameMode[]).map((m) => (
+                    {(["ffa", "tdm", "killconfirmed", "ctf", "survival", "gungame", "searchdestroy", "hardpoint", "frontier"] as GameMode[]).map((m) => (
                       <ModePickCard key={m} mode={m} selected={roomConfig.mode === m} onSelect={(mode) => setRoomConfig({ mode, mapId: mapAllowedForMode(mode,roomConfig.mapId)?roomConfig.mapId:mode==="ctf"?"forest_warfare":mode==="searchdestroy"||mode==="hardpoint"||mode==="frontier"?"dustwater":"compound", scoreLimit: MATCH_MODES[mode].defaultScoreLimit, timeLimit: MATCH_MODES[mode].defaultTimeLimit * 60 })} />
                     ))}
                   </div>
