@@ -2276,7 +2276,6 @@ function applyQueuedLoadout(room: Room, p: PlayerNet) {
   p.weaponId = queued.emptyPrimary?(queued.secondaryWeaponId??"pistol_side"):queued.weaponId;
   if(room.mode==="frontier"){
     room.frontierAmmoRemaining??=new Map();
-    const mag=weaponById(p.weaponId).stats.magSize;
     const atts=loadout.secondaryWeaponId===p.weaponId?loadout.secondaryAttachments:loadout.attachments;
     const capacity=computeEffectiveStats(weaponById(p.weaponId),atts).magSize;
     room.frontierAmmoRemaining.set(p.id,capacity+frontierReserveAmmo(capacity*3));
