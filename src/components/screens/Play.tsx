@@ -583,7 +583,7 @@ export function Play() {
                 </Section>
                 {/* Bot difficulty (FFA / TDM / Gun Game only — survival scales per wave) */}
                 {roomConfig.mode !== "survival" && (
-                  <Section icon={<Gauge className="w-4 h-4 text-rose-400" />} title="Bot Fill & Difficulty" hint="Play without bots or choose their skill. Only active bot matches use difficulty-based rewards.">
+                  <Section icon={<Gauge className="w-4 h-4 text-rose-400" />} title={roomConfig.mode === "frontier" ? "Bot Difficulty" : "Bot Fill & Difficulty"} hint={roomConfig.mode === "frontier" ? "Frontier always fills open slots with bots. Choose their skill." : "Play without bots or choose their skill. Only active bot matches use difficulty-based rewards."}>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                       {BOT_DIFFICULTY_OPTIONS.filter(d => roomConfig.mode !== "frontier" || d.id !== "none").map((d) => {
                         const selected = d.id === "none" ? !roomConfig.fillWithBots : roomConfig.fillWithBots && roomConfig.botDifficulty === d.id;
