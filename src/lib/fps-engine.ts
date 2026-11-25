@@ -2633,7 +2633,7 @@ export class FPSEngine {
         // Add architectural identity and themed, collision-matched furniture
         // WITHOUT placing an unrelated solid box over an enterable doorway.
         const daylight=biome==="city_day";
-        const use=p.text?.trim().toUpperCase()==="CHURCH"?"church":p.use??"house";
+        const use=p.use??"house";
         const isRound=p.shape==="round";
         const facadeColor=new THREE.Color(CITY_USE_FACADE_COLORS[use]??0x9f8f87);
         facadeColor.lerp(new THREE.Color(CITY_FACADE_TINTS[p.facade??"brick"]),.39);
