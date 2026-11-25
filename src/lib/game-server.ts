@@ -969,7 +969,12 @@ function snapshot(room: Room): S2C {
       ctfBases: {red:ctfBase("red",room.map),blue:ctfBase("blue",room.map)}, ctfRulesVersion: 2 } : {}),
     ...(room.hardpointState ? { hardpoint: room.hardpointState } : {}),
     ...(room.searchDestroyState ? { searchDestroy: room.searchDestroyState } : {}),
-    ...(room.mode==="frontier" ? { frontierAmmoRemaining: Object.fromEntries([...room.players.values()].map(player=>{const mag=weaponById(player.weaponId).stats.magSize;return [player.id,room.frontierAmmoRemaining?.get(player.id)??(mag+frontierReserveAmmo(mag*3))] as const;})) } : {}),
+    ...(room.mode==="frontier" ? { frontierAmmoRemaining: Object.fromEntries([...room.players.values()].map(player=>{
+      const loadout=room.loadouts.get(player.id);
+      const attachments=loadout?.secondaryWeaponId===player.weaponId?loadout.secondaryAttachments:loadout?.attachments;
+      const mag=computeEffectiveStats(weaponById(player.weaponId),attachments).magSize;
+      return [player.id,room.frontierAmmoRemaining?.get(player.id)??(mag+frontierReserveAmmo(mag*3))] as const;
+    })) } : {}),
     ...(reactorObjective(room.map)?{
       orbitalCharge:room.orbitalCharge,
       orbitalHolders:[...room.orbitalHolders],orbitalRulesVersion:ORBITAL_RULES_VERSION,
@@ -2272,7 +2277,9 @@ function applyQueuedLoadout(room: Room, p: PlayerNet) {
   if(room.mode==="frontier"){
     room.frontierAmmoRemaining??=new Map();
     const mag=weaponById(p.weaponId).stats.magSize;
-    room.frontierAmmoRemaining.set(p.id,mag+frontierReserveAmmo(mag*3));
+    const atts=loadout.secondaryWeaponId===p.weaponId?loadout.secondaryAttachments:loadout.attachments;
+    const capacity=computeEffectiveStats(weaponById(p.weaponId),atts).magSize;
+    room.frontierAmmoRemaining.set(p.id,capacity+frontierReserveAmmo(capacity*3));
   }
   p.weaponSkinId = queued.weaponSkinId;
   p.playerSkinId = queued.playerSkinId;
@@ -5216,7 +5223,8 @@ async function handle(socket: any, msg: C2S) {
         player.charmId=loadout.primaryCharmId??"none";
         player.nameplateId=loadout.nameplateId??"standard";
         room.frontierAmmoRemaining??=new Map();
-        const mag=weaponById(player.weaponId).stats.magSize;
+        const atts=loadout.secondaryWeaponId===player.weaponId?loadout.secondaryAttachments:loadout.attachments;
+        const mag=computeEffectiveStats(weaponById(player.weaponId),atts).magSize;
         room.frontierAmmoRemaining.set(player.id,mag+frontierReserveAmmo(mag*3));
       }else{
         room.pendingLoadouts.set(socket.id,loadout);
