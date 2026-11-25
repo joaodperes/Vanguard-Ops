@@ -764,7 +764,7 @@ function launchRoomRound(old: Room, socketId: string, advanceOperation=false): b
   for (const [id, p] of old.players) {
     const loadout = old.pendingLoadouts.get(id) ?? old.loadouts.get(id)!;
     const fresh: PlayerNet = { ...p, kills: 0, deaths: 0, health: MAX_HEALTH, alive: true,
-      weaponId: loadout.weaponId, weaponSkinId: loadout.weaponSkinId, lastShotAt: 0,
+      weaponId: loadout.emptyPrimary?(loadout.secondaryWeaponId??"pistol_side"):loadout.weaponId, weaponSkinId: loadout.weaponSkinId, lastShotAt: 0,
       spawnProtectedUntil: Date.now() + 8000, pos: [0,0,0] };
     next.players.set(id, fresh); next.loadouts.set(id, loadout); next.sockets.set(id,id); next.scores.set(id,0);
     next.playerKeys.set(id, old.playerKeys.get(id)!);
