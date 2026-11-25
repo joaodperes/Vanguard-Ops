@@ -266,7 +266,7 @@ export interface CityFixture { x:number;z:number;w:number;d:number;h:number;styl
 export function cityInteriorFixtures(p:MapProp):CityFixture[]{
   const w=p.w??20,d=p.d??20,access=p.roofAccess??true,round=p.shape==="round";
   const out:CityFixture[]=[];
-  if(p.text?.trim().toUpperCase()==="CHURCH"){
+  if(p.use==="church"){
     for(const z of [-d*.22,0,d*.22])for(const x of [-w*.18,w*.18])
       out.push({x,z,w:2.7,d:.9,h:1.05,style:"pew"});
     out.push({x:0,z:-d*.36,w:4.2,d:1.5,h:1.25,style:"altar"});
@@ -413,12 +413,14 @@ export function cityBuildingBoxes(p:MapProp):CoverBox[]{
     put((ax+bx)/2,h+.16,(bz+d/2)/2,(bx-ax)/2,.16,(d/2-bz)/2,"platform");
     // Interior flight occupies its own east-side aisle, climbs toward
     // the back and terminates INSIDE the roof aperture.
-    const stairRise=h+.32,count=Math.ceil(stairRise/.39),tread=(d-5.2)/count;
+    const count=Math.ceil(h/.39),stairRise=h+.32,tread=(d-5.2)/count;
     const crest=-d/2+3.2;
     for(let i=0;i<count;i++){
       const height=stairRise*(i+1)/count,z=crest+(count-1-i)*tread;
       put(hatchX,height/2,z,1.15,height/2+.001,tread/2+.015,"stair");
     }
+    const landingOffset=Math.max(1.2,tread/2+.65);
+    put(hatchX,h+.16,crest+landingOffset,1.8,.16,.6,"platform");
     }else{
       // Sealed roof: no hatch, hidden stairs or fake fire-escape access.
       put(0,h+.16,0,w/2,.16,d/2,"platform");
