@@ -2830,7 +2830,7 @@ function updateRoomBots(room:Room,now:number):void{
     }
     if(room.mode==="searchdestroy"&&room.searchDestroyState){
       const state=room.searchDestroyState;
-      const sites:[number,number,number][]=[[-42,0,-40],[-10,0,22.5]];
+      const sites=searchDestroySitesForMap(room.map.id,room.map.size).map(site=>[...site.pos] as Vec3);
       if(state.phase==="planted"){
         bot.ai.wanderTarget=distributedObjectivePosition(state.bomb.pos,bot.id,2.5);
       }else if(state.phase==="live"&&bot.team===state.attackerTeam){
