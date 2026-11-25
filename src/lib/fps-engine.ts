@@ -334,7 +334,8 @@ export interface HudState {
   // when not sprinting (like health regen, but faster). At 0 stamina, sprint is
   // blocked until stamina regens above a small threshold.
   stamina: number;
-  staminaCooldownMs: number;  // 0 when regen is active, > 0 while waiting
+  staminaCooldownMs: number;
+  frontierDashCooldownMs?: number;  // 0 when regen is active, > 0 while waiting
   // Equipped weapon slot. Drives the HUD's weapon-slot indicator (1/2/3).
   weaponSlot: WeaponSlot;
   // Per-slot weapon names (so the HUD can show all three slots' weapons).
@@ -13936,6 +13937,7 @@ export class FPSEngine {
         ? Math.round(Math.hypot(this.pos.x-this.searchDestroyState.bomb.pos[0],this.pos.z-this.searchDestroyState.bomb.pos[2]))
         : undefined,
       frontierAmmoRemaining: this.frontierAmmoRemaining,
+      frontierDashCooldownMs: this.opts.mode==="frontier" ? Math.max(0,this.frontierDodgeReadyAt-now) : undefined,
       orbitalKillsRequired:reactorObjective(this.map)?.killsRequired,
       orbitalCharge:reactorObjective(this.map)?this.orbitalCharge:undefined,
       orbitalReaper:reactorObjective(this.map)?this.orbitalWeaponActive:undefined,
