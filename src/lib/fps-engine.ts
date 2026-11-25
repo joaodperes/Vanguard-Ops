@@ -1434,9 +1434,13 @@ export class FPSEngine {
     // Match the server's Frontier-safe fallback in offline and online play.
     // The mode has no unrestricted default loadout: use a legal rifle and
     // revolver when the saved account loadout contains disallowed weapons.
-    this.primaryWeaponId = opts.mode === "frontier" && !frontierWeaponIdAllowed(requestedPrimary)
+    const primaryAllowed = frontierWeaponIdAllowed(requestedPrimary) &&
+      !weaponById(requestedPrimary).disabled && !weaponById(requestedPrimary).wonder;
+    const secondaryAllowed = frontierWeaponIdAllowed(requestedSecondary) &&
+      !weaponById(requestedSecondary).disabled && !weaponById(requestedSecondary).wonder;
+    this.primaryWeaponId = opts.mode === "frontier" && !primaryAllowed
       ? "sniper_scout" : weaponById(requestedPrimary).disabled ? "rifle_ar" : requestedPrimary;
-    this.secondaryWeaponId = opts.mode === "frontier" && !frontierWeaponIdAllowed(requestedSecondary)
+    this.secondaryWeaponId = opts.mode === "frontier" && !secondaryAllowed
       ? "pistol_magnum" : weaponById(requestedSecondary).disabled
         ? "pistol_side" : requestedSecondary;
     this.meleeWeaponId = opts.loadout.meleeWeaponId ?? "knife_tactical";
