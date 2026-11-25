@@ -333,6 +333,7 @@ export interface HudState {
   weaponSlot: WeaponSlot;
   // Per-slot weapon names (so the HUD can show all three slots' weapons).
   primaryName: string;
+  emptyPrimary?: boolean;
   secondaryName: string;
   meleeName: string;
   wonderName?: string;
@@ -13861,7 +13862,8 @@ export class FPSEngine {
         : 0,
       // Equipped weapon slot + per-slot weapon names (for the HUD slot strip).
       weaponSlot: this.currentSlot,
-      primaryName: weaponById(this.primaryWeaponId).name,
+      primaryName: this.opts.loadout.emptyPrimary ? "Empty" : weaponById(this.primaryWeaponId).name,
+      emptyPrimary: this.opts.mode==="frontier"&&!!this.opts.loadout.emptyPrimary,
       secondaryName: weaponById(this.secondaryWeaponId).name,
       meleeName: weaponById(this.meleeWeaponId).name,
       ...(this.wonderWeaponId ? {wonderName:weaponById(this.wonderWeaponId).name,wonderWeaponId:this.wonderWeaponId} : {}),
