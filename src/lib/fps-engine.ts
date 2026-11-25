@@ -254,7 +254,7 @@ export interface HudState {
   kills: number;
   deaths: number;
   score: number;
-  teamScores: { red: number; blue: number };
+  teamScores: { red: number; blue: number };\n  teamAlive?: { red: number; blue: number };
   playerTeam?: string; // authoritative viewer team, also available before scoreboard synchronization
   ctfFlags?: CtfFlags;
   hardpoint?: import("./game-mode-rules").HardpointState;
