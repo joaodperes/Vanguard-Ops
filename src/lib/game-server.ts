@@ -1071,7 +1071,10 @@ function fireRay(room: Room, attackerId: string, origin: Vec3, dir: Vec3, weapon
     if (!p.alive) continue;
     if(p.id!==OPERATION_ESCORT_TARGET_ID&&room.config.friendlyFire===false&&p.team===attackerTeam&&room.mode!=="ffa"&&room.mode!=="gungame")continue;
     if(p.id===OPERATION_ESCORT_TARGET_ID){
-      const cartHit=rayBox(origin,dir,[p.pos[0],p.pos[1]+.85,p.pos[2]],[2,1.5,3]);
+      // Only hostile bots can damage the co-op escort objective. Human players
+      // are always on the protected side, regardless of their local team flag.
+      if (!attacker?.isBot) continue;
+      const cartHit=rayBox(origin,dir,[p.pos[0],p.pos[1]+.85,p.pos[2]],[1.25,.75,1.65]);
       if(cartHit!==null&&cartHit>=0&&cartHit<=range*falloffEndMultiplier&&(!nearest||cartHit<nearest.t))nearest={victim:p,t:cartHit,head:false};
       continue;
     }
@@ -1890,6 +1893,9 @@ function tickSpecialEffects(room: Room, now: number) {
 
 function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: number, head: boolean, weaponId: string, shieldHit=false, directLethal=false) {
   if (!victim.alive) return;
+  // Player bullets, explosives and status effects cannot damage the escort cart.
+  // Hostile bots and world hazards retain their existing damage behavior.
+  if (victim.id === OPERATION_ESCORT_TARGET_ID && room.players.has(attackerId)) return;
   const fellInLava = attackerId === "world" && weaponId === LAVA_DEATH_SOURCE;
   // Spawn protection: skip damage entirely if the victim is within their grace period.
   // This prevents bots from killing a freshly-spawned player before they can react.
