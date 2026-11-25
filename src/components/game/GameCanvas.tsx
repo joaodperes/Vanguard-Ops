@@ -454,7 +454,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, operationId
       )}
       {menuOpen && !lobbyActive && !hud?.matchEnding && (
         <InGameMenu page={menuPage} onPageChange={changeMenuPage} onResume={resumeGame}
-          onQuit={handleExit} onLoadoutSaved={queueSavedLoadout} queuedPresetId={queuedPresetId} online={online} mode={mode} />
+          onQuit={handleExit} onLoadoutSaved={queueSavedLoadout} onFrontierLoadoutSelected={queueFrontierLoadout} queuedPresetId={queuedPresetId} online={online} mode={mode} />
       )}
       {/* Failsafe exit button while lobby overlay is somehow missing but the
           engine is still in lobby (e.g. before the first lobbySnapshot arrives). */}
