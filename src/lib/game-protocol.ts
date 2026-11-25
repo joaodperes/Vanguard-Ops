@@ -1330,8 +1330,20 @@ export const CTF_MAP_IDS: readonly MapId[] = MAP_LIST.filter(m=>supportsMapMode(
   const rank=(id:string)=>{const i=priority.indexOf(id);return i<0?priority.length:i;};
   return rank(a)-rank(b);
 });
-export const mapAllowedForMode = (mode: GameMode, id: MapId | string): boolean =>
-  !!MAPS[id] && supportsMapMode(MAPS[id],mode);
+const OBJECTIVE_MODE_IDS = new Set<GameMode>(["searchdestroy","hardpoint","frontier"]);
+export const mapAllowedForMode = (mode: GameMode, id: MapId | string): boolean => {
+  const map = MAPS[id];
+  if (!map) return false;
+  // These modes currently share Dustwater's authored objective geometry. Do
+  // not let a generic legacy spawn pool make an untested map selectable.
+  // Requiring both team pools also prevents a client/server mismatch where the
+  // picker falls back to Dustwater but the authoritative server rejects it.
+  if (OBJECTIVE_MODE_IDS.has(mode)) {
+    const pools = map.modeSpawns?.[mode];
+    return id === "dustwater" && !!pools && pools.red.length >= 3 && pools.blue.length >= 3;
+  }
+  return supportsMapMode(map,mode);
+};
 
 /** Resolve the map and room-size together. Switching to a mode without support
  * for the selected map must not send the old map's team size to the server. */
