@@ -5202,8 +5202,25 @@ async function handle(socket: any, msg: C2S) {
       const current=room.loadouts.get(socket.id);
       if(!current)return;
       const loadout=frontierSafeLoadout(frontierLoadoutForPreset(current,msg.presetId));
-      room.pendingLoadouts.set(socket.id,loadout);
-      socket.emit("message",{t:"loadoutQueued",loadout} as S2C);
+      const player=room.players.get(socket.id);
+      // The join-time selector chooses the kit for this first life. Later
+      // changes remain queued and are committed at the next respawn.
+      const applyImmediately=!!player&&player.kills===0&&player.deaths===0;
+      if(applyImmediately){
+        room.pendingLoadouts.delete(socket.id);
+        room.loadouts.set(socket.id,loadout);
+        player.weaponId=loadout.emptyPrimary?(loadout.secondaryWeaponId??"pistol_side"):loadout.weaponId;
+        player.weaponSkinId=loadout.weaponSkinId;
+        player.playerSkinId=loadout.playerSkinId;
+        player.charmId=loadout.primaryCharmId??"none";
+        player.nameplateId=loadout.nameplateId??"standard";
+        room.frontierAmmoRemaining??=new Map();
+        const mag=weaponById(player.weaponId).stats.magSize;
+        room.frontierAmmoRemaining.set(player.id,mag+frontierReserveAmmo(mag*3));
+      }else{
+        room.pendingLoadouts.set(socket.id,loadout);
+      }
+      socket.emit("message",{t:"loadoutQueued",loadout,applyImmediately} as S2C);
       break;
     }
     case "queueLoadout": {
