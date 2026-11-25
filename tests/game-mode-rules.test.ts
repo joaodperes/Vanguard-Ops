@@ -6,7 +6,7 @@ import { frontierLoadoutForPreset } from "../src/lib/frontier-loadouts";
 import {
   SEARCH_DESTROY_RULES, HARDPOINT_RULES, FRONTIER_RULES,
   createSearchDestroyState, selectSearchDestroyCarrier, beginNextSearchDestroyRound, finishSearchDestroyRound,
-  applySearchDestroyAction, dropSearchDestroyBomb, releaseSearchDestroyPlayer, tickSearchDestroy,
+  applySearchDestroyAction, dropSearchDestroyBomb, releaseSearchDestroyPlayer, tickSearchDestroy, searchDestroySitesForMap,
   createHardpointState, tickHardpoint, hardpointObjectiveContributors, frontierWeaponAllowed, frontierWeaponIdAllowed, frontierReserveAmmo, frontierMovementSpeed, distributedObjectivePosition,
 } from "../src/lib/game-mode-rules";
 
@@ -24,7 +24,7 @@ describe("Search & Destroy", () => {
     expect(events[0]).toMatchObject({type:"round_won"});
     state.round=5; state.phase="live";
     expect(finishSearchDestroyRound(state,"blue","timeout",2000)).toContainEqual({type:"side_switch",attackerTeam:"blue"});
-    beginNextSearchDestroyRound(state,3000,"new-carrier",[1,0,1]);
+    beginNextSearchDestroyRound(state,5000,"new-carrier",[1,0,1]);
     expect(state).toMatchObject({round:6,phase:"preparation",attackerTeam:"blue",bomb:{carrierId:"new-carrier"}});
   });
   test("requires plant and defuse progress and supports dropped-bomb pickup", () => {
@@ -35,7 +35,25 @@ describe("Search & Destroy", () => {
     expect(applySearchDestroyAction(state,{kind:"defuse",playerId:"defender",team:"blue",alive:true,pos:[0,0,0]},sites,13000)?.type).toBe("defused");
     const dropped=createSearchDestroyState(0,"attacker",[1,0,1]); dropped.phase="live";
     expect(dropSearchDestroyBomb(dropped,"attacker",[2,0,2])?.type).toBe("dropped");
-    expect(applySearchDestroyAction(dropped,{kind:"pickup",playerId:"mate",team:"red",alive:true,pos:[2,0,2]},sites,100)?.type).toBe("picked_up");
+    expect(applySearchDestroyAction(dropped,{kind:"pickup",playerId:"mate",team:"red",alive:true,pos:[5.5,0,2]},sites,100)?.type).toBe("picked_up");
+  });
+  test("holds a round-end intermission before the next preparation phase",()=>{
+    const state=createSearchDestroyState(0,"carrier",[0,0,0]);state.phase="live";
+    finishSearchDestroyRound(state,"red","elimination",1000);
+    expect(state.phase).toBe("round_end");
+    expect(state.roundEndUntil).toBe(1000+SEARCH_DESTROY_RULES.roundEndMs);
+    beginNextSearchDestroyRound(state,state.roundEndUntil-1,"next",[1,0,1]);
+    expect(state.phase).toBe("round_end");
+    beginNextSearchDestroyRound(state,state.roundEndUntil,"next",[1,0,1]);
+    expect(state).toMatchObject({phase:"preparation",round:2,roundEndUntil:0});
+  });
+  test("has two map-specific bomb sites on every enabled Search & Destroy map",()=>{
+    for(const mapId of ["dustwater","compound","skybridge"]){
+      expect(mapAllowedForMode("searchdestroy",mapId)).toBe(true);
+      expect(searchDestroySitesForMap(mapId,112)).toHaveLength(2);
+    }
+    expect(mapAllowedForMode("searchdestroy","bunker")).toBe(false);
+    expect(searchDestroySitesForMap("dustwater",112)[1].pos).toEqual([-14,0,25]);
   });
   test("allows a living carrier to manually drop the bomb without dying",()=>{
     const state=createSearchDestroyState(0,"carrier",[1,0,1]);state.phase="live";
