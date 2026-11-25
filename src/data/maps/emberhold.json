@@ -5,7 +5,7 @@
     "name": "Emberhold Castle",
     "shortName": "EMB",
     "description": "Battle through a working castle bailey, enter its medieval services, ascend the crenellated keep or flank through the lava-lit dungeons.",
-    "pace": "balanced",
+    "pace": "tactical",
     "modes": [
       "ffa",
       "survival",

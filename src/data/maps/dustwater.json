@@ -4,8 +4,8 @@
   "blueprint": {
     "name": "Dustwater",
     "shortName": "DUST",
-    "description": "A frontier boomtown built around a main street, sheriff's office, saloon, bank, freight depot and a dry creek. Fight through connected interiors, covered boardwalks, rooftop routes and the water-tower overlook.",
-    "pace": "balanced",
+    "description": "A frontier boomtown built around a typical western town.",
+    "pace": "compact",
     "templateMapId": "compound",
     "modes": [
       "searchdestroy",
