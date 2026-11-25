@@ -13,7 +13,7 @@ describe("new competitive mode integration",()=>{
       expect(mapAllowedForMode(mode,"dustwater")).toBe(true);
     expect(mapAllowedForMode("searchdestroy","compound")).toBe(false);
     expect(mapAllowedForMode("hardpoint","compound")).toBe(false);
-    expect(mapAllowedForMode("frontier","compound")).toBe(false);
+    expect(mapAllowedForMode("frontier","compound")).toBe(true);
   });
   test("bomb sites and all five Hardpoint hills are accessible inside the boomtown",()=>{
     const objectives:[number,number,number][]=[

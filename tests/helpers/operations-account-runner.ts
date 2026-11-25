@@ -52,7 +52,7 @@ try{
  const act3=await getOrCreatePlayer('operations-act3-reward');
  const act3State={...createOperationState('zero_hour','normal'),status:'won',stage:OPERATIONS.find(m=>m.id==='zero_hour')!.objectives.length,elapsed:300};
  const act3Response=await POST(request({kind:'complete',playerKey:act3.playerKey,runId:'act3_reward_test_0001',state:act3State,deaths:0},false));
- assert.deepEqual((await act3Response.json()).actRewards.map((r:any)=>r.id),['act3_juggernaut_mk1']);
+ assert.deepEqual((await act3Response.json()).actRewards.map((r:any)=>r.id),['act3_wonder_juggernaut']);
  assert.ok(await db.wonderUnlock.findUnique({where:{playerId_weaponId:{playerId:act3.id,weaponId:'wonder_juggernaut'}}}));
  const act3Replay=await POST(request({kind:'complete',playerKey:act3.playerKey,runId:'act3_reward_test_0002',state:act3State,deaths:0},false));
  assert.deepEqual((await act3Replay.json()).actRewards,[]);
