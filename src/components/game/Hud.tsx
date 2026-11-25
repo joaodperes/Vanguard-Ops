@@ -710,7 +710,7 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, mode, crosshair
         {/* Weapon slot indicator: 3 mini-slots showing 1=primary, 2=secondary, 3=melee.
             The active slot is highlighted; others are dim. Weapon name shows under each. */}
         <div className="mt-2 flex items-center justify-end gap-1.5">
-          <SlotPip n={1} name={hud.primaryName} active={slotNum === 1} color="emerald" weaponId={hud.primaryWeaponId} />
+          <SlotPip n={1} name={hud.emptyPrimary ? "Empty" : hud.primaryName} active={slotNum === 1} color="emerald" weaponId={hud.emptyPrimary ? undefined : hud.primaryWeaponId} />
           <SlotPip n={2} name={hud.secondaryName} active={slotNum === 2} color="amber" weaponId={hud.secondaryWeaponId} />
           <SlotPip n={3} name={hud.meleeName} active={slotNum === 3} color="rose" weaponId={hud.meleeWeaponId} />
           {hud.wonderWeaponId && <SlotPip n={4} name={hud.wonderName??"Wonder"} active={slotNum===4} color="violet" weaponId={hud.wonderWeaponId} status={wonderSlotStatus} chargeProgress={wonderSlotProgress} />}
