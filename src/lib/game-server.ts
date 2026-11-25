@@ -5175,7 +5175,7 @@ async function handle(socket: any, msg: C2S) {
       let reloadMs=reloadStats.reloadTime*1000*reloadMul;
       if(room.mode==="frontier"){
         reloadMs*=reloadDurationMultiplier(loadout?.perkId);
-        if(msg.frontierAkimboReloadCount===1)reloadMs*=.72;
+        if(msg.frontierAkimboReloadCount===1&&isAkimboWeapon(player.weaponId,reloadAtts?.grip))reloadMs*=.72;
       }
       room.reloadingPlayers.set(socket.id,Date.now()+Math.max(0,reloadMs));
       io.to(room.id).emit("message", { t: "reloadFx", playerId: socket.id } as S2C);
