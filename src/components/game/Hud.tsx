@@ -455,11 +455,10 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
                 </>
               ) : mode === "searchdestroy" && hud.searchDestroy ? (
                 <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex flex-wrap items-center justify-center ${isTouch ? "gap-x-2 gap-y-1 px-2 py-1" : "gap-x-3 gap-y-1 px-3 py-1.5"}`}>
-                  <span className="text-red-300 text-[10px] font-black tabular-nums">RED {hud.searchDestroy.roundWins.red}</span>
+                  <span className="inline-flex items-center gap-1 text-red-300 text-[10px] font-black tabular-nums">RED <span className="inline-flex items-center gap-px">{Array.from({length:Math.min(16,hud.teamAlive?.red??0)}).map((_,i)=><UserRound key={i} className="h-3 w-3"/>)}</span> {hud.searchDestroy.roundWins.red}</span>
                   <span className="text-white/35">–</span>
-                  <span className="text-blue-300 text-[10px] font-black tabular-nums">BLUE {hud.searchDestroy.roundWins.blue}</span>
+                  <span className="inline-flex items-center gap-1 text-blue-300 text-[10px] font-black tabular-nums">BLUE <span className="inline-flex items-center gap-px">{Array.from({length:Math.min(16,hud.teamAlive?.blue??0)}).map((_,i)=><UserRound key={i} className="h-3 w-3"/>)}</span> {hud.searchDestroy.roundWins.blue}</span>
                   <span className={`font-black uppercase ${hud.playerTeam === hud.searchDestroy.attackerTeam ? "text-amber-300" : "text-cyan-300"} ${isTouch ? "text-[9px]" : "text-[10px]"}`}>{hud.playerTeam === hud.searchDestroy.attackerTeam ? "ATTACKERS" : "DEFENDERS"}</span>
-                  <span className="inline-flex items-center gap-1 text-red-300">{Array.from({length:Math.min(16,hud.teamAlive?.red??0)}).map((_,i)=><UserRound key={i} className="h-3 w-3"/>)}</span><span className="inline-flex items-center gap-1 text-blue-300">{Array.from({length:Math.min(16,hud.teamAlive?.blue??0)}).map((_,i)=><UserRound key={i} className="h-3 w-3"/>)}</span>
                 </div>
               ) : mode === "killconfirmed" || mode === "ctf" ? (
                 <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1.5 px-2 py-1" : "gap-2 px-3 py-1.5"}`}>
@@ -490,10 +489,11 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
               <span>{hud.searchDestroy.phase.toUpperCase()} · {hud.searchDestroy.bomb.status === "planted" ? `BOMB PLANTED AT SITE ${hud.searchDestroy.bomb.siteId}` : hud.searchDestroy.bomb.status === "dropped" ? "BOMB DROPPED" : ""}</span>
               {hud.searchDestroyBombDistance !== undefined && <span className="text-amber-200">BOMB · {hud.searchDestroyBombDistance}m AWAY</span>}
             </div>
-            {hud.searchDestroyInteraction && (
-              <div className="flex w-full flex-col items-center gap-1" role="status" aria-live="polite">
-                <span className="font-black text-amber-100">{hud.searchDestroyInteraction.label} · {hud.searchDestroyInteraction.progress > 0 ? Math.round(hud.searchDestroyInteraction.progress) + "%" : "READY"}</span>
-                {hud.searchDestroyInteraction.kind !== "pickup" && <div className="h-1.5 w-48 max-w-full overflow-hidden rounded bg-white/15"><div className="h-full bg-amber-400 transition-[width] duration-100" style={{ width: hud.searchDestroyInteraction.progress + "%" }} /></div>}
+            {hud.searchDestroyInteraction && <span className="font-black text-amber-100" role="status" aria-live="polite">{hud.searchDestroyInteraction.label}</span>}
+            {hud.searchDestroyInteraction?.kind==="plant" && hud.searchDestroyInteraction.progress>0 && (
+              <div className="absolute bottom-[17%] left-1/2 z-30 w-64 max-w-[88vw] -translate-x-1/2 rounded-lg border border-amber-300/40 bg-black/80 px-4 py-2 shadow-xl" role="status" aria-label="Bomb planting progress">
+                <span className="mb-2 block text-center text-xs font-black text-amber-100">PLANTING BOMB</span>
+                <div className="h-1.5 w-full overflow-hidden rounded bg-white/15"><div className="h-full bg-amber-400 transition-[width] duration-100" style={{width:hud.searchDestroyInteraction.progress+"%"}}/></div>
               </div>
             )}
             {isTouch && hud.isBombCarrier && <button type="button" onClick={onDropBomb} className="pointer-events-auto rounded-md border border-amber-300/50 bg-amber-500/20 px-4 py-1 text-[10px] font-black tracking-widest text-amber-100">DROP BOMB</button>}
