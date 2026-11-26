@@ -260,6 +260,7 @@ export interface HudState {
   ctfFlags?: CtfFlags;
   hardpoint?: import("./game-mode-rules").HardpointState;
   searchDestroy?: import("./game-mode-rules").SearchDestroyState;
+  searchDestroyCarrierAlert?: boolean;
   searchDestroyInteraction?: { label: string; progress: number; kind: "plant" | "defuse" | "pickup" };
   searchDestroyRoundNotice?: { text: string; at: number };
   searchDestroyCarrierName?: string;
