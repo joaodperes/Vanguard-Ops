@@ -109,7 +109,9 @@ export function applyMapFootprint(base:MapDef,draft?:{blueprint:MapBlueprint;the
     if(isAfterlight)return [...plan.spawns[team].map(p=>[...p] as Vec3),...old.slice(-outerLen)];
     return [...old.slice(0,-outerLen),...plan.spawns[team].map(p=>[...p] as Vec3),...old.slice(-outerLen)];
   };
-  const legacyCoverSource=(base.id==="dustwater"?[]:scaledBase.cover).filter(c=>{
+  // Breakwater is now fully authored in its JSON document. Retire the old
+  // legacy pile of broad stairs, loose planks and generic container boxes.
+  const legacyCoverSource=(base.id==="dustwater"||base.id==="shipyard"?[]:scaledBase.cover).filter(c=>{
     if(base.id!=="shipyard"||c.kind!=="cover")return true;
     const stairs=scaledBase.cover.filter(b=>b.kind==="stair"&&
       (Math.abs(b.pos[0])>24||Math.abs(b.pos[2])>24));
@@ -140,7 +142,7 @@ export function applyMapFootprint(base:MapDef,draft?:{blueprint:MapBlueprint;the
     legacyEnvironmentSource,plan.legacyEnvironmentDisabled,plan.legacyEnvironmentOverrides);
   const fullCover = [...legacyCover,...flankFeatures.flatMap(featureBoxes),
     ...propColliders(props,allSpawns,flankFeatures),
-    ...regionBoundary(regions,base.id==="shipyard"?1.2:base.id==="skybridge"?18:11)];
+    ...regionBoundary(regions,base.id==="shipyard"?3.8:base.id==="skybridge"?18:11)];
   const initialSpawns = { ffa:addSpawns("ffa"),red:addSpawns("red"),blue:addSpawns("blue") };
   const expandedSpawns = isAfterlight ? {
     ffa: expandCitySpawnPositions(initialSpawns.ffa,regions,fullCover,32,props),
