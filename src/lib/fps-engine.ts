@@ -9084,12 +9084,37 @@ export class FPSEngine {
     this.wonderFields.set(id,{mesh,offline,ownerId,ownerTeam,weaponId,kind,pos,radius,expiresAt,tickAt:Date.now()+500});
   }
   private spawnArcBeam(from: Vec3, to: Vec3) {
+    // A short, jagged electrical bolt makes each chain jump unmistakable.
+    // Build the offsets deterministically so local and server FX look consistent.
+    const start = new THREE.Vector3(...from);
+    const end = new THREE.Vector3(...to);
+    const direction = end.clone().sub(start);
+    const length = direction.length();
+    if (length < 0.001) return;
+    const axis = direction.normalize();
+    const reference = Math.abs(axis.y) < 0.9
+      ? new THREE.Vector3(0, 1, 0)
+      : new THREE.Vector3(1, 0, 0);
+    const side = new THREE.Vector3().crossVectors(axis, reference).normalize();
+    const vertical = new THREE.Vector3().crossVectors(axis, side).normalize();
+    const points: THREE.Vector3[] = [start];
+    const segments = Math.max(5, Math.min(10, Math.ceil(length / 1.5)));
+    for (let i = 1; i < segments; i++) {
+      const t = i / segments;
+      const envelope = Math.sin(Math.PI * t);
+      const sign = i % 2 === 0 ? 1 : -1;
+      const offset = 0.16 * envelope * sign;
+      points.push(start.clone().lerp(end, t)
+        .addScaledVector(side, offset)
+        .addScaledVector(vertical, offset * (i % 3 === 0 ? -0.7 : 0.45)));
+    }
+    points.push(end);
     const line = new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...from), new THREE.Vector3(...to)]),
-      new THREE.LineBasicMaterial({ color: 0x67e8f9, transparent: true, opacity: 0.95 }),
+      new THREE.BufferGeometry().setFromPoints(points),
+      new THREE.LineBasicMaterial({ color: 0x67e8f9, transparent: true, opacity: 0.98 }),
     );
     this.scene.add(line);
-    this.tracers.push({ line, born: performance.now(), life: 190 });
+    this.tracers.push({ line, born: performance.now(), life: 230 });
   }
 
   private chainArcOffline(first: Combatant, originWeaponId: string) {
