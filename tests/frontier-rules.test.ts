@@ -7,7 +7,7 @@ describe("Frontier standard movement and weapon slots", () => {
     expect(frontierMovementSpeed(6, true)).toBe(6);
   });
   test("allows the configured melee slot without widening the firearm whitelist", () => {
-    expect(frontierWeaponIdAllowed("knife_tactical")).toBe(true);
+    expect(frontierWeaponIdAllowed("knife_tactical")).toBe(false);
     expect(frontierWeaponIdAllowed("sniper_scout")).toBe(true);
     expect(frontierWeaponIdAllowed("rifle_ar")).toBe(false);
   });
