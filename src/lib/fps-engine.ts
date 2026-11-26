@@ -12749,6 +12749,27 @@ export class FPSEngine {
       ai.reloadingUntil=0;
       this.rebuildCombatantMesh(c);
     }
+    // Frontier bots automatically cycle to a loaded firearm, then melee,
+    // instead of attempting to reload an empty weapon forever.
+    if(this.opts.mode==="frontier" && ai.ammoInMag<=0 && !ai.wonderEquippedUntil &&
+       !this.orbitalBotHolders.has(c.id) && now>=(ai.nextWeaponSwitchAt??0)){
+      const currentIsPrimary=c.weaponId===(ai.primaryWeaponId??"");
+      const otherId=currentIsPrimary?ai.secondaryWeaponId:ai.primaryWeaponId;
+      const otherAmmo=currentIsPrimary?(ai.secondaryAmmoInMag??0):(ai.primaryAmmoInMag??0);
+      if(otherId && otherAmmo>0){
+        const old=ai.ammoInMag;ai.ammoInMag=otherAmmo;
+        if(currentIsPrimary)ai.secondaryAmmoInMag=old;else ai.primaryAmmoInMag=old;
+        c.weaponId=otherId;ai.nextWeaponSwitchAt=now+500;
+        ai.reloadingUntil=0;ai.burstShotsLeft=0;this.rebuildCombatantMesh(c);
+      }else{
+        const melee=this.opts.loadout.meleeWeaponId??"knife_tactical";
+        if(c.weaponId!==melee){
+          c.weaponId=melee;ai.ammoInMag=weaponById(melee).stats.magSize;
+          ai.reloadingUntil=0;ai.nextWeaponSwitchAt=now+500;
+          ai.burstShotsLeft=0;this.rebuildCombatantMesh(c);
+        }
+      }
+    }
     const flashBlinded=(this.botFlashUntil.get(c.id)??0)>now;
     if(flashBlinded){ai.targetId=null;ai.lastSighting=null;ai.lastAlert=null;}
     else this.hearBotNoise(c,now);
