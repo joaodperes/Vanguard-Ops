@@ -14,9 +14,9 @@ const LONG = new Set(["assault", "dmr", "sniper", "lmg"]);
 const PRIMARY_CATEGORIES = new Set(["assault", "smg", "shotgun", "dmr", "sniper", "lmg"]);
 const sample = <T>(values: T[], random: () => number): T =>
   values[Math.min(values.length - 1, Math.floor(Math.max(0, Math.min(.999999,random())) * values.length))];
-/** 28 distinct firearms, a standard launcher, and standard melee. Never duplicate a weapon ID
- * within a cycle. Range presets are preferred where available, then filled
- * with other guns; no 28-item CQC-only or long-range-only catalog yet exists.
+/** Builds each 30-tier cycle from 28 firearms, a standard launcher, and standard melee.
+ * Broad presets avoid repeats when possible; category-only presets repeat within
+ * their selected type when the catalog contains fewer than 28 matching weapons.
  */
 export function buildGunGameWeapons(preset?: string, multiplier?: number, random: () => number = Math.random): string[] {
   const config = normalizeGunGameConfig(preset, multiplier);
