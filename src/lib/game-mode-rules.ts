@@ -75,7 +75,7 @@ export interface SearchDestroyAction {
   pos: ModeVec3; alive: boolean; siteId?: "A" | "B";
 }
 export type SearchDestroyEvent =
-  | { type: "planted"; playerId: string; siteId: "A" | "B"; detonatesAt: number }
+  | { type: "planted"; playerId: string; siteId?: "A" | "B"; detonatesAt: number }
   | { type: "defused"; playerId: string }
   | { type: "picked_up"; playerId: string }
   | { type: "dropped"; playerId: string; pos: [number, number, number] }
