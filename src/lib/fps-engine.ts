@@ -5,6 +5,7 @@ import { accumulateDamageContribution, isAssistContributionEligible } from "./co
 import { resolveFrontierBotWeaponFallback } from "./bot-weapon-selection";
 import { resolveBotPursuitSpeed } from "./bot-movement-rules";
 import { cloneFrontierLoadout, frontierDropWeapon } from "./frontier-loadout-drops";
+import { frontierLoadoutForPreset } from "./frontier-loadouts";
 import { FRONTIER_LOADOUTS } from "./frontier-loadouts";
 import {squadIntent} from "./squad-coordination";
 import { operationById, createOperationState, tickOperation, operationEncounter, operationConfigValid, operationTarget, operationSite, operationAwarenessMultiplier, operationFeedbackEvents, syncOperationCartCollider, type OperationState } from "./operations";
@@ -126,7 +127,7 @@ import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, surv
 import { chooseSurvivalUpgrade, generateSurvivalUpgradeChoices, survivalUpgradeDue, survivalOutgoingMultiplier, survivalIncomingMultiplier, survivalKillReward, survivalWaveHealing, survivalRegenDelayMultiplier, survivalRegenRateMultiplier, survivalMovementMultiplier, survivalReloadMultiplier, canUseSelfRevive, SURVIVAL_SELF_REVIVE_MS, SURVIVAL_SELF_REVIVE_HP, type SurvivalUpgradeId, type SurvivalUpgradeOffer, type SurvivalUpgradeRanks } from "./survival-upgrades";
 import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-posture";
 import { botRememberSighting, botInvestigation, botCanHearNoise, botRememberNoise, botRememberHit, botAlertInvestigation, type BotNoise, type BotAlert, type BotSighting } from "./bot-awareness";
-import { botArchetypeForSlot, botArchetypeForCategory, botArchetypeWeapon, botArchetypeWeapons, BOT_ELIGIBLE_WEAPONS, botPersonality, botArchetypeHighGroundChance, type BotArchetype } from "./bot-archetypes";
+import { botArchetypeForSlot, botArchetypeForCategory, botArchetypeWeapon, botArchetypeWeapons, BOT_ELIGIBLE_WEAPONS, FRONTIER_BOT_PRESET_BY_ARCHETYPE, botPersonality, botArchetypeHighGroundChance, type BotArchetype } from "./bot-archetypes";
 import { MOVEMENT, SPRINT_STAMINA, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity, sprintRecoverySpreadMultiplier, sprintRecoveryAdsRate } from "@/lib/movement-rules";
 import { FOREST_OBJECTS, FOREST_PERIMETER, FOREST_BASE_COVER, FOREST_TREE_PARAPETS, forestLogCoverId } from "./forest-warfare";
 import { advanceMatchElapsed } from "./match-clock";
@@ -525,6 +526,7 @@ interface BotAI {
   archetype: BotArchetype;
   secondaryWeaponId?:string;
   primaryWeaponId?:string;
+  frontierPresetId?: import("./game-mode-rules").FrontierLoadoutPresetId;
   secondaryAmmoInMag?:number;
   nextWeaponSwitchAt?:number;
   wonderEquippedUntil?:number;
@@ -6393,14 +6395,25 @@ export class FPSEngine {
       const sp = this.pickSpawn(team);
       const teamSlot = team === "ffa" ? i : Math.floor(i/2);
       const archetype = botArchetypeForSlot(teamSlot);
-      const perk=botPerkForMode(this.opts.mode,1,Math.random,archetype);
-      const wid = isGungame ? this.gungameWeapons[0] : botArchetypeWeapon(archetype,Math.floor(Math.random()*botArchetypeWeapons(archetype).length));
+      const perk=this.opts.mode==="frontier"?undefined:botPerkForMode(this.opts.mode,1,Math.random,archetype);
+      const baseWid = isGungame ? this.gungameWeapons[0] : botArchetypeWeapon(archetype,Math.floor(Math.random()*botArchetypeWeapons(archetype).length));
+      const baseAttachments=botAttachmentsForMode(this.opts.mode,archetype,baseWid);
+      const frontierKit=this.opts.mode==="frontier"?frontierLoadoutForPreset({
+        weaponId:baseWid,weaponSkinId:"default",playerSkinId:botOperativeSkinId(i,skinRotation),
+        attachments:baseAttachments,
+      },FRONTIER_BOT_PRESET_BY_ARCHETYPE[archetype]):undefined;
+      const wid=frontierKit?(frontierKit.emptyPrimary?(frontierKit.secondaryWeaponId??"pistol_side"):frontierKit.weaponId):baseWid;
       const ai=this.makeBotAI(sp,undefined,archetype);
       ai.moveSpeed*=botMovementPerkMultiplier(perk);
-      ai.primaryWeaponId=wid;
-      ai.primaryAttachments=botAttachmentsForMode(this.opts.mode,archetype,wid);
-      ai.attachments=ai.primaryAttachments;
-      if(perk==="well_prepared"){
+      ai.primaryWeaponId=frontierKit?.weaponId??wid;
+      ai.primaryAttachments=frontierKit?.attachments??baseAttachments;
+      ai.attachments=frontierKit?.emptyPrimary?(frontierKit.secondaryAttachments??emptyBotAttachments()):ai.primaryAttachments;
+      if(frontierKit){
+        ai.secondaryWeaponId=frontierKit.secondaryWeaponId;
+        ai.secondaryAttachments=frontierKit.secondaryAttachments??emptyBotAttachments();
+        ai.secondaryAmmoInMag=frontierKit.emptyPrimary?0:botMagazineCapacity(frontierKit.secondaryWeaponId??"pistol_side",frontierKit.secondaryAttachments);
+        ai.frontierPresetId=frontierKit.frontierPresetId;
+      }else if(perk==="well_prepared"){
         ai.secondaryWeaponId=botSecondaryPrimary(wid,Math.random,archetype);
         ai.secondaryAttachments=botAttachmentsForMode(this.opts.mode,archetype,ai.secondaryWeaponId);
         ai.secondaryAmmoInMag=botMagazineCapacity(ai.secondaryWeaponId,ai.secondaryAttachments);
@@ -8819,6 +8832,7 @@ export class FPSEngine {
     const secondaryId=ai.secondaryWeaponId??(primaryId==="pistol_side"?"pistol_bastion":"pistol_side");
     const toWire=(a?:BotAttachmentMap)=>({sight:a?.sight??null,barrel:a?.barrel??null,grip:a?.grip??null,magazine:a?.magazine??null});
     const loadout:LoadoutWire=cloneFrontierLoadout({
+      frontierPresetId:ai.frontierPresetId,
       weaponId:primaryId,secondaryWeaponId:secondaryId,meleeWeaponId:"knife_tactical",
       weaponSkinId:victim.weaponSkinId||"default",secondaryWeaponSkinId:"default",meleeWeaponSkinId:"default",
       playerSkinId:victim.playerSkinId||"default",attachments:toWire(ai.primaryAttachments??ai.attachments),
@@ -13057,7 +13071,7 @@ export class FPSEngine {
         const secondaryId=kit.secondaryWeaponId??"pistol_side";
         const primaryAtt=kit.emptyPrimary?kit.secondaryAttachments:kit.attachments;
         const secondaryAtt=kit.emptyPrimary?kit.attachments:kit.secondaryAttachments;
-        ai.primaryWeaponId=kit.weaponId;ai.secondaryWeaponId=kit.secondaryWeaponId;
+        ai.primaryWeaponId=kit.weaponId;ai.secondaryWeaponId=kit.secondaryWeaponId;ai.frontierPresetId=kit.frontierPresetId;
         ai.primaryAttachments=primaryAtt??emptyBotAttachments();ai.secondaryAttachments=secondaryAtt??emptyBotAttachments();
         ai.ammoInMag=botMagazineCapacity(primaryId,primaryAtt??emptyBotAttachments());
         ai.secondaryAmmoInMag=kit.emptyPrimary?0:botMagazineCapacity(secondaryId,secondaryAtt??emptyBotAttachments());
