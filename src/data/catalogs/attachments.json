@@ -580,14 +580,15 @@
     "slot": "barrel",
     "unlockLevel": 12,
     "unlockCost": 380,
-    "description": "Precision barrel improves consistency of aimed shots at the expense of handling speed.",
+    "description": "Precision barrel tightens aimed grouping and slightly tames recoil at the expense of handling speed.",
     "weaponCategories": [
       "dmr",
       "sniper"
     ],
     "effects": {
-      "adsSpread": -18,
-      "adsTime": 12
+      "adsSpread": -30,
+      "adsTime": 12,
+      "recoil": -5
     }
   },
   {
