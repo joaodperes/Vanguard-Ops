@@ -149,7 +149,7 @@ bun run typecheck
 bun run build
 ```
 
-The single GitHub Actions workflow, `.github/workflows/dev-validation.yml`, runs TypeScript syntax/type validation and content/file-reference validation on pushes and pull requests targeting `dev` or `main`. The optional `bun run test:smoke` command runs only generic catalog contract checks. Automated validation is not a substitute for manual playtesting or a safe production database migration. See [the QA and merge checklist](docs/dev-test-checklist.md) before releasing.
+The single GitHub Actions workflow, `.github/workflows/dev-validation.yml`, runs TypeScript syntax/type validation, content/file-reference validation and `bun run test:smoke` on pushes and pull requests targeting `dev` or `main`. The smoke suite covers catalog/content contracts and reusable combat rules. Automated validation is not a substitute for manual playtesting or a safe production database migration. See [the QA and merge checklist](docs/dev-test-checklist.md) before releasing.
 
 ## Technology and project structure
 
@@ -159,7 +159,7 @@ The single GitHub Actions workflow, `.github/workflows/dev-validation.yml`, runs
 - **Game content:** JSON catalogs in `src/data/catalogs/`; map layouts and themes in `src/data/`
 - **Deployment:** `Caddyfile` and a separate `mini-services/game-server/` entry point for supported hosting setups
 
-Development continues on the `dev` branch and validated changes are promoted to `main` through a normal pull request. Generic catalog contract tests and maintained technical documentation are retained on both branches; retired feature-specific test suites and completed implementation notes are removed.
+Development continues on the `dev` branch and validated changes are promoted to `main` through a normal pull request. Maintained catalog/content contracts, reusable gameplay rule tests and technical documentation are retained on both branches; one-off feature-specific regression suites and completed implementation notes are removed.
 
 ## License
 
