@@ -83,7 +83,7 @@ import { turretCanTrack, turretCanAttack, turretDeployPosition, TURRET_DAMAGE, T
 import { MOVEMENT, sprintRecoverySpreadMultiplier } from "./movement-rules";
 import { createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotIntent, ctfStairWaypoint, ctfDefenderScanYaw, ctfEngageThreat, ctfResetMs, ctfBase, ctfHome, flagAtHome, otherFlag, CTF_SPEED_MULTIPLIER, ctfCarrierWeaponSpeed, type CtfFlags, type FlagTeam } from "./ctf-rules";
 import { gravityTravelMs, gravityPullOffset, gravityBlastDamage, gravityImpact, gravityTargetDistance, GRAVITY_WELL_DURATION_MS } from "./gravity-well";
-import { countEligibleAssists, type Contribution } from "./combat-assists";
+import { accumulateDamageContribution, countEligibleAssists, type Contribution } from "./combat-assists";
 import { isFlagDefenseKill } from "./match-bonus-tracking";
 import { createServer, type Server as HttpServer } from "http";
 import { getSurvivalProgress, getOrCreatePlayer } from "./player-service";
@@ -2069,10 +2069,10 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
   if (attacker && attacker.id !== victim.id && attacker.team !== victim.team &&
     (room.mode==="tdm"||room.mode==="killconfirmed"||room.mode==="survival")) {
     const contributions=room.damageContributions.get(victim.id)??new Map<string,Contribution>();
+    const now=Date.now();
     const previous=contributions.get(attackerId);
     contributions.set(attackerId,{
-      damage:(previous && Date.now()-previous.at<10000 ? previous.damage:0)+Math.min(dmg,Math.max(0,victim.health)),
-      at:Date.now(),team:attacker.team,
+      ...accumulateDamageContribution(previous,dmg,victim.health,now),team:attacker.team,
     });
     room.damageContributions.set(victim.id,contributions);
   }
