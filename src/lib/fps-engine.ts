@@ -1,5 +1,5 @@
 import {DEFAULT_CONTROLS,canonicalKey,stick,type ControlSettings} from "./control-settings";
-import { applyDamageFactors } from "./combat-damage-rules";
+import { applyDamageFactors, resolveHealthDamage } from "./combat-damage-rules";
 import { resolveFrontierBotWeaponFallback } from "./bot-weapon-selection";
 import { resolveBotPursuitSpeed } from "./bot-movement-rules";
 import { cloneFrontierLoadout, frontierDropWeapon } from "./frontier-loadout-drops";
@@ -10331,8 +10331,9 @@ export class FPSEngine {
     if(directLethal)damage=tacticalDirectDamage(damage,victim.health,!!victim.bossMaxHealth);
     if(this.opts.mode==="survival"&&victim.isBot&&!this.opts.online&&sourceWeaponId!==LAVA_DEATH_SOURCE)
       damage=applyDamageFactors(damage,survivalFrontalArmor(victim.survivalRole,victim.yaw,victim.pos,[this.pos.x,this.pos.y,this.pos.z],head));
-    victim.health -= damage;
-    if (victim.health <= 0 && victim.alive) {
+    const healthResult = resolveHealthDamage(victim.health, damage, victim.alive);
+    victim.health = healthResult.health;
+    if (healthResult.killed) {
       if(sourceWeaponId==="wonder_deadlock"&&this.wonderModuleId==="tag_relay"){
         const expire=this.smartTags.get(victim.id)??0;
         if(expire>performance.now()){
@@ -14054,12 +14055,13 @@ export class FPSEngine {
       }
       return;
     }
-    this.health -= dmg;
+    const healthResult = resolveHealthDamage(this.health, dmg, this.alive);
+    this.health = healthResult.health;
     this.damageFlashAt = performance.now();
     this.lastDamageAt = performance.now();
     // Hit-taken SFX (sharp low thud). Throttled so a burst doesn't spam.
     this.sound.play("hit_taken", { volume: 0.55, throttleMs: 80 });
-    if (this.health <= 0) {
+    if (healthResult.killed) {
       if(this.opts.mode==="survival" && weaponId!==LAVA_DEATH_SOURCE &&
          canUseSelfRevive(this.survivalUpgradeRanks,this.survivalSelfReviveUsedWave,this.survivalWave)){
         this.survivalSelfReviveUsedWave=this.survivalWave;
