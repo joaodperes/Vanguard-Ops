@@ -143,7 +143,6 @@ export const rotatingChallenge = z.strictObject({
   // Curated, auditable quest dimensions.
   focus: z.enum(["general", "arsenal", "operations"]).optional(),
   mapId: id.optional(),
-  mode: id.optional(),
   attachmentId: id.optional(),
   survivalTier: z.enum(["default", "hard", "elite", "nightmare"]).optional(),
 });
