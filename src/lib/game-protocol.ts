@@ -1128,7 +1128,7 @@ const BASE_MAPS: Record<MapId, MapDef> = {
   },
   forest_warfare: {
     id: "forest_warfare", name: "Forest Warfare", shortName: "FOR",
-    description: "Interconnected woodland valley with a raised canopy spine, cross-bridges, multiple ground access ramps and ancient climbable trees.",
+    description: "Woodland CTF valley with climbable giant trees, a winding elevated canopy route, natural cover clusters and several flanking paths.",
     size: FOREST_HALF_EXTENT, wallHeight: 10, cover: FOREST_WARFARE_COVER, spawns: FOREST_SPAWNS,
     regions: FOREST_REGIONS,
     surfaces: {
