@@ -17,7 +17,7 @@ export const FRONTIER_LOADOUTS: readonly {
     role: "Long-range precision with a hard-hitting revolver backup",
     primary: "sniper_scout",
     secondary: "pistol_bastion",
-    primaryAttachments: { sight: "sight_hunter", barrel: null, grip: null, magazine: null },
+    primaryAttachments: { sight: null, barrel: null, grip: null, magazine: null },
     secondaryAttachments: { sight: null, barrel: null, grip: "grip_fan_hammer", magazine: null },
   },
   {
