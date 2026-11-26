@@ -7,7 +7,7 @@ import { coverPanels, coverPlacement, coverIdForBox, coverNextHp, coverExplosion
 import { rechargeTactical, spendTactical, reloadDurationMultiplier, recoilMultiplier, scavengerAmmoAmount, type TacticalStock } from "./perks";
 import { botPerkForMode, botPrimaryForMode, botWonderForMode, botSecondaryPrimary, botMovementPerkMultiplier, botAwarenessPerkMultiplier, botAttachmentsForMode, botActiveAttachments, botMagazineCapacity, emptyBotAttachments } from "./bot-loadouts";
 import {reactorObjective,objectiveDistance} from "./map-objectives";
-import {chooseSpawn} from "./spawn-selection";
+import {chooseSpawn,spawnClear} from "./spawn-selection";
 import {botOperativeSkinId, BOT_OPERATIVE_SKINS, SURVIVAL_BOSS_SKIN_ID, bossShockwaveCharge} from "./bot-appearances";
 import {applyLinkedWallDamage,floodgateDamageTarget,FLOODGATE_CORE_ID,floodgateWaterEffect,floodgateRouteNeedsDetour,whiteoutVisibility} from "./map-battle-events";
 import {setFloodgateFreightStage,floodgatePathHazards} from "./floodgate-topple";
@@ -382,11 +382,28 @@ function resolveGungameWeapons(preset?: string, multiplier?: number): string[] {
 
 function pickSpawn(team: string, room: Room): Vec3 {
   // S&D spawns follow round role, not team colour, so the side switch also
-  // switches which end of Dustwater each team deploys from.
+  // switches which end of each arena the team deploys from.
   const spawnTeam = room.mode === "searchdestroy"
     ? (team === (room.searchDestroyState?.attackerTeam ?? "red") ? "red" : "blue")
     : team;
-  return chooseSpawn(room,room.map,spawnTeam,[...room.players.values(),...room.bots.values()].filter(p=>p.alive));
+  const occupants=[...room.players.values(),...room.bots.values()].filter(p=>p.alive);
+  if(room.mode==="searchdestroy"){
+    // Keep each side together instead of using the normal spawn scorer, which
+    // deliberately maximizes separation and scatters teammates around the map.
+    const teammates=occupants.filter(p=>p.team===team);
+    if(teammates.length){
+      const anchor=teammates[0].pos;
+      const offsets=[[1.2,0],[-1.2,0],[0,1.2],[0,-1.2],[1.2,1.2],[-1.2,-1.2]];
+      const [dx,dz]=offsets[(teammates.length-1)%offsets.length];
+      const candidate:Vec3=[anchor[0]+dx,anchor[1],anchor[2]+dz];
+      if(spawnClear(room.map,candidate)&&teammates.every(p=>
+        Math.hypot(p.pos[0]-candidate[0],p.pos[2]-candidate[2])>=0.85))
+        return candidate;
+    }
+    // The first player on each side chooses a safe spawn away from opponents.
+    return chooseSpawn(room,room.map,spawnTeam,occupants.filter(p=>p.team!==team));
+  }
+  return chooseSpawn(room,room.map,spawnTeam,occupants);
 }
 
 function assignTeam(mode: GameMode, room: Room, requested?: "red" | "blue" | "auto"): string {
@@ -886,9 +903,18 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
   // Spawn bots to fill empty slots (survival spawns per-wave instead).
   if (room.fillWithBots && room.mode !== "survival") spawnBots(room);
   if(room.mode==="searchdestroy"){
+    // Reset and deploy both teams as compact groups at their role-specific ends
+    // of the map before selecting the bomb carrier.
+    const actors=allCombatants(room);
+    for(const actor of actors)actor.alive=false;
+    for(const actor of actors){
+      actor.alive=true;actor.health=MAX_HEALTH;
+      actor.pos=pickSpawn(actor.team,room);
+      actor.spawnProtectedUntil=room.startTime+2500;
+    }
     // Resolve after bot fill: an attacker-side bot can carry the bomb when
     // the human player is on defence or no human attacker is present.
-    const carrier=selectSearchDestroyCarrier(allCombatants(room) as import("./game-mode-rules").ModeCombatant[],"red");
+    const carrier=selectSearchDestroyCarrier(actors as import("./game-mode-rules").ModeCombatant[],"red");
     room.searchDestroyState=carrier
       ? createSearchDestroyState(room.startTime,carrier.id,carrier.pos,room.config.searchDestroyRoundTimeSeconds??120,room.config.searchDestroyRoundsToWin??6)
       : undefined;
@@ -3096,6 +3122,9 @@ function tickRoomSimulation(room: Room) {
     const state=room.searchDestroyState;
     if(state.phase==="round_end"&&now>=state.roundEndUntil){
       const actors=allCombatants(room);
+      // Mark everyone inactive first so pickSpawn can build each team around a
+      // fresh round anchor rather than clustering around stale combat positions.
+      for(const c of actors)c.alive=false;
       for(const c of actors){
         c.alive=true;c.health=MAX_HEALTH;c.pos=pickSpawn(c.team,room);c.spawnProtectedUntil=now+1800;
         // Survivors also need a respawn event: otherwise their predicted local
