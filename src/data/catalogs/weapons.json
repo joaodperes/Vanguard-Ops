@@ -174,7 +174,7 @@
     "special": {
       "kind": "arc",
       "jumps": 2,
-      "radius": 6,
+      "radius": 9,
       "decay": 0.55
     },
     "stats": {
