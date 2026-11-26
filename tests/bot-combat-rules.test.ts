@@ -3,7 +3,7 @@ import { resolveFrontierBotWeaponFallback } from "../src/lib/bot-weapon-selectio
 import { resolveBotPursuitSpeed } from "../src/lib/bot-movement-rules";
 import { MOVEMENT } from "../src/lib/movement-rules";
 import { cloneFrontierLoadout, frontierDropWeapon } from "../src/lib/frontier-loadout-drops";
-import { botReloadDurationMs, incrementalReloadStepMs, weaponReloadDurationMs } from "../src/lib/weapon-reload-rules";
+import { botReloadDurationMs, incrementalReloadStepMs, shouldBotSmartReload, weaponReloadDurationMs } from "../src/lib/weapon-reload-rules";
 
 describe("shared Frontier bot weapon selection", () => {
   const base = {
@@ -166,5 +166,17 @@ describe("shared player reload timing", () => {
 
   test("keeps ordinary reload timing unchanged without modifiers", () => {
     expect(weaponReloadDurationMs(1.75)).toBe(1750);
+  });
+});
+
+
+describe("shared bot smart-reload decision", () => {
+  test("requests a smart reload only when low on ammo, safe and capable", () => {
+    expect(shouldBotSmartReload(3, 30, false, 0.8, true, 0.01)).toBe(true);
+    expect(shouldBotSmartReload(20, 30, false, 0.8, true, 0.01)).toBe(false);
+    expect(shouldBotSmartReload(3, 30, true, 0.8, true, 0.01)).toBe(false);
+    expect(shouldBotSmartReload(3, 30, false, 0.4, true, 0.01)).toBe(false);
+    expect(shouldBotSmartReload(3, 30, false, 0.8, false, 0.01)).toBe(false);
+    expect(shouldBotSmartReload(3, 30, false, 0.8, true, 0.02)).toBe(false);
   });
 });
