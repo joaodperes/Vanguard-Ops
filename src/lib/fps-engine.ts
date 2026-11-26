@@ -5,6 +5,7 @@ import { accumulateDamageContribution, isAssistContributionEligible } from "./co
 import { resolveFrontierBotWeaponFallback } from "./bot-weapon-selection";
 import { resolveBotPursuitSpeed } from "./bot-movement-rules";
 import { cloneFrontierLoadout, frontierDropWeapon } from "./frontier-loadout-drops";
+import { FRONTIER_LOADOUTS } from "./frontier-loadouts";
 import {squadIntent} from "./squad-coordination";
 import { operationById, createOperationState, tickOperation, operationEncounter, operationConfigValid, operationTarget, operationSite, operationAwarenessMultiplier, operationFeedbackEvents, syncOperationCartCollider, type OperationState } from "./operations";
 import { survivalRoleForSlot, survivalRoleHealthMultiplier, survivalFrontalArmor, tickSurvivalSpecialists, createSurvivalObjective, tickSurvivalObjective, survivalObjectiveSite, survivalObjectiveText, SURVIVAL_ROLE_INFO, type SurvivalRole, type SurvivalActor, type SurvivalObjective } from "./survival-encounters";
@@ -13043,6 +13044,30 @@ export class FPSEngine {
       ai.reloadingUntil=0;
       this.rebuildCombatantMesh(c);
     }
+    // Frontier bots can scavenge a nearby full kit after exhausting both firearms.
+    if(this.opts.mode==="frontier" && weaponById(c.weaponId).category==="melee" &&
+       (ai.secondaryAmmoInMag??0)<=0 && !this.orbitalBotHolders.has(c.id)){
+      const nearby=[...this.droppedWeaponMeshes.entries()].map(([id,mesh])=>({id,mesh,
+        distance:Math.hypot(c.pos[0]-mesh.position.x,c.pos[2]-mesh.position.z)}))
+        .filter(d=>d.distance<=2.25).sort((a,b)=>a.distance-b.distance)[0];
+      const dropped=nearby?.mesh.userData.loadout as LoadoutWire|undefined;
+      if(nearby&&dropped){
+        const kit=cloneFrontierLoadout(dropped);
+        const primaryId=kit.emptyPrimary?(kit.secondaryWeaponId??"pistol_side"):kit.weaponId;
+        const secondaryId=kit.secondaryWeaponId??"pistol_side";
+        const primaryAtt=kit.emptyPrimary?kit.secondaryAttachments:kit.attachments;
+        const secondaryAtt=kit.emptyPrimary?kit.attachments:kit.secondaryAttachments;
+        ai.primaryWeaponId=kit.weaponId;ai.secondaryWeaponId=kit.secondaryWeaponId;
+        ai.primaryAttachments=primaryAtt??emptyBotAttachments();ai.secondaryAttachments=secondaryAtt??emptyBotAttachments();
+        ai.ammoInMag=botMagazineCapacity(primaryId,primaryAtt??emptyBotAttachments());
+        ai.secondaryAmmoInMag=kit.emptyPrimary?0:botMagazineCapacity(secondaryId,secondaryAtt??emptyBotAttachments());
+        ai.attachments=botActiveAttachments(kit.weaponId,primaryId,kit.attachments??emptyBotAttachments(),kit.secondaryWeaponId,kit.secondaryAttachments);
+        c.weaponId=primaryId;c.weaponSkinId=kit.emptyPrimary?(kit.secondaryWeaponSkinId??"default"):kit.weaponSkinId;
+        c.weaponSkinId=c.weaponSkinId??"default";
+        this.removeDroppedWeapon(nearby.id);this.rebuildCombatantMesh(c);
+        ai.reloadingUntil=0;ai.burstShotsLeft=0;ai.nextShotAt=now+350;
+      }
+    }
     // The same pure Frontier fallback decision is used by the authoritative server.
     if(this.opts.mode==="frontier" && !ai.wonderEquippedUntil &&
        !this.orbitalBotHolders.has(c.id)){
@@ -13517,7 +13542,7 @@ export class FPSEngine {
       const enemyVisible = dist < 35;
       const wantSmartReload = shouldBotSmartReload(ai.ammoInMag, eff.magSize, enemyVisible,
         ai.skill, canStartWeaponReload(w.stats, ai.ammoInMag), Math.random());
-      if (!isThrowingKnife(w.id) && (!ai.sprinting || perk==="field_loader") && (ai.ammoInMag <= 0 || wantSmartReload) && now > ai.reloadingUntil) {
+      if (this.opts.mode!=="frontier" && !isThrowingKnife(w.id) && (!ai.sprinting || perk==="field_loader") && (ai.ammoInMag <= 0 || wantSmartReload) && now > ai.reloadingUntil) {
         const durationMs = botReloadDurationMs({
           reloadStyle: w.stats.reloadStyle, reloadPerRound: w.stats.reloadPerRound,
           effectiveReloadTime: eff.reloadTime, magazineSize: eff.magSize,
@@ -14239,9 +14264,12 @@ export class FPSEngine {
     const nearbyWeapon=[...this.droppedWeaponMeshes.entries()]
       .map(([id,mesh])=>({id,weaponId:String(mesh.userData.weaponId??""),distance:Math.hypot(this.pos.x-mesh.position.x,this.pos.z-mesh.position.z)}))
       .filter(drop=>drop.distance<=2.25).sort((a,b)=>a.distance-b.distance)[0];
-    const nearbyWeaponName=nearbyWeapon?.weaponId?weaponById(nearbyWeapon.weaponId).name:"weapon";
+    const nearbyDropLoadout=nearbyWeapon
+      ?this.droppedWeaponMeshes.get(nearbyWeapon.id)?.userData.loadout as LoadoutWire|undefined:undefined;
+    const nearbyPreset=FRONTIER_LOADOUTS.find(p=>p.id===nearbyDropLoadout?.frontierPresetId);
+    const nearbyKitName=nearbyPreset?.name??(nearbyWeapon?.weaponId?weaponById(nearbyWeapon.weaponId).name:"weapon");
     const weaponPickupPrompt=this.opts.mode==="frontier"&&this.alive&&nearbyWeapon
-      ?(this.opts.online?"PRESS E TO PICK UP FULL LOADOUT":"LOADOUT DROP"):undefined;
+      ?(this.opts.online?(nearbyKitName.toUpperCase()+" KIT · PRESS E TO PICK UP"):(nearbyKitName.toUpperCase()+" KIT · LOADOUT DROP")):undefined;
     const hardpointZones = this.opts.mode === "hardpoint" && this.hardpointState
       ? hardpointZonesForMap(this.map.id) : [];
     const activeHardpointZone = this.hardpointState
