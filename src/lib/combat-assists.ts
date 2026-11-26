@@ -9,7 +9,7 @@ export function countEligibleAssists(
 ):string[]{
   if(killerTeam!=="red"&&killerTeam!=="blue")return [];
   return [...contributors].filter(([id,c])=>
-    id!==killerId&&c.team===killerTeam&&c.damage>=15&&now-c.at<=10000
+    id!==killerId&&c.team===killerTeam&&isAssistContributionEligible(c,now)
   ).map(([id])=>id);
 }
 
