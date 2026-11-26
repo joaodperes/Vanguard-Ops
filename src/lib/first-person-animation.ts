@@ -292,7 +292,8 @@ export function sampleRiotShieldSwapMotion(progress: number): {
 export function reloadMotionFor(weaponId: string, category: string, special?: string): ReloadMotion {
   if (special === "heat") return "vent";
   if (weaponId === "sniper_heavy") return "side_bolt";
-  if (weaponId === "sniper_scout") return "bolt_action";
+  // The bolt cycle is driven by the shot timeline; a magazine reload must use its own full-duration track.
+  if (weaponId === "sniper_scout") return "magazine";
   if (special === "bolt") return "bolt";
   if (category === "shotgun") return "shell";
   if (weaponId === "pistol_magnum") return "cylinder";
