@@ -11,6 +11,7 @@ describe("weapon charms remain visible on gun models",()=>{
     for(const wonder of wonders)expect(weaponSupportsCharm(wonder)).toBe(false);
     expect(weaponSupportsCharm(weaponById("rifle_ar"))).toBe(true);
     expect(weaponSupportsCharm(weaponById("pistol_side"))).toBe(true);
+    expect(weaponSupportsCharm(weaponById("pistol_bastion"))).toBe(false);
     expect(weaponSupportsCharm(weaponById("knife_tactical"))).toBe(false);
   });
   test("first-person mounts clear each weapon's support hand, without moving bot charms",()=>{
