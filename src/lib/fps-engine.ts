@@ -337,6 +337,7 @@ export interface HudState {
   stamina: number;
   staminaCooldownMs: number;
   frontierDashCooldownMs?: number; // Frontier dash recharge remaining (0..3000ms)
+  weaponPickupPrompt?: string;
   // Equipped weapon slot. Drives the HUD's weapon-slot indicator (1/2/3).
   weaponSlot: WeaponSlot;
   // Per-slot weapon names (so the HUD can show all three slots' weapons).
@@ -14055,6 +14056,11 @@ export class FPSEngine {
       scoreboard.push({ id: this.selfId, name: this.opts.playerName, team: this.opts.team as string, kills: this.kills, deaths: this.deaths, score: this.opts.mode === "ctf" ? this.ctfCaptures : this.opts.mode === "killconfirmed" ? this.confirmations + (this.denialScoreEnabled ? this.denials : 0) : this.kills, isBot: false, isSelf: true, isBombCarrier: this.opts.mode==="searchdestroy"&&this.opts.team===this.searchDestroyState?.attackerTeam&&this.selfId===this.searchDestroyState?.bomb.carrierId });
     }
     scoreboard.sort((a, b) => b.score - a.score || b.kills - a.kills);
+    const nearbyWeapon=[...this.droppedWeaponMeshes.entries()]
+      .map(([id,mesh])=>({id,distance:Math.hypot(this.pos.x-mesh.position.x,this.pos.z-mesh.position.z)}))
+      .filter(drop=>drop.distance<=2.25).sort((a,b)=>a.distance-b.distance)[0];
+    const weaponPickupPrompt=this.opts.mode==="frontier"&&this.alive&&nearbyWeapon
+      ?(this.opts.online?"E / INTERACT · PICK UP WEAPON":"WEAPON DROP"):undefined;
     const mechEnterAvailable=!this.mechActive&&this.alive&&this.opts.mode!=="gungame"&&
       !(this.opts.mode==="ctf"&&(this.ctfFlags.red.carrierId===this.selfId||this.ctfFlags.blue.carrierId===this.selfId))&&
       [...this.mechDrops.values()].some(d=>d.landed&&!d.enteredBy&&d.expiresAt>Date.now()&&
@@ -14124,6 +14130,7 @@ export class FPSEngine {
         : undefined,
       frontierAmmoRemaining: this.frontierAmmoRemaining,
       frontierDashCooldownMs: this.opts.mode==="frontier" ? Math.max(0,this.frontierDodgeReadyAt-now) : undefined,
+      weaponPickupPrompt,
       orbitalKillsRequired:reactorObjective(this.map)?.killsRequired,
       orbitalCharge:reactorObjective(this.map)?this.orbitalCharge:undefined,
       orbitalReaper:reactorObjective(this.map)?this.orbitalWeaponActive:undefined,
