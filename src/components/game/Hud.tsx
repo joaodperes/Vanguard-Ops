@@ -684,6 +684,8 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
       </div>
       )}
 
+      {mode==="frontier"&&hud.weaponPickupPrompt&&<div className="absolute bottom-[22%] left-1/2 z-30 -translate-x-1/2 rounded-lg border border-cyan-300/50 bg-black/80 px-4 py-2 text-center text-xs font-black tracking-wider text-cyan-100 shadow-xl" role="status" aria-live="polite">{hud.weaponPickupPrompt}</div>}
+
       {/* bottom right: ammo + weapon + slot indicator (desktop only — mobile
           uses the centered bottom cluster below). */}
       {!isTouch && hud.mechArmor===undefined && (
