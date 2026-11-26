@@ -216,6 +216,21 @@ export function tickSearchDestroy(
 }
 
 export interface HardpointZone { id: string; pos: ModeVec3; radius?: number }
+/**
+ * Five authored Hardpoint centres per supported arena. Every 6-unit capture
+ * radius fits inside the playable footprint; Blacksite's legacy layout is
+ * retained only so already-running rooms cannot place objectives out of bounds.
+ */
+export function hardpointZonesForMap(mapId: string): HardpointZone[] {
+  const layouts: Record<string, readonly ModeVec3[]> = {
+    dustwater: [[-36,0,-28],[36,0,-28],[0,0,0],[-36,0,28],[36,0,28]],
+    floodgate: [[-100,0,-20],[-50,0,20],[0,0,-20],[50,0,20],[100,0,-20]],
+    emberhold: [[-65,0,-52],[65,0,-52],[0,0,0],[-65,0,52],[65,0,52]],
+    bunker: [[-25,0,-25],[25,0,-25],[0,0,0],[-25,0,25],[25,0,25]],
+  };
+  const positions = layouts[mapId] ?? layouts.dustwater;
+  return positions.map((pos,index)=>({id:String(index),pos,radius:6}));
+}
 export interface HardpointState {
   activeIndex: number; nextIndex: number; zoneOrder: number[]; rotationIndex: number;
   phase: "active" | "transition"; phaseEndsAt: number;
@@ -239,8 +254,10 @@ export function tickHardpoint(
   let rotated = false;
   if (now >= state.phaseEndsAt) {
     if (state.phase === "active") {
+      // The outgoing point remains live and can still score throughout the
+      // transition countdown. Ownership is recalculated below as usual.
       state.phase = "transition"; state.phaseEndsAt = now + HARDPOINT_RULES.transitionSeconds * 1000;
-      state.nextIndex = state.zoneOrder[(state.rotationIndex + 1) % zones.length] ?? (state.activeIndex + 1) % zones.length; state.owner = "neutral";
+      state.nextIndex = state.zoneOrder[(state.rotationIndex + 1) % zones.length] ?? (state.activeIndex + 1) % zones.length;
     } else {
       state.phase = "active"; state.activeIndex = state.nextIndex;
       state.rotationIndex = (state.rotationIndex + 1) % zones.length;
@@ -249,7 +266,8 @@ export function tickHardpoint(
       state.owner = "neutral"; rotated = true;
     }
   }
-  if (state.phase === "transition") return { state, scored: null, rotated };
+  // During transition, activeIndex deliberately remains the outgoing point:
+  // keep capturing/scoring it until the new point activates.
   const zone = zones[state.activeIndex], radius = zone.radius ?? HARDPOINT_RULES.captureRadius;
   const red = players.some(p => p.alive && p.team === "red" && inside(p.pos, zone.pos, radius));
   const blue = players.some(p => p.alive && p.team === "blue" && inside(p.pos, zone.pos, radius));
