@@ -25,7 +25,7 @@ import { roomMapCandidates, roomTeamSizeForMap, winningRoomMap } from "./room-fl
 import { recommendedTeamSize, type RoomStatus, isValidKillConfirmedTagLifetimeMs, killConfirmedTagExpiresAt } from "./game-protocol";
 import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,ORBITAL_RULES_VERSION,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,orbitalPulseTargets,orbitalReaperEquipped,ORBITAL_REAPER_SPEED_MULTIPLIER} from "./orbital-reactor";
 import { advanceMatchElapsed } from "./match-clock";
-import { createHardpointState, tickHardpoint, hardpointObjectiveContributors, createSearchDestroyState, beginNextSearchDestroyRound, tickSearchDestroy, applySearchDestroyAction, dropSearchDestroyBomb, releaseSearchDestroyPlayer, frontierWeaponIdAllowed, frontierReserveAmmo, distributedObjectivePosition, selectSearchDestroyCarrier, searchDestroySitesForMap, SEARCH_DESTROY_RULES, type HardpointState, type SearchDestroyState, type SearchDestroySite } from "./game-mode-rules";
+import { createHardpointState, tickHardpoint, hardpointObjectiveContributors, hardpointZonesForMap, createSearchDestroyState, beginNextSearchDestroyRound, tickSearchDestroy, applySearchDestroyAction, dropSearchDestroyBomb, releaseSearchDestroyPlayer, frontierWeaponIdAllowed, frontierReserveAmmo, distributedObjectivePosition, selectSearchDestroyCarrier, searchDestroySitesForMap, SEARCH_DESTROY_RULES, type HardpointState, type SearchDestroyState, type SearchDestroySite } from "./game-mode-rules";
 import { fullWonderCharges, drainedWonderCharges, tickWonderCharges, spendWonderCharge, spendHellfireFuelOnShot, accelerateWonderCharge, refundWonderCharge, type WonderChargeState } from "./wonder-charge";
 import { frontierLoadoutForPreset, isFrontierLoadoutPresetId } from "./frontier-loadouts";
 import { selectSmartTarget, selectSmartTargets, SMART_MAX_TAGS, SMART_TAG_MS, HELLFIRE_FUEL_STEP_MS, inFlameCone, sludgeMovementFactor } from "./wonder-tech";
@@ -3075,7 +3075,7 @@ function tickRoomSimulation(room: Room) {
   }
   const now = Date.now();
   if(room.mode==="hardpoint"&&room.preMatchCountdown<=0&&room.hardpointState){
-    const zones=[[-20,0,-34],[20,0,-34],[0,0,8],[-42,0,40],[42,0,40]].map((p,i)=>({id:String(i),pos:p as Vec3,radius:6}));
+    const zones=hardpointZonesForMap(room.map.id);
     const result=tickHardpoint(room.hardpointState,zones,allCombatants(room) as import("./game-mode-rules").ModeCombatant[],now,50);
     const activeZone=zones[result.state.activeIndex];
     if(activeZone){
