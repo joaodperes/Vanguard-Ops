@@ -686,6 +686,13 @@ function metricDelta(metric: ChallengeMetric, m: MatchResultInput): number {
     case "ctf_captures": return m.mode === "ctf" ? m.score : 0;
     case "ctf_flag_returns": return m.mode === "ctf" ? (m.flagReturns ?? 0) : 0;
     case "ctf_defense_kills": return m.mode === "ctf" ? (m.defenseKills ?? 0) : 0;
+    case "searchdestroy_objectives": return m.mode === "searchdestroy" ? ((m.modeStats?.searchDestroy?.plants ?? 0) + (m.modeStats?.searchDestroy?.defuses ?? 0)) : 0;
+    case "searchdestroy_rounds_won": return m.mode === "searchdestroy" ? (m.modeStats?.searchDestroy?.playerRoundsWon ?? 0) : 0;
+    case "hardpoint_objective_seconds": return m.mode === "hardpoint" ? (m.modeStats?.hardpoint?.playerObjectiveSeconds ?? 0) : 0;
+    case "hardpoint_kills": return m.mode === "hardpoint" ? m.kills : 0;
+    case "hardpoint_wins": return m.mode === "hardpoint" && m.won ? 1 : 0;
+    case "frontier_kills": return m.mode === "frontier" ? m.kills : 0;
+    case "frontier_wins": return m.mode === "frontier" && m.won ? 1 : 0;
     case "headshots": return m.headshots;
     case "wins": return m.won ? 1 : 0;
     case "matches": return 1;
