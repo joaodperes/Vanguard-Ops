@@ -3901,7 +3901,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     const kit=bot.loadout;
     const currentIsPrimary=bot.weaponId===kit.weaponId;
     const otherId=currentIsPrimary?kit.secondaryWeaponId:kit.weaponId;
-    const otherAmmo=currentIsPrimary?(ai.secondaryAmmoInMag??0):(ai.primaryAmmoInMag??0);
+    const otherAmmo=ai.secondaryAmmoInMag??0;
     if(otherId && otherAmmo>0){
       const old=ai.ammoInMag;ai.ammoInMag=otherAmmo;
       if(currentIsPrimary)ai.secondaryAmmoInMag=old;else ai.primaryAmmoInMag=old;
