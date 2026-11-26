@@ -2,6 +2,7 @@ import {DEFAULT_CONTROLS,canonicalKey,stick,type ControlSettings} from "./contro
 import { applyDamageFactors } from "./combat-damage-rules";
 import { resolveFrontierBotWeaponFallback } from "./bot-weapon-selection";
 import { resolveBotPursuitSpeed } from "./bot-movement-rules";
+import { cloneFrontierLoadout, frontierDropWeapon } from "./frontier-loadout-drops";
 import {squadIntent} from "./squad-coordination";
 import { operationById, createOperationState, tickOperation, operationEncounter, operationConfigValid, operationTarget, operationSite, operationAwarenessMultiplier, operationFeedbackEvents, syncOperationCartCollider, type OperationState } from "./operations";
 import { survivalRoleForSlot, survivalRoleHealthMultiplier, survivalFrontalArmor, tickSurvivalSpecialists, createSurvivalObjective, tickSurvivalObjective, survivalObjectiveSite, survivalObjectiveText, SURVIVAL_ROLE_INFO, type SurvivalRole, type SurvivalActor, type SurvivalObjective } from "./survival-encounters";
@@ -8754,24 +8755,23 @@ export class FPSEngine {
     const primaryId=ai.primaryWeaponId??victim.weaponId;
     const secondaryId=ai.secondaryWeaponId??(primaryId==="pistol_side"?"pistol_bastion":"pistol_side");
     const toWire=(a?:BotAttachmentMap)=>({sight:a?.sight??null,barrel:a?.barrel??null,grip:a?.grip??null,magazine:a?.magazine??null});
-    const loadout:LoadoutWire={
+    const loadout:LoadoutWire=cloneFrontierLoadout({
       weaponId:primaryId,secondaryWeaponId:secondaryId,meleeWeaponId:"knife_tactical",
       weaponSkinId:victim.weaponSkinId||"default",secondaryWeaponSkinId:"default",meleeWeaponSkinId:"default",
       playerSkinId:victim.playerSkinId||"default",attachments:toWire(ai.primaryAttachments??ai.attachments),
       secondaryAttachments:toWire(ai.secondaryAttachments??emptyBotAttachments()),
       nameplateId:victim.nameplateId??"standard",primaryCharmId:victim.charmId??"none",
       secondaryCharmId:"none",meleeCharmId:"none",
-    };
-    const shownWeapon=victim.weaponId===secondaryId?secondaryId:primaryId;
-    this.addDroppedWeapon("offline_loadout_"+victim.id+"_"+Date.now(),shownWeapon,[...victim.pos] as Vec3,loadout,Date.now()+45000);
+    });
+    const dropped=frontierDropWeapon(loadout,victim.weaponId);
+    this.addDroppedWeapon("offline_loadout_"+victim.id+"_"+Date.now(),dropped.weaponId,[...victim.pos] as Vec3,loadout,Date.now()+45000);
   }
 
   private dropOfflineFrontierPlayerLoadout():void {
     if(this.opts.mode!=="frontier"||this.opts.online)return;
-    const loadout=this.opts.loadout;
-    const copy:LoadoutWire={...loadout,attachments:{...loadout.attachments},secondaryAttachments:{...(loadout.secondaryAttachments??emptyBotAttachments())}};
-    const shownWeapon=copy.emptyPrimary?(copy.secondaryWeaponId??copy.weaponId):(this.weaponId===copy.secondaryWeaponId?(copy.secondaryWeaponId??copy.weaponId):copy.weaponId);
-    this.addDroppedWeapon("offline_loadout_"+this.selfId+"_"+Date.now(),shownWeapon,[this.pos.x,this.pos.y,this.pos.z],copy,Date.now()+45000);
+    const copy=cloneFrontierLoadout(this.opts.loadout);
+    const dropped=frontierDropWeapon(copy,this.weaponId);
+    this.addDroppedWeapon("offline_loadout_"+this.selfId+"_"+Date.now(),dropped.weaponId,[this.pos.x,this.pos.y,this.pos.z],copy,Date.now()+45000);
   }
 
   private tryPickupNearbyWeapon():boolean {
@@ -8789,8 +8789,9 @@ export class FPSEngine {
       return true;
     }
     const drop=this.droppedWeaponMeshes.get(closest);
-    const loadout=drop?.userData.loadout as LoadoutWire|undefined;
-    if(!loadout)return false;
+    const droppedLoadout=drop?.userData.loadout as LoadoutWire|undefined;
+    if(!droppedLoadout)return false;
+    const loadout=cloneFrontierLoadout(droppedLoadout);
     this.pendingLoadout=loadout;
     this.equipQueuedLoadout();
     const primaryMag=loadout.emptyPrimary?0:this.primaryEff.magSize;
@@ -13270,7 +13271,7 @@ export class FPSEngine {
         perkBaseSpeedMultiplier:botMovementPerkMultiplier(perk),
         weaponMoveSpeedMultiplier:ctfCarrierWeaponSpeed(eff.moveSpeed,botCarryingFlag),
         orbitalMultiplier:orbitalReaperEquipped(this.map,c.weaponId)&&!botCarryingFlag?ORBITAL_REAPER_SPEED_MULTIPLIER:1,
-        environmentMultiplier:sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame") * floodgateWaterEffect(c.pos[0],c.pos[1],c.pos[2],floodAge,this.map.cover).speedMultiplier,
+        environmentMultiplier:sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame") * floodgateWaterEffect(c.pos[0],c.pos[1],c.pos[2],floodAge,this.map.cover).speedMultiplier * ((this.botCryoSlowUntil.get(c.id)??0)>now?CRYO_SLOW_FACTOR:1),
       });
       const ideal=w.category==="melee" ? Math.max(.7,w.stats.range-.15) : stance.idealDistance;
       const chaseThreshold=w.category==="melee" ? ideal : ideal+3;
