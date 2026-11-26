@@ -37,6 +37,7 @@ import { shieldPanel } from "./riot-shield";
 import * as THREE from "three";
 import { ExplosionEffects } from "./explosion-effects";
 import { regionRectangles } from "./map-blueprints";
+import { teamIdentity } from "./team-identity";
 import { cityInteriorFixtures, cityFixtureMaterial, cityFixtureBallisticId, CITY_USE_FACADE_COLORS, CITY_FACADE_TINTS, mapPropBallisticId } from "./map-visuals";
 import {isCastlePropKind,castleFixtureBoxes} from "./castle-scenery";
 import {buildCastleScenery} from "./castle-prop-model";
@@ -7039,7 +7040,7 @@ export class FPSEngine {
       }
     }
     // ---- Team ring at feet (visible ground marker showing team color) ----
-    const ringColor = c.team === "red" ? 0xef4444 : c.team === "blue" ? 0x3b82f6 : 0x9ca3af;
+    const ringColor = teamIdentity(c.team)?.hex ?? "#9ca3af";
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(0.55, 0.7, 24),
       new THREE.MeshBasicMaterial({ color: ringColor, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthTest: true })
