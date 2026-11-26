@@ -1961,9 +1961,9 @@ function tickSpecialEffects(room: Room, now: number) {
       const d=blastExposureDistance(origin,center,EXPLO_RADIUS,(from,to)=>hasLineOfSight(room,from,to));
       if(d===null)continue;
       const damage=explonandoDamage(d);
-      if(damage>0)applyDamage(room,bomb.ownerId,target,damage,false,"perk_explonando");
+      if(damage>0)applyDamage(room,bomb.ownerId,target,damage,false,"equipment_frag");
     }
-    blastMaterialCover(room,bomb.pos,EXPLO_RADIUS,EXPLO_DAMAGE,"perk_explonando");
+    blastMaterialCover(room,bomb.pos,EXPLO_RADIUS,EXPLO_DAMAGE,"equipment_frag");
     if (room.ended) return;
   }
   for (const [id, mine] of room.equipmentMines) {
@@ -2158,12 +2158,12 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
     room.damageContributions.delete(victim.id);
     // Every elimination (including the Bulwark P-9) reduces an active
     // shield-rebuild clock. Do not accelerate from deaths with no attacker.
-    if(attacker && attacker.id!==victim.id && weaponId!=="perk_explonando" && (attacker.riotShieldReadyAt??0)>0){
+    if(attacker && attacker.id!==victim.id && (attacker.riotShieldReadyAt??0)>0){
       const next=accelerateRiotShield(attacker.riotShieldHp??RIOT_SHIELD_HP,
         attacker.riotShieldReadyAt??0,Date.now());
       attacker.riotShieldHp=next.hp;attacker.riotShieldReadyAt=next.readyAt;
     }
-    if (attacker && attacker.id!==victim.id && weaponId !== "perk_explonando" && !weaponById(weaponId).wonder) {
+    if (attacker && attacker.id!==victim.id && !weaponById(weaponId).wonder) {
       // Only ordinary kills reduce Wonder recharge; its own blast and poison cannot.
       for (const [key, state] of room.wonderCharges) {
         if (!key.startsWith(attackerId + ":")) continue;
@@ -2324,7 +2324,7 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
     } else if (room.mode === "gungame") {
       // Gun Game: the attacker advances their tier on each kill. If they were
       // already on the FINAL weapon (the last melee tier), this kill wins the match.
-      if (attacker && attacker.id!==victim.id && weaponId !== "perk_explonando") {
+      if (attacker && attacker.id!==victim.id && weaponId !== "equipment_frag") {
         const idx = room.gungameProgress.get(attackerId) ?? 0;
         const last = room.gungameWeapons.length - 1;
         if (canCompleteGunGame(idx, room.gungameWeapons, attacker.weaponId)) {
