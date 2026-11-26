@@ -10067,7 +10067,7 @@ export class FPSEngine {
   /** Two finite steel knives shared by F and the melee slot. All damage
    * happens on the short ray, never through walls or behind another target. */
   private throwThrowingKnife(w:WeaponDef,now:number,quick:boolean){
-    const gap=1000/Math.max(.1,w.stats.fireRate);
+    const gap=weaponFireIntervalMs(w.stats.fireRate,.1);
     if(now-this.lastThrowingKnifeAt<gap || now-this.lastShotAt<gap)return;
     const spent=spendThrowingKnife(this.throwingKnifeState,now,this.opts.mode==="gungame");
     if(!spent){this.sound.play("empty_click",{volume:.35});return;}
@@ -13118,7 +13118,7 @@ export class FPSEngine {
       const diff:Vec3=[t.pos[0]-origin[0],t.pos[1]+TURRET_MUZZLE_HEIGHT-origin[1],t.pos[2]-origin[2]];
       const len=Math.hypot(...diff)||1;
       t.hp-=Math.max(5,eff.damage*.55);ai.ammoInMag--;ai.lastFiredAt=now;
-      ai.nextShotAt=now+1000/Math.max(.5,eff.fireRate);
+      ai.nextShotAt=now+weaponFireIntervalMs(eff.fireRate,.5);
       this.spawnTracer(origin,[diff[0]/len,diff[1]/len,diff[2]/len],"default",eff.coverPenetration??0,eff.range,undefined,c.weaponId);
       if(t.hp<=0)this.removeBulletSpitter(id);
     }
@@ -13131,7 +13131,7 @@ export class FPSEngine {
       const origin:Vec3=[c.pos[0],c.pos[1]+1.45,c.pos[2]];
       const dir=this.normalize([scout.pos[0]-origin[0],scout.pos[1]-origin[1],scout.pos[2]-origin[2]]);
       scout.hp-=Math.max(5,eff.damage*.55);ai.ammoInMag--;ai.lastFiredAt=now;
-      ai.nextShotAt=now+1000/Math.max(.5,eff.fireRate);this.spawnTracer(origin,dir,"default",eff.coverPenetration??0,eff.range,undefined,c.weaponId);
+      ai.nextShotAt=now+weaponFireIntervalMs(eff.fireRate,.5);this.spawnTracer(origin,dir,"default",eff.coverPenetration??0,eff.range,undefined,c.weaponId);
       if(scout.hp<=0)for(const [id,d] of this.harbingerDrones)if(d===scout)this.removeHarbinger(id);
     }
     if (now > ai.nextDecisionAt) {
@@ -13504,11 +13504,11 @@ export class FPSEngine {
             ai.burstEndsAt = now + pauseMs;
             ai.nextShotAt = now + pauseMs;
           } else {
-            ai.nextShotAt = now + 1000 / Math.max(1, eff.fireRate) * (1.0 + (1 - ai.skill) * 0.4) + Math.random() * 30;
+            ai.nextShotAt = now + weaponFireIntervalMs(eff.fireRate) * (1.0 + (1 - ai.skill) * 0.4) + Math.random() * 30;
           }
         } else {
           // Semi-auto: tap cadence, slower than full auto fire rate (human can't spam).
-          ai.nextShotAt = now + 1000 / Math.max(1, eff.fireRate) * (1.4 + (1 - ai.skill) * 0.6) + Math.random() * 200;
+          ai.nextShotAt = now + weaponFireIntervalMs(eff.fireRate) * (1.4 + (1 - ai.skill) * 0.6) + Math.random() * 200;
         }
       }
       // ---- Reload decisions ----
