@@ -4513,7 +4513,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     }
   } else {
     // wander toward wanderTarget (with wall collision so bots don't clip through cover)
-    const orderGoal=squadIntent({self:bot,allies:allCombatants(room),mode:room.mode,now,order:room.squadOrders?.get(bot.team),critical:room.mode==="ctf"&&(!!room.flags.red.carrierId||!!room.flags.blue.carrierId||ai.ctfGuarding)});
+    const orderGoal=squadIntent({self:bot,allies:allCombatants(room),mode:room.mode,now,critical:room.mode==="ctf"&&(!!room.flags.red.carrierId||!!room.flags.blue.carrierId||ai.ctfGuarding)});
     if(orderGoal){ai.wanderTarget=[...orderGoal.goal];ai.highGroundPatrol=null;}
     const patrolGoal=ai.highGroundPatrol;
     const patrolPoint=patrolGoal?cityHighGroundStep(bot.pos,patrolGoal,
