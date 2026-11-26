@@ -115,7 +115,7 @@ import { advanceKillChain, type KillChainState } from "./kill-chain";
 import { frontierWeaponIdAllowed, frontierReserveAmmo, searchDestroySitesForMap, SEARCH_DESTROY_RULES, hardpointZonesForMap } from "./game-mode-rules";
 import { isFlagDefenseKill, largestScoreDeficit } from "./match-bonus-tracking";
 import { advanceIncrementalReload } from "./incremental-reload";
-import { botReloadDurationMs, incrementalReloadStepMs } from "./weapon-reload-rules";
+import { botReloadDurationMs, incrementalReloadStepMs, weaponReloadDurationMs } from "./weapon-reload-rules";
 import { shotSpread, shotBloomIncrease, recoilKickRadians, sustainedRecoilMultiplier, firingMotionFactor, spreadShotDirection } from "./weapon-accuracy";
 import { shotgunPelletDirection, shotgunConeRadians } from "./shotgun-pattern";
 import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty, survivalPrepSeconds, type SurvivalTier } from "./survival";
@@ -11372,19 +11372,18 @@ export class FPSEngine {
     this.reloadStartedAt = performance.now();
     // Frontier reloads are deliberately longer, but topping up only one
     // akimbo cylinder is quicker than servicing both.
-    if(this.opts.mode==="frontier"&&this.isAkimboActive()){
-      const capacity=akimboHandCapacity(this.eff.magSize);
-      const needsReload=[this.akimboAmmo.left,this.akimboAmmo.right].filter(n=>n<capacity).length;
-      if(needsReload===1)duration*=.72;
-    }
-    if(this.opts.mode==="frontier")duration*=1.12;
-    this.reloadDurationMs = duration * 1000 * reloadDurationMultiplier(this.activePerkId) *
-      (this.opts.mode==="survival"?survivalReloadMultiplier(this.survivalUpgradeRanks,performance.now()-this.survivalLastKillAt):1);
+    const frontierAkimboReloadCount=this.opts.mode==="frontier"&&this.isAkimboActive()
+      ? [this.akimboAmmo.left,this.akimboAmmo.right].filter(n=>n<akimboHandCapacity(this.eff.magSize)).length
+      : 0;
+    this.reloadDurationMs = weaponReloadDurationMs(duration, {
+      frontier: this.opts.mode === "frontier",
+      perkMultiplier: reloadDurationMultiplier(this.activePerkId),
+      survivalMultiplier: this.opts.mode === "survival"
+        ? survivalReloadMultiplier(this.survivalUpgradeRanks,performance.now()-this.survivalLastKillAt) : 1,
+      akimboSingleHand: frontierAkimboReloadCount === 1,
+    });
     this.reloadEndsAt = this.reloadStartedAt + this.reloadDurationMs;
     this.sound.play(this.weaponId==="pistol_bastion" ? "revolver_reload" : "reload", { volume: 0.55 });
-    const frontierAkimboReloadCount=this.opts.mode==="frontier"&&this.isAkimboActive()
-      ? [this.akimboAmmo.left,this.akimboAmmo.right].filter(n=>n<akimboHandCapacity(this.eff.magSize)).length as 1|2
-      : undefined;
     this.socket?.emit("message", { t: "reload", ...(frontierAkimboReloadCount ? {frontierAkimboReloadCount}: {}) });
   }
 
