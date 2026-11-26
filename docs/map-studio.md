@@ -136,7 +136,7 @@ Orbital Nexus objective positions, charge settings and 0.6 gravity are now store
 
 ## Synchronization with dev — 2026-10-30
 
-Floodgate is registered as the eighth unified document, `src/data/maps/floodgate.json`. Its native empty base, authored geometry, theme, 16 unique spawns per team, four pressure vents and maintenance shutter are preserved. The editor exposes steam/spike appearance and warning duration for periodic hazards; exports, copies and draft playtests retain these fields. Full backdrop, purge rendering and synchronized event HUD remain in the game renderer. See [Floodgate](floodgate.md) for event timing and route notes.
+Floodgate is registered as the eighth unified document, `src/data/maps/floodgate.json`. Its native empty base, authored geometry, theme, 16 unique spawns per team, four pressure vents and maintenance shutter are preserved. The editor exposes steam/spike appearance and warning duration for periodic hazards; exports, copies and draft playtests retain these fields. Full backdrop, purge rendering and synchronized event HUD remain in the game renderer. See [the maps reference](maps.md#floodgate) for event timing and route notes.
 
 Forest Warfare, Orbital Nexus and Floodgate support CTF/TDM/Kill Confirmed. Verdant Ruins and Ridgefall additionally support the CTF trial layouts from current dev. The CTF picker retains the three dedicated maps first. Updated map capacities, protected spawn selection and weapon/bot changes from dev are retained.
 
@@ -146,7 +146,7 @@ Regression checks compare Floodgate published/draft collision, hazards, spawns a
 
 ## Whiteout Depot
 
-The sixth CTF map (`whiteout_depot`) is authored entirely in blueprint/theme JSON, with ground objectives and twelve spawns per team in `ctf-layouts.json`. No executable objective kind was added. Its rotated maintenance hatch is flanked along Z; both simulations compile the same solids. See [Whiteout Depot](whiteout-depot.md).
+The sixth CTF map (`whiteout_depot`) is authored entirely in blueprint/theme JSON, with ground objectives and twelve spawns per team in `ctf-layouts.json`. No executable objective kind was added. Its rotated maintenance hatch is flanked along Z; both simulations compile the same solids. See [the maps reference](maps.md#whiteout-depot).
 
 ## November 2026 integration
 
