@@ -309,7 +309,7 @@ The Annihilator is the sole innate three-body weapon.
 -20% capacity and +12% recoil. It adds two-target penetration with 35% retention,
 or improves natural penetration retention by 15 percentage points without
 increasing target count. Its `exclusiveWeaponIds` whitelist limits compatibility
-to conventional assault rifles, DMRs, LMGs and two snipers; do not expose it to
+to conventional assault rifles, DMRs, LMGs and the explicitly whitelisted long-range sniper; do not expose it to
 wonder weapons, explosive launchers, crossbows, shotguns or unrelated categories.
 Add catalog eligibility to both `category-attachments.json` and any affected
 per-weapon overrides in `attachment-compatibility.json`. The compatibility
