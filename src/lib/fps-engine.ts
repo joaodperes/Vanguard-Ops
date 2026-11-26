@@ -3837,7 +3837,7 @@ export class FPSEngine {
             }
           }
           // Distinctive raised emitter housing on the right side of the optic.
-          const emitter = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.035, 0.043), darkMat);
+          const emitter = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.035, 0.043), accentMat);
           emitter.position.set(0.052, -0.004, 0.006);
           scopeGroup.add(emitter);
           const emitterLens = new THREE.Mesh(new THREE.CircleGeometry(0.008, 12),
