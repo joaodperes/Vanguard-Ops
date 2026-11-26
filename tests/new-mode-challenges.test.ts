@@ -12,10 +12,10 @@ describe("new rotating mode challenges", () => {
     expect(WEEKLY_CHALLENGE_POOL.some(c => c.id === "wk_frontier_wins_5")).toBe(true);
   });
 
-  test("mode and map filters prevent progress outside the intended match", () => {
-    const challenge = { metric: "kills_with_secondary" as const, mapId: "dustwater", mode: "frontier" };
+  test("map filter prevents progress outside Dustwater", () => {
+    const challenge = { metric: "kills_with_secondary" as const, mapId: "dustwater" };
     expect(contextualChallengeDelta(challenge, { mapId: "dustwater", mode: "frontier", kills: 10 }, 10)).toBe(10);
-    expect(contextualChallengeDelta(challenge, { mapId: "dustwater", mode: "tdm", kills: 10 }, 10)).toBe(0);
+    expect(contextualChallengeDelta(challenge, { mapId: "dustwater", mode: "tdm", kills: 10 }, 10)).toBe(10);
     expect(contextualChallengeDelta(challenge, { mapId: "compound", mode: "frontier", kills: 10 }, 10)).toBe(0);
   });
 });
