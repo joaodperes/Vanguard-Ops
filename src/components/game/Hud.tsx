@@ -159,8 +159,6 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
   const flagLine = hud.ctfFlags ? ctfFlagLine(hud.ctfFlags, selfTeam, !!hud.ctfCarrying) : null;
   const clockEnding = !hud.unlimitedTime && !hud.ctfOvertime && hud.timeLeft > 0 && hud.timeLeft <= 30;
   const hardpointRemainingMs = hud.hardpoint ? Math.max(0,hud.hardpoint.phaseEndsAt-Date.now()) : 0;
-  const hardpointPhaseDurationMs = hud.hardpoint?.phase==="transition" ? HARDPOINT_RULES.transitionSeconds*1000 : HARDPOINT_RULES.rotationSeconds*1000;
-  const hardpointTimerProgress = hardpointPhaseDurationMs>0 ? Math.min(1,hardpointRemainingMs/hardpointPhaseDurationMs) : 0;
   const hardpointOwnerColor = !hud.hardpoint ? "text-emerald-200" : hud.hardpoint.phase==="transition" ? "text-amber-200" : hud.hardpoint.owner==="neutral" ? "text-yellow-300" : hud.hardpoint.owner==="contested" ? "text-orange-300" : hud.hardpoint.owner===hud.playerTeam ? "text-emerald-200" : "text-red-300";
 
   return (
@@ -501,7 +499,7 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
           </div>
         )}
         {mode === "hardpoint" && hud.hardpoint && <div className="absolute top-16 left-1/2 z-30 -translate-x-1/2 text-center">
-          <div className={`inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/65 px-3 py-1.5 text-[11px] font-black tracking-wider shadow-lg ${hardpointOwnerColor}`}><span className="h-2 w-2 rounded-full bg-current animate-pulse"/>{hud.hardpoint.phase === "transition" ? "ROTATING" : hud.hardpoint.owner === "contested" ? "CONTESTED" : hud.hardpoint.owner === "neutral" ? "NEUTRAL" : hud.hardpoint.owner === hud.playerTeam ? "FRIENDLY" : "ENEMY"}<span className="text-current tabular-nums">· {Math.ceil(hardpointRemainingMs/1000)}s</span><svg viewBox="0 0 20 20" className="h-5 w-5 -rotate-90" aria-hidden="true"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeOpacity=".22" strokeWidth="2"/><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="50.27" strokeDashoffset={50.27*(1-hardpointTimerProgress)}/></svg></div>
+          <div className={`inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/65 px-3 py-1.5 text-[11px] font-black tracking-wider shadow-lg ${hardpointOwnerColor}`}><span className="h-2 w-2 rounded-full bg-current animate-pulse"/>{hud.hardpoint.phase === "transition" ? "ROTATING" : hud.hardpoint.owner === "contested" ? "CONTESTED" : hud.hardpoint.owner === "neutral" ? "NEUTRAL" : hud.hardpoint.owner === hud.playerTeam ? "FRIENDLY" : "ENEMY"}<span className="text-current tabular-nums">· {Math.ceil(hardpointRemainingMs/1000)}s</span></div>
         </div>}
 
 
