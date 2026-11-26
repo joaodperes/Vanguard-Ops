@@ -166,15 +166,16 @@ export function stairs(
   const stepDepth = depth / actualSteps;
   for (let i = 0; i < actualSteps; i++) {
     const stepTop = stepHeight * (i + 1);
-    const cy = stepTop / 2;
-    // step i (0=bottom) is farthest from origin in the direction of `sign*axis`
-    // We start at (x,z) and steps ascend moving in direction -sign*axis (so bottom step is at +sign*axis far end)
+    const treadThickness = Math.min(0.18, Math.abs(stepHeight) * 0.44);
+    const cy = stepTop - treadThickness / 2;
+    // Each tread is a thin walkable surface, not a solid wedge from floor to top.
+    // This preserves the step-up path for bots while keeping sightlines open.
     if (axis === "z") {
       const sz = z + sign * (stepDepth * (actualSteps - 1 - i) + stepDepth / 2);
-      out.push({ pos: [x, cy, sz], size: [width / 2, cy + 0.001, stepDepth / 2 + 0.001], kind: "stair" });
+      out.push({ pos: [x, cy, sz], size: [width / 2, treadThickness / 2, stepDepth / 2 + 0.001], kind: "stair" });
     } else {
       const sx = x + sign * (stepDepth * (actualSteps - 1 - i) + stepDepth / 2);
-      out.push({ pos: [sx, cy, z], size: [stepDepth / 2 + 0.001, cy + 0.001, width / 2], kind: "stair" });
+      out.push({ pos: [sx, cy, z], size: [stepDepth / 2 + 0.001, treadThickness / 2, width / 2], kind: "stair" });
     }
   }
   return out;
