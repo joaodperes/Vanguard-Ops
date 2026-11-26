@@ -20,6 +20,13 @@ describe("Frontier combat fallbacks", () => {
     expect(client).toContain('this.opts.mode==="frontier" && ai.ammoInMag<=0');
     expect(client).toContain('const melee=this.opts.loadout.meleeWeaponId??"knife_tactical"');
   });
+  test("Frontier crossbow bots recover their own nearby dropped bolts", () => {
+    const server=readFileSync(new URL("../src/lib/game-server.ts",import.meta.url),"utf8");
+    expect(server).toContain('weaponById(bot.weaponId).special?.kind==="bolt"');
+    expect(server).toContain('bolt.ownerId!==bot.id');
+    expect(server).toContain('ai.ammoInMag=Math.min(boltWeapon.stats.magSize,ai.ammoInMag+1)');
+    expect(server).toContain('{t:"boltRemoved",id:bolt.id}');
+  });
   test("Frontier server accepts the melee weapon slot", () => {
     const server=readFileSync(new URL("../src/lib/game-server.ts",import.meta.url),"utf8");
     expect(server).not.toContain('if(room.mode==="frontier"&&msg.slot!=="primary"&&msg.slot!=="secondary")return;');
