@@ -450,7 +450,6 @@
     "description": "Plant or defuse 1 bomb in Search & Destroy",
     "icon": "Bomb",
     "focus": "operations",
-    "mode": "searchdestroy",
     "eliteEligible": false
   },
   {
@@ -463,7 +462,6 @@
     "description": "Spend 90 seconds on the Hardpoint objective",
     "icon": "Shield",
     "focus": "operations",
-    "mode": "hardpoint",
     "eliteGoal": 270
   },
   {
@@ -476,7 +474,6 @@
     "description": "Get 5 kills in Hardpoint",
     "icon": "Crosshair",
     "focus": "operations",
-    "mode": "hardpoint",
     "eliteGoal": 15
   },
   {
@@ -485,11 +482,10 @@
     "goal": 10,
     "rewardXp": 400,
     "rewardCredits": 130,
-    "title": "Gunslinger",
+    "title": "Frontier Skirmisher",
     "description": "Get 10 kills in Frontier",
     "icon": "Crosshair",
     "focus": "operations",
-    "mode": "frontier",
     "eliteGoal": 30
   },
   {
