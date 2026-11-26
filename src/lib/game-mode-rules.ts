@@ -16,8 +16,7 @@ export const HARDPOINT_RULES = Object.freeze({
 });
 export const FRONTIER_RULES = Object.freeze({
   sprintMultiplier: 1.18, accelerationMultiplier: 1.2, jumpMultiplier: 1.22,
-  adsMoveMultiplier: 0.92, dodgeCooldownMs: 3000, dodgeDurationMs: 220,
-  dodgeSpeedMultiplier: 1.85, reserveAmmoMultiplier: 0.65, reloadTimeMultiplier: 1.12,
+  adsMoveMultiplier: 0.92, reserveAmmoMultiplier: 0.65, reloadTimeMultiplier: 1.12,
   allowedCategories: ["sniper", "dmr", "pistol", "shotgun"] as const,
   allowedWeaponIds: ["sniper_scout", "sniper_lr", "dmr_scout", "pistol_magnum", "shotgun_br", "shotgun_combat", "pistol_bastion", "pistol_side", "pistol_ghost", "crossbow_reclaimer"] as const,
   disabledEquipment: true, disabledExplosives: true,
