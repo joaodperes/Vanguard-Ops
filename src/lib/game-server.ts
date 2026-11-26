@@ -71,7 +71,7 @@ import { EXPLO_FUSE_MS, EXPLO_RADIUS, EXPLO_DAMAGE, explonandoDamage, explonando
 import { calculateThrowPath } from "./throw-trajectory";
 import { buildGunGameWeapons, normalizeGunGameConfig, canCompleteGunGame } from "./gun-game";
 import { canStartWeaponReload, crossbowReloadCycleMs, crossbowReloadControlsCadence, isFanHammer, FAN_HAMMER_FIRE_RATE, FAN_HAMMER_SPREAD_MULTIPLIER } from "./weapon-mechanics";
-import { botReloadDurationMs, incrementalReloadStepMs, weaponReloadDurationMs } from "./weapon-reload-rules";
+import { botReloadDurationMs, incrementalReloadStepMs, shouldBotSmartReload, weaponReloadDurationMs } from "./weapon-reload-rules";
 import { chooseBotPatrolPoint, botPatrolDistance } from "./bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint, botEntersHazard, botMapRouteGoal } from "./bot-routing";
 import { BotRouteBudget, botRouteJitter } from "./bot-performance-budget";
@@ -4538,9 +4538,8 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     }
     // ---- Reload decisions (smart: reload early when safe) ----
     const enemyVisible = dist < 35;
-    const lowAmmo = ai.ammoInMag <= Math.max(1, Math.floor(eff.magSize * 0.3));
-    const wantSmartReload = lowAmmo && !enemyVisible && ai.skill > 0.4 &&
-      canStartWeaponReload(weapon.stats, ai.ammoInMag) && Math.random() < 0.02;
+    const wantSmartReload = shouldBotSmartReload(ai.ammoInMag, eff.magSize, enemyVisible,
+      ai.skill, canStartWeaponReload(weapon.stats, ai.ammoInMag), Math.random());
     if (!isThrowingKnife(weapon.id) && (!ai.sprinting || perk==="field_loader") && (ai.ammoInMag <= 0 || wantSmartReload) && now > ai.reloadingUntil) {
       const durationMs = botReloadDurationMs({
         reloadStyle: weapon.stats.reloadStyle, reloadPerRound: weapon.stats.reloadPerRound,
