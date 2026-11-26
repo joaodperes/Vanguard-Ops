@@ -3917,15 +3917,23 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
   }
   // Frontier crossbow bots retrieve their own recoverable bolts just as
   // human crossbow users can. Keep ownership and radius checks server-side.
-  if(room.mode==="frontier" && weaponById(bot.weaponId).special?.kind==="bolt"){
-    const boltWeapon=weaponById(bot.weaponId);
-    const pickupRadius=boltWeapon.special?.kind==="bolt"?boltWeapon.special.pickupRadius:0;
-    if(pickupRadius>0){
+  if(room.mode==="frontier"){
+    const boltWeapon=weaponById("crossbow_reclaimer");
+    const boltSpecial=boltWeapon.special;
+    const boltIsPrimary=bot.loadout.weaponId==="crossbow_reclaimer";
+    const boltIsSecondary=bot.loadout.secondaryWeaponId==="crossbow_reclaimer";
+    const boltAttachments=boltIsSecondary?bot.loadout.secondaryAttachments:bot.loadout.attachments;
+    const boltEquipped=boltIsPrimary||boltIsSecondary;
+    const boltIsActive=bot.weaponId==="crossbow_reclaimer";
+    const pickupRadius=boltSpecial?.kind==="bolt"?boltSpecial.pickupRadius:0;
+    if(boltEquipped && boltAttachments?.magazine!=="mag_bolt_quiver" && pickupRadius>0){
       for(const bolt of room.droppedBolts.values()){
         if(bolt.ownerId!==bot.id || now>=bolt.expiresAt)continue;
         if(Math.hypot(bot.pos[0]-bolt.pos[0],bot.pos[2]-bolt.pos[2])>pickupRadius)continue;
+        const capacity=botMagazineCapacity("crossbow_reclaimer",boltAttachments);
+        if(boltIsActive)ai.ammoInMag=Math.min(capacity,ai.ammoInMag+1);
+        else ai.secondaryAmmoInMag=Math.min(capacity,(ai.secondaryAmmoInMag??0)+1);
         room.droppedBolts.delete(bolt.id);
-        ai.ammoInMag=Math.min(boltWeapon.stats.magSize,ai.ammoInMag+1);
         io.to(room.id).emit("message",{t:"boltRemoved",id:bolt.id} as S2C);
         break;
       }
