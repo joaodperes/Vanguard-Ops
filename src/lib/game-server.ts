@@ -1,5 +1,5 @@
 import {squadIntent} from "./squad-coordination";
-import { applyDamageFactors } from "./combat-damage-rules";
+import { applyDamageFactors, resolveHealthDamage } from "./combat-damage-rules";
 import { resolveFrontierBotWeaponFallback } from "./bot-weapon-selection";
 import { resolveBotPursuitSpeed } from "./bot-movement-rules";
 import { cloneFrontierLoadout, frontierDropWeapon } from "./frontier-loadout-drops";
@@ -2089,9 +2089,10 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
     if(mech.armor<=0){if(mech.moduleId==="emergency_ejection")victim.health=Math.max(30,victim.health);room.playerMechs.delete(victim.id);io.to(room.id).emit("message",{t:"mechDestroyed",id:mech.dropId,playerId:victim.id} as S2C);}
     return;
   }
-  victim.health -= dmg;
+  const healthResult = resolveHealthDamage(victim.health, dmg, victim.alive);
+  victim.health = healthResult.health;
   if(weaponId === "wonder_hellfire" && dmg > 0) room.burning.set(victim.id,Date.now()+1100);
-  const killed = victim.health <= 0;
+  const killed = healthResult.killed;
   if(killed)room.burning.delete(victim.id);
   // For rewards scaling: attach the victim's difficulty to the hit event when
   // it's a kill. Non-killing hits don't need it (only kills earn rewards).
