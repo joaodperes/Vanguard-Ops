@@ -11372,9 +11372,9 @@ export class FPSEngine {
     this.reloadStartedAt = performance.now();
     // Frontier reloads are deliberately longer, but topping up only one
     // akimbo cylinder is quicker than servicing both.
-    const frontierAkimboReloadCount=this.opts.mode==="frontier"&&this.isAkimboActive()
-      ? [this.akimboAmmo.left,this.akimboAmmo.right].filter(n=>n<akimboHandCapacity(this.eff.magSize)).length
-      : 0;
+    const frontierAkimboReloadCount: 1 | 2 | undefined = this.opts.mode==="frontier"&&this.isAkimboActive()
+      ? [this.akimboAmmo.left,this.akimboAmmo.right].filter(n=>n<akimboHandCapacity(this.eff.magSize)).length as 1 | 2
+      : undefined;
     this.reloadDurationMs = weaponReloadDurationMs(duration, {
       frontier: this.opts.mode === "frontier",
       perkMultiplier: reloadDurationMultiplier(this.activePerkId),
