@@ -3,7 +3,7 @@
  * player's eye, -Z along the barrel). The engine applies vmScale and the
  * same rigid weapon quaternion used for the body and hand. */
 export const BASTION_CYLINDER_CENTER = [0, -.034, -.17] as const;
-export const BASTION_CHAMBER_RADIUS = .052; // make the six-chamber outline visibly wider than the frame
+export const BASTION_CHAMBER_RADIUS = .049; // make the six-chamber outline visibly wider than the frame
 export const BASTION_CYLINDER_HALF_LENGTH = .071;
 export const BASTION_CYLINDER_OPEN_X = -.17;
 export const BASTION_CARTRIDGE_SEATED_Z = .014;
