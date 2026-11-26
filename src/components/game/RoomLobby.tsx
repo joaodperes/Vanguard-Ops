@@ -2,6 +2,7 @@
 import type { LobbyState } from "@/lib/fps-engine";
 import type { GameMode } from "@/lib/game-protocol";
 import { displayLabel } from "@/lib/display-labels";
+import { teamIdentity } from "@/lib/team-identity";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Crown, DoorOpen, Play, Users, Shield, Skull, Flag, Radio, Bot as BotIcon, Swords, Wifi, WifiOff, Loader2 } from "lucide-react";
@@ -80,7 +81,7 @@ export function RoomLobby({ state, mode, operationId, onStart, onLeave, socketCo
               ) : (
                 humans.map((p) => {
                   const isHost = p.id === state.hostSocketId;
-                  const teamColor = p.team === "red" ? "#ef4444" : p.team === "blue" ? "#06b6d4" : "#9ca3af";
+                  const teamColor = teamIdentity(p.team)?.hex ?? "#9ca3af";
                   return (
                     <div key={p.id} className="flex items-center gap-3 px-3 py-2">
                       <span className="w-2 h-2 rounded-full shrink-0" style={{ background: teamColor, boxShadow: `0 0 6px ${teamColor}` }} />
@@ -92,7 +93,7 @@ export function RoomLobby({ state, mode, operationId, onStart, onLeave, socketCo
                       )}
                       {p.team !== "ffa" && (
                         <Badge variant="outline" className="border-white/15 text-white/60 text-[9px] uppercase shrink-0">
-                          {displayLabel(p.team)}
+                          {teamIdentity(p.team)?.label ?? displayLabel(p.team)}
                         </Badge>
                       )}
                     </div>
