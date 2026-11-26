@@ -1,4 +1,5 @@
 import {squadIntent} from "./squad-coordination";
+import { applyDamageFactors } from "./combat-damage-rules";
 import { operationById, nextOperation, createOperationState, tickOperation, damageOperationEscort, operationSite, operationEncounter, operationConfigValid, operationAwarenessMultiplier, type OperationState } from "./operations";
 import { survivalRoleForSlot, survivalRoleHealthMultiplier, survivalFrontalArmor, tickSurvivalSpecialists, createSurvivalObjective, tickSurvivalObjective, SURVIVAL_ROLE_INFO, type SurvivalActor, type SurvivalObjective } from "./survival-encounters";
 import { survivalPauseActive, survivalFirstChoiceDeadline, remainingSurvivalUpgradeSeconds } from "./survival-pause";
@@ -2014,17 +2015,17 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
   let dmg = damage;
   const source=room.players.get(attackerId)??room.bots.get(attackerId);
   if(room.mode==="survival"&&victim.isBot&&!fellInLava&&source)
-    dmg*=survivalFrontalArmor(victim.survivalRole,victim.yaw,victim.pos,source.pos,head);
+    dmg=applyDamageFactors(dmg,survivalFrontalArmor(victim.survivalRole,victim.yaw,victim.pos,source.pos,head));
   const attacker = room.players.get(attackerId) ?? room.bots.get(attackerId);
   // Survival: bots hit harder as waves progress, BUT base damage is reduced
   // by 35% for player survivability (Round 18-b balance fix).
   if (room.mode === "survival" && attacker?.isBot) {
     const mutators=survivalWaveMutators(room.config.survivalTier ?? "default",room.wave);
-    dmg *= 0.65 * survivalWaveDamageMul(room.wave) * mutators.damageMul;
+    dmg = applyDamageFactors(dmg,0.65,survivalWaveDamageMul(room.wave),mutators.damageMul);
   }
   // Boss armor: prevents burst weapons from trivializing boss encounters.
   if (fellInLava) dmg = victim.health;
-  else if (room.mode === "survival" && room.bots.get(victim.id)?.ai.boss) dmg *= 0.80;
+  else if (room.mode === "survival" && room.bots.get(victim.id)?.ai.boss) dmg = applyDamageFactors(dmg,0.80);
   if(victim.id===OPERATION_ESCORT_TARGET_ID){
     if(room.operation)room.operation=damageOperationEscort(room.operation,dmg);
     return;
@@ -2032,19 +2033,19 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
   if(room.mode==="survival"&&!fellInLava){
     if(attacker&&!attacker.isBot&&victim.isBot){
       const now=Date.now();
-      dmg*=survivalOutgoingMultiplier(room.survivalRanks.get(attackerId)??{}, {
+      dmg=applyDamageFactors(dmg,survivalOutgoingMultiplier(room.survivalRanks.get(attackerId)??{}, {
         headshot:head,distance:Math.hypot(attacker.pos[0]-victim.pos[0],attacker.pos[2]-victim.pos[2]),
         boss:!!room.bots.get(victim.id)?.ai.boss,aiming:room.adsStartedAt.has(attackerId),
         healthFraction:attacker.health/MAX_HEALTH,
         sinceKillMs:now-(room.survivalLastKillAt.get(attackerId)??-Infinity),
         sinceHeadshotKillMs:now-(room.survivalLastHeadshotKillAt.get(attackerId)??-Infinity),
-      });
+      }));
     } else if(attacker?.isBot&&!victim.isBot){
-      dmg*=survivalIncomingMultiplier(room.survivalRanks.get(victim.id)??{}, {
+      dmg=applyDamageFactors(dmg,survivalIncomingMultiplier(room.survivalRanks.get(victim.id)??{}, {
         healthFraction:victim.health/MAX_HEALTH,
         explosive:!!weaponById(weaponId).explosive,
         sprinting:room.sprintState.get(victim.id)??false,
-      });
+      }));
     }
   }
   if(directLethal)dmg=tacticalDirectDamage(dmg,victim.health,!!room.bots.get(victim.id)?.ai.boss);
