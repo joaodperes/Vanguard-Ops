@@ -6,6 +6,7 @@ import { waitForAttachmentSaves } from "@/lib/attachment-save-queue";
 import { displayLabel, displayMapLabel, weaponCategoryLabel } from "@/lib/display-labels";
 import { TEAM_IDENTITIES } from "@/lib/team-identity";
 import { resolveGameServerConnection } from "@/lib/game-network";
+import { formatPlantTimer } from "@/lib/scoreboard-rules";
 import { MAP_FOOTPRINT, type MapPace } from "@/lib/map-footprint";
 import { MAP_BLUEPRINTS } from "@/lib/map-blueprints";
 import {
@@ -379,8 +380,8 @@ export function Play() {
                       {roomConfig.mode === "searchdestroy" && (
                         <> 
                           <div className="min-w-0 rounded-xl border border-white/5 bg-black/20 p-3">
-                            <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Match Time</Label>
-                            <div className="flex flex-wrap gap-1.5">{[60,90,120,150,180,240,300].map(seconds=><button key={seconds} type="button" aria-pressed={roomConfig.searchDestroyRoundTimeSeconds===seconds} onClick={()=>setRoomConfig({searchDestroyRoundTimeSeconds:seconds})} className={`px-2.5 py-1.5 rounded-lg text-xs font-bold ${roomConfig.searchDestroyRoundTimeSeconds===seconds?"bg-cyan-500/20 text-cyan-300 border border-cyan-500/40":"bg-zinc-900/50 text-white/50 border border-white/10"}`}>{seconds/60}m{seconds%60?`${seconds%60}s`:""}</button>)}</div>
+                            <Label className="text-white/60 text-xs mb-1.5 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Plant Timer</Label>
+                            <div className="flex flex-wrap gap-1.5">{[60,90,120,150,180,240,300].map(seconds=><button key={seconds} type="button" aria-pressed={roomConfig.searchDestroyRoundTimeSeconds===seconds} onClick={()=>setRoomConfig({searchDestroyRoundTimeSeconds:seconds})} className={`px-2.5 py-1.5 rounded-lg text-xs font-bold ${roomConfig.searchDestroyRoundTimeSeconds===seconds?"bg-cyan-500/20 text-cyan-300 border border-cyan-500/40":"bg-zinc-900/50 text-white/50 border border-white/10"}`}>{formatPlantTimer(seconds)}</button>)}</div>
                             <p className="text-white/35 text-[11px] mt-1.5">Attackers must plant before this timer expires.</p>
                           </div>
                           <div className="min-w-0 rounded-xl border border-white/5 bg-black/20 p-3">

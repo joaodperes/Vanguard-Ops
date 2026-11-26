@@ -8452,7 +8452,7 @@ export class FPSEngine {
   private pickSpawn(team: string): Vec3 {
     const occupants=[...this.combatants.values()].filter(c=>c.alive).map(c=>({pos:c.pos as Vec3,team:c.team}));
     if(this.alive)occupants.push({pos:[this.pos.x,this.pos.y,this.pos.z],team:this.opts.team});
-    return chooseSpawn(this,this.map,team,occupants);
+    return chooseSpawn(this,this.map,team,occupants,Date.now(),Math.random,this.opts.mode);
   }
 
   /** Ordinary firearms refill on spawn; Wonder charges and cooldowns do not.

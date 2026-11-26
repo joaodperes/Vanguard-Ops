@@ -16,12 +16,30 @@ export function spawnClear(map:MapDef,sp:Vec3):boolean {
     !lavaAt(map.environment,sp);
 }
 const histories=new WeakMap<object,Map<string,number>>();
+function tightSpawnClusterAnchor(pool: readonly Vec3[]): Vec3 {
+  if (pool.length <= 1) return pool[0];
+  const neighbors = Math.min(4, pool.length - 1);
+  return pool.reduce((best, candidate) => {
+    const spread = pool
+      .filter(point => point !== candidate)
+      .map(point => Math.hypot(point[0] - candidate[0], point[2] - candidate[2]))
+      .sort((a, b) => a - b)
+      .slice(0, neighbors)
+      .reduce((sum, distance) => sum + distance, 0);
+    return spread < best.spread ? { point: candidate, spread } : best;
+  }, { point: pool[0], spread: Infinity }).point;
+}
 export function chooseSpawn(owner:object,map:MapDef,team:string,
-  occupants:readonly {pos:Vec3;team:string}[],now=Date.now(),random=Math.random):Vec3 {
+  occupants:readonly {pos:Vec3;team:string}[],now=Date.now(),random=Math.random,mode?:string):Vec3 {
   const pool=team==="red"?map.spawns.red:team==="blue"?map.spawns.blue:map.spawns.ffa;
   const safe=pool.filter(p=>spawnClear(map,p));
   const history=histories.get(owner)??new Map<string,number>();histories.set(owner,history);
-  const candidates=(safe.length?safe:pool).map(sp=>{
+  const spawnPool=safe.length?safe:pool;
+  const sameTeam=mode==="searchdestroy"?occupants.filter(p=>p.team===team):[];
+  const anchor=sameTeam.length
+    ? [sameTeam.reduce((sum,p)=>sum+p.pos[0],0)/sameTeam.length,0,sameTeam.reduce((sum,p)=>sum+p.pos[2],0)/sameTeam.length] as Vec3
+    : tightSpawnClusterAnchor(spawnPool);
+  const candidates=spawnPool.map(sp=>{
     const separation=Math.min(...occupants.map(p=>Math.hypot(p.pos[0]-sp[0],p.pos[2]-sp[2])),120);
     let exposed=0;
     const eye:Vec3=[sp[0],sp[1]+1.6,sp[2]];
@@ -33,12 +51,23 @@ export function chooseSpawn(owner:object,map:MapDef,team:string,
       if(!map.cover.some(c=>{if(c.kind==="accent")return false;const hit=rayBox(eye,direction,c.pos,c.size);return hit!==null&&hit>=0&&hit<distance;}))exposed++;
     }
     const recent=now-(history.get(sp.join(","))??-Infinity)<8000;
-    return {sp,separation,exposed,score:separation-(recent?18:0)+random()*.5};
+    const allySeparation=sameTeam.length?Math.min(...sameTeam.map(p=>Math.hypot(p.pos[0]-sp[0],p.pos[2]-sp[2]))):120;
+    const teamDistance=Math.hypot(anchor[0]-sp[0],anchor[2]-sp[2]);
+    return {sp,separation,allySeparation,teamDistance,exposed,score:separation-(recent?18:0)+random()*.5};
   });
-  // Actual distance determines the safe tier; random tie-breaking cannot turn
-  // a 7m spawn into an 8m spawn. Congested rooms retain a farthest fallback.
-  candidates.sort((a,b)=>Number(b.separation>=8)-Number(a.separation>=8)||
-    (a.separation>=8&&b.separation>=8?a.exposed-b.exposed:b.separation-a.separation)||b.score-a.score);
+  if(mode==="searchdestroy"){
+    // S&D deploys each side as a squad: choose the densest authored spawn
+    // cluster for the first operative, then fill nearby free points for allies.
+    // A small minimum separation prevents players from stacking in one capsule.
+    candidates.sort((a,b)=>Number(b.allySeparation>=4)-Number(a.allySeparation>=4)||
+      a.teamDistance-b.teamDistance||b.separation-a.separation||
+      a.exposed-b.exposed||a.score-b.score);
+  }else{
+    // Actual distance determines the safe tier; random tie-breaking cannot turn
+    // a 7m spawn into an 8m spawn. Congested rooms retain a farthest fallback.
+    candidates.sort((a,b)=>Number(b.separation>=8)-Number(a.separation>=8)||
+      (a.separation>=8&&b.separation>=8?a.exposed-b.exposed:b.separation-a.separation)||b.score-a.score);
+  }
   const chosen=candidates[0].sp;history.set(chosen.join(","),now);
   return [chosen[0],Math.max(chosen[1],botGroundHeight(map.cover,chosen[0],chosen[2],chosen[1])),chosen[2]];
 }

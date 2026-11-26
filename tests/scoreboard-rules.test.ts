@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { scoreboardRules } from "../src/lib/scoreboard-rules";
+import { formatPlantTimer, scoreboardRules } from "../src/lib/scoreboard-rules";
 
 const timed = { scoreLimit: 30, timeLimitSec: 600, timeLeft: 95, elapsedSeconds: 505, unlimitedTime: false };
 describe("Tab scoreboard uses the active match rules", () => {
@@ -10,6 +10,18 @@ describe("Tab scoreboard uses the active match rules", () => {
     expect(scoreboardRules("tdm", { ...timed, scoreLimit: 75 })[0]).toBe("First to 75 team kills");
     expect(scoreboardRules("killconfirmed", { ...timed, scoreLimit: 50 })[0]).toBe("First to 50 confirmed points");
     expect(scoreboardRules("ctf", { ...timed, scoreLimit: 5 })[0]).toBe("First to 5 flag captures");
+  });
+  test("plant timer formatting avoids decimal-minute labels", () => {
+    expect(formatPlantTimer(90)).toBe("1m30s");
+    expect(formatPlantTimer(150)).toBe("2m30s");
+    expect(formatPlantTimer(120)).toBe("2m");
+  });
+  test("Search & Destroy displays its selected round-win target and plant timer", () => {
+    expect(scoreboardRules("searchdestroy", {
+      ...timed,
+      scoreLimit: 0,
+      searchDestroy: { roundsToWin: 6, roundSeconds: 90 },
+    })).toEqual(["First to 6 round wins", "Plant timer 1m30s"]);
   });
   test("unlimited matches never show stale default caps", () => {
     expect(scoreboardRules("ffa", { ...timed, scoreLimit: 0, timeLimitSec: 0, unlimitedTime: true }))
