@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { ensureDefaultBotDifficultyColumn } from "@/lib/player-service";
 import { hashPassword, createSessionToken, setSessionCookie } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +24,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 });
   }
   const displayName = (name ?? "").trim().slice(0, 20) || "Recruit";
+
+  // Ensure older SQLite databases have the profile preference column before
+  // Prisma creates a Player row using the current schema.
+  try {
+    await ensureDefaultBotDifficultyColumn();
+  } catch (dbErr) {
+    console.error("[auth/register] DB schema error:", dbErr);
+    return NextResponse.json({ error: "Database unavailable — please try again." }, { status: 503 });
+  }
 
   // Round 20a: Catch DB errors and return a proper JSON response.
   let existing;
