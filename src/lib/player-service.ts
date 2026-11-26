@@ -106,7 +106,20 @@ export interface MatchResultInput {
  * No owned weapons, named presets or progression rows are dropped here.
  */
 let wonderSlotSchemaReady:Promise<void>|null=null;
+let defaultBotDifficultySchemaReady:Promise<void>|null=null;
 let matchModeStatsSchemaReady:Promise<void>|null=null;
+
+/** Add the profile room-preference column to older SQLite deployments safely. */
+export function ensureDefaultBotDifficultyColumn():Promise<void>{
+  if(!defaultBotDifficultySchemaReady){
+    defaultBotDifficultySchemaReady=(async()=>{
+      const columns=await db.$queryRawUnsafe<Array<{name:string}>>('PRAGMA table_info("Player")');
+      if(columns.length&&!columns.some(column=>column.name==="defaultBotDifficulty"))
+        await db.$executeRawUnsafe('ALTER TABLE "Player" ADD COLUMN "defaultBotDifficulty" TEXT NOT NULL DEFAULT \'normal\'');
+    })().catch(error=>{defaultBotDifficultySchemaReady=null;throw error});
+  }
+  return defaultBotDifficultySchemaReady;
+}
 async function ensureMatchModeStatsColumn():Promise<void>{
   if(!matchModeStatsSchemaReady){
     matchModeStatsSchemaReady=(async()=>{
@@ -130,6 +143,7 @@ export function ensureWonderSlotColumn():Promise<void>{
 }
 
 export async function getOrCreatePlayer(playerKey: string, name?: string) {
+  await ensureDefaultBotDifficultyColumn();
   await ensureWonderSlotColumn();
   let player = await db.player.findUnique({
     where: { playerKey },
@@ -376,6 +390,7 @@ export interface PlayerProfileView {
   selectedSkin: string;
   selectedTitle: string;
   selectedNameplate: string;
+  defaultBotDifficulty: "easy" | "normal" | "hard" | "veteran" | "mixed";
   ownedCosmetics: string[];
   unlockedTitles: { id: string; title: string }[];
   xpProgress: { current: number; needed: number; level: number };
@@ -591,6 +606,8 @@ export async function buildProfileView(playerKey: string): Promise<PlayerProfile
     selectedSkin: p.selectedSkin,
     selectedTitle,
     selectedNameplate,ownedCosmetics,
+    defaultBotDifficulty: ["easy","normal","hard","veteran","mixed"].includes(p.defaultBotDifficulty)
+      ? p.defaultBotDifficulty as PlayerProfileView["defaultBotDifficulty"] : "normal",
     unlockedTitles,
     xpProgress: xpProgressInLevel(p.xp),
     unlocks: {
