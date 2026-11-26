@@ -4599,7 +4599,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       ?[...room.droppedWeapons.values()].map(drop=>({drop,distance:Math.hypot(bot.pos[0]-drop.pos[0],bot.pos[2]-drop.pos[2])}))
         .filter(item=>item.distance<=35&&Date.now()<item.drop.expiresAt).sort((x,y)=>x.distance-y.distance)[0]?.drop
       :undefined;
-    const patrolPoint=scavengerDrop?[...scavengerDrop.pos]:patrolGoal?cityHighGroundStep(bot.pos,patrolGoal,
+    const patrolPoint=scavengerDrop?scavengerDrop.pos:patrolGoal?cityHighGroundStep(bot.pos,patrolGoal,
       roomCoverNear(room,bot.pos[0],bot.pos[2],35)):ai.wanderTarget;
     const navPoint=botMapRouteGoal(room.map.id,bot.pos,patrolPoint);
     const dx=navPoint[0]-bot.pos[0],dz=navPoint[2]-bot.pos[2];
