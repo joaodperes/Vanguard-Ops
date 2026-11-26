@@ -916,6 +916,10 @@ export class FPSEngine {
   private reloadEndsAt = 0;
   private reloadStartedAt = 0;
   private reloadDurationMs = 0;
+  // The Hunting Rifle cycles its bolt after every shot. This is a separate
+  // firing lock/visual timeline, not a magazine reload or ammo refill.
+  private boltActionStartedAt = 0;
+  private boltActionUntil = 0;
   // The last shell is ready before its visual return stroke ends. This keeps
   // the final glove/elbow/upper-arm motion smooth without delaying firing.
   private fpReloadRecoveryUntil=0;
@@ -4086,6 +4090,10 @@ export class FPSEngine {
     } else if (id === "side_bolt") {
       add(new THREE.CylinderGeometry(.018,.018,.14,10),amber,[0,0,0],Math.PI/2);
       add(new THREE.ConeGeometry(.018,.055,10),steel,[0,0,-.09],-Math.PI/2);
+    } else if (id === "bolt_action") {
+      // Spent rifle casing: brass body with a wider extractor rim.
+      add(new THREE.CylinderGeometry(.014,.012,.075,10),amber,[0,0,0],Math.PI/2);
+      add(new THREE.CylinderGeometry(.017,.017,.012,10),steel,[0,0,-.037],Math.PI/2);
     } else if (id === "bolt") {
       add(new THREE.CylinderGeometry(.013,.013,.31,8),steel,[0,0,0],Math.PI/2);
       add(new THREE.ConeGeometry(.024,.065,7),amber,[0,0,-.18],-Math.PI/2);
@@ -4182,6 +4190,7 @@ export class FPSEngine {
   /** Gameplay reload and the optional post-insertion cosmetic return share
    * one timeline. New fire/ADS/equipment/swap inputs can cancel the latter. */
   private visualReloadActive(now:number):boolean {
+    if(this.weaponId==="sniper_scout" && now<this.boltActionUntil)return true;
     if(this.reloading)return true;
     return visualReloadRecoveryActive(
       now,this.fpReloadRecoveryUntil,
@@ -4225,8 +4234,11 @@ export class FPSEngine {
       propId = a.id;
     } else if (this.visualReloadActive(now)) {
       const def = weaponById(this.weaponId);
-      const style = reloadMotionFor(this.weaponId, def.category, def.special?.kind);
-      progress = (now - this.reloadStartedAt) / Math.max(1, this.reloadDurationMs);
+      const style = this.weaponId==="sniper_scout" ? "bolt_action" :
+        reloadMotionFor(this.weaponId, def.category, def.special?.kind);
+      const actionStart = this.weaponId==="sniper_scout" ? this.boltActionStartedAt : this.reloadStartedAt;
+      const actionDuration = this.weaponId==="sniper_scout" ? 1050 : this.reloadDurationMs;
+      progress = (now - actionStart) / Math.max(1, actionDuration);
       pose = sampleReloadMotion(progress, style, this.fpShellContacts ?? undefined,
         this.shellSequenceFor(style));
       propId = style;
@@ -9639,6 +9651,7 @@ export class FPSEngine {
     // Can't fire while sprinting — must release sprint or ADS first (arcade rule).
     if (this.sprinting) return;
     const now = performance.now();
+    if(w.id==="sniper_scout" && now<this.boltActionUntil)return;
     if(isThrowingKnife(w.id)){
       this.throwThrowingKnife(w,now,false);
       return;
@@ -9719,6 +9732,10 @@ export class FPSEngine {
       this.akimboKick[akimboHand]=1;
     }
     this.lastShotAt = now;
+    if(w.id==="sniper_scout"){
+      this.boltActionStartedAt=now;
+      this.boltActionUntil=now+1050;
+    }
     if(w.wonder?.kind==="seismic"){this.meleeSwingAt=now;this.meleeSwingDur=660;}
     this.selfSpawnProtectedUntil = 0; // protection ends when the attack actually fires
     if (usesWonderCharges(w)) this.ammoInMag = this.wonderStates.get(w.id)!.charges;
