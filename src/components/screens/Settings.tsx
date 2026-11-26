@@ -1,6 +1,7 @@
 "use client";
 import {ControlSettings} from "@/components/game/ControlSettings";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import type { BotDifficulty } from "@/lib/game-protocol";
 import { useGame } from "@/lib/game-store";
 import { useSettings, CROSSHAIR_PRESETS } from "@/lib/settings-store";
 import { Button } from "@/components/ui/button";
@@ -8,9 +9,31 @@ import { Slider } from "@/components/ui/slider";
 import { ArrowLeft, Sliders, Crosshair, Eye, MousePointer2, Volume2, RotateCcw, Check, ToggleLeft } from "lucide-react";
 
 export function Settings({ embedded = false }: { embedded?: boolean }) {
-  const { setScreen } = useGame();
+  const { setScreen, profile, playerKey, refreshProfile } = useGame();
+  const [botDifficultyBusy, setBotDifficultyBusy] = useState(false);
+  const [botDifficultyError, setBotDifficultyError] = useState("");
   const { settings, update, reset, load } = useSettings();
   useEffect(() => { load(); }, [load]);
+
+  async function saveDefaultBotDifficulty(value: BotDifficulty) {
+    if (!playerKey || botDifficultyBusy) return;
+    setBotDifficultyBusy(true);
+    setBotDifficultyError("");
+    try {
+      const response = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerKey, defaultBotDifficulty: value }),
+      });
+      if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error ?? "Could not save default bot difficulty");
+      await refreshProfile();
+    } catch (error) {
+      setBotDifficultyError(error instanceof Error ? error.message : "Could not save default bot difficulty");
+    } finally {
+      setBotDifficultyBusy(false);
+    }
+  }
+
 
   return (
     <div className={embedded ? "flex flex-col" : "min-h-screen flex flex-col"}>
@@ -35,6 +58,27 @@ export function Settings({ embedded = false }: { embedded?: boolean }) {
             <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Reset to Defaults
           </Button>
         </div>}
+        <Section icon={<Sliders className="w-4 h-4" />} title="Room Preferences" desc="Defaults used when you create a room. You can still change these for each room.">
+          <div className="flex flex-wrap items-center gap-3">
+            <label htmlFor="default-bot-difficulty" className="text-sm text-white/75">Default bot difficulty</label>
+            <select
+              id="default-bot-difficulty"
+              value={profile?.defaultBotDifficulty ?? "normal"}
+              disabled={!profile || botDifficultyBusy}
+              onChange={e => void saveDefaultBotDifficulty(e.target.value as BotDifficulty)}
+              className="rounded-lg border border-white/15 bg-zinc-950 px-3 py-2 text-sm text-white disabled:opacity-50"
+            >
+              <option value="easy">Easy</option>
+              <option value="normal">Normal</option>
+              <option value="hard">Hard</option>
+              <option value="veteran">Veteran</option>
+              <option value="mixed">Mixed</option>
+            </select>
+            {botDifficultyBusy && <span className="text-xs text-white/40">Saving…</span>}
+            {botDifficultyError && <span role="alert" className="text-xs text-rose-400">{botDifficultyError}</span>}
+          </div>
+        </Section>
+
         {/* Crosshair */}
         <Section icon={<Crosshair className="w-4 h-4" />} title="Crosshair" desc="Global color and size. Equip each weapon’s reticle in Armory → Customize → Reticles.">
           <div className="flex items-center gap-6">
