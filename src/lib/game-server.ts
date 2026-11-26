@@ -176,9 +176,6 @@ interface BotAI {
   envJumpVelocityY?: number;
   envLaunchX?: number;
   envLaunchZ?: number;
-  frontierDodgeReadyAt?: number;
-  frontierDodgeUntil?: number;
-  frontierDodgeDirection?: number;
 }
 
 interface Room {
@@ -267,7 +264,7 @@ interface Room {
   // TYPE list is fixed (e.g. slot 4 is always "sniper"), the specific sniper
   // is randomly chosen when the match starts — so each match feels different.
   gungameWeapons: string[];
-  gungamePreset: "all" | "cqc" | "long_range";
+  gungamePreset: "all" | "cqc" | "long_range" | "assault" | "smg" | "shotgun" | "dmr" | "sniper" | "lmg";
   gungameMultiplier: number;
   sprintState: Map<string, boolean>;
   /** Last server-received sprint frame; used to settle hipfire after release. */
@@ -4328,17 +4325,6 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     // Task 16-a: SUBSTEP tightened from 0.20 to 0.15 so the upcoming thin cover
     // boxes (half-extent 0.3-0.4) in Task 16-b have more headroom. Added a 45°
     // diagonal slide nudge after X-only/Z-only fail (same as the offline engine).
-    if(room.mode==="frontier"&&target&&candidateDist<20){
-      if(now>=(ai.frontierDodgeReadyAt??0)&&Math.random()<0.045){
-        ai.frontierDodgeReadyAt=now+3000;ai.frontierDodgeUntil=now+220;
-        ai.frontierDodgeDirection=Math.random()<.5?-1:1;
-      }
-      if((ai.frontierDodgeUntil??0)>now){
-        const dodge=(ai.frontierDodgeDirection??1)*1.85;
-        mvx+=Math.cos(bot.yaw)*dodge*moveSpeed/20;
-        mvz-=Math.sin(bot.yaw)*dodge*moveSpeed/20;
-      }
-    }
     const moveLen = Math.hypot(mvx, mvz);
     const SUBSTEP = 0.15;
     const steps = Math.max(1, Math.ceil(moveLen / SUBSTEP));
@@ -5323,23 +5309,27 @@ async function handle(socket: any, msg: C2S) {
       const kit=room.loadouts.get(socket.id);if(!kit)return;
       const previousSlotWeapon=drop.slot==="primary"?kit.weaponId:(kit.secondaryWeaponId??"pistol_side");
       const wasHoldingSlot=player.weaponId===previousSlotWeapon;
-      const attachments={
-        sight:drop.attachments.sight??null,
-        barrel:drop.attachments.barrel??null,
-        grip:drop.attachments.grip??null,
-        magazine:drop.attachments.magazine??null,
-      };
+      const droppedAttachments=drop.attachments??{};
+       const attachments={sight:droppedAttachments.sight??null,barrel:droppedAttachments.barrel??null,
+         grip:droppedAttachments.grip??null,magazine:droppedAttachments.magazine??null};
       if(drop.slot==="primary"){
         kit.weaponId=drop.weaponId;kit.weaponSkinId=drop.skinId;kit.attachments=attachments;kit.emptyPrimary=false;
       }else{
         kit.secondaryWeaponId=drop.weaponId;kit.secondaryWeaponSkinId=drop.skinId;kit.secondaryAttachments=attachments;
       }
-      if(wasHoldingSlot){player.weaponId=drop.weaponId;player.weaponSkinId=drop.skinId;
-        room.frontierAmmoRemaining??=new Map();
-        room.frontierAmmoRemaining.set(socket.id,Math.max(0,drop.ammoRemaining));
+      if(wasHoldingSlot){player.weaponId=drop.weaponId;player.weaponSkinId=drop.skinId;}
+      // Frontier reserve belongs to the player, not the active slot. A pickup
+      // must carry its ammo pool even when the player swaps to it later.
+      room.frontierAmmoRemaining??=new Map();
+      room.frontierAmmoRemaining.set(socket.id,Math.max(0,drop.ammoRemaining));
+      if(drop.weaponId==="crossbow_reclaimer"){
+        // A scavenged crossbow starts ready instead of inheriting an old cooldown.
+        room.boltReadyAt.delete(socket.id);
+        room.boltCharges.set(socket.id,0);
       }
+
       room.droppedWeapons.delete(drop.id);
-      io.to(room.id).emit("message",{t:"weaponPickup",id:drop.id,playerId:socket.id,weaponId:drop.weaponId,slot:drop.slot,skinId:drop.skinId,attachments:drop.attachments,ammoRemaining:drop.ammoRemaining} as S2C);
+      io.to(room.id).emit("message",{t:"weaponPickup",id:drop.id,playerId:socket.id,weaponId:drop.weaponId,slot:drop.slot,skinId:drop.skinId,attachments,ammoRemaining:drop.ammoRemaining} as S2C);
       break;
     }
     case "recoverBolt": {

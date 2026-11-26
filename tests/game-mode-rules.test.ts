@@ -154,8 +154,9 @@ describe("Hardpoint", () => {
     expect(state.activeIndex).toBe(state.zoneOrder[0]);
     expect(state.nextIndex).toBe(state.zoneOrder[1]);
     expect(mapAllowedForMode("hardpoint","dustwater")).toBe(true);
-    expect(mapAllowedForMode("hardpoint","bunker")).toBe(true);
+    expect(mapAllowedForMode("hardpoint","whiteout_depot")).toBe(true);
     expect(mapAllowedForMode("hardpoint","floodgate")).toBe(true);
+    expect(mapAllowedForMode("hardpoint","bunker")).toBe(false);
     expect(mapAllowedForMode("hardpoint","compound")).toBe(false);
   });
   test("scores one point per second for uncontested control and rotates across five zones", () => {

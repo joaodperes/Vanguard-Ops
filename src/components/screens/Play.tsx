@@ -164,6 +164,15 @@ export function Play() {
   }, []);
 
   const launchInProgress = useRef(false);
+  const appliedDefaultDifficultyFor = useRef<string | null>(null);
+  // Apply the profile preference once when this player's room-creation screen
+  // opens. Later manual selections remain untouched while the screen is open.
+  useEffect(() => {
+    if (!profile || profile.playerKey !== playerKey || appliedDefaultDifficultyFor.current === playerKey) return;
+    appliedDefaultDifficultyFor.current = playerKey;
+    setRoomConfig({ botDifficulty: profile.defaultBotDifficulty ?? "normal" });
+  }, [profile, playerKey, setRoomConfig]);
+
   // Read the actual persisted loadout AFTER pending Armory edits complete.
   // This protects every weapon and both offline/online match launch paths from
   // using a stale React profile while a sight/attachment removal is saving.
@@ -464,33 +473,47 @@ export function Play() {
                     <Section
                       className="h-full lg:absolute lg:inset-0 lg:overflow-y-auto"
                       icon={<Target className="w-4 h-4 text-purple-400" />}
-                      title="Gun Game Match Limits"
+                      title="Match Limits"
                       hint="Configure the weapon pool and match length"
                     >
                       <div className="space-y-4">
                         <div>
                           <div className="text-white font-semibold text-sm mb-1">Weapon Pool</div>
-                          <p className="text-white/40 text-xs mb-2">30 tiers per cycle. The last tier of each cycle is melee; the final melee kill wins.</p>
-                          <div className="flex flex-wrap gap-2">
-                            {([ {id:"all",label:"All Weapons"},{id:"cqc",label:"Close Quarters"},{id:"long_range",label:"Long Range"}] as const).map(o => (
-                              <button type="button" key={o.id} onClick={() => setRoomConfig({gungamePreset:o.id})}
-                                className={`px-3 py-2 rounded-lg border text-xs font-semibold ${roomConfig.gungamePreset === o.id ? "bg-purple-500/20 border-purple-400/60 text-purple-200" : "bg-black/20 border-white/10 text-white/50 hover:text-white"}`}>
-                                {o.label}
-                              </button>
-                            ))}
+                          <div className="rounded-xl border border-white/5 bg-black/20 p-3">
+                            <div className="flex flex-wrap gap-2">
+                              {([
+                                {id:"all",label:"All Weapons"},
+                                {id:"cqc",label:"Close Quarters"},
+                                {id:"long_range",label:"Long Range"},
+                                {id:"assault",label:"AR Only"},
+                                {id:"smg",label:"SMG Only"},
+                                {id:"shotgun",label:"Shotgun Only"},
+                                {id:"dmr",label:"DMR Only"},
+                                {id:"sniper",label:"Sniper Only"},
+                                {id:"lmg",label:"LMG Only"},
+                              ] as const).map(o => (
+                                <button type="button" key={o.id} onClick={() => setRoomConfig({gungamePreset:o.id})}
+                                  aria-pressed={roomConfig.gungamePreset === o.id}
+                                  className={`px-3 py-2 rounded-lg border text-xs font-semibold ${roomConfig.gungamePreset === o.id ? "bg-purple-500/20 border-purple-400/60 text-purple-200" : "bg-black/20 border-white/10 text-white/50 hover:text-white"}`}>
+                                  {o.label}
+                                </button>
+                              ))}
+                            </div>
                           </div>
                         </div>
                         <div>
                           <div className="text-white font-semibold text-sm mb-2">Weapon List Multiplier</div>
-                          <div className="flex flex-wrap gap-2">
-                            {([1,2,3,4,5] as const).map(n => (
-                              <button type="button" key={n} onClick={() => setRoomConfig({gungameMultiplier:n})}
-                                className={`min-w-11 px-3 py-2 rounded-lg border text-xs font-bold ${roomConfig.gungameMultiplier === n ? "bg-purple-500/20 border-purple-400/60 text-purple-200" : "bg-black/20 border-white/10 text-white/50 hover:text-white"}`}>
-                                {n}×
-                              </button>
-                            ))}
+                          <div className="rounded-xl border border-white/5 bg-black/20 p-3">
+                            <div className="flex flex-wrap gap-2">
+                              {([1,2,3,4,5] as const).map(n => (
+                                <button type="button" key={n} onClick={() => setRoomConfig({gungameMultiplier:n})}
+                                  className={`min-w-11 px-3 py-2 rounded-lg border text-xs font-bold ${roomConfig.gungameMultiplier === n ? "bg-purple-500/20 border-purple-400/60 text-purple-200" : "bg-black/20 border-white/10 text-white/50 hover:text-white"}`}>
+                                  {n}×
+                                </button>
+                              ))}
+                            </div>
+                            <p className="text-white/40 text-xs mt-2">{30 * roomConfig.gungameMultiplier} weapon tiers total; default is 1× (30 tiers).</p>
                           </div>
-                          <p className="text-white/40 text-xs mt-2">{30 * roomConfig.gungameMultiplier} weapon tiers total; default is 1× (30 tiers).</p>
                         </div>
                       </div>
                     </Section>
@@ -703,7 +726,7 @@ export function Play() {
                     )}
                     {roomConfig.mode === "gungame" && (
                       <>
-                        <SummaryRow label="Weapon Pool" value={roomConfig.gungamePreset === "cqc" ? "Close Quarters" : roomConfig.gungamePreset === "long_range" ? "Long Range" : "All Weapons"} accent="#a855f7" />
+                        <SummaryRow label="Weapon Pool" value={({all:"All Weapons",cqc:"Close Quarters",long_range:"Long Range",assault:"AR Only",smg:"SMG Only",shotgun:"Shotgun Only",dmr:"DMR Only",sniper:"Sniper Only",lmg:"LMG Only"} as const)[roomConfig.gungamePreset]} accent="#a855f7" />
                         <SummaryRow label="Gun Game" value={`${30 * roomConfig.gungameMultiplier} tiers · ${roomConfig.gungameMultiplier} ${roomConfig.gungameMultiplier === 1 ? "cycle" : "cycles"}`} accent="#a855f7" />
                       </>
                     )}

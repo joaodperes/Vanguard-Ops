@@ -39,6 +39,8 @@ model Player {
   selectedTitle   String   @default("")
   selectedReticle String @default("classic")
   selectedNameplate String @default("standard")
+  /// Bot difficulty preselected in the Create Room form (not a room restriction).
+  defaultBotDifficulty String @default("normal")
   /// Per-weapon charm IDs; server validated against account purchases.
   equippedCharms String @default("{}")
   /// Non-Survival streak record; Survival kill streaks do not award PvP streak achievements.

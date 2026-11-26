@@ -1,6 +1,7 @@
 "use client";
 import {formatCredits} from "@/lib/format-credits";
 import { useEffect, useState } from "react";
+import type { BotDifficulty } from "@/lib/game-protocol";
 import { CareerProgress } from "@/components/game/CareerProgress";
 import { useGame } from "@/lib/game-store";
 import { achievementTitle } from "@/lib/achievement-titles";
@@ -36,6 +37,26 @@ export function Profile() {
   const [cosmeticError,setCosmeticError]=useState("");
   const [titleError, setTitleError] = useState("");
   const [accountBusy, setAccountBusy] = useState(false);
+  const [botDifficultyBusy, setBotDifficultyBusy] = useState(false);
+  const [botDifficultyError, setBotDifficultyError] = useState("");
+  async function saveDefaultBotDifficulty(value: BotDifficulty) {
+    if (!playerKey || botDifficultyBusy) return;
+    setBotDifficultyBusy(true);
+    setBotDifficultyError("");
+    try {
+      const response = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerKey, defaultBotDifficulty: value }),
+      });
+      if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error ?? "Could not save default bot difficulty");
+      await refreshProfile();
+    } catch (error) {
+      setBotDifficultyError(error instanceof Error ? error.message : "Could not save default bot difficulty");
+    } finally {
+      setBotDifficultyBusy(false);
+    }
+  }
   async function equipTitle(id:string) {
     if (!playerKey || titleBusy) return;
     setTitleBusy(true); setTitleError("");
@@ -273,7 +294,28 @@ export function Profile() {
                 </select>
                 {cosmeticError&&<span role="alert" className="text-xs text-rose-400">{cosmeticError}</span>}
               </div>
-
+              <div className="mt-6 border-t border-white/10 pt-5">
+                <h3 className="text-white font-bold text-sm mb-1">Room preferences</h3>
+                <p className="text-xs text-white/50 mb-3">Choose the bot skill preselected when you create a room. You can still change it for each room.</p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <label htmlFor="default-bot-difficulty" className="text-xs text-rose-200">Default bot difficulty</label>
+                  <select
+                    id="default-bot-difficulty"
+                    value={profile.defaultBotDifficulty ?? "normal"}
+                    disabled={botDifficultyBusy}
+                    onChange={e => void saveDefaultBotDifficulty(e.target.value as BotDifficulty)}
+                    className="rounded-lg border border-rose-500/35 bg-zinc-950 px-3 py-1.5 text-sm text-white disabled:opacity-50"
+                  >
+                    <option value="easy">Easy</option>
+                    <option value="normal">Normal</option>
+                    <option value="hard">Hard</option>
+                    <option value="veteran">Veteran</option>
+                    <option value="mixed">Mixed</option>
+                  </select>
+                  {botDifficultyBusy && <span className="text-xs text-white/40">Saving…</span>}
+                  {botDifficultyError && <span role="alert" className="text-xs text-rose-400">{botDifficultyError}</span>}
+                </div>
+              </div>
             </section>
           </TabsContent>
           <TabsContent value="career" className="mt-5">

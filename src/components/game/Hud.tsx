@@ -673,14 +673,6 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
             <span className="text-amber-300/70 text-[9px] uppercase tracking-wider">+{(hud.staminaCooldownMs ?? 0) / 1000 | 0}s</span>
           )}
         </div>
-        {mode==="frontier"&&<div className="mt-1.5 flex items-center gap-1.5" aria-label="Dash recharge">
-          <span className="w-3 text-[9px] font-black text-amber-300">D</span>
-          <div className="w-40 h-1.5 overflow-hidden rounded-full border border-white/10 bg-black/60">
-            <div className="h-full bg-amber-400 transition-[width] duration-100" style={{width:`${100-Math.min(100,Math.max(0,(hud.frontierDashCooldownMs??0)/3000*100))}%`}}/>
-          </div>
-          {(hud.frontierDashCooldownMs??0)>0&&<span className="text-amber-200/70 text-[9px] tabular-nums">{((hud.frontierDashCooldownMs??0)/1000).toFixed(1)}s</span>}
-          <span className="text-amber-200/65 text-[9px] uppercase tracking-wider">Dash</span>
-        </div>}
       </div>
       )}
 
@@ -857,14 +849,6 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
               </span>
             )}
           </div>
-          {mode==="frontier"&&<div className="flex items-center gap-1 self-end pr-1" aria-label="Dash recharge">
-            <span className="w-3 text-[8px] font-black text-amber-300">D</span>
-            <div className="w-14 h-1 overflow-hidden rounded-full border border-white/10 bg-black/60">
-              <div className="h-full bg-amber-400 transition-[width] duration-100" style={{width:`${100-Math.min(100,Math.max(0,(hud.frontierDashCooldownMs??0)/3000*100))}%`}}/>
-            </div>
-            {(hud.frontierDashCooldownMs??0)>0&&<span className="text-amber-200/70 text-[8px] tabular-nums">{((hud.frontierDashCooldownMs??0)/1000).toFixed(1)}s</span>}
-            <span className="text-amber-200/65 text-[8px]">DASH</span>
-          </div>}
         </div>
       )}
 

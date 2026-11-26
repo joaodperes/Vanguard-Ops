@@ -121,7 +121,7 @@ export interface CreateRoomConfig {
   denialScoreEnabled?: boolean; // +1 team/player point for recovering friendly dogtags 
   searchDestroyRoundTimeSeconds?: number; // Search & Destroy round duration, seconds;
   searchDestroyRoundsToWin?: number; // Search & Destroy rounds required to win the match
-  gungamePreset?: "all" | "cqc" | "long_range";
+  gungamePreset?: "all" | "cqc" | "long_range" | "assault" | "smg" | "shotgun" | "dmr" | "sniper" | "lmg";
   gungameMultiplier?: number; // whole list 1–5 times; default 1
   survivalPlayers?: 1 | 2; // max human co-op partners, defaults to solo
   operationId?: string;
@@ -1619,7 +1619,7 @@ export type S2C =
   | { t: "deathBombExplode"; id: string; pos: Vec3 }
   | { t: "scavengerDrop"; id: string; pos: Vec3; expiresAt: number }
   | { t: "scavengerRemove"; id: string }
-  | { t: "weaponPickup"; id:string; playerId:string; weaponId:string; slot:"primary"|"secondary"; skinId:string; attachments:{sight:string|null;barrel:string|null;grip:string|null;magazine:string|null}; ammoRemaining:number }
+   | { t: "weaponPickup"; id:string; playerId:string; weaponId:string; slot:"primary"|"secondary"; skinId:string; attachments?:{sight?:string|null;barrel?:string|null;grip?:string|null;magazine?:string|null}; ammoRemaining:number }
   | { t: "scavengerCollected"; id: string }
   | { t: "equipmentFx"; equipmentId: import("./equipment").EquipmentId; position: Vec3; ownerId: string; mineId?: string; mineState?: "placed" | "triggered"; path?: Vec3[]; pathTimesMs?: number[]; flightMs?: number }
   | { t: "equipmentStatus"; effect: "flash" | "taser" | "cryo"; durationMs: number; visualDurationMs?: number }
