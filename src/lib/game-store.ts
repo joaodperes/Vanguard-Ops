@@ -37,7 +37,7 @@ export interface RoomConfig {
   denialScoreEnabled: boolean; // friendly recoveries earn +1 team point
   searchDestroyRoundTimeSeconds: number;
   searchDestroyRoundsToWin: number;
-  gungamePreset: "all" | "cqc" | "long_range";
+  gungamePreset: "all" | "cqc" | "long_range" | "assault" | "smg" | "shotgun" | "dmr" | "sniper" | "lmg";
   gungameMultiplier: number;
   survivalPlayers: 1 | 2;
   survivalTier: SurvivalTier;
