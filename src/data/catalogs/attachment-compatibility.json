@@ -92,6 +92,12 @@
       "mag_quickdraw",
       "mag_balanced",
       "mag_lightweight"
+    ],
+    "sight": [
+      "sight_hunter",
+      "sight_thermal",
+      "sight_acog",
+      "sight_nvg"
     ]
   },
   "sniper_heavy": {
