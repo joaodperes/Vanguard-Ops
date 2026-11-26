@@ -20,6 +20,6 @@ export function weaponShotReady(
   if (!Number.isFinite(now) || !Number.isFinite(intervalMs) || intervalMs < 0) return false;
   if (lastShotAt === Number.NEGATIVE_INFINITY) return true;
   if (!Number.isFinite(lastShotAt)) return false;
-  const safeTolerance = Number.isFinite(tolerance) ? Math.max(0, tolerance) : 1;
+  const safeTolerance = Number.isFinite(tolerance) && tolerance >= 0 ? tolerance : 1;
   return now - lastShotAt >= intervalMs * safeTolerance;
 }
