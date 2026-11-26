@@ -485,9 +485,10 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
         {mode === "searchdestroy" && hud.searchDestroy && (
           <div className={`mt-1 flex max-w-[96vw] flex-col items-center gap-1 text-center ${isTouch ? "text-[9px]" : "text-[10px]"}`}>
             <div className="flex flex-wrap justify-center gap-x-3 gap-y-0.5 text-white/65">
-              <span>{hud.searchDestroy.phase.toUpperCase()} · {hud.searchDestroy.bomb.status === "planted" ? `BOMB PLANTED AT SITE ${hud.searchDestroy.bomb.siteId}` : hud.searchDestroy.bomb.status === "dropped" ? "BOMB DROPPED" : ""}</span>
+              <span>{hud.searchDestroy.phase === "planted" ? "BOMB PLANTED" : hud.searchDestroy.phase.toUpperCase()}{hud.searchDestroy.bomb.status === "dropped" ? " · BOMB DROPPED" : ""}</span>
               {hud.searchDestroyBombDistance !== undefined && <span className="text-amber-200">BOMB · {hud.searchDestroyBombDistance}m AWAY</span>}
             </div>
+            {hud.searchDestroyCarrierAlert && <div className="inline-flex items-center gap-2 rounded-lg border border-amber-300/70 bg-amber-950/85 px-4 py-2 text-xs font-black tracking-[0.18em] text-amber-200 shadow-lg shadow-amber-950/40" role="status" aria-live="polite"><Bomb className="h-4 w-4 animate-pulse"/> YOU HAVE THE BOMB · PREPARE TO PLANT</div>}
             {hud.searchDestroyInteraction && <span className="font-black text-amber-100" role="status" aria-live="polite">{hud.searchDestroyInteraction.label}</span>}
             {hud.searchDestroyInteraction?.kind==="plant" && hud.searchDestroyInteraction.progress>0 && (
               <div className="absolute bottom-[17%] left-1/2 z-30 w-64 max-w-[88vw] -translate-x-1/2 rounded-lg border border-amber-300/40 bg-black/80 px-4 py-2 shadow-xl" role="status" aria-label="Bomb planting progress">
@@ -884,7 +885,7 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
           )}
           {mode==="searchdestroy"&&!hud.spectatorTargetName&&<div className="mt-2 text-sm text-white/60">No living teammates</div>}
           {mode==="searchdestroy"&&hud.spectatorTargetName&&<div className="mt-1 text-[10px] tracking-wide text-white/45">{isTouch?"Tap arrows to switch":"Use ← / → to switch teammates"}</div>}
-          {hud.lastDeath?.weaponId === LAVA_DEATH_SOURCE ? (
+          {mode!=="searchdestroy" && (hud.lastDeath?.weaponId === LAVA_DEATH_SOURCE ? (
             <div className="my-4 px-6 py-3 rounded-xl border border-amber-500/40 bg-black/75 text-amber-200">Fell into the lava moat</div>
           ) : hud.lastDeath && (
             <div className="my-4 px-6 py-3 rounded-xl border border-white/20 bg-black/75 text-center max-w-[88vw]">
@@ -895,7 +896,7 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
                 {hud.lastDeath.attachments.map(id=>ATTACHMENTS.find(a=>a.id===id)?.name??id).join(" · ")}
               </div>}
             </div>
-          )}
+          ))}
           {mode === "survival" ? (
             <div className="text-white/70 text-lg">{hud.operation ? (hud.survivalWaitingForWave ? "Returning after your partner clears the stage" : "Operations deployment ended") : (hud.survivalWaitingForWave ? "Returning after your partner clears the wave" : "Survival run ended")}</div>
           ) : hud.respawnIn < 0 ? (
@@ -1134,7 +1135,7 @@ function TeamPanel({ team, score, rows, selfTeam, scoreLabel, limit, teamAlive, 
               </td>
               <td className="text-center px-1 py-1.5 text-white tabular-nums">{r.kills}</td>
               <td className="text-center px-1 py-1.5 text-white/50 tabular-nums">{r.deaths}</td>
-              <td className="text-center px-3 py-1.5 text-white font-bold tabular-nums">{r.score}</td>
+              <td className={mode==="searchdestroy" ? "text-center px-3 py-1.5 text-amber-200 font-black text-base tabular-nums bg-amber-400/10" : "text-center px-3 py-1.5 text-white font-bold tabular-nums"}>{r.score}</td>
             </tr>
           ))}
           {sorted.length === 0 && (
