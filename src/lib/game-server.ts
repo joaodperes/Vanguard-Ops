@@ -71,7 +71,7 @@ import { EXPLO_FUSE_MS, EXPLO_RADIUS, EXPLO_DAMAGE, explonandoDamage, explonando
 import { calculateThrowPath } from "./throw-trajectory";
 import { buildGunGameWeapons, normalizeGunGameConfig, canCompleteGunGame } from "./gun-game";
 import { canStartWeaponReload, crossbowReloadCycleMs, crossbowReloadControlsCadence, isFanHammer, FAN_HAMMER_FIRE_RATE, FAN_HAMMER_SPREAD_MULTIPLIER } from "./weapon-mechanics";
-import { botReloadDurationMs, incrementalReloadStepMs } from "./weapon-reload-rules";
+import { botReloadDurationMs, incrementalReloadStepMs, weaponReloadDurationMs } from "./weapon-reload-rules";
 import { chooseBotPatrolPoint, botPatrolDistance } from "./bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint, botEntersHazard, botMapRouteGoal } from "./bot-routing";
 import { BotRouteBudget, botRouteJitter } from "./bot-performance-budget";
@@ -5321,13 +5321,15 @@ async function handle(socket: any, msg: C2S) {
       }
       const reloadAtts = loadout?.secondaryWeaponId === player.weaponId ? loadout.secondaryAttachments : loadout?.attachments;
       const reloadStats = computeEffectiveStats(weaponById(player.weaponId),reloadAtts ?? {sight:null,barrel:null,grip:null,magazine:null});
-      const reloadMul=(room.mode==="survival" ? survivalReloadMultiplier(room.survivalRanks.get(socket.id)??{},Date.now()-(room.survivalLastKillAt.get(socket.id)??-Infinity)):1)*(room.mode==="frontier"?1.12:1);
-      let reloadMs=reloadStats.reloadTime*1000*reloadMul;
-      if(room.mode==="frontier"){
-        reloadMs*=reloadDurationMultiplier(loadout?.perkId);
-        if(msg.frontierAkimboReloadCount===1&&isAkimboWeapon(player.weaponId,reloadAtts?.grip))reloadMs*=.72;
-      }
-      room.reloadingPlayers.set(socket.id,Date.now()+Math.max(0,reloadMs));
+      const reloadMs=weaponReloadDurationMs(reloadStats.reloadTime, {
+        frontier: room.mode === "frontier",
+        perkMultiplier: reloadDurationMultiplier(loadout?.perkId),
+        survivalMultiplier: room.mode === "survival"
+          ? survivalReloadMultiplier(room.survivalRanks.get(socket.id)??{},Date.now()-(room.survivalLastKillAt.get(socket.id)??-Infinity)) : 1,
+        akimboSingleHand: msg.frontierAkimboReloadCount === 1 &&
+          room.mode === "frontier" && isAkimboWeapon(player.weaponId,reloadAtts?.grip),
+      });
+      room.reloadingPlayers.set(socket.id,Date.now()+reloadMs);
       io.to(room.id).emit("message", { t: "reloadFx", playerId: socket.id } as S2C);
       break;
     }
