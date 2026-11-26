@@ -217,15 +217,15 @@ export function tickSearchDestroy(
 
 export interface HardpointZone { id: string; pos: ModeVec3; radius?: number }
 /**
- * Five authored Hardpoint centres per supported arena. Every 6-unit capture
- * radius fits inside the playable footprint; Blacksite's legacy layout is
+ * Five authored Hardpoint centres per supported arena. Each capture zone and its
+ * 6.25-unit visual boundary fit inside the playable footprint; Blacksite's legacy layout is
  * retained only so already-running rooms cannot place objectives out of bounds.
  */
 export function hardpointZonesForMap(mapId: string): HardpointZone[] {
   const layouts: Record<string, readonly ModeVec3[]> = {
     dustwater: [[-36,0,-28],[36,0,-28],[0,0,0],[-36,0,28],[36,0,28]],
     floodgate: [[-100,0,-20],[-50,0,20],[0,0,-20],[50,0,20],[100,0,-20]],
-    emberhold: [[-65,0,-52],[65,0,-52],[0,0,0],[-65,0,52],[65,0,52]],
+    whiteout_depot: [[-85,0,-25],[-85,0,25],[0,0,-45],[85,0,-25],[85,0,25]],
     bunker: [[-25,0,-25],[25,0,-25],[0,0,0],[-25,0,25],[25,0,25]],
   };
   const positions = layouts[mapId] ?? layouts.dustwater;
