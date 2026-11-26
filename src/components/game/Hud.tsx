@@ -18,7 +18,7 @@ import { ctfFlagLine, killRank, teamScorePerspective } from "@/lib/hud-top-stats
 import { combatIdentity } from "@/lib/combat-identity";
 import { TEAM_IDENTITIES, teamIdentity } from "@/lib/team-identity";
 import { Heart, Zap, Trophy, Skull, Clock, LogOut, Users, UserRound, AlertTriangle, Crosshair as CrosshairIcon, Shield, ChevronUp, Siren, ChevronLeft, ChevronRight, Bomb } from "lucide-react";
-import { HARDPOINT_RULES, SEARCH_DESTROY_RULES } from "@/lib/game-mode-rules";
+import { SEARCH_DESTROY_RULES } from "@/lib/game-mode-rules";
 
 interface Props {
   hud: HudState;
