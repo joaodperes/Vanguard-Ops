@@ -1,16 +1,17 @@
 import { WEAPONS } from "./game-data";
 import { GUN_GAME_TYPE_PROGRESSION, GUN_GAME_PROGRESSION } from "./game-protocol";
-export type GunGamePreset = "all" | "cqc" | "long_range";
+export type GunGamePreset = "all" | "cqc" | "long_range" | "assault" | "smg" | "shotgun" | "dmr" | "sniper" | "lmg";
 export const GUN_GAME_BASE_TIERS = 30;
 export const GUN_GAME_MAX_MULTIPLIER = 5;
 export function normalizeGunGameConfig(preset?: string, multiplier?: number) {
   return {
-    preset: (preset === "cqc" || preset === "long_range" ? preset : "all") as GunGamePreset,
+    preset: (["cqc", "long_range", "assault", "smg", "shotgun", "dmr", "sniper", "lmg"].includes(preset ?? "") ? preset : "all") as GunGamePreset,
     multiplier: Number.isInteger(multiplier) ? Math.max(1, Math.min(GUN_GAME_MAX_MULTIPLIER, multiplier!)) : 1,
   };
 }
 const CQC = new Set(["pistol", "pdw", "smg", "shotgun"]);
 const LONG = new Set(["assault", "dmr", "sniper", "lmg"]);
+const PRIMARY_CATEGORIES = new Set(["assault", "smg", "shotgun", "dmr", "sniper", "lmg"]);
 const sample = <T>(values: T[], random: () => number): T =>
   values[Math.min(values.length - 1, Math.floor(Math.max(0, Math.min(.999999,random())) * values.length))];
 /** 28 distinct firearms, a standard launcher, and standard melee. Never duplicate a weapon ID
@@ -30,7 +31,15 @@ export function buildGunGameWeapons(preset?: string, multiplier?: number, random
     const cycleWeapons: string[] = [];
     for (let tier = 0; tier < GUN_GAME_BASE_TIERS - 2; tier++) {
       let choices = ranged.filter(w => !used.has(w.id));
-      if (config.preset !== "all") {
+      if (PRIMARY_CATEGORIES.has(config.preset)) {
+        // Category-specific pools stay exclusive. If a category has fewer than
+        // 28 distinct weapons, cycle through that category rather than silently
+        // introducing weapons from another type.
+        const categoryChoices = ranged.filter(w => w.category === config.preset);
+        if (!categoryChoices.length) throw new Error("Gun Game has no weapons in the " + config.preset + " category");
+        choices = choices.filter(w => w.category === config.preset);
+        if (!choices.length) choices = categoryChoices;
+      } else if (config.preset !== "all") {
         const allowed = config.preset === "cqc" ? CQC : LONG;
         const preferred = choices.filter(w => allowed.has(w.category));
         if (preferred.length) choices = preferred;
