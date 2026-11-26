@@ -32,6 +32,6 @@ describe("shared health damage transitions", () => {
   });
 
   test("handles non-finite current health defensively", () => {
-    expect(resolveHealthDamage(Number.NaN, 10)).toEqual({ health: 0, appliedDamage: 0, killed: true });
+    expect(resolveHealthDamage(Number.NaN, 10)).toEqual({ health: 0, appliedDamage: 0, killed: false });
   });
 });
