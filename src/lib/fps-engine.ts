@@ -1,5 +1,5 @@
 import {DEFAULT_CONTROLS,canonicalKey,stick,type ControlSettings} from "./control-settings";
-import { applyDamageFactors, resolveHealthDamage } from "./combat-damage-rules";
+import { applyDamageFactors, resolveHealthDamage, resolveEliminationState } from "./combat-damage-rules";
 import { resolveFrontierBotWeaponFallback } from "./bot-weapon-selection";
 import { resolveBotPursuitSpeed } from "./bot-movement-rules";
 import { cloneFrontierLoadout, frontierDropWeapon } from "./frontier-loadout-drops";
@@ -2173,7 +2173,9 @@ export class FPSEngine {
     const healthResult=resolveHealthDamage(victim.health,damage,victim.alive);
     victim.health=healthResult.health;
     if(!healthResult.killed)return;
-    victim.alive=false;victim.deaths++;
+    const elimination=resolveEliminationState(victim.alive,victim.deaths);
+    if(!elimination.eliminated)return;
+    victim.alive=elimination.alive;victim.deaths=elimination.deaths;
 
     this.dropOfflineFrontierLoadout(victim);
     victim.deathAnimAt=performance.now();victim.deathAnimDur=900;
@@ -13853,7 +13855,9 @@ export class FPSEngine {
     const healthResult=resolveHealthDamage(victim.health,damage,victim.alive);
     victim.health=healthResult.health;
     if(!healthResult.killed)return;
-    victim.alive=false;victim.deaths++;
+    const elimination=resolveEliminationState(victim.alive,victim.deaths);
+    if(!elimination.eliminated)return;
+    victim.alive=elimination.alive;victim.deaths=elimination.deaths;
 
     this.dropOfflineFrontierLoadout(victim);
     victim.deathAnimAt=performance.now();victim.deathAnimDur=900;
