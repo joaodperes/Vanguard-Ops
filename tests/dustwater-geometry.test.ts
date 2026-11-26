@@ -28,6 +28,20 @@ describe("Dustwater building access and rooftops", () => {
     }
   });
 
+  test("authored saloon and bank stair entrances and upper-floor hatches are clear", () => {
+    const clearAt = (boxes: ReturnType<typeof featureBoxes>, x: number, z: number, radius = .45) =>
+      !boxes.some(box => Math.abs(x - box.pos[0]) < box.size[0] + radius &&
+        Math.abs(z - box.pos[2]) < box.size[2] + radius);
+    const saloonWalls = authoredFeatures.filter(f => f.id.startsWith("saloon-south-wall")).flatMap(featureBoxes);
+    const bankWalls = authoredFeatures.filter(f => f.id.startsWith("bank-south-wall")).flatMap(featureBoxes);
+    expect(clearAt(saloonWalls, -18, -8)).toBe(true);
+    expect(clearAt(bankWalls, -19, 32)).toBe(true);
+    const saloonDeck = authoredFeatures.filter(f => f.id.startsWith("saloon-second-floor")).flatMap(featureBoxes);
+    const bankDeck = authoredFeatures.filter(f => f.id.startsWith("bank-second-floor")).flatMap(featureBoxes);
+    expect(clearAt(saloonDeck, -18, -15)).toBe(true);
+    expect(clearAt(bankDeck, -19, 25)).toBe(true);
+  });
+
   test("interior stair entrances are clear through the front wall", () => {
     for (const building of buildings) {
       if (!building.roofAccess || !cityHasUsableInteriorStairs(building)) continue;
@@ -48,8 +62,10 @@ describe("Dustwater building access and rooftops", () => {
   });
 });
 
+const authoredFeatures = dustwater.blueprint.features as unknown as MapFeature[];
+
 describe("Dustwater church tower ladder", () => {
-  const features = dustwater.blueprint.features;
+  const features = authoredFeatures;
   const ladder = features.find(f => f.id === "church-tower-stairs") as unknown as MapFeature;
   const roof = features.filter(f => f.id.startsWith("church-tower-platform-")) as unknown as MapFeature[];
 
