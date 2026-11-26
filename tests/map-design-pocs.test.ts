@@ -54,8 +54,8 @@ describe("Forest Warfare and Breakwater route-design PoCs",()=>{
     expect(containers.some(p=>(p.y??0)>=3.2)).toBe(true);
     expect(map.cover.filter(c=>c.kind==="stair").length).toBeGreaterThan(40);
     // Lower and stacked container colliders align with their visible model bases.
-    expect(map.cover.some(c=>c.kind==="cover"&&Math.abs(c.pos[0]+38)<.1&&Math.abs(c.pos[2]+17)<.1&&Math.abs(c.pos[1]-1.6)<.1)).toBe(true);
-    expect(map.cover.some(c=>c.kind==="cover"&&Math.abs(c.pos[0]+38)<.1&&Math.abs(c.pos[2]+17)<.1&&Math.abs(c.pos[1]-4.8)<.1)).toBe(true);
+    expect(map.cover.some(c=>c.kind==="cover"&&Math.abs(c.pos[0]-62)<.1&&Math.abs(c.pos[2]-38)<.1&&Math.abs(c.pos[1]-1.6)<.1)).toBe(true);
+    expect(map.cover.some(c=>c.kind==="cover"&&Math.abs(c.pos[0]-62)<.1&&Math.abs(c.pos[2]-38)<.1&&Math.abs(c.pos[1]-4.8)<.1)).toBe(true);
     // The playable edge is now a proper wall, not a jumpable half-height lip.
     expect(map.cover.some(c=>c.kind==="solid"&&c.size[1]>=2.4)).toBe(true);
   });
