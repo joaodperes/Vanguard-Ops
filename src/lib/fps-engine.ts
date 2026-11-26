@@ -12759,12 +12759,15 @@ export class FPSEngine {
       if(otherId && otherAmmo>0){
         const old=ai.ammoInMag;ai.ammoInMag=otherAmmo;
         if(currentIsPrimary)ai.secondaryAmmoInMag=old;else ai.primaryAmmoInMag=old;
-        c.weaponId=otherId;ai.nextWeaponSwitchAt=now+500;
+        c.weaponId=otherId;ai.attachments=botActiveAttachments(ai.primaryWeaponId??otherId,otherId,
+          ai.primaryAttachments??emptyBotAttachments(),ai.secondaryWeaponId,ai.secondaryAttachments);
+        ai.nextWeaponSwitchAt=now+500;
         ai.reloadingUntil=0;ai.burstShotsLeft=0;this.rebuildCombatantMesh(c);
       }else{
         const melee=this.opts.loadout.meleeWeaponId??"knife_tactical";
         if(c.weaponId!==melee){
           c.weaponId=melee;ai.ammoInMag=weaponById(melee).stats.magSize;
+          ai.attachments=emptyBotAttachments();
           ai.reloadingUntil=0;ai.nextWeaponSwitchAt=now+500;
           ai.burstShotsLeft=0;this.rebuildCombatantMesh(c);
         }
