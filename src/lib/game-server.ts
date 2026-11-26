@@ -1,5 +1,5 @@
 import {squadIntent} from "./squad-coordination";
-import { applyDamageFactors, resolveHealthDamage } from "./combat-damage-rules";
+import { applyDamageFactors, resolveHealthDamage, resolveEliminationState } from "./combat-damage-rules";
 import { resolveFrontierBotWeaponFallback } from "./bot-weapon-selection";
 import { resolveBotPursuitSpeed } from "./bot-movement-rules";
 import { cloneFrontierLoadout, frontierDropWeapon } from "./frontier-loadout-drops";
@@ -2182,7 +2182,10 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
         room.droppedWeapons.set(id,{id,ownerId:victim.id,weaponId:dropped.weaponId,slot:dropped.slot,skinId:dropped.skinId,attachments:{...dropped.attachments},ammoRemaining:mag+frontierReserveAmmo(mag*3),pos,expiresAt,loadout:droppedLoadout});
       }
     }
-    victim.alive = false;
+    const elimination=resolveEliminationState(victim.alive,victim.deaths);
+    if(!elimination.eliminated)return;
+    victim.alive=elimination.alive;
+    victim.deaths=elimination.deaths;
     if(room.mode==="searchdestroy"&&room.searchDestroyState){
       const state=room.searchDestroyState;
       if(state.bomb.defuseProgress?.playerId===victim.id)state.bomb.defuseProgress=null;
@@ -2190,7 +2193,6 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
       if(state.bomb.carrierId===victim.id)dropSearchDestroyBomb(state,victim.id,[...victim.pos] as Vec3);
     }
     removeMinesOwnedBy(room, victim.id);
-    victim.deaths += 1;
     if(room.orbitalHolders.delete(victim.id)){
       if(victim.weaponId===ORBITAL_REAPER_ID){
         const deadBot=room.bots.get(victim.id);
