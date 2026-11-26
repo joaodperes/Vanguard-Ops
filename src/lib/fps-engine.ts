@@ -3811,7 +3811,7 @@ export class FPSEngine {
       } else if (st === "laser") {
         // Side-mounted projector: preserve the central sight channel on compact
         // pistols instead of placing a grey housing directly over the bore.
-        const laserSide = (WEAPON_VISUALS[this.weaponId]?.receiver?.[0] ?? .12) / 2 + .035;
+        const laserSide = Math.max(.012, (WEAPON_VISUALS[this.weaponId]?.receiver?.[0] ?? .12) / 2 - .012);
         const box = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.03, 0.06), accentMat);
         box.position.x = laserSide;
         scopeGroup.add(box);
@@ -3834,8 +3834,10 @@ export class FPSEngine {
         const bastionSights=buildBastionIronSights(accentMat);
         scopeGroup.add(bastionSights.rear);
         bastionFront=bastionSights.front;
-      } else {
+      } else if (wid !== "sniper_scout") {
         // Generic low-profile receiver notch for other unscoped weapons.
+        // The Hunting Rifle's exposed top rail is deliberately left clear:
+        // its front blade remains the only added iron-sight hardware.
         for (const side of [-1,1]) {
           const ear = new THREE.Mesh(new THREE.BoxGeometry(.014,.036,.026),accentMat);
           ear.position.set(side*.029,.013,0);
@@ -3885,7 +3887,7 @@ export class FPSEngine {
       for(const hand of this.viewmodelAkimbo?["left","right"] as const:[null]){
         const laser = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.025, 0.08), glowMat);
         if(hand)laser.userData.akimboHand=hand;
-        const laserSide=(WEAPON_VISUALS[this.weaponId]?.receiver?.[0] ?? .12)/2+.025;
+        const laserSide=Math.max(.012,(WEAPON_VISUALS[this.weaponId]?.receiver?.[0] ?? .12)/2-.012);
         addPart(laser,laserSide+(hand?(hand==="left"?-akimboOffset:akimboOffset)/this.vmScale:0),
           -.09+(hand?-.045/this.vmScale:0),-.2);
         const rayOrigin=new THREE.Object3D();
