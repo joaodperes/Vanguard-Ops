@@ -142,7 +142,7 @@ export function applyMapFootprint(base:MapDef,draft?:{blueprint:MapBlueprint;the
     legacyEnvironmentSource,plan.legacyEnvironmentDisabled,plan.legacyEnvironmentOverrides);
   const fullCover = [...legacyCover,...flankFeatures.flatMap(featureBoxes),
     ...propColliders(props,allSpawns,flankFeatures),
-    ...regionBoundary(regions,base.id==="shipyard"?3.8:base.id==="skybridge"?18:11)];
+    ...regionBoundary(regions,base.id==="shipyard"?4.8:base.id==="skybridge"?18:11)];
   const initialSpawns = { ffa:addSpawns("ffa"),red:addSpawns("red"),blue:addSpawns("blue") };
   const expandedSpawns = isAfterlight ? {
     ffa: expandCitySpawnPositions(initialSpawns.ffa,regions,fullCover,32,props),
