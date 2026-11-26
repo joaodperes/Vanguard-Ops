@@ -133,6 +133,40 @@ describe("shotgun attachment combinations", () => {
     }
   });
 
+  test("Wraith base damage and special ammunition have deliberate damage breakpoints", () => {
+    const base = get("shotgun_auto");
+    const swarm = get("shotgun_auto", "mag_pellets");
+    const slug = get("shotgun_auto", "mag_slug");
+    const breacherSlug = get("shotgun_br", "mag_slug");
+    const maulerSlug = get("shotgun_combat", "mag_slug");
+
+    // The base Wraith is now a credible close-range automatic shotgun.
+    expect(base.damage).toBe(13);
+    expect(base.pellets).toBe(8);
+    expect(base.damage * base.pellets).toBe(104);
+    expect(base.damage * base.pellets * base.headshotMult).toBeCloseTo(135.2);
+
+    // Buckshot Swarm retains a theoretical headshot one-shot, but its
+    // reduced per-pellet modifier reins in the 14-pellet volley.
+    expect(swarm.damage).toBe(8);
+    expect(swarm.pellets).toBe(14);
+    expect(swarm.damage * swarm.pellets).toBe(112);
+    expect(swarm.damage * swarm.pellets * swarm.headshotMult).toBeCloseTo(145.6);
+    expect(swarm.range).toBeCloseTo(base.range * 0.75);
+
+    // Slugs gain a meaningful damage increase while preserving their
+    // single-projectile precision and longer-range trade-off.
+    expect(slug.pellets).toBe(1);
+    expect(slug.damage).toBe(65);
+    expect(slug.damage * slug.headshotMult).toBeCloseTo(84.5);
+    expect(slug.range).toBeCloseTo(base.range * 2.2);
+    expect(slug.fireRate).toBeCloseTo(base.fireRate * 0.8);
+    expect(breacherSlug.damage).toBe(95);
+    expect(breacherSlug.damage * breacherSlug.headshotMult).toBeGreaterThanOrEqual(100);
+    expect(maulerSlug.damage).toBe(75);
+    expect(maulerSlug.damage * maulerSlug.headshotMult).toBeLessThan(100);
+  });
+
   test("a choke actually tightens close-range patterns, including hipfire", () => {
     for (const weapon of shotguns) {
       const base = get(weapon.id);
