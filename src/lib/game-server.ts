@@ -2118,7 +2118,8 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
         victim.weaponId===kit?.secondaryWeaponId?"secondary":null;
       if(kit&&slot&&weapon.category!=="melee"&&!weapon.wonder){
         const attachments=slot==="secondary"?(kit.secondaryAttachments??{sight:null,barrel:null,grip:null,magazine:null}):kit.attachments;
-        const ammoRemaining=room.frontierAmmoRemaining?.get(victim.id)??computeEffectiveStats(weapon,attachments).magSize;
+        const botVictim=room.bots.get(victim.id);
+        const ammoRemaining=botVictim?.ai.frontierAmmoRemaining??room.frontierAmmoRemaining?.get(victim.id)??computeEffectiveStats(weapon,attachments).magSize;
         const id=genId("weapon");
         const pos:Vec3=[victim.pos[0],Math.max(.35,victim.pos[1]+.12),victim.pos[2]];
         const expiresAt=Date.now()+45000;
