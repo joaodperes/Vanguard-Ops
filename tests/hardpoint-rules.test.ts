@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { MAP_LIST, mapAllowedForMode } from "../src/lib/game-protocol";
+import { MAP_LIST, mapAllowedForMode, resolveRoomSelection } from "../src/lib/game-protocol";
 import { insideRegions, MAP_BLUEPRINTS } from "../src/lib/map-blueprints";
 import {
   createHardpointState, hardpointZonesForMap, HARDPOINT_RULES, tickHardpoint,
@@ -11,6 +11,7 @@ describe("Hardpoint map layouts and rotation", () => {
     expect(mapAllowedForMode("hardpoint", "emberhold")).toBe(true);
     expect(mapAllowedForMode("hardpoint", "dustwater")).toBe(true);
     expect(mapAllowedForMode("hardpoint", "floodgate")).toBe(true);
+    expect(resolveRoomSelection("hardpoint", "bunker", 5).mapId).toBe("emberhold");
   });
 
   test("all selectable Hardpoint zones fit fully inside each map footprint", () => {
