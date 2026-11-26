@@ -5323,10 +5323,16 @@ async function handle(socket: any, msg: C2S) {
       const kit=room.loadouts.get(socket.id);if(!kit)return;
       const previousSlotWeapon=drop.slot==="primary"?kit.weaponId:(kit.secondaryWeaponId??"pistol_side");
       const wasHoldingSlot=player.weaponId===previousSlotWeapon;
+      const attachments={
+        sight:drop.attachments.sight??null,
+        barrel:drop.attachments.barrel??null,
+        grip:drop.attachments.grip??null,
+        magazine:drop.attachments.magazine??null,
+      };
       if(drop.slot==="primary"){
-        kit.weaponId=drop.weaponId;kit.weaponSkinId=drop.skinId;kit.attachments={...drop.attachments};kit.emptyPrimary=false;
+        kit.weaponId=drop.weaponId;kit.weaponSkinId=drop.skinId;kit.attachments=attachments;kit.emptyPrimary=false;
       }else{
-        kit.secondaryWeaponId=drop.weaponId;kit.secondaryWeaponSkinId=drop.skinId;kit.secondaryAttachments={...drop.attachments};
+        kit.secondaryWeaponId=drop.weaponId;kit.secondaryWeaponSkinId=drop.skinId;kit.secondaryAttachments=attachments;
       }
       if(wasHoldingSlot){player.weaponId=drop.weaponId;player.weaponSkinId=drop.skinId;
         room.frontierAmmoRemaining??=new Map();
