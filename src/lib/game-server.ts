@@ -3915,6 +3915,22 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       }
     }
   }
+  // Frontier crossbow bots retrieve their own recoverable bolts just as
+  // human crossbow users can. Keep ownership and radius checks server-side.
+  if(room.mode==="frontier" && weaponById(bot.weaponId).special?.kind==="bolt"){
+    const boltWeapon=weaponById(bot.weaponId);
+    const pickupRadius=boltWeapon.special?.kind==="bolt"?boltWeapon.special.pickupRadius:0;
+    if(pickupRadius>0){
+      for(const bolt of room.droppedBolts.values()){
+        if(bolt.ownerId!==bot.id || now>=bolt.expiresAt)continue;
+        if(Math.hypot(bot.pos[0]-bolt.pos[0],bot.pos[2]-bolt.pos[2])>pickupRadius)continue;
+        room.droppedBolts.delete(bolt.id);
+        ai.ammoInMag=Math.min(boltWeapon.stats.magSize,ai.ammoInMag+1);
+        io.to(room.id).emit("message",{t:"boltRemoved",id:bolt.id} as S2C);
+        break;
+      }
+    }
+  }
   const flashBlinded=(room.equipmentFlashUntil.get(bot.id)??0)>now;
   if(flashBlinded){ai.targetId=null;ai.lastSighting=null;ai.lastAlert=null;}
   else hearBotNoise(room,bot,now);
