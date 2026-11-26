@@ -27,3 +27,17 @@ export function resolveHealthDamage(
   const nextHealth = Math.max(0, health - appliedDamage);
   return { health: nextHealth, appliedDamage, killed: alive && health > 0 && nextHealth <= 0 };
 }
+
+
+export interface EliminationStateResult {
+  alive: false;
+  deaths: number;
+  eliminated: boolean;
+}
+
+/** Shared, idempotent alive -> eliminated transition for offline and online actors. */
+export function resolveEliminationState(alive: boolean, deaths: number): EliminationStateResult {
+  const currentDeaths = Number.isFinite(deaths) ? Math.max(0, Math.floor(deaths)) : 0;
+  if (!alive) return { alive: false, deaths: currentDeaths, eliminated: false };
+  return { alive: false, deaths: currentDeaths + 1, eliminated: true };
+}
