@@ -1618,7 +1618,7 @@ export type S2C =
   | { t: "deathBombExplode"; id: string; pos: Vec3 }
   | { t: "scavengerDrop"; id: string; pos: Vec3; expiresAt: number }
   | { t: "scavengerRemove"; id: string }
-  | { t: "weaponPickup"; id:string; playerId:string; weaponId:string; slot:"primary"|"secondary"; skinId:string; attachments:Record<string,string|null>; ammoRemaining:number }
+  | { t: "weaponPickup"; id:string; playerId:string; weaponId:string; slot:"primary"|"secondary"; skinId:string; attachments:{sight:string|null;barrel:string|null;grip:string|null;magazine:string|null}; ammoRemaining:number }
   | { t: "scavengerCollected"; id: string }
   | { t: "equipmentFx"; equipmentId: import("./equipment").EquipmentId; position: Vec3; ownerId: string; mineId?: string; mineState?: "placed" | "triggered"; path?: Vec3[]; pathTimesMs?: number[]; flightMs?: number }
   | { t: "equipmentStatus"; effect: "flash" | "taser" | "cryo"; durationMs: number; visualDurationMs?: number }
