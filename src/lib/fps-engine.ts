@@ -129,7 +129,8 @@ import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-
 import { botRememberSighting, botInvestigation, botCanHearNoise, botRememberNoise, botRememberHit, botAlertInvestigation, type BotNoise, type BotAlert, type BotSighting } from "./bot-awareness";
 import { botArchetypeForSlot, botArchetypeForCategory, botArchetypeWeapon, botArchetypeWeapons, BOT_ELIGIBLE_WEAPONS, FRONTIER_BOT_PRESET_BY_ARCHETYPE, botPersonality, botArchetypeHighGroundChance, type BotArchetype } from "./bot-archetypes";
 import { MOVEMENT, SPRINT_STAMINA, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity, sprintRecoverySpreadMultiplier, sprintRecoveryAdsRate } from "@/lib/movement-rules";
-import { FOREST_OBJECTS, FOREST_PERIMETER, FOREST_BASE_COVER, FOREST_TREE_PARAPETS, forestLogCoverId } from "./forest-warfare";
+import { FOREST_OBJECTS, FOREST_PERIMETER, FOREST_BASE_COVER, FOREST_TREE_PARAPETS,
+  FOREST_CANOPY_OBSTACLES, FOREST_CANOPY_SUPPORTS, forestLogCoverId } from "./forest-warfare";
 import { advanceMatchElapsed } from "./match-clock";
 import {ORBITAL_REAPER_ID,orbitalRecordKill,orbitalCanClaim,orbitalGravity,orbitalBotShouldContest,orbitalBotDeckGoal,orbitalServerWarning,orbitalPulseTargets,ORBITAL_PULSE_DAMAGE,ORBITAL_PULSE_RADIUS,ORBITAL_REAPER_SPEED_MULTIPLIER,ORBITAL_REAPER_STAMINA_DRAIN_MULTIPLIER,ORBITAL_REAPER_JUMP_MOMENTUM_MULTIPLIER,orbitalReaperEquipped} from "./orbital-reactor";
 import { CTF_SPEED_MULTIPLIER, ctfCarrierWeaponSpeed, createCtfFlags, ctfDrop, ctfTouch, ctfReturnExpired, ctfBotIntent, ctfStairWaypoint, ctfDefenderScanYaw, ctfEngageThreat, ctfResetMs, ctfBase, ctfHome, ctfWithin, flagAtHome, otherFlag, type CtfFlags, type FlagTeam } from "./ctf-rules";
@@ -1863,7 +1864,7 @@ export class FPSEngine {
       if (c.environmentId || detailedCastleFixtures.has(JSON.stringify(c))) continue;
       const kind = c.kind ?? "cover";
       if (this.map.id === "forest_warfare" && kind !== "stair" &&
-          !(kind === "platform" && (c.size[0] > 20 || c.size[2] > 14))) continue;
+          !(kind === "platform" && c.pos[1] > 11.85)) continue;
       const mat = kind==="cover"&&c.material&&ballisticMats[c.material] ? ballisticMats[c.material]
         : kind === "accent" ? accentMat : kind === "solid" ? wallMat : kind === "stair" ? stairMat : kind === "platform" ? platformMat : coverMat;
       const geo = new THREE.BoxGeometry(c.size[0] * 2, c.size[1] * 2, c.size[2] * 2);
@@ -1947,6 +1948,24 @@ export class FPSEngine {
       rock.rotation.y=0;place(rock,...cover.pos);
       const lichen=new THREE.Mesh(new THREE.BoxGeometry(cover.size[0]*2+.06,.08,cover.size[2]*2+.06),moss);
       place(lichen,cover.pos[0],cover.pos[1]+cover.size[1]+.03,cover.pos[2]);
+    }
+    // Natural obstacles and timber supports are rendered from the same
+    // boxes used by player, bullet and bot collision.
+    for (const cover of FOREST_CANOPY_SUPPORTS) {
+      const post=new THREE.Mesh(new THREE.BoxGeometry(
+        cover.size[0]*2,cover.size[1]*2,cover.size[2]*2),bark);
+      place(post,...cover.pos);
+    }
+    for (const cover of FOREST_CANOPY_OBSTACLES) {
+      const [x,y,z]=cover.pos,[sx,sy,sz]=cover.size;
+      const material=cover.material==="thin_wood"?barkLight:stone;
+      const obstacle=cover.ballisticId?.includes(":log:")
+        ? new THREE.Mesh(new THREE.CylinderGeometry(sy*.82,sy*.82,sx*2,10),barkLight)
+        : new THREE.Mesh(new THREE.DodecahedronGeometry(1,1),material);
+      if(cover.ballisticId?.includes(":log:"))obstacle.rotation.z=Math.PI/2;
+      else obstacle.scale.set(sx*1.35,sy*1.25,sz*1.3);
+      place(obstacle,x,y,z);
+      if(cover.ballisticId)this.ballisticMeshes.set(cover.ballisticId,obstacle);
     }
     for (const cover of FOREST_TREE_PARAPETS) {
       const rail=new THREE.Mesh(new THREE.BoxGeometry(cover.size[0]*2,cover.size[1]*2,cover.size[2]*2),barkLight);
