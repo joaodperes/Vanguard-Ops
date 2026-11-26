@@ -897,9 +897,11 @@ export function buildFirstPersonWeapon(
           inlay.name="wood_stock_side_inlay";
         }
       } else {
-        const stem=box(0,-.025,rearZ+.05,.115,.135,.24,darkMat);
+        // Keep fixed-stock butt furniture compact so it does not crowd the
+        // rear sight picture on battle-rifle silhouettes.
+        const stem=box(0,-.025,rearZ+.045,.105,.115,.19,darkMat);
         stem.name="weapon_stock_stem";
-        box(0,.05,rearZ+.07,.085,.02,.17,sig);
+        box(0,.035,rearZ+.055,.075,.018,.135,sig);
       }
       break;
     }
