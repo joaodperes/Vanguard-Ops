@@ -7803,6 +7803,30 @@ export class FPSEngine {
         break;
       case "weaponPickup":
         this.removeDroppedWeapon(msg.id);
+        if(msg.playerId===this.selfId){
+          const attachments={sight:msg.attachments.sight??null,barrel:msg.attachments.barrel??null,
+            grip:msg.attachments.grip??null,magazine:msg.attachments.magazine??null};
+          const weapon=weaponById(msg.weaponId);
+          const effective=computeEffectiveStats(weapon,attachments);
+          if(msg.slot==="primary"){
+            this.primaryWeaponId=msg.weaponId;this.opts.loadout.weaponId=msg.weaponId;
+            this.opts.loadout.weaponSkinId=msg.skinId;this.opts.loadout.attachments=attachments;
+            this.primaryEff=effective;this.primarySight=sightDefForType(effective.sightType);
+            this.primaryAmmoInMag=Math.min(effective.magSize,msg.ammoRemaining);
+          }else{
+            this.secondaryWeaponId=msg.weaponId;this.opts.loadout.secondaryWeaponId=msg.weaponId;
+            this.opts.loadout.secondaryWeaponSkinId=msg.skinId;this.opts.loadout.secondaryAttachments=attachments;
+            this.secondaryEff=effective;this.secondarySight=sightDefForType(effective.sightType);
+            this.secondaryAmmoInMag=Math.min(effective.magSize,msg.ammoRemaining);
+          }
+          if(this.currentSlot===msg.slot){
+            this.weaponId=msg.weaponId;this.eff=effective;this.sightDef=sightDefForType(effective.sightType);
+            this.ammoInMag=Math.min(effective.magSize,msg.ammoRemaining);
+            this.startWeaponSwapVisual(0);
+          }
+          this.frontierAmmoRemaining=msg.ammoRemaining;
+          this.sound.play("swap",{volume:.65});
+        }
         break;
       case "scavengerRemove":
         this.removeScavengerPickup(msg.id);
