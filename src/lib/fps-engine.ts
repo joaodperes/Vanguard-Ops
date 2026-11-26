@@ -14053,7 +14053,8 @@ export class FPSEngine {
       const front=attackerPos&&Math.atan2(attackerPos[0]-this.pos.x,attackerPos[2]-this.pos.z);
       const frontal=front!==undefined&&Math.cos(front-this.yaw)>0;
       if(this.mechActive.moduleId==="guardian_protocol"&&frontal)dmg*=.64;
-      this.mechActive.armor=Math.max(0,this.mechActive.armor-dmg);
+      const armorResult=resolveHealthDamage(this.mechActive.armor,dmg,true);
+      this.mechActive.armor=armorResult.health;
       this.damageFlashAt=performance.now();
       if(this.mechActive.armor<=0){
         if(this.mechActive.moduleId==="emergency_ejection")this.health=Math.max(30,this.health);
