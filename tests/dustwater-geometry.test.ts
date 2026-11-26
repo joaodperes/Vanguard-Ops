@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import dustwater from "../src/data/maps/dustwater.json";
-import { cityBuildingBoxes, cityHasUsableInteriorStairs } from "../src/lib/map-visuals";
+import { cityBuildingBoxes, cityHasUsableInteriorStairs, cityFixtureMaterial } from "../src/lib/map-visuals";
 import { featureBoxes, type MapFeature } from "../src/lib/map-blueprints";
 import type { MapProp } from "../src/lib/map-theme-contract";
 
@@ -25,6 +25,11 @@ describe("Dustwater building access and rooftops", () => {
       const z = building.z - sin * lx + cos * lz;
       expect(boxes.some(box => box.kind === "platform" &&
         Math.abs(box.pos[0] - x) < .01 && Math.abs(box.pos[2] - z) < .01)).toBe(true);
+      const wallLocalX = side * w / 2, wallLocalZ = -d / 2 + 3.2;
+      const wallX = building.x + cos * wallLocalX + sin * wallLocalZ;
+      const wallZ = building.z - sin * wallLocalX + cos * wallLocalZ;
+      expect(parapets.some(box => Math.abs(wallX - box.pos[0]) < box.size[0] + .45 &&
+        Math.abs(wallZ - box.pos[2]) < box.size[2] + .45)).toBe(false);
     }
   });
 
@@ -40,6 +45,12 @@ describe("Dustwater building access and rooftops", () => {
     const bankDeck = authoredFeatures.filter(f => f.id.startsWith("bank-second-floor") && f.kind === "platform").flatMap(featureBoxes);
     expect(clearAt(saloonDeck, -18, -15)).toBe(true);
     expect(clearAt(bankDeck, -19, 25)).toBe(true);
+  });
+
+  test("ordinary interior decoration is destructible wood", () => {
+    const timberStyles = ["partition","bed","sofa","table","pew","altar","lectern","display","exam_bed"] as const;
+    expect(timberStyles.every(style => cityFixtureMaterial(style) === "thin_wood")).toBe(true);
+    expect(cityFixtureMaterial("oven")).toBe("reinforced");
   });
 
   test("interior stair entrances are clear through the front wall", () => {
