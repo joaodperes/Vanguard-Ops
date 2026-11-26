@@ -12755,7 +12755,7 @@ export class FPSEngine {
        !this.orbitalBotHolders.has(c.id) && now>=(ai.nextWeaponSwitchAt??0)){
       const currentIsPrimary=c.weaponId===(ai.primaryWeaponId??"");
       const otherId=currentIsPrimary?ai.secondaryWeaponId:ai.primaryWeaponId;
-      const otherAmmo=currentIsPrimary?(ai.secondaryAmmoInMag??0):(ai.primaryAmmoInMag??0);
+      const otherAmmo=ai.secondaryAmmoInMag??0;
       if(otherId && otherAmmo>0){
         const old=ai.ammoInMag;ai.ammoInMag=otherAmmo;
         if(currentIsPrimary)ai.secondaryAmmoInMag=old;else ai.primaryAmmoInMag=old;
