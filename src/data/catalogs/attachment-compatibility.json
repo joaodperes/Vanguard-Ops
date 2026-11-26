@@ -81,12 +81,6 @@
     ]
   },
   "sniper_scout": {
-    "sight": [
-      "sight_hunter",
-      "sight_thermal",
-      "sight_acog",
-      "sight_nvg"
-    ],
     "barrel": [
       "barrel_suppressor",
       "barrel_heavy",
@@ -97,8 +91,7 @@
       "mag_extended",
       "mag_quickdraw",
       "mag_balanced",
-      "mag_lightweight",
-      "mag_penetrator"
+      "mag_lightweight"
     ]
   },
   "sniper_heavy": {
