@@ -140,7 +140,7 @@
       },
       {
         "id": "bw-cross-aisle-cover-west",
-        "x": -8,
+        "x": -24,
         "z": 15,
         "w": 3.5,
         "d": 11,
@@ -151,7 +151,7 @@
       },
       {
         "id": "bw-cross-aisle-cover-east",
-        "x": 8,
+        "x": 24,
         "z": -15,
         "w": 3.5,
         "d": 11,
