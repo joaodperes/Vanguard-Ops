@@ -36,9 +36,11 @@ export function chooseSpawn(owner:object,map:MapDef,team:string,
   const history=histories.get(owner)??new Map<string,number>();histories.set(owner,history);
   const spawnPool=safe.length?safe:pool;
   const sameTeam=mode==="searchdestroy"?occupants.filter(p=>p.team===team):[];
-  const anchor=sameTeam.length
-    ? [sameTeam.reduce((sum,p)=>sum+p.pos[0],0)/sameTeam.length,0,sameTeam.reduce((sum,p)=>sum+p.pos[2],0)/sameTeam.length] as Vec3
-    : tightSpawnClusterAnchor(spawnPool);
+  const anchor=mode==="searchdestroy"
+    ? sameTeam.length
+      ? [sameTeam.reduce((sum,p)=>sum+p.pos[0],0)/sameTeam.length,0,sameTeam.reduce((sum,p)=>sum+p.pos[2],0)/sameTeam.length] as Vec3
+      : tightSpawnClusterAnchor(spawnPool)
+    : [0,0,0] as Vec3;
   const candidates=spawnPool.map(sp=>{
     const separation=Math.min(...occupants.map(p=>Math.hypot(p.pos[0]-sp[0],p.pos[2]-sp[2])),120);
     let exposed=0;
