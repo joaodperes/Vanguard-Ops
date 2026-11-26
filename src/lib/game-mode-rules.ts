@@ -218,8 +218,8 @@ export function tickSearchDestroy(
 export interface HardpointZone { id: string; pos: ModeVec3; radius?: number }
 /**
  * Five authored Hardpoint centres per supported arena. Each capture zone and its
- * 6.25-unit visual boundary fit inside the playable footprint; Blacksite's legacy layout is
- * retained only so already-running rooms cannot place objectives out of bounds.
+ * 6.25-unit visual boundary fit inside the playable footprint. The Blacksite
+ * fallback keeps existing rooms inside its central playable area after the map is retired from this mode.
  */
 export function hardpointZonesForMap(mapId: string): HardpointZone[] {
   const layouts: Record<string, readonly ModeVec3[]> = {
