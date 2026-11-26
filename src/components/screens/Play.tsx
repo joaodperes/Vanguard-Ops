@@ -164,6 +164,15 @@ export function Play() {
   }, []);
 
   const launchInProgress = useRef(false);
+  const appliedDefaultDifficultyFor = useRef<string | null>(null);
+  // Apply the profile preference once when this player's room-creation screen
+  // opens. Later manual selections remain untouched while the screen is open.
+  useEffect(() => {
+    if (!profile || appliedDefaultDifficultyFor.current === playerKey) return;
+    appliedDefaultDifficultyFor.current = playerKey;
+    setRoomConfig({ botDifficulty: profile.defaultBotDifficulty ?? "normal" });
+  }, [profile, playerKey, setRoomConfig]);
+
   // Read the actual persisted loadout AFTER pending Armory edits complete.
   // This protects every weapon and both offline/online match launch paths from
   // using a stale React profile while a sight/attachment removal is saving.
