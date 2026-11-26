@@ -3,6 +3,7 @@ import { resolveFrontierBotWeaponFallback } from "../src/lib/bot-weapon-selectio
 import { resolveBotPursuitSpeed } from "../src/lib/bot-movement-rules";
 import { MOVEMENT } from "../src/lib/movement-rules";
 import { cloneFrontierLoadout, frontierDropWeapon } from "../src/lib/frontier-loadout-drops";
+import { frontierLoadoutForPreset } from "../src/lib/frontier-loadouts";
 import { botReloadDurationMs, incrementalReloadStepMs, shouldBotSmartReload, weaponReloadDurationMs } from "../src/lib/weapon-reload-rules";
 
 describe("shared Frontier bot weapon selection", () => {
@@ -71,6 +72,14 @@ describe("shared bot pursuit speed", () => {
 
 
 describe("shared Frontier loadout drop rules", () => {
+  test("retains the curated preset identity so dropped kits can be named", () => {
+    const kit = frontierLoadoutForPreset({
+      weaponId: "rifle_ar", weaponSkinId: "default", playerSkinId: "default",
+      attachments: { sight: null, barrel: null, grip: null, magazine: null },
+    }, "scout");
+    expect(kit.frontierPresetId).toBe("scout");
+    expect(cloneFrontierLoadout(kit).frontierPresetId).toBe("scout");
+  });
   test("preserves every slot, attachment set and cosmetic when cloning a kit", () => {
     const kit = {
       weaponId: "rifle_ar", secondaryWeaponId: "pistol_side", meleeWeaponId: "knife_tactical",
