@@ -14,6 +14,28 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(view);
 }
 
+// PATCH /api/profile { playerKey, defaultBotDifficulty }
+export async function PATCH(req: NextRequest) {
+  const body = await req.json().catch(() => ({}));
+  const { playerKey: bodyKey, defaultBotDifficulty } = body as {
+    playerKey?: string;
+    defaultBotDifficulty?: string;
+  };
+  const allowed = ["easy", "normal", "hard", "veteran", "mixed"];
+  if (!allowed.includes(defaultBotDifficulty ?? "")) {
+    return NextResponse.json({ error: "Invalid default bot difficulty" }, { status: 400 });
+  }
+  const { playerKey } = await resolvePlayerKey(req, bodyKey);
+  if (!playerKey) return NextResponse.json({ error: "playerKey required" }, { status: 400 });
+  const player = await getOrCreatePlayer(playerKey);
+  await db.player.update({
+    where: { id: player.id },
+    data: { defaultBotDifficulty },
+  });
+  const view = await buildProfileView(playerKey);
+  return NextResponse.json(view);
+}
+
 // POST /api/profile  { playerKey, name }
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
