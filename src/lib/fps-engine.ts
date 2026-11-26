@@ -108,7 +108,7 @@ import { dragonBreathIgnition,dragonBreathVisualUntil } from "./incendiary-statu
 import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
 import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineInReach, stormEnemy, stormTargetPoint, nextStormChainTarget, STORM_MINE_TRIGGER_RADIUS, STORM_MINE_ARM_MS, STORM_MINE_LIFETIME_MS, STORM_MAX_MINES_PER_OWNER, STORM_MINE_TARGET_COOLDOWN_MS, STORM_MAX_DIRECT_HITS_PER_TARGET, STORM_DIRECT_DAMAGE, STORM_MINE_DAMAGE, STORM_CHAIN_JUMPS, STORM_MINE_JUMPS, STORM_CHAIN_DECAY, STORM_MINE_CHAIN_RADIUS, type StormVictim } from "./stormweaver";
 import { advanceKillChain, type KillChainState } from "./kill-chain";
-import { frontierWeaponIdAllowed, searchDestroySitesForMap, SEARCH_DESTROY_RULES, hardpointZonesForMap } from "./game-mode-rules";
+import { frontierWeaponIdAllowed, frontierReserveAmmo, searchDestroySitesForMap, SEARCH_DESTROY_RULES, hardpointZonesForMap } from "./game-mode-rules";
 import { isFlagDefenseKill, largestScoreDeficit } from "./match-bonus-tracking";
 import { advanceIncrementalReload } from "./incremental-reload";
 import { shotSpread, shotBloomIncrease, recoilKickRadians, sustainedRecoilMultiplier, firingMotionFactor, spreadShotDirection } from "./weapon-accuracy";
@@ -2168,6 +2168,8 @@ export class FPSEngine {
     victim.health-=damage;
     if(victim.health>0)return;
     victim.alive=false;victim.deaths++;
+
+    this.dropOfflineFrontierLoadout(victim);
     victim.deathAnimAt=performance.now();victim.deathAnimDur=900;
     attacker.kills++;
     this.recordOrbitalKill(victim.pos,attacker.pos);
@@ -2249,6 +2251,7 @@ export class FPSEngine {
       recent&&recent.damage>=15&&performance.now()-recent.at<=10000)this.assists++;
     this.offlineAssistDamage.delete(victim.id);
     victim.alive=false;victim.deaths+=1;
+    this.dropOfflineFrontierLoadout(victim);
     victim.deathAnimAt=performance.now();victim.deathAnimDur=900;
     if(attacker.team!==victim.team)this.recordOrbitalKill(victim.pos,attacker.pos);
     this.releaseOrbitalBotWeapon(victim);
@@ -3425,6 +3428,8 @@ export class FPSEngine {
 
   private eliminateBotByEnvironment(bot: Combatant, weapon: string, now: number): void {
     bot.alive = false; bot.health = 0; bot.deaths++;
+
+    this.dropOfflineFrontierLoadout(bot);
     if (this.opts.mode === "ctf") this.dropOfflineCtfCarrier(bot.id, [...bot.pos]);
     bot.deathAnimAt = now; bot.deathAnimDur = 900;
     const entry: KillFeedEntry = { killer: "Environment", victim: bot.name, weapon,
@@ -7264,7 +7269,7 @@ export class FPSEngine {
       case "snapshot":
         if(msg.droppedWeapons){
           const live=new Set(msg.droppedWeapons.map(d=>d.id));
-          for(const drop of msg.droppedWeapons)this.addDroppedWeapon(drop.id,drop.weaponId,drop.pos);
+          for(const drop of msg.droppedWeapons)this.addDroppedWeapon(drop.id,drop.weaponId,drop.pos,drop.loadout,drop.expiresAt);
           for(const id of this.droppedWeaponMeshes.keys())if(!live.has(id))this.removeDroppedWeapon(id);
         }
         if(msg.deployedCovers)this.reconcileDeployCovers(msg.deployedCovers);
@@ -8740,19 +8745,59 @@ export class FPSEngine {
     this.sound.play("reload", { volume: 0.28 });
   }
 
+  private dropOfflineFrontierLoadout(victim:Combatant):void {
+    if(this.opts.mode!=="frontier"||this.opts.online||!victim.isBot||!victim.ai)return;
+    const ai=victim.ai;
+    const primaryId=ai.primaryWeaponId??victim.weaponId;
+    const secondaryId=ai.secondaryWeaponId??(primaryId==="pistol_side"?"pistol_bastion":"pistol_side");
+    const toWire=(a?:BotAttachmentMap)=>({sight:a?.sight??null,barrel:a?.barrel??null,grip:a?.grip??null,magazine:a?.magazine??null});
+    const loadout:LoadoutWire={
+      weaponId:primaryId,secondaryWeaponId:secondaryId,meleeWeaponId:"knife_tactical",
+      weaponSkinId:victim.weaponSkinId||"default",secondaryWeaponSkinId:"default",meleeWeaponSkinId:"default",
+      playerSkinId:victim.playerSkinId||"default",attachments:toWire(ai.primaryAttachments??ai.attachments),
+      secondaryAttachments:toWire(ai.secondaryAttachments??emptyBotAttachments()),
+      nameplateId:victim.nameplateId??"standard",primaryCharmId:victim.charmId??"none",
+      secondaryCharmId:"none",meleeCharmId:"none",
+    };
+    const shownWeapon=victim.weaponId===secondaryId?secondaryId:primaryId;
+    this.addDroppedWeapon("offline_loadout_"+victim.id+"_"+Date.now(),shownWeapon,[...victim.pos] as Vec3,loadout,Date.now()+45000);
+  }
+
+  private dropOfflineFrontierPlayerLoadout():void {
+    if(this.opts.mode!=="frontier"||this.opts.online)return;
+    const loadout=this.opts.loadout;
+    const copy:LoadoutWire={...loadout,attachments:{...loadout.attachments},secondaryAttachments:{...(loadout.secondaryAttachments??emptyBotAttachments())}};
+    const shownWeapon=this.weaponId===copy.secondaryWeaponId?(copy.secondaryWeaponId??copy.weaponId):copy.weaponId;
+    this.addDroppedWeapon("offline_loadout_"+this.selfId+"_"+Date.now(),shownWeapon,[this.pos.x,this.pos.y,this.pos.z],copy,Date.now()+45000);
+  }
+
   private tryPickupNearbyWeapon():boolean {
-    if(this.opts.mode!=="frontier"||!this.opts.online||!this.alive||!this.socket?.connected)return false;
+    if(this.opts.mode!=="frontier"||!this.alive)return false;
+    if(this.opts.online&&!this.socket?.connected)return false;
     let closest:string|undefined,best=2.25;
     for(const [id,mesh] of this.droppedWeaponMeshes){
+      if((mesh.userData.expiresAt??Infinity)<=Date.now()){this.removeDroppedWeapon(id);continue;}
       const distance=Math.hypot(this.pos.x-mesh.position.x,this.pos.z-mesh.position.z);
       if(distance<best){best=distance;closest=id;}
     }
     if(!closest)return false;
-    this.socket.emit("message",{t:"pickupWeapon",dropId:closest} as C2S);
+    if(this.opts.online){
+      this.socket!.emit("message",{t:"pickupWeapon",dropId:closest} as C2S);
+      return true;
+    }
+    const drop=this.droppedWeaponMeshes.get(closest);
+    const loadout=drop?.userData.loadout as LoadoutWire|undefined;
+    if(!loadout)return false;
+    this.pendingLoadout=loadout;
+    this.equipQueuedLoadout();
+    this.frontierAmmoRemaining=this.primaryEff.magSize+this.secondaryEff.magSize+
+      frontierReserveAmmo(Math.max(this.primaryEff.magSize,this.secondaryEff.magSize)*3);
+    this.removeDroppedWeapon(closest);
+    this.sound.play("swap",{volume:.65});
     return true;
   }
 
-  private addDroppedWeapon(id:string,weaponId:string,position:Vec3){
+  private addDroppedWeapon(id:string,weaponId:string,position:Vec3,loadout?:LoadoutWire,expiresAt?:number){
     if(this.droppedWeaponMeshes.has(id))return;
     const group=new THREE.Group();
     const body=new THREE.Mesh(new THREE.BoxGeometry(.82,.12,.16),
@@ -8769,9 +8814,12 @@ export class FPSEngine {
     glow.rotation.x=Math.PI/2;glow.position.y=.08;group.add(glow);
     group.position.set(position[0],Math.max(.12,position[1]),position[2]);
     group.userData.weaponId=weaponId;
+    if(loadout)group.userData.loadout=loadout;
+    if(expiresAt)group.userData.expiresAt=expiresAt;
     group.rotation.y=weaponId.length*.17;
     this.scene.add(group);this.droppedWeaponMeshes.set(id,group);
   }
+
   private removeDroppedWeapon(id:string){
     const mesh=this.droppedWeaponMeshes.get(id);if(!mesh)return;
     this.scene.remove(mesh);
@@ -10276,6 +10324,7 @@ export class FPSEngine {
       if(sourceWeaponId===this.wonderWeaponId && this.wonderKillEffectId)this.showWonderBurst(victim.pos,this.wonderKillEffectId);
       this.offlineAssistDamage.delete(victim.id);
       victim.alive = false;
+      this.dropOfflineFrontierLoadout(victim);
       // Do not resurrect the burn overlay on a respawn or leave it on a
       // falling corpse after Dragon's Breath finishes the target.
       this.localBurning.delete(victim.id);
@@ -13719,6 +13768,8 @@ export class FPSEngine {
     victim.health-=damage;
     if(victim.health>0)return;
     victim.alive=false;victim.deaths++;
+
+    this.dropOfflineFrontierLoadout(victim);
     victim.deathAnimAt=performance.now();victim.deathAnimDur=900;
     this.offlineAssistDamage.delete(victim.id);
     if(this.opts.mode==="ffa"||attacker.team!==victim.team)this.recordOrbitalKill(victim.pos,attacker.pos);
@@ -13914,6 +13965,8 @@ export class FPSEngine {
             this.assists++;
           this.offlineAssistDamage.delete(nearest.victim.id);
           nearest.victim.alive = false; nearest.victim.deaths += 1;
+
+          this.dropOfflineFrontierLoadout(nearest.victim);
           nearest.victim.deathAnimAt = performance.now(); nearest.victim.deathAnimDur = 900;
           if(this.opts.mode==="ffa"||this.opts.mode==="gungame"||attacker.team!==nearest.victim.team)
             this.recordOrbitalKill(nearest.victim.pos,attacker.pos);
@@ -13990,6 +14043,7 @@ export class FPSEngine {
         this.sound.play("death",{volume:.7});
         return;
       }
+      this.dropOfflineFrontierPlayerLoadout();
       this.health = 0; this.alive = false; this.deaths += 1;
       for (const mine of [...this.offlineMines]) if (mine.ownerId === this.selfId) this.removeOfflineMine(mine);
       this.currentNoDeathStreak = 0;
