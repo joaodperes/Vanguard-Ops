@@ -275,7 +275,7 @@
       "adsTime": 0.33,
       "moveSpeed": 0.86,
       "auto": false,
-      "headshotMult": 1.4,
+      "headshotMult": 1.35,
       "falloffEndMultiplier": 1.72,
       "minDamageMultiplier": 0.46,
       "coverPenetration": 1.3
