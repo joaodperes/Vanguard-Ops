@@ -21,8 +21,8 @@ describe("shared weapon firing cadence", () => {
     expect(weaponShotReady(200, 0, Number.NaN)).toBe(false);
   });
 
-  test("does not allow negative tolerance to bypass cooldown", () => {
-    expect(weaponShotReady(0, 0, 200, -1)).toBe(true);
-    expect(weaponShotReady(199, 0, 200, 1)).toBe(false);
+  test("falls back to the normal cooldown for invalid negative tolerance", () => {
+    expect(weaponShotReady(199, 0, 200, -1)).toBe(false);
+    expect(weaponShotReady(200, 0, 200, -1)).toBe(true);
   });
 });
