@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { WEAPONS, ATTACHMENTS, compatibleAttachments, computeEffectiveStats, type AttachmentSlot } from "../src/lib/game-data";
 import { reloadMotionFor, sampleReloadMotion } from "../src/lib/first-person-animation";
+import { canStartWeaponReload } from "../src/lib/weapon-mechanics";
 
 const empty: Record<AttachmentSlot, string | null> = { sight: null, barrel: null, grip: null, magazine: null };
 const weapon = (id: string) => WEAPONS.find(w => w.id === id && !w.wonder)!;
@@ -16,6 +17,10 @@ describe("sniper and DMR balance", () => {
     expect(rifle.attachments).toContain("sight");
     expect(compatibleAttachments(rifle.id, "sight").length).toBeGreaterThan(0);
     expect(s.reloadOnlyWhenEmpty).toBe(true);
+    expect(canStartWeaponReload(rifle.stats, 1)).toBe(false);
+    expect(canStartWeaponReload(rifle.stats, 0)).toBe(true);
+    expect(canStartWeaponReload(weapon("dmr_heavy").stats, 1)).toBe(false);
+    expect(canStartWeaponReload(weapon("dmr_heavy").stats, 0)).toBe(true);
     expect(reloadMotionFor(rifle.id, rifle.category, rifle.special?.kind)).toBe("bolt_action");
     expect(sampleReloadMotion(0.35, "bolt_action").propVisible).toBe(true);
     expect(sampleReloadMotion(0.35, "bolt_action").hand[2]).toBeGreaterThan(-0.18);
