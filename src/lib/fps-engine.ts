@@ -4229,10 +4229,11 @@ export class FPSEngine {
       propId = a.id;
     } else if (this.visualReloadActive(now)) {
       const def = weaponById(this.weaponId);
-      const style = this.weaponId==="sniper_scout" ? "bolt_action" :
+      const boltCycling = this.weaponId==="sniper_scout" && !this.reloading && now<this.boltActionUntil;
+      const style = boltCycling ? "bolt_action" :
         reloadMotionFor(this.weaponId, def.category, def.special?.kind);
-      const actionStart = this.weaponId==="sniper_scout" ? this.boltActionStartedAt : this.reloadStartedAt;
-      const actionDuration = this.weaponId==="sniper_scout" ? 1050 : this.reloadDurationMs;
+      const actionStart = boltCycling ? this.boltActionStartedAt : this.reloadStartedAt;
+      const actionDuration = boltCycling ? 1050 : this.reloadDurationMs;
       progress = (now - actionStart) / Math.max(1, actionDuration);
       pose = sampleReloadMotion(progress, style, this.fpShellContacts ?? undefined,
         this.shellSequenceFor(style));
@@ -4430,9 +4431,10 @@ export class FPSEngine {
       reloadDipY=pose.dip;reloadPitch=pose.pitch;reloadRoll=pose.roll;
     } else if(this.visualReloadActive(now)&&!this.viewmodelAkimbo){
       const def=weaponById(this.weaponId);
-      const style=reloadMotionFor(this.weaponId,def.category,def.special?.kind);
-      const actionStart=this.weaponId==="sniper_scout"?this.boltActionStartedAt:this.reloadStartedAt;
-      const actionDuration=this.weaponId==="sniper_scout"?1050:this.reloadDurationMs;
+      const boltCycling=this.weaponId==="sniper_scout"&&!this.reloading&&now<this.boltActionUntil;
+      const style=boltCycling?"bolt_action":reloadMotionFor(this.weaponId,def.category,def.special?.kind);
+      const actionStart=boltCycling?this.boltActionStartedAt:this.reloadStartedAt;
+      const actionDuration=boltCycling?1050:this.reloadDurationMs;
       const pose=sampleReloadMotion((now-actionStart)/Math.max(1,actionDuration),
         style,this.fpShellContacts??undefined,this.shellSequenceFor(style));
       reloadDipY=pose.dip;reloadPitch=pose.pitch;reloadRoll=pose.roll;
