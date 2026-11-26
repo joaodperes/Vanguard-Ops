@@ -209,8 +209,8 @@ export function TouchControls({ engine, mode, akimbo = false }: Props) {
             onDown={()=>engine?.setTouchInteract(true)} onUp={()=>engine?.setTouchInteract(false)}
             color="border-white/30 text-white"/>}
           {mode === "frontier"
-            ? <ActionBtn label="Dodge" icon={<ArrowLeftRight className="w-5 h-5"/>}
-                onDown={() => engine?.triggerFrontierDodge()}
+            ? <ActionBtn label="Interact / Dodge" icon={<ArrowLeftRight className="w-5 h-5"/>}
+                onDown={() => engine?.setTouchInteract(true)}
                 color="border-amber-500/50 bg-amber-600/20 text-amber-200" />
             : <ActionBtn label="Tactical" icon={<Bomb className="w-5 h-5" />}
                 onDown={() => engine?.touchUseEquipment()}
