@@ -1,8 +1,9 @@
 # Vanguard Ops documentation
 
-This folder contains maintained operator and developer references. Runtime behavior
-and live content are ultimately defined by the application source and canonical
-data under `src/`; these documents explain workflows and important contracts.
+This folder contains maintained operator and developer references. Runtime
+behavior and live content are ultimately defined by the application source and
+canonical data under `src/`; these documents explain workflows and important
+contracts.
 
 ## Development and operations
 
@@ -18,10 +19,9 @@ data under `src/`; these documents explain workflows and important contracts.
 
 ## Gameplay and authoring references
 
-- [Map modes and spawns](map-modes-and-spawns.md)
-- [Floodgate](floodgate.md) and [Whiteout Depot](whiteout-depot.md)
-- [Ballistic materials](ballistic-materials.md), [ballistic cover](ballistic-cover.md)
-  and [unified material penetration](material-penetration.md)
+- [Maps](maps.md) — map layouts, routes and notable map-specific mechanics.
+- [Ballistics and materials](ballistics-and-materials.md) — PEN, material
+  classification, cover penetration and destruction.
 - [Art direction and materials](art-direction-and-materials.md)
 - [Asset library and imports](asset-library-and-imports.md)
 - [Controls and accessibility](controls-and-accessibility.md)
@@ -31,5 +31,5 @@ data under `src/`; these documents explain workflows and important contracts.
 The repository has one GitHub Actions workflow:
 `.github/workflows/dev-validation.yml`. It runs TypeScript syntax/type validation
 and content/file-reference validation on pushes and pull requests targeting
-`dev` or `main`. The small generic catalog contract tests remain available
-through `bun run test:smoke`, but gameplay-specific test suites are not CI gates.
+`dev` or `main`. The optional `bun run test:smoke` command runs the maintained
+catalog/content and focused combat-rule tests. These local tests are not CI gates.
