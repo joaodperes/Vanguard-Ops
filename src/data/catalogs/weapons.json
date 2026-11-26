@@ -502,7 +502,7 @@
       "grip",
       "magazine"
     ],
-    "baseSightType": "sniper_scope"
+    "baseSightType": "iron"
   },
   {
     "id": "lmg_hv",
@@ -863,7 +863,7 @@
   },
   {
     "id": "sniper_scout",
-    "name": "Scout Sniper",
+    "name": "Hunting Rifle",
     "category": "sniper",
     "unlockLevel": 5,
     "unlockCost": 500,
