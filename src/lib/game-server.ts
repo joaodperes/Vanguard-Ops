@@ -3983,6 +3983,30 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     bot.weaponId=next;ai.nextWeaponSwitchAt=now+1800;ai.nextShotAt=now+450;
     ai.reloadingUntil=0;
   }
+  // Scavenge a nearby full kit once the bot has exhausted both firearms.
+  if(room.mode==="frontier" && weaponById(bot.weaponId).category==="melee" &&
+     (ai.secondaryAmmoInMag??0)<=0 && !room.orbitalHolders.has(bot.id)){
+    const nearby=[...room.droppedWeapons.values()].map(drop=>({drop,
+      distance:Math.hypot(bot.pos[0]-drop.pos[0],bot.pos[2]-drop.pos[2])}))
+      .filter(item=>item.distance<=2.25 && Date.now()<item.drop.expiresAt)
+      .sort((a,b)=>a.distance-b.distance)[0]?.drop;
+    if(nearby){
+      const kit=cloneFrontierLoadout(nearby.loadout);
+      const primaryId=kit.emptyPrimary?(kit.secondaryWeaponId??"pistol_side"):kit.weaponId;
+      const secondaryId=kit.secondaryWeaponId??"pistol_side";
+      const primaryAtt=kit.emptyPrimary?kit.secondaryAttachments:kit.attachments;
+      const secondaryAtt=kit.emptyPrimary?kit.attachments:kit.secondaryAttachments;
+      bot.loadout=kit;room.loadouts.set(bot.id,kit);
+      ai.primaryWeaponId=kit.weaponId;ai.secondaryWeaponId=kit.secondaryWeaponId;
+      ai.primaryAttachments=primaryAtt??emptyBotAttachments();ai.secondaryAttachments=secondaryAtt??emptyBotAttachments();
+      ai.ammoInMag=botMagazineCapacity(primaryId,primaryAtt??emptyBotAttachments());
+      ai.secondaryAmmoInMag=kit.emptyPrimary?0:botMagazineCapacity(secondaryId,secondaryAtt??emptyBotAttachments());
+      ai.attachments=botActiveAttachments(kit.weaponId,primaryId,kit.attachments??emptyBotAttachments(),kit.secondaryWeaponId,kit.secondaryAttachments);
+      bot.weaponId=primaryId;bot.weaponSkinId=kit.emptyPrimary?(kit.secondaryWeaponSkinId??"default"):kit.weaponSkinId;
+      ai.frontierAmmoRemaining=ai.ammoInMag+ai.secondaryAmmoInMag;
+      room.droppedWeapons.delete(nearby.id);ai.reloadingUntil=0;ai.burstShotsLeft=0;ai.nextShotAt=now+350;
+    }
+  }
   // Frontier bots fall back to their sidearm when their current magazine is
   // empty, then to their configured melee weapon when both firearms are dry.
   // Keep Frontier's empty-magazine fallback identical to the offline bot simulation.
@@ -4555,7 +4579,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     const enemyVisible = dist < 35;
     const wantSmartReload = shouldBotSmartReload(ai.ammoInMag, eff.magSize, enemyVisible,
       ai.skill, canStartWeaponReload(weapon.stats, ai.ammoInMag), Math.random());
-    if (!isThrowingKnife(weapon.id) && (!ai.sprinting || perk==="field_loader") && (ai.ammoInMag <= 0 || wantSmartReload) && now > ai.reloadingUntil) {
+    if (room.mode!=="frontier" && !isThrowingKnife(weapon.id) && (!ai.sprinting || perk==="field_loader") && (ai.ammoInMag <= 0 || wantSmartReload) && now > ai.reloadingUntil) {
       const durationMs = botReloadDurationMs({
         reloadStyle: weapon.stats.reloadStyle, reloadPerRound: weapon.stats.reloadPerRound,
         effectiveReloadTime: eff.reloadTime, magazineSize: eff.magSize,
