@@ -3,7 +3,7 @@ import { resolveFrontierBotWeaponFallback } from "../src/lib/bot-weapon-selectio
 import { resolveBotPursuitSpeed } from "../src/lib/bot-movement-rules";
 import { MOVEMENT } from "../src/lib/movement-rules";
 import { cloneFrontierLoadout, frontierDropWeapon } from "../src/lib/frontier-loadout-drops";
-import { botReloadDurationMs, incrementalReloadStepMs } from "../src/lib/weapon-reload-rules";
+import { botReloadDurationMs, incrementalReloadStepMs, weaponReloadDurationMs } from "../src/lib/weapon-reload-rules";
 
 describe("shared Frontier bot weapon selection", () => {
   const base = {
@@ -148,5 +148,23 @@ describe("shared bot reload timing", () => {
       effectiveReloadTime: 2.1, magazineSize: 6, weaponReloadTime: 2.1,
       frontier: true, perkMultiplier: 0.9,
     })).toBeCloseTo(315);
+  });
+});
+
+
+describe("shared player reload timing", () => {
+  test("composes Frontier, Quickdraw, Survival and single-hand modifiers", () => {
+    expect(weaponReloadDurationMs(2, {
+      frontier: true, perkMultiplier: 0.8, survivalMultiplier: 0.9,
+      akimboSingleHand: true,
+    })).toBeCloseTo(2 * 1000 * 1.12 * 0.8 * 0.9 * 0.72);
+  });
+
+  test("applies Quickdraw consistently outside Frontier too", () => {
+    expect(weaponReloadDurationMs(2.5, { perkMultiplier: 0.8 })).toBe(2000);
+  });
+
+  test("keeps ordinary reload timing unchanged without modifiers", () => {
+    expect(weaponReloadDurationMs(1.75)).toBe(1750);
   });
 });
