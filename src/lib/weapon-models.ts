@@ -923,11 +923,15 @@ export function buildFirstPersonWeapon(
       break;
     }
     case "bullpup":{
-      const stem=box(0,.052,rearZ-.035,w*1.05,.12,.19,bodyMat);
+      const reaver=id==="rifle_burst";
+      const stem=box(0,.052,rearZ-.035,w*(reaver?.92:1.05),reaver?.105:.12,reaver?.16:.19,bodyMat);
       stem.name="weapon_stock_stem";
-      const lower=box(0,-.065,rearZ+.075,w*1.08,.08,.12,darkMat);
+      // Reaver BR's oversized bullpup butt rose into the rear iron-sight
+      // picture. Keep the stock's recognizable shape but trim its lower pad.
+      const lower=box(0,reaver?-.052:-.065,rearZ+(reaver?.055:.075),
+        w*(reaver?.82:1.08),reaver?.055:.08,reaver?.085:.12,darkMat);
       lower.name="weapon_stock_lower";
-      const bridge=box(0,-.015,rearZ+.075,w*.75,.07,.055,bodyMat);
+      const bridge=box(0,-.015,rearZ+.075,w*(reaver?.58:.75),reaver?.05:.07,.055,bodyMat);
       bridge.name="weapon_stock_bridge";
       break;
     }
