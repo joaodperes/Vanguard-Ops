@@ -31,3 +31,22 @@ export function botReloadDurationMs(input: BotReloadTimingInput): number {
     : input.effectiveReloadTime * 1000 * (input.frontier ? 1.12 : 1);
   return baseDuration * input.perkMultiplier;
 }
+
+/** Compose the modifiers applied to a player-initiated reload in both runtimes. */
+export interface WeaponReloadModifiers {
+  frontier?: boolean;
+  perkMultiplier?: number;
+  survivalMultiplier?: number;
+  akimboSingleHand?: boolean;
+}
+
+export function weaponReloadDurationMs(
+  baseDurationSeconds: number,
+  modifiers: WeaponReloadModifiers = {},
+): number {
+  return Math.max(0, baseDurationSeconds) * 1000 *
+    (modifiers.frontier ? 1.12 : 1) *
+    (modifiers.perkMultiplier ?? 1) *
+    (modifiers.survivalMultiplier ?? 1) *
+    (modifiers.akimboSingleHand ? 0.72 : 1);
+}
