@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { applyDamageFactors, resolveHealthDamage } from "../src/lib/combat-damage-rules";
+import { applyDamageFactors, resolveHealthDamage, resolveEliminationState } from "../src/lib/combat-damage-rules";
 
 describe("shared combat damage rules", () => {
   test("returns base damage unchanged when no modifiers are supplied", () => {
@@ -33,5 +33,18 @@ describe("shared health damage transitions", () => {
 
   test("handles non-finite current health defensively", () => {
     expect(resolveHealthDamage(Number.NaN, 10)).toEqual({ health: 0, appliedDamage: 0, killed: false });
+  });
+});
+
+
+describe("shared elimination state transitions", () => {
+  test("increments deaths exactly once when an alive actor is eliminated", () => {
+    expect(resolveEliminationState(true, 4)).toEqual({ alive: false, deaths: 5, eliminated: true });
+  });
+  test("is idempotent when duplicate elimination events arrive", () => {
+    expect(resolveEliminationState(false, 5)).toEqual({ alive: false, deaths: 5, eliminated: false });
+  });
+  test("normalizes invalid death counters defensively", () => {
+    expect(resolveEliminationState(true, Number.NaN)).toEqual({ alive: false, deaths: 1, eliminated: true });
   });
 });
