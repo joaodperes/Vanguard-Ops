@@ -135,27 +135,23 @@ export const FOREST_BASE_COVER: CoverBox[] = ([-1,1] as const).flatMap(sign=>{
 /** A staggered canopy route links both home trees without a single straight bridge.
  * Overlapping landings make the turns readable and provide several route choices. */
 export const FOREST_CANOPY_COVER: CoverBox[] = [
-  {pos:[-74,11.92,0],size:[22,.10,1.9],kind:"platform"},
-  {pos:[-55,11.92,2],size:[5,.10,4.2],kind:"platform"},
-  {pos:[-40,11.92,4],size:[21,.10,1.9],kind:"platform"},
-  {pos:[-20,11.92,0],size:[4,.10,4],kind:"platform"},
-  {pos:[0,11.92,-3],size:[22,.10,1.9],kind:"platform"},
-  {pos:[20,11.92,0],size:[4,.10,4],kind:"platform"},
-  {pos:[40,11.92,4],size:[21,.10,1.9],kind:"platform"},
-  {pos:[55,11.92,2],size:[5,.10,4.2],kind:"platform"},
-  {pos:[74,11.92,0],size:[22,.10,1.9],kind:"platform"},
-  // A raised northern loop branches off the western span and reconnects near centre.
-  {pos:[-40,11.92,-2],size:[.9,.10,8],kind:"platform"},
-  {pos:[-40,11.92,-13],size:[5,.10,4],kind:"platform"},
-  {pos:[-28,11.92,-13],size:[12,.10,.9],kind:"platform"},
-  {pos:[-18,11.92,-8],size:[.9,.10,6],kind:"platform"},
-  {pos:[-18,11.92,-4],size:[3,.10,2],kind:"platform"},
-  // A smaller southern loop gives the eastern half a second approach.
-  {pos:[40,11.92,10],size:[.9,.10,7],kind:"platform"},
-  {pos:[40,11.92,19],size:[5,.10,3],kind:"platform"},
-  {pos:[28,11.92,19],size:[12,.10,.9],kind:"platform"},
-  {pos:[18,11.92,13],size:[.9,.10,6],kind:"platform"},
-  {pos:[18,11.92,9],size:[3,.10,2],kind:"platform"},
+  // Main route: alternating offsets and widened junctions make the route bend.
+  {pos:[-78,11.92,0],size:[18,.10,2],kind:"platform"},
+  {pos:[-57,11.92,2],size:[3,.10,4],kind:"platform"},
+  {pos:[-36,11.92,4],size:[18,.10,2],kind:"platform"},
+  {pos:[-15,11.92,0],size:[3,.10,5],kind:"platform"},
+  {pos:[0,11.92,-3],size:[12,.10,2],kind:"platform"},
+  {pos:[15,11.92,0],size:[3,.10,5],kind:"platform"},
+  {pos:[36,11.92,4],size:[18,.10,2],kind:"platform"},
+  {pos:[57,11.92,2],size:[3,.10,4],kind:"platform"},
+  {pos:[78,11.92,0],size:[18,.10,2],kind:"platform"},
+  // A northern loop gives the west-to-centre transition a genuine alternative.
+  {pos:[-36,11.92,-3],size:[2,.10,5],kind:"platform"},
+  {pos:[-24,11.92,-10],size:[12,.10,2],kind:"platform"},
+  {pos:[-12,11.92,-6.5],size:[2,.10,1.5],kind:"platform"},
+  // A short southern lookout spur offers a risky alternate firing position.
+  {pos:[42,11.92,11],size:[2,.10,5],kind:"platform"},
+  {pos:[42,11.92,19],size:[5,.10,3],kind:"platform"},
 ];
 /** Low, staggered natural obstacles break the long sightline without sealing the walkway. */
 export const FOREST_CANOPY_OBSTACLES: CoverBox[] = [
@@ -187,7 +183,9 @@ export const FOREST_TREE_PARAPETS: CoverBox[] = ([-1,1] as const).flatMap(sign=>
 export const FOREST_WARFARE_COVER: CoverBox[]=[
   ...FOREST_PERIMETER,
   ...([-1,1] as const).map(sign=>({
-    pos:[sign*CTF_TREE_X,5.9,0] as Vec3,size:[2.65,5.9,2.65] as Vec3,kind:"solid" as const,
+    // The trunk ends exactly at the underside of the deck; no intersecting
+    // coplanar volumes at the tree/bridge join.
+    pos:[sign*CTF_TREE_X,5.76,0] as Vec3,size:[2.65,5.76,2.65] as Vec3,kind:"solid" as const,
   })),
   ...FOREST_TREE_DECKS,
   ...FOREST_CANOPY_COVER,
