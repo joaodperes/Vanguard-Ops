@@ -318,5 +318,6 @@ whitelisted ammo server-side instead of trusting raw loadout IDs.
 
 The Armory uses a compact base-stat PEN×N tag without altering card height.
 The weapon customization's `WeaponStatsPreview` displays effective penetration,
-including changes resulting from previewed magazine attachments. Regression cases
-live in `tests/body-penetration.test.ts`.
+including changes resulting from previewed magazine attachments. Validate new
+compatibility rules with `bun run content:validate`, then inspect the affected
+weapons and attachments in the Firing Range.
