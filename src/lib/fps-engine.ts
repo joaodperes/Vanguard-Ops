@@ -1862,7 +1862,8 @@ export class FPSEngine {
     for(const c of this.map.cover) {
       if (c.environmentId || detailedCastleFixtures.has(JSON.stringify(c))) continue;
       const kind = c.kind ?? "cover";
-      if (this.map.id === "forest_warfare" && kind !== "stair") continue;
+      if (this.map.id === "forest_warfare" && kind !== "stair" &&
+          !(kind === "platform" && c.ballisticId?.startsWith("forest:canopy:"))) continue;
       const mat = kind==="cover"&&c.material&&ballisticMats[c.material] ? ballisticMats[c.material]
         : kind === "accent" ? accentMat : kind === "solid" ? wallMat : kind === "stair" ? stairMat : kind === "platform" ? platformMat : coverMat;
       const geo = new THREE.BoxGeometry(c.size[0] * 2, c.size[1] * 2, c.size[2] * 2);
