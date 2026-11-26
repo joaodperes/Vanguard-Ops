@@ -26,7 +26,7 @@ export function frontierWeaponAllowed(category: string): category is FrontierWea
   return (FRONTIER_RULES.allowedCategories as readonly string[]).includes(category);
 }
 export function frontierWeaponIdAllowed(weaponId: string): boolean {
-  return weaponId === "knife_tactical" || (FRONTIER_RULES.allowedWeaponIds as readonly string[]).includes(weaponId);
+  return (FRONTIER_RULES.allowedWeaponIds as readonly string[]).includes(weaponId);
 }
 /** Frontier uses the same movement speed as every other standard mode. */
 export function frontierMovementSpeed(baseSpeed: number, _sprinting: boolean): number {
