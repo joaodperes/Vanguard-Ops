@@ -4474,8 +4474,15 @@ export class FPSEngine {
     const isMeleeWeapon = wDef.category === "melee";
     const meleeHoldPitch = isMeleeWeapon ? Math.PI / 2.9 : 0;  // positive X pitch lifts -Z-pointing blades into view
     const fanHammerViewmodelActive=isFanHammer(this.weaponId,this.getCurrentAttachments().grip);
-    const fanAnim=fanHammerViewmodelActive && this.fanHammerDown && !this.controls.reducedMotion ? Math.sin(now*.036)*.12 : 0;
-    const fanRoll=fanHammerViewmodelActive && this.fanHammerDown && !this.controls.reducedMotion ? Math.sin(now*.036+Math.PI/2)*.07 : 0;
+    // Fanning is a firing pose, not an idle/aim pose. Stop it immediately when
+    // a reload, sprint, death or other action prevents the revolver from firing.
+    const fanHammerAnimating=fanHammerViewmodelActive &&
+      ((this.fanHammerDown && this.pointerLocked) ||
+       ((this.touchMode||this.controllerActive) && this.touchAiming)) &&
+      !this.reloading && !this.sprinting && this.alive && !this.equipmentAction &&
+      this.ammoInMag>0 && !this.matchEnded;
+    const fanAnim=fanHammerAnimating && !this.controls.reducedMotion ? Math.sin(now*.036)*.12 : 0;
+    const fanRoll=fanHammerAnimating && !this.controls.reducedMotion ? Math.sin(now*.036+Math.PI/2)*.07 : 0;
     const totalRotX = reloadPitch + this.vmRecoilPitch + sprintPitch + meleeSwingPitch + swapPitch + meleeHoldPitch + fanAnim +
       (tasered?0.035*Math.sin(twitchTime*24.5):0);
     const totalRotZ = reloadRoll + sprintRoll + meleeSwingRoll + swapRoll + fanRoll +
