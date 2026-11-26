@@ -3794,6 +3794,7 @@ export class FPSEngine {
       };
       const scopeGroup = new THREE.Group();
       const st = this.sightDef.type;
+      const sightAttachmentId = currentAtts.sight;
       let bastionFront:THREE.Mesh | null=null;
       if (st === "acog" || st === "hunter" || st === "thermal" || st === "nvg" || st === "sniper_scope") {
         // Magnified tube scope
@@ -3817,21 +3818,66 @@ export class FPSEngine {
         mount.position.y = -tubeRad;
         scopeGroup.add(mount);
       } else if (st === "red_dot" || st === "holo") {
-        // Red dot / holo: small lens window with a glowing dot
-        // Four-sided OPEN viewing frame instead of a solid plate across the glass.
-        for (const side of [-1, 1]) {
-          const upright = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.057, 0.008), accentMat);
-          upright.position.x = side * 0.035;
-          scopeGroup.add(upright);
-          const rim = new THREE.Mesh(new THREE.BoxGeometry(0.078, 0.006, 0.008), accentMat);
-          rim.position.y = side * 0.03;
-          scopeGroup.add(rim);
+        // Reflex optics are distinct physical attachments, not screen-space lens
+        // pictures. Their housings, windows and mounts inherit the weapon ADS pose.
+        const compactReflex = sightAttachmentId === "sight_compact_reflex";
+        if (st === "holo") {
+          // Full-size holographic sight: deep, squared protective hood with a wide
+          // rectangular viewing window and reinforced front/rear rails.
+          for (const z of [-0.025, 0.025]) {
+            for (const side of [-1, 1]) {
+              const upright = new THREE.Mesh(new THREE.BoxGeometry(0.009, 0.071, 0.048), accentMat);
+              upright.position.set(side * 0.039, 0, z);
+              scopeGroup.add(upright);
+            }
+            for (const y of [-0.031, 0.031]) {
+              const rail = new THREE.Mesh(new THREE.BoxGeometry(0.087, 0.009, 0.048), accentMat);
+              rail.position.set(0, y, z);
+              scopeGroup.add(rail);
+            }
+          }
+          // Distinctive raised emitter housing on the right side of the optic.
+          const emitter = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.035, 0.043), darkMat);
+          emitter.position.set(0.052, -0.004, 0.006);
+          scopeGroup.add(emitter);
+          const emitterLens = new THREE.Mesh(new THREE.CircleGeometry(0.008, 12),
+            new THREE.MeshBasicMaterial({ color: 0x22ff66 }));
+          emitterLens.position.set(0.052, -0.004, -0.017);
+          emitterLens.rotation.y = Math.PI / 2;
+          scopeGroup.add(emitterLens);
+          const base = new THREE.Mesh(new THREE.BoxGeometry(0.061, 0.024, 0.067), accentMat);
+          base.position.y = -0.047;
+          scopeGroup.add(base);
+        } else if (compactReflex) {
+          // Compact Reflex: a low-profile micro-window with a short integrated rail foot.
+          for (const side of [-1, 1]) {
+            const upright = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.038, 0.014), accentMat);
+            upright.position.set(side * 0.025, 0, 0);
+            scopeGroup.add(upright);
+          }
+          for (const y of [-0.017, 0.017]) {
+            const rail = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.006, 0.014), accentMat);
+            rail.position.y = y;
+            scopeGroup.add(rail);
+          }
+          const base = new THREE.Mesh(new THREE.BoxGeometry(0.046, 0.014, 0.052), accentMat);
+          base.position.set(0, -0.027, 0);
+          scopeGroup.add(base);
+        } else {
+          // Red Dot: round open-tube optic with a circular protective rim and
+          // two compact side supports — unlike the holographic hood.
+          const ring = new THREE.Mesh(new THREE.TorusGeometry(0.034, 0.0045, 8, 24), accentMat);
+          ring.position.z = -0.012;
+          scopeGroup.add(ring);
+          for (const side of [-1, 1]) {
+            const support = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.048, 0.014), accentMat);
+            support.position.set(side * 0.027, -0.005, 0.004);
+            scopeGroup.add(support);
+          }
+          const base = new THREE.Mesh(new THREE.BoxGeometry(0.051, 0.018, 0.055), accentMat);
+          base.position.y = -0.034;
+          scopeGroup.add(base);
         }
-        // The aiming dot is drawn by the HUD at the actual screen centre.
-        // Base mount
-        const base = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.03, 0.05), accentMat);
-        base.position.y = -0.03;
-        scopeGroup.add(base);
       } else if (st === "laser") {
         // Side-mounted projector: preserve the central sight channel on compact
         // pistols instead of placing a grey housing directly over the bore.
