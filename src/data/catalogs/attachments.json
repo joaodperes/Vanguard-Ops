@@ -747,8 +747,7 @@
       "dmr_scout",
       "dmr_whisper",
       "dmr_heavy",
-      "sniper_lr",
-      "sniper_scout"
+      "sniper_lr"
     ],
     "bodyPenetration": {
       "maxTargets": 2,
