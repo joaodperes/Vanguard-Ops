@@ -19,6 +19,7 @@ export type ForestObject = { kind: "tree" | "bush" | "rock" | "log"; x: number; 
 const layout: ForestObject[] = [];
 const samples: [number,number,"tree"|"bush"|"rock"|"log"][] = [
   [6,7,"tree"],[13,16,"rock"],[21,3,"bush"],[30,27,"tree"],
+  [3,22,"log"],[30,-31,"rock"],[48,15,"tree"],[57,-8,"rock"],[86,16,"log"],
   [9,33,"bush"],[22,38,"tree"],[35,39,"rock"],
   [14,-10,"rock"],[27,-23,"tree"],[42,-8,"bush"],[50,-32,"log"],
   [59,9,"tree"],[67,23,"bush"],[72,37,"tree"],[55,-18,"rock"],
@@ -161,13 +162,13 @@ export const FOREST_CANOPY_OBSTACLES: CoverBox[] = [
   {pos:[9,12.49,-2.4],size:[.8,.47,.72],kind:"cover",material:"reinforced"},
   {pos:[41,12.48,4.2],size:[1.1,.46,.38],kind:"cover",material:"thin_wood",ballisticId:"forest:canopy:log:east"},
   {pos:[70,12.50,-.15],size:[.7,.48,.68],kind:"cover",material:"reinforced"},
-  {pos:[-40,12.45,-13],size:[.7,.42,.7],kind:"cover",material:"reinforced"},
+  {pos:[-24,12.45,-10],size:[.7,.42,.7],kind:"cover",material:"reinforced"},
   {pos:[40,12.45,19],size:[.7,.42,.7],kind:"cover",material:"reinforced"},
 ];
 /** Timber support posts beneath exposed bridge joints, deliberately offset from the ground lanes. */
 export const FOREST_CANOPY_SUPPORTS: CoverBox[] = [
   {pos:[-55,5.9,0],size:[.28,5.9,.28],kind:"cover",material:"thin_wood"},
-  {pos:[-20,5.9,-3],size:[.28,5.9,.28],kind:"cover",material:"thin_wood"},
+  {pos:[-15,5.9,0],size:[.28,5.9,.28],kind:"cover",material:"thin_wood"},
   {pos:[20,5.9,4],size:[.28,5.9,.28],kind:"cover",material:"thin_wood"},
   {pos:[55,5.9,0],size:[.28,5.9,.28],kind:"cover",material:"thin_wood"},
 ];
