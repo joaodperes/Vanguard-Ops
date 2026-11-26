@@ -1402,6 +1402,8 @@ export const SPAWN_POINTS = MAPS.compound.spawns;
 
 // ---- Network protocol -------------------------------------------------------
 export interface LoadoutWire {
+  /** Transient Frontier kit identity, carried by world drops for clear pickup feedback. */
+  frontierPresetId?: import("./game-mode-rules").FrontierLoadoutPresetId;
   perkId?: import("./perks").PerkId;
   /** Owned Wonder available only when the Wonder Weapon perk is equipped. */
   wonderWeaponId?: string;
