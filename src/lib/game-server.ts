@@ -2,6 +2,7 @@ import {squadIntent} from "./squad-coordination";
 import { applyDamageFactors } from "./combat-damage-rules";
 import { resolveFrontierBotWeaponFallback } from "./bot-weapon-selection";
 import { resolveBotPursuitSpeed } from "./bot-movement-rules";
+import { cloneFrontierLoadout, frontierDropWeapon } from "./frontier-loadout-drops";
 import { operationById, nextOperation, createOperationState, tickOperation, damageOperationEscort, operationSite, operationEncounter, operationConfigValid, operationAwarenessMultiplier, type OperationState } from "./operations";
 import { survivalRoleForSlot, survivalRoleHealthMultiplier, survivalFrontalArmor, tickSurvivalSpecialists, createSurvivalObjective, tickSurvivalObjective, SURVIVAL_ROLE_INFO, type SurvivalActor, type SurvivalObjective } from "./survival-encounters";
 import { survivalPauseActive, survivalFirstChoiceDeadline, remainingSurvivalUpgradeSeconds } from "./survival-pause";
@@ -2169,15 +2170,13 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
     if(room.mode==="frontier"){
       const kit=room.loadouts.get(victim.id);
       if(kit){
-        const slot=kit.emptyPrimary?"secondary":(victim.weaponId===kit.secondaryWeaponId?"secondary":"primary");
-        const weaponId=slot==="secondary"?(kit.secondaryWeaponId??"pistol_side"):kit.weaponId;
-        const attachments=slot==="secondary"?(kit.secondaryAttachments??{sight:null,barrel:null,grip:null,magazine:null}):kit.attachments;
-        const mag=computeEffectiveStats(weaponById(weaponId),attachments).magSize;
+        const dropped=frontierDropWeapon(kit,victim.weaponId);
+        const mag=computeEffectiveStats(weaponById(dropped.weaponId),dropped.attachments).magSize;
         const id=genId("loadout");
         const pos:Vec3=[victim.pos[0],Math.max(.35,victim.pos[1]+.12),victim.pos[2]];
         const expiresAt=Date.now()+45000;
-        const droppedLoadout:LoadoutWire={...kit,attachments:{...kit.attachments},secondaryAttachments:{...(kit.secondaryAttachments??{sight:null,barrel:null,grip:null,magazine:null})}};
-        room.droppedWeapons.set(id,{id,ownerId:victim.id,weaponId,slot,skinId:slot==="secondary"?(kit.secondaryWeaponSkinId??"default"):kit.weaponSkinId,attachments:{...attachments},ammoRemaining:mag+frontierReserveAmmo(mag*3),pos,expiresAt,loadout:droppedLoadout});
+        const droppedLoadout=cloneFrontierLoadout(kit);
+        room.droppedWeapons.set(id,{id,ownerId:victim.id,weaponId:dropped.weaponId,slot:dropped.slot,skinId:dropped.skinId,attachments:{...dropped.attachments},ammoRemaining:mag+frontierReserveAmmo(mag*3),pos,expiresAt,loadout:droppedLoadout});
       }
     }
     victim.alive = false;
@@ -5335,7 +5334,7 @@ async function handle(socket: any, msg: C2S) {
       const player=room.players.get(socket.id),drop=room.droppedWeapons.get(msg.dropId);
       if(!player?.alive||!drop||Date.now()>=drop.expiresAt||
         Math.hypot(player.pos[0]-drop.pos[0],player.pos[2]-drop.pos[2])>2.25)return;
-      const received:LoadoutWire={...drop.loadout,attachments:{...drop.loadout.attachments},secondaryAttachments:{...(drop.loadout.secondaryAttachments??{sight:null,barrel:null,grip:null,magazine:null})}};
+      const received=cloneFrontierLoadout(drop.loadout);
        room.loadouts.set(socket.id,received);
        const activeSlot=received.emptyPrimary?"secondary":"primary";
        const activeId=activeSlot==="secondary"?(received.secondaryWeaponId??"pistol_side"):received.weaponId;
