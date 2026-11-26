@@ -73,8 +73,11 @@ Campaign progress and payout records are stored on the player
 account; logged-in accounts follow the player across browsers and devices. Existing
 browser records are imported idempotently, and pending completions retry after a
 failed connection. Account sessions determine ownership. Guest player IDs retain
-the existing guest API behaviour. Database changes are additive: run
-`bun run db:push` when deploying.
+the existing guest API behaviour. Database changes are additive. The production `start`
+script runs `bun run db:push` before launching Next.js, so an existing persistent
+database receives the current Prisma schema before account-progress routes accept
+requests. Deployments that launch `.next/standalone/server.js` directly must run
+`bun run db:push` as a release/pre-start command first.
 
 ## Implementation and QA
 
