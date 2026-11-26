@@ -71,6 +71,7 @@ import { EXPLO_FUSE_MS, EXPLO_RADIUS, EXPLO_DAMAGE, explonandoDamage, explonando
 import { calculateThrowPath } from "./throw-trajectory";
 import { buildGunGameWeapons, normalizeGunGameConfig, canCompleteGunGame } from "./gun-game";
 import { canStartWeaponReload, crossbowReloadCycleMs, crossbowReloadControlsCadence, isFanHammer, FAN_HAMMER_FIRE_RATE, FAN_HAMMER_SPREAD_MULTIPLIER } from "./weapon-mechanics";
+import { botReloadDurationMs, incrementalReloadStepMs } from "./weapon-reload-rules";
 import { chooseBotPatrolPoint, botPatrolDistance } from "./bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint, botEntersHazard, botMapRouteGoal } from "./bot-routing";
 import { BotRouteBudget, botRouteJitter } from "./bot-performance-budget";
@@ -4237,8 +4238,8 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
   if (weapon.stats.reloadStyle === "incremental" &&
       ai.reloadingUntil > 0 && now >= ai.reloadingUntil && ai.ammoInMag < eff.magSize) {
     ai.ammoInMag++;
-    const stepMs = Math.max(300, (weapon.stats.reloadPerRound ?? eff.reloadTime / eff.magSize) *
-      eff.reloadTime / Math.max(0.01, weapon.stats.reloadTime) * 1000);
+    const stepMs = incrementalReloadStepMs(weapon.stats.reloadPerRound, eff.reloadTime,
+      eff.magSize, weapon.stats.reloadTime);
     ai.reloadingUntil = ai.ammoInMag >= eff.magSize || ai.targetId ? 0 : now + stepMs;
   }
   if (target && target.alive) {
@@ -4541,11 +4542,13 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     const wantSmartReload = lowAmmo && !enemyVisible && ai.skill > 0.4 &&
       canStartWeaponReload(weapon.stats, ai.ammoInMag) && Math.random() < 0.02;
     if (!isThrowingKnife(weapon.id) && (!ai.sprinting || perk==="field_loader") && (ai.ammoInMag <= 0 || wantSmartReload) && now > ai.reloadingUntil) {
-      const durationMs = weapon.stats.reloadStyle === "incremental"
-        ? Math.max(300, (weapon.stats.reloadPerRound ?? eff.reloadTime / eff.magSize) *
-            eff.reloadTime / Math.max(0.01, weapon.stats.reloadTime) * 1000)
-        : eff.reloadTime * 1000 * (room.mode==="frontier"?1.12:1);
-      ai.reloadingUntil = now + durationMs * reloadDurationMultiplier(perk);
+      const durationMs = botReloadDurationMs({
+        reloadStyle: weapon.stats.reloadStyle, reloadPerRound: weapon.stats.reloadPerRound,
+        effectiveReloadTime: eff.reloadTime, magazineSize: eff.magSize,
+        weaponReloadTime: weapon.stats.reloadTime, frontier: room.mode === "frontier",
+        perkMultiplier: reloadDurationMultiplier(perk),
+      });
+      ai.reloadingUntil = now + durationMs;
       if (weapon.stats.reloadStyle !== "incremental") ai.ammoInMag = eff.magSize;
       ai.burstShotsLeft = 0;
       ai.burstEndsAt = now + durationMs;
