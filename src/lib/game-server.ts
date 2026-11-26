@@ -73,6 +73,7 @@ import { calculateThrowPath } from "./throw-trajectory";
 import { buildGunGameWeapons, normalizeGunGameConfig, canCompleteGunGame } from "./gun-game";
 import { canStartWeaponReload, crossbowReloadCycleMs, crossbowReloadControlsCadence, isFanHammer, FAN_HAMMER_FIRE_RATE, FAN_HAMMER_SPREAD_MULTIPLIER } from "./weapon-mechanics";
 import { botReloadDurationMs, incrementalReloadStepMs, shouldBotSmartReload, weaponReloadDurationMs } from "./weapon-reload-rules";
+import { weaponFireIntervalMs, weaponShotReady } from "./weapon-fire-rules";
 import { chooseBotPatrolPoint, botPatrolDistance } from "./bot-patrol";
 import { botNextWaypoint, botHighGroundWaypoint, botEntersHazard, botMapRouteGoal } from "./bot-routing";
 import { BotRouteBudget, botRouteJitter } from "./bot-performance-budget";
@@ -3383,10 +3384,10 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
       // ordinary firing at the global weapon cooldown rather than dropping
       // every shot. Only a validated hand gets independent dual clocks.
       const fanHammerShot=msg.fanHammerShot===true && room.mode!=="gungame" && isFanHammer(weapon.id,cadenceAtts?.grip);
-      const interval=1000 /
-        Math.max(.1, fanHammerShot?FAN_HAMMER_FIRE_RATE:quiver ? weapon.stats.fireRate * 3.5 : cadenceEff.fireRate);
+      const interval=weaponFireIntervalMs(
+        fanHammerShot?FAN_HAMMER_FIRE_RATE:quiver ? weapon.stats.fireRate * 3.5 : cadenceEff.fireRate,.1);
       if(weapon.category==="melee" &&
-        now-(room.quickMeleeAt.get(p.id)??0)<interval) return;
+        !weaponShotReady(now,room.quickMeleeAt.get(p.id)??0,interval)) return;
       const burstSize = weapon.stats.burst ?? 1;
       if (burstSize > 1) {
         const burstCadenceMs = burstShotIntervalMs(cadenceEff.fireRate, weapon.category);
@@ -3411,7 +3412,7 @@ function fireServerShot(room:Room,p:PlayerNet,msg:Extract<C2S,{t:"shot"}>):void 
         // Standard bolts are authoritatively paced by their reload, so
         // reclaiming one should not hit a second hidden fire-rate throttle.
         !(weapon.special?.kind === "bolt" && crossbowReloadControlsCadence(cadenceEff.magSize)) &&
-        now - p.lastShotAt < interval * (weapon.category === "melee" ? 1 : .8)) return;
+        !weaponShotReady(now,p.lastShotAt,interval,weapon.category === "melee" ? 1 : .8)) return;
       // Validate the muzzle origin for new special weapons before doing any effects.
       if (weapon.special || weapon.wonder) {
         if (![...msg.origin, ...msg.dir].every(Number.isFinite)) return;
@@ -4074,7 +4075,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     const diff:Vec3=[t.pos[0]-origin[0],t.pos[1]+TURRET_MUZZLE_HEIGHT-origin[1],t.pos[2]-origin[2]];
     const len=Math.hypot(...diff)||1;
     t.hp-=Math.max(5,eff.damage*.55);
-    ai.ammoInMag--;ai.lastFiredAt=now;ai.nextShotAt=now+1000/Math.max(.5,eff.fireRate);
+    ai.ammoInMag--;ai.lastFiredAt=now;ai.nextShotAt=now+weaponFireIntervalMs(eff.fireRate,.5);
     io.to(room.id).emit("message",{t:"shotFx",origin,dir:[diff[0]/len,diff[1]/len,diff[2]/len],
       weaponId:bot.weaponId,attackerId:bot.id,skinId:bot.weaponSkinId,suppressed:false} as S2C);
     if(t.hp<=0){room.turrets.delete(id);io.to(room.id).emit("message",{t:"turretRemoved",id} as S2C);}
@@ -4543,7 +4544,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
           ai.burstEndsAt = now + pauseMs;
           ai.nextShotAt = now + pauseMs;
         } else {
-          ai.nextShotAt = now + 1000 / Math.max(1, eff.fireRate) * (1.0 + (1 - ai.skill) * 0.4) + Math.random() * 30;
+          ai.nextShotAt = now + weaponFireIntervalMs(eff.fireRate) * (1.0 + (1 - ai.skill) * 0.4) + Math.random() * 30;
         }
       } else {
         ai.nextShotAt = now + 1000 / Math.max(1, eff.fireRate) * (1.4 + (1 - ai.skill) * 0.6) + Math.random() * 200;
