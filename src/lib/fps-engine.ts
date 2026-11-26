@@ -3845,7 +3845,9 @@ export class FPSEngine {
           ear.position.set(side*.029,.013,0);
           scopeGroup.add(ear);
         }
-        const rearBase = new THREE.Mesh(new THREE.BoxGeometry(.075,.012,.040),accentMat);
+        // Keep the U-notch bridge low and narrow so it sits below the
+        // sight picture instead of forming a third bar across the opening.
+        const rearBase = new THREE.Mesh(new THREE.BoxGeometry(.045,.005,.040),accentMat);
         rearBase.position.y=-.009;
         scopeGroup.add(rearBase);
       }
