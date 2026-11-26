@@ -1963,7 +1963,7 @@ export class FPSEngine {
         ? new THREE.Mesh(new THREE.CylinderGeometry(sy*.82,sy*.82,sx*2,10),barkLight)
         : new THREE.Mesh(new THREE.DodecahedronGeometry(1,1),material);
       if(cover.ballisticId?.includes(":log:"))obstacle.rotation.z=Math.PI/2;
-      else obstacle.scale.set(sx*1.35,sy*1.25,sz*1.3);
+      else obstacle.scale.set(sx*1.05,sy*1.05,sz*1.05);
       place(obstacle,x,y,z);
       if(cover.ballisticId)this.ballisticMeshes.set(cover.ballisticId,obstacle);
     }
