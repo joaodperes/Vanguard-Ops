@@ -621,7 +621,7 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
         </button>
       </div>
 
-      {hud.radar && <Minimap radar={hud.radar} compact={isTouch} objective={hud.operationWaypoint} intel={hud.operation?.intel ? undefined:hud.operationIntel} bomb={hud.searchDestroy?.bomb.status==="dropped" ? {x:hud.searchDestroy.bomb.pos[0],z:hud.searchDestroy.bomb.pos[2]} : undefined} hardpoint={hud.radar.hardpoint} />}
+      {hud.radar && <Minimap radar={hud.radar} compact={isTouch} objective={hud.operationWaypoint} intel={hud.operation?.intel ? undefined:hud.operationIntel} bomb={hud.searchDestroy?.bomb.status==="dropped" ? {x:hud.searchDestroy.bomb.pos[0],z:hud.searchDestroy.bomb.pos[2]} : undefined} hardpoint={hud.radar.hardpoint} mode={mode} />}
 
       {/* bottom left: health + regen cooldown + sprint indicator (desktop only —
           mobile uses the centered bottom cluster below). */}
@@ -1216,7 +1216,6 @@ function ScopeOrCrosshair({
   // Show the scope overlay only when meaningfully ADS (>0.5) AND the setting is on.
   // The dedicated `scoped` flag also triggers it for snipers with non-scope sights.
   const showScope = scopeOverlay && (isMagnified || isSniperScoped) && adsP > 0.5;
-  const hasReflex = sightType === "red_dot" || sightType === "holo";
   const compactReflex = hud.sightAttachmentId === "sight_compact_reflex";
   // Reticle color per sight type. Snipers (scoped flag) use the dark sniper crosshair.
   const reticleColor =
@@ -1243,25 +1242,20 @@ function ScopeOrCrosshair({
     // silently overridden by the inline `transform` property.
     return (
       <div className="absolute" style={{ left: '50%', top: '50%', width: 0, height: 0, pointerEvents: 'none' }}>
-          {/* Reflex optic sight picture, small open lens without a dark vignette.
-              Compact Reflex uses the red-dot reticle but a smaller frame. */}
-          {hasReflex && scopeOverlay && adsP>.15 && (
-            <div className="absolute pointer-events-none"
-              style={{transform:"translate(-50%,-50%)",opacity:Math.min(.85,(adsP-.15)/.65),
-                width:compactReflex?62:sightType==="holo"?96:76,
-                height:compactReflex?46:sightType==="holo"?76:64}}>
-              <div className={`absolute inset-0 border-2 ${sightType==="holo"?"rounded-xl":"rounded-[45%]"}`}
-                style={{borderColor:"#4f626b",background:"radial-gradient(ellipse at center, rgba(130,198,218,.08) 0%, rgba(32,84,102,.14) 80%, rgba(3,13,20,.16) 100%)",
-                  boxShadow:"inset 0 0 0 2px #131f28, 0 0 0 2px #151e23, 0 2px 8px #0009"}} />
-              <div className="absolute bottom-[-5px] left-[35%] w-[30%] h-[5px] rounded-sm bg-[#283b45]" />
-              {sightType==="holo" && <div className="absolute inset-[22%] border border-emerald-400/30 rounded-full" />}
-            </div>
-          )}
-          {/* For red_dot/holo/laser, render a single dot in the reticle color instead of the crosshair */}
-          {(sightType === "red_dot" || sightType === "holo" || sightType === "laser") && adsP > 0.3 ? (
-            <div className="absolute rounded-full"
-              style={{ width: 4, height: 4, background: reticleColor, boxShadow: `0 0 6px ${reticleColor}`, opacity: Math.min(1, adsP), transform: 'translate(-50%, -50%)' }} />
-          ) : reticleStyle!=="classic" ? (
+          {/* Optic housing is rendered on the 3D weapon. Only the illuminated reticle stays screen-centred. */}
+          {/* Red-dot and laser optics use a crisp dot; holographic optics use a ring-and-dot reticle.
+              Reticle opacity follows engine ADS progress exactly in both directions. */}
+          {(sightType === "red_dot" || sightType === "holo" || sightType === "laser") && adsP > 0.01 ? (
+            sightType === "holo" ? (
+              <svg className="absolute" style={{transform:"translate(-50%,-50%)",opacity:adsP,filter:"drop-shadow(0 0 3px " + reticleColor + ")"}} width="18" height="18" viewBox="0 0 18 18">
+                <circle cx="9" cy="9" r="4.1" fill="none" stroke={reticleColor} strokeWidth="1.15"/>
+                <circle cx="9" cy="9" r="1.15" fill={reticleColor}/>
+                <path d="M9 0.8V4 M9 14V17.2 M0.8 9H4 M14 9H17.2" stroke={reticleColor} strokeWidth="0.85" strokeLinecap="round"/>
+              </svg>
+            ) : (
+              <div className="absolute rounded-full"
+                style={{width: hud.sightAttachmentId === "sight_compact_reflex" ? 3 : 4, height: hud.sightAttachmentId === "sight_compact_reflex" ? 3 : 4, background: reticleColor, boxShadow:"0 0 6px " + reticleColor, opacity:adsP, transform:"translate(-50%, -50%)"}} />
+            )) : reticleStyle!=="classic" ? (
             <CosmeticCrosshair styleId={reticleStyle} color={crosshairColor} size={crosshairSize} gap={gap}/>
           ) : (
             <>
