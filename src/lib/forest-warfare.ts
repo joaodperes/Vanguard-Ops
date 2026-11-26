@@ -18,14 +18,14 @@ export const FOREST_REGIONS: MapRegion[] = [
 export type ForestObject = { kind: "tree" | "bush" | "rock" | "log"; x: number; z: number; w: number; d: number; h: number; sideways?: boolean };
 const layout: ForestObject[] = [];
 const samples: [number,number,"tree"|"bush"|"rock"|"log"][] = [
-  [6,7,"tree"],[13,16,"rock"],[21,3,"bush"],[30,27,"tree"],[38,15,"log"],
-  [9,33,"bush"],[22,38,"tree"],[35,39,"rock"],[46,28,"tree"],
+  [6,7,"tree"],[13,16,"rock"],[21,3,"bush"],[30,27,"tree"],
+  [9,33,"bush"],[22,38,"tree"],[35,39,"rock"],
   [14,-10,"rock"],[27,-23,"tree"],[42,-8,"bush"],[50,-32,"log"],
   [59,9,"tree"],[67,23,"bush"],[72,37,"tree"],[55,-18,"rock"],
   [67,-34,"tree"],[77,-4,"rock"],[82,35,"tree"],[104,38,"bush"],
   [109,-39,"rock"],[112,22,"tree"],[111,-22,"tree"],
   [10,-34,"log"],[18,-36,"rock"],[25,13,"tree"],[33,-14,"bush"],
-  [39,37,"bush"],,[52,3,"tree"],[60,38,"rock"],
+  [39,37,"bush"],[52,3,"tree"],[60,38,"rock"],
   [65,-5,"bush"],[73,13,"log"],[79,-37,"tree"],[85,-22,"bush"],
   [88,43,"rock"],[115,-38,"bush"],[117,5,"tree"],
 ];
