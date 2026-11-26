@@ -188,7 +188,7 @@ interface Room {
   searchDestroyState?: SearchDestroyState;
   searchDestroyPlayerActions: Map<string,{plants:number;defuses:number}>;
   frontierAmmoRemaining?: Map<string,number>;
-  droppedWeapons: Map<string,{id:string;ownerId:string;weaponId:string;slot:"primary"|"secondary";skinId:string;attachments:Record<string,string|null>;ammoRemaining:number;pos:Vec3;expiresAt:number}>;
+  droppedWeapons: Map<string,{id:string;ownerId:string;weaponId:string;slot:"primary"|"secondary";skinId:string;attachments:Record<string,string|null>;ammoRemaining:number;pos:Vec3;expiresAt:number;loadout:LoadoutWire}>;
   cleanupTimer?: ReturnType<typeof setTimeout>;
   id: string;
   mode: GameMode;
@@ -493,12 +493,20 @@ function spawnBots(room: Room) {
     loadout.playerSkinId = botOperativeSkinId(room.bots.size, skinRotation);
     const difficulty = resolveBotDifficulty(room);
     const ai = makeBotAI(sp, loadout.weaponId, difficulty, 0, archetype);
-    ai.moveSpeed*=botMovementPerkMultiplier(loadout.perkId)*(room.mode==="frontier"?1.2:1);
-    if(loadout.secondaryWeaponId)ai.secondaryAmmoInMag=botMagazineCapacity(loadout.secondaryWeaponId,loadout.secondaryAttachments);
+    ai.moveSpeed*=botMovementPerkMultiplier(loadout.perkId);
+    if(loadout.secondaryWeaponId){
+
+      const reserveSlotWeapon=loadout.emptyPrimary?loadout.weaponId:loadout.secondaryWeaponId;
+
+      const reserveSlotAttachments=loadout.emptyPrimary?loadout.attachments:loadout.secondaryAttachments;
+
+      ai.secondaryAmmoInMag=botMagazineCapacity(reserveSlotWeapon,reserveSlotAttachments);
+
+    }
     // In gungame, every combatant (including bots) starts on the first
     // progression weapon and advances on each kill. Their loadout's
     // weaponId is overridden to the first tier of the per-match weapon list.
-    const gungameWeaponId = room.mode === "gungame" ? (room.gungameWeapons[0] ?? GUN_GAME_TYPE_PROGRESSION_FALLBACK[0]) : loadout.weaponId;
+    const gungameWeaponId = room.mode === "gungame" ? (room.gungameWeapons[0] ?? GUN_GAME_TYPE_PROGRESSION_FALLBACK[0]) : (room.mode==="frontier"&&loadout.emptyPrimary?(loadout.secondaryWeaponId??"pistol_side"):loadout.weaponId);
     ai.ammoInMag = botMagazineCapacity(gungameWeaponId,botActiveAttachments(loadout.weaponId,gungameWeaponId,loadout.attachments??emptyBotAttachments(),loadout.secondaryWeaponId,loadout.secondaryAttachments));
     if(room.mode==="frontier"){const mag=ai.ammoInMag;ai.frontierAmmoRemaining=mag+frontierReserveAmmo(mag*3);}
     const bot: PlayerNet & { ai: BotAI; loadout: LoadoutWire } = {
@@ -2155,17 +2163,16 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
     }
     if(room.mode==="frontier"){
       const kit=room.loadouts.get(victim.id);
-      const weapon=weaponById(victim.weaponId);
-      const slot=victim.weaponId===kit?.weaponId?"primary":
-        victim.weaponId===kit?.secondaryWeaponId?"secondary":null;
-      if(kit&&slot&&weapon.category!=="melee"&&!weapon.wonder){
+      if(kit){
+        const slot=kit.emptyPrimary?"secondary":(victim.weaponId===kit.secondaryWeaponId?"secondary":"primary");
+        const weaponId=slot==="secondary"?(kit.secondaryWeaponId??"pistol_side"):kit.weaponId;
         const attachments=slot==="secondary"?(kit.secondaryAttachments??{sight:null,barrel:null,grip:null,magazine:null}):kit.attachments;
-        const botVictim=room.bots.get(victim.id);
-        const ammoRemaining=botVictim?.ai.frontierAmmoRemaining??room.frontierAmmoRemaining?.get(victim.id)??computeEffectiveStats(weapon,attachments).magSize;
-        const id=genId("weapon");
+        const mag=computeEffectiveStats(weaponById(weaponId),attachments).magSize;
+        const id=genId("loadout");
         const pos:Vec3=[victim.pos[0],Math.max(.35,victim.pos[1]+.12),victim.pos[2]];
         const expiresAt=Date.now()+45000;
-        room.droppedWeapons.set(id,{id,ownerId:victim.id,weaponId:victim.weaponId,slot,skinId:slot==="secondary"?(kit.secondaryWeaponSkinId??"default"):kit.weaponSkinId,attachments:{...attachments},ammoRemaining,pos,expiresAt});
+        const droppedLoadout:LoadoutWire={...kit,attachments:{...kit.attachments},secondaryAttachments:{...(kit.secondaryAttachments??{sight:null,barrel:null,grip:null,magazine:null})}};
+        room.droppedWeapons.set(id,{id,ownerId:victim.id,weaponId,slot,skinId:slot==="secondary"?(kit.secondaryWeaponSkinId??"default"):kit.weaponSkinId,attachments:{...attachments},ammoRemaining:mag+frontierReserveAmmo(mag*3),pos,expiresAt,loadout:droppedLoadout});
       }
     }
     victim.alive = false;
@@ -4266,23 +4273,14 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       reactionReady,aimSettled,ai.ammoInMag>0,now<ai.reloadingUntil,ai.difficulty,ai.archetype);
     ai.sprinting=stance.sprinting;
     ai.aiming=stance.aiming && !isTaserAdsBlocked(room.equipmentAdsBlockedUntil.get(bot.id)??0,now);
-    const frontierVaultAhead=room.mode==="frontier"&&room.map.cover.some(box=>{
-      if(box.kind==="accent"||box.kind==="platform"||box.kind==="stair")return false;
-      const dx=box.pos[0]-bot.pos[0],dz=box.pos[2]-bot.pos[2];
-      const forward=dx*Math.sin(bot.yaw)+dz*Math.cos(bot.yaw);
-      const lateral=Math.abs(dx*Math.cos(bot.yaw)-dz*Math.sin(bot.yaw));
-      const top=box.pos[1]+box.size[1],bottom=box.pos[1]-box.size[1];
-      return forward>.2&&forward<1.7&&lateral<Math.max(box.size[0],box.size[2])+.55&&
-        top>bot.pos[1]+.15&&top<=bot.pos[1]+1.45&&bottom<=bot.pos[1]+.35;
-    });
-    if(now>=(ai.nextCombatJumpAt??0)&&(frontierVaultAhead||botWantsCombatJump(ai.difficulty,weapon.category,dist,clearShot,
+    if(now>=(ai.nextCombatJumpAt??0)&&botWantsCombatJump(ai.difficulty,weapon.category,dist,clearShot,
       ai.envJumpVelocityY===undefined&&botHasJumpClearance(roomCoverNear(room,bot.pos[0],bot.pos[2],2.5),bot.pos),now,ai.nextCombatJumpAt??0,Math.random()))){
-      ai.envJumpVelocityY=MOVEMENT.jumpVelocity*(room.mode==="frontier"?(frontierVaultAhead?1.48:1.22):1);
-      ai.envLaunchX=frontierVaultAhead?Math.sin(bot.yaw)*3.4:0;ai.envLaunchZ=frontierVaultAhead?Math.cos(bot.yaw)*3.4:0;
+      ai.envJumpVelocityY=MOVEMENT.jumpVelocity;
+      ai.envLaunchX=0;ai.envLaunchZ=0;
       ai.nextCombatJumpAt=now+botTactics(ai.difficulty).jumpCooldown;
     }
     const botCarryingFlag=room.mode==="ctf"&&(room.flags.red.carrierId===bot.id||room.flags.blue.carrierId===bot.id);
-    const moveSpeed = (botCarryingFlag ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? (room.mode==="frontier"?1.25*1.18:1.25) : 1) * botMovementPerkMultiplier(perk,ai.sprinting)/botMovementPerkMultiplier(perk) * ctfCarrierWeaponSpeed(eff.moveSpeed,botCarryingFlag) * (orbitalReaperEquipped(room.map,bot.weaponId)&&!botCarryingFlag?ORBITAL_REAPER_SPEED_MULTIPLIER:1) * sludgeMovementFactor(bot.pos,bot.team,now,[...room.wonderFields.values()],room.mode==="ffa"||room.mode==="gungame") * floodgateWaterEffect(bot.pos[0],bot.pos[1],bot.pos[2],floodAge,room.map.cover).speedMultiplier * ((room.cryoSlowUntil.get(bot.id)??0)>now?CRYO_SLOW_FACTOR:1);
+    const moveSpeed = (botCarryingFlag ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * botMovementPerkMultiplier(perk,ai.sprinting)/botMovementPerkMultiplier(perk) * ctfCarrierWeaponSpeed(eff.moveSpeed,botCarryingFlag) * (orbitalReaperEquipped(room.map,bot.weaponId)&&!botCarryingFlag?ORBITAL_REAPER_SPEED_MULTIPLIER:1) * sludgeMovementFactor(bot.pos,bot.team,now,[...room.wonderFields.values()],room.mode==="ffa"||room.mode==="gungame") * floodgateWaterEffect(bot.pos[0],bot.pos[1],bot.pos[2],floodAge,room.map.cover).speedMultiplier * ((room.cryoSlowUntil.get(bot.id)??0)>now?CRYO_SLOW_FACTOR:1);
     const ideal = weapon.category==="melee" ? Math.max(.7,weapon.stats.range-.15) : stance.idealDistance;
     // Melee bots must close to the actual weapon's reach, not stop 3m short.
     const chaseThreshold=weapon.category==="melee" ? ideal : ideal+3;
@@ -4427,7 +4425,11 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       }
     }
     // shooting
-    if (!ai.sprinting && clearShot && reacted && now > ai.nextShotAt && ai.ammoInMag > 0 && (room.mode!=="frontier"||(ai.frontierAmmoRemaining??0)>0) && now > ai.reloadingUntil && !burstPaused && (weapon.id!==ORBITAL_REAPER_ID||dist<=ORBITAL_PULSE_RADIUS)) {
+    const meleeInRange=weapon.category==="melee"&&dist<=weapon.stats.range+0.35;
+
+    if(meleeInRange)ai.sprinting=false;
+
+    if (!ai.sprinting && (clearShot||meleeInRange) && reacted && now > ai.nextShotAt && ai.ammoInMag > 0 && (room.mode!=="frontier"||weapon.category==="melee"||(ai.frontierAmmoRemaining??0)>0) && now > ai.reloadingUntil && !burstPaused && (weapon.id!==ORBITAL_REAPER_ID||dist<=ORBITAL_PULSE_RADIUS)) {
       const aimYaw = bot.yaw + ai.sprayDriftYaw + (Math.random() - 0.5) * (baseAimJitter + distSpread + missSpread);
       const aimPitch = bot.pitch + ai.sprayDriftPitch + (Math.random() - 0.5) * (baseAimJitter + distSpread + missSpread);
       const dir = dirFromYawPitch(aimYaw, aimPitch);
@@ -4471,7 +4473,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
           suppressed:activeAttachments.barrel==="barrel_suppressor"});
       }
       if(weapon.category!=="melee")ai.ammoInMag--;
-      if(room.mode==="frontier")ai.frontierAmmoRemaining=Math.max(0,(ai.frontierAmmoRemaining??0)-1);
+      if(room.mode==="frontier"&&weapon.category!=="melee")ai.frontierAmmoRemaining=Math.max(0,(ai.frontierAmmoRemaining??0)-1);
       clearSpawnProtection(room, bot); // bot firing also cancels its protective shield
       ai.lastFiredAt = now;
       // Accumulate spray drift from this shot.
@@ -5294,31 +5296,25 @@ async function handle(socket: any, msg: C2S) {
       const player=room.players.get(socket.id),drop=room.droppedWeapons.get(msg.dropId);
       if(!player?.alive||!drop||Date.now()>=drop.expiresAt||
         Math.hypot(player.pos[0]-drop.pos[0],player.pos[2]-drop.pos[2])>2.25)return;
-      const kit=room.loadouts.get(socket.id);if(!kit)return;
-      const previousSlotWeapon=drop.slot==="primary"?kit.weaponId:(kit.secondaryWeaponId??"pistol_side");
-      const wasHoldingSlot=player.weaponId===previousSlotWeapon;
-      const droppedAttachments=drop.attachments??{};
-       const attachments={sight:droppedAttachments.sight??null,barrel:droppedAttachments.barrel??null,
-         grip:droppedAttachments.grip??null,magazine:droppedAttachments.magazine??null};
-      if(drop.slot==="primary"){
-        kit.weaponId=drop.weaponId;kit.weaponSkinId=drop.skinId;kit.attachments=attachments;kit.emptyPrimary=false;
-      }else{
-        kit.secondaryWeaponId=drop.weaponId;kit.secondaryWeaponSkinId=drop.skinId;kit.secondaryAttachments=attachments;
-      }
-      if(wasHoldingSlot){player.weaponId=drop.weaponId;player.weaponSkinId=drop.skinId;}
-      // Frontier reserve belongs to the player, not the active slot. A pickup
-      // must carry its ammo pool even when the player swaps to it later.
-      room.frontierAmmoRemaining??=new Map();
-      room.frontierAmmoRemaining.set(socket.id,Math.max(0,drop.ammoRemaining));
-      if(drop.weaponId==="crossbow_reclaimer"){
-        // A scavenged crossbow starts ready instead of inheriting an old cooldown.
-        room.boltReadyAt.delete(socket.id);
-        room.boltCharges.set(socket.id,0);
-      }
-
-      room.droppedWeapons.delete(drop.id);
-      io.to(room.id).emit("message",{t:"weaponPickup",id:drop.id,playerId:socket.id,weaponId:drop.weaponId,slot:drop.slot,skinId:drop.skinId,attachments,ammoRemaining:drop.ammoRemaining} as S2C);
-      break;
+      const received:LoadoutWire={...drop.loadout,attachments:{...drop.loadout.attachments},secondaryAttachments:{...(drop.loadout.secondaryAttachments??{sight:null,barrel:null,grip:null,magazine:null})}};
+       room.loadouts.set(socket.id,received);
+       const activeSlot=received.emptyPrimary?"secondary":"primary";
+       const activeId=activeSlot==="secondary"?(received.secondaryWeaponId??"pistol_side"):received.weaponId;
+       const activeAttachments=activeSlot==="secondary"?received.secondaryAttachments:received.attachments;
+       player.weaponId=activeId;
+       player.weaponSkinId=activeSlot==="secondary"?(received.secondaryWeaponSkinId??received.weaponSkinId):received.weaponSkinId;
+       player.playerSkinId=received.playerSkinId??player.playerSkinId;
+       player.charmId=activeSlot==="secondary"?(received.secondaryCharmId??"none"):(received.primaryCharmId??"none");
+       player.nameplateId=received.nameplateId??"standard";
+       const primaryMag=received.emptyPrimary?0:computeEffectiveStats(weaponById(received.weaponId),received.attachments).magSize;
+       const secondaryMag=computeEffectiveStats(weaponById(received.secondaryWeaponId??"pistol_side"),received.secondaryAttachments??{sight:null,barrel:null,grip:null,magazine:null}).magSize;
+       room.frontierAmmoRemaining??=new Map();
+       const ammoRemaining=primaryMag+secondaryMag+frontierReserveAmmo(Math.max(primaryMag,secondaryMag)*3);
+       room.frontierAmmoRemaining.set(socket.id,ammoRemaining);
+       room.boltReadyAt.delete(socket.id);room.boltCharges.set(socket.id,0);
+       room.droppedWeapons.delete(drop.id);
+       io.to(room.id).emit("message",{t:"weaponPickup",id:drop.id,playerId:socket.id,weaponId:activeId,slot:activeSlot,skinId:player.weaponSkinId,attachments:activeAttachments,ammoRemaining,loadout:received} as S2C);
+       break;
     }
     case "recoverBolt": {
       const room = rooms.get(socketToRoom.get(socket.id) ?? "");
