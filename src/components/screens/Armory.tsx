@@ -314,7 +314,7 @@ export function Armory() {
       setPresetName("");
       setEditingPreset(null);
       setReplaceTargetId(null);
-      toast.success(action === "save" ? "Loadout saved to your profile" : action === "rename" ? "Loadout renamed" : action === "replace" ? "Saved loadout replaced with current equipment" : "Loadout deleted");
+      toast.success(action === "save" ? "Loadout saved to your profile" : action === "rename" ? "Loadout renamed" : action === "replace" ? "Saved loadout updated to current loadout" : "Loadout deleted");
     } catch (error) { toast.error(error instanceof Error ? error.message : "Could not update loadout"); }
     finally { setPresetBusy(false); }
   };
@@ -425,25 +425,31 @@ export function Armory() {
                       </div>
                     </div>
                   )}
-                  <div className="text-xs text-white/50">{weaponById(preset.primaryWeapon).name} · {weaponById(preset.secondaryWeapon).name} · {weaponById(preset.meleeWeapon).name} · {perkById(preset.perkId).name}</div>
-                  <div className="text-xs text-white/40">Tactical: {equipmentById(preset.equipmentId).name}</div>
-                  {preset.perkId === "wonder_weapon" && preset.wonderWeaponId && (
-                    <div className="text-xs text-white/40">
-                      Wonder: {weaponById(preset.wonderWeaponId).name}
-                      {preset.wonderCustomization ? (
-                        <> · Module: {wonderModuleById(preset.wonderCustomization.moduleId)?.name ?? "Default"} · Finish: {wonderFinishById(preset.wonderCustomization.skinId)?.name ?? "Default"} · Kill effect: {wonderKillEffectById(preset.wonderCustomization.killEffectId)?.name ?? "Default"}</>
-                      ) : " · Uses current Wonder customization (save again to snapshot)"}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+                    <div className="min-w-0 space-y-1">
+                      <div className="text-xs text-white/50">{weaponById(preset.primaryWeapon).name} · {weaponById(preset.secondaryWeapon).name} · {weaponById(preset.meleeWeapon).name} · {perkById(preset.perkId).name}</div>
+                      <div className="text-xs text-white/40">Tactical: {equipmentById(preset.equipmentId).name}</div>
+                      {preset.perkId === "wonder_weapon" && preset.wonderWeaponId && (
+                        <div className="text-xs text-white/40">
+                          Wonder: {weaponById(preset.wonderWeaponId).name}
+                          {preset.wonderCustomization ? (
+                            <> · Module: {wonderModuleById(preset.wonderCustomization.moduleId)?.name ?? "Default"} · Finish: {wonderFinishById(preset.wonderCustomization.skinId)?.name ?? "Default"} · Kill effect: {wonderKillEffectById(preset.wonderCustomization.killEffectId)?.name ?? "Default"}</>
+                          ) : " · Uses current Wonder customization (save again to snapshot)"}
+                        </div>
+                      )}
+                      <div className="text-xs text-white/40">Reticles: {COSMETICS.find(c=>c.id===preset.primaryReticle)?.name ?? "Classic Cross"} / {COSMETICS.find(c=>c.id===preset.secondaryReticle)?.name ?? "Classic Cross"} · Charms: {COSMETICS.find(c=>c.id===preset.primaryCharm)?.name ?? "No Charm"} / {COSMETICS.find(c=>c.id===preset.secondaryCharm)?.name ?? "No Charm"}</div>
                     </div>
-                  )}
-                  <div className="text-xs text-white/40">Reticles: {COSMETICS.find(c=>c.id===preset.primaryReticle)?.name ?? "Classic Cross"} / {COSMETICS.find(c=>c.id===preset.secondaryReticle)?.name ?? "Classic Cross"} · Charms: {COSMETICS.find(c=>c.id===preset.primaryCharm)?.name ?? "No Charm"} / {COSMETICS.find(c=>c.id===preset.secondaryCharm)?.name ?? "No Charm"}</div>
-                  {replaceTargetId === preset.id ? (
-                    <div className="flex gap-2">
-                      <Button size="sm" className="flex-1 bg-amber-500 hover:bg-amber-400 text-black" disabled={presetBusy || unconfirmedLoadout} onClick={() => void managePreset("replace",preset.id)}>Confirm Replace</Button>
-                      <Button size="sm" variant="ghost" onClick={() => setReplaceTargetId(null)}>Cancel</Button>
+                    <div className="min-w-0 flex flex-wrap content-start items-start gap-2">
+                      {replaceTargetId === preset.id ? (
+                        <>
+                          <Button size="sm" className="flex-1 bg-amber-500 hover:bg-amber-400 text-black" disabled={presetBusy || unconfirmedLoadout} onClick={() => void managePreset("replace",preset.id)}>Confirm Update</Button>
+                          <Button size="sm" variant="ghost" onClick={() => setReplaceTargetId(null)}>Cancel</Button>
+                        </>
+                      ) : <Button size="sm" variant="outline" className="border-white/20 text-white/80" disabled={presetBusy || unconfirmedLoadout} onClick={() => setReplaceTargetId(preset.id)}>Update Loadout to Current Loadout</Button>}
+                      <Button size="sm" variant="outline" disabled={presetBusy} onClick={() => equipPreset(preset.id)}
+                        className="border-amber-500/30 text-amber-200 hover:bg-amber-500/10">Equip Loadout</Button>
                     </div>
-                  ) : <Button size="sm" variant="outline" className="w-full border-white/20 text-white/80" disabled={presetBusy || unconfirmedLoadout} onClick={() => setReplaceTargetId(preset.id)}>Replace With Current Equipment</Button>}
-                  <Button size="sm" variant="outline" disabled={presetBusy} onClick={() => equipPreset(preset.id)}
-                    className="w-full border-amber-500/30 text-amber-200 hover:bg-amber-500/10">Equip Loadout</Button>
+                  </div>
                 </div>
               ))}
             </div>
