@@ -439,5 +439,70 @@
     "icon": "Target",
     "focus": "general",
     "eliteGoal": 22
+  },
+  {
+    "id": "ch_sd_obj_1",
+    "metric": "searchdestroy_objectives",
+    "goal": 1,
+    "rewardXp": 500,
+    "rewardCredits": 180,
+    "title": "Demolition Duty",
+    "description": "Plant or defuse 1 bomb in Search & Destroy",
+    "icon": "Bomb",
+    "focus": "operations",
+    "mode": "searchdestroy",
+    "eliteEligible": false
+  },
+  {
+    "id": "ch_hp_time_90",
+    "metric": "hardpoint_objective_seconds",
+    "goal": 90,
+    "rewardXp": 450,
+    "rewardCredits": 150,
+    "title": "Hill Operator",
+    "description": "Spend 90 seconds on the Hardpoint objective",
+    "icon": "Shield",
+    "focus": "operations",
+    "mode": "hardpoint",
+    "eliteGoal": 270
+  },
+  {
+    "id": "ch_hp_kills_5",
+    "metric": "hardpoint_kills",
+    "goal": 5,
+    "rewardXp": 500,
+    "rewardCredits": 180,
+    "title": "Zone Breaker",
+    "description": "Get 5 kills in Hardpoint",
+    "icon": "Crosshair",
+    "focus": "operations",
+    "mode": "hardpoint",
+    "eliteGoal": 15
+  },
+  {
+    "id": "ch_frontier_kills_10",
+    "metric": "frontier_kills",
+    "goal": 10,
+    "rewardXp": 400,
+    "rewardCredits": 130,
+    "title": "Gunslinger",
+    "description": "Get 10 kills in Frontier",
+    "icon": "Crosshair",
+    "focus": "operations",
+    "mode": "frontier",
+    "eliteGoal": 30
+  },
+  {
+    "id": "ch_map_dustwater_secondary_10",
+    "metric": "kills_with_secondary",
+    "goal": 10,
+    "rewardXp": 450,
+    "rewardCredits": 150,
+    "title": "Sidearm Showdown",
+    "description": "Get 10 kills with secondary weapons on Dustwater",
+    "icon": "Crosshair",
+    "focus": "operations",
+    "mapId": "dustwater",
+    "eliteGoal": 25
   }
 ]
