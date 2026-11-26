@@ -321,7 +321,7 @@ export interface HudState {
   scoped: boolean;
   // Round 20h: Local player spawn protection (for first-person shield overlay).
   selfSpawnProtected?: boolean;
-  radar?: { size: number; playerX: number; playerZ: number; yaw: number; regions?: { x: number; z: number; w: number; h: number }[]; lava?: { x: number; z: number; w: number; h: number }[]; cover: { x: number; z: number; w: number; h: number }[]; markers: { id: string; x: number; z: number; kind: "ally" | "fire" }[] };
+  radar?: { size: number; playerX: number; playerZ: number; yaw: number; regions?: { x: number; z: number; w: number; h: number }[]; lava?: { x: number; z: number; w: number; h: number }[]; cover: { x: number; z: number; w: number; h: number }[]; markers: { id: string; x: number; z: number; kind: "ally" | "fire" }[]; hardpoint?: { x: number; z: number; nextX?: number; nextZ?: number } };
   // Dynamic crosshair spread: 0 = tight, 1 = max bloom. Driven by movement,
   // sprinting, jumping, firing — the HUD uses this to size the crosshair gap.
   spreadFactor: number;
@@ -14097,6 +14097,12 @@ export class FPSEngine {
       .filter(drop=>drop.distance<=2.25).sort((a,b)=>a.distance-b.distance)[0];
     const weaponPickupPrompt=this.opts.mode==="frontier"&&this.alive&&nearbyWeapon
       ?(this.opts.online?"E / INTERACT · PICK UP WEAPON":"WEAPON DROP"):undefined;
+    const hardpointZones = this.opts.mode === "hardpoint" && this.hardpointState
+      ? hardpointZonesForMap(this.map.id) : [];
+    const activeHardpointZone = this.hardpointState
+      ? hardpointZones[this.hardpointState.activeIndex] : undefined;
+    const nextHardpointZone = this.hardpointState?.phase === "transition"
+      ? hardpointZones[this.hardpointState.nextIndex] : undefined;
     const mechEnterAvailable=!this.mechActive&&this.alive&&this.opts.mode!=="gungame"&&
       !(this.opts.mode==="ctf"&&(this.ctfFlags.red.carrierId===this.selfId||this.ctfFlags.blue.carrierId===this.selfId))&&
       [...this.mechDrops.values()].some(d=>d.landed&&!d.enteredBy&&d.expiresAt>Date.now()&&
@@ -14217,6 +14223,12 @@ export class FPSEngine {
       mapName: this.map.name,
       radar: {
         size: this.map.size, playerX: this.pos.x, playerZ: this.pos.z, yaw: this.yaw,
+        hardpoint: activeHardpointZone ? {
+          x: radarToPercent(activeHardpointZone.pos[0], this.map.size),
+          z: radarToPercent(activeHardpointZone.pos[2], this.map.size),
+          nextX: nextHardpointZone ? radarToPercent(nextHardpointZone.pos[0], this.map.size) : undefined,
+          nextZ: nextHardpointZone ? radarToPercent(nextHardpointZone.pos[2], this.map.size) : undefined,
+        } : undefined,
         regions:this.map.regions?.length ? regionRectangles(this.map.regions).map(r=>({
           x:radarToPercent(r.x-r.w/2,this.map.size),z:radarToPercent(r.z-r.d/2,this.map.size),
           w:r.w/(2*this.map.size)*100,h:r.d/(2*this.map.size)*100,

@@ -13,7 +13,7 @@ function outlineForRegions(regions: NonNullable<NonNullable<HudState["radar"]>["
   return outline;
 }
 /** North-up tactical radar: allies persist, enemy positions track movement only while nearby gunfire reveals them. */
-export function Minimap({ radar, compact, objective, intel, bomb }: { radar: NonNullable<HudState["radar"]>; compact?: boolean; objective?: {x:number;z:number}; intel?: {x:number;z:number}; bomb?: {x:number;z:number} }) {
+export function Minimap({ radar, compact, objective, intel, bomb, hardpoint }: { radar: NonNullable<HudState["radar"]>; compact?: boolean; objective?: {x:number;z:number}; intel?: {x:number;z:number}; bomb?: {x:number;z:number}; hardpoint?: {x:number;z:number;nextX?:number;nextZ?:number} }) {
   const clamp = (n: number) => Math.max(2, Math.min(98, n));
   const selfX = clamp(50 + 50 * radar.playerX / Math.max(1, radar.size));
   const selfZ = clamp(50 + 50 * radar.playerZ / Math.max(1, radar.size));
@@ -23,7 +23,7 @@ export function Minimap({ radar, compact, objective, intel, bomb }: { radar: Non
   return (
     <div className={`absolute top-14 right-4 overflow-hidden rounded-xl border border-white/25 bg-zinc-950/90 backdrop-blur-md shadow-xl ${compact ? "w-32 h-32" : "w-44 h-44"}`}
       aria-label="Minimap">
-      <svg viewBox="0 0 100 100" className="w-full h-full" role="img" aria-label="Minimap: green allies, red temporarily tracked enemies, orange dropped bomb, yellow player">
+      <svg viewBox="0 0 100 100" className="w-full h-full" role="img" aria-label="Minimap: green allies, red temporarily tracked enemies, cyan Hardpoint, orange dropped bomb, yellow player">
         <rect x="1" y="1" width="98" height="98" rx="3" fill="#101923" stroke="#64748b" strokeWidth="1" />
         {[20, 40, 60, 80].map(v => <g key={v} stroke="#475569" strokeOpacity="0.35" strokeWidth="0.55"><path d={`M${v} 0 V100 M0 ${v} H100`} /></g>)}
         {/* Draw the playable area as a single translucent fill, without internal join lines. */}
@@ -45,6 +45,14 @@ export function Minimap({ radar, compact, objective, intel, bomb }: { radar: Non
           </g>
         ))}
         {objective&&<text x={clamp(objective.x)} y={clamp(objective.z)+2} textAnchor="middle" fill="#fbbf24" stroke="#111" strokeWidth=".3" fontSize="8">◆</text>}
+        {hardpoint?.nextX!==undefined&&hardpoint.nextZ!==undefined&&<g transform={`translate(${clamp(hardpoint.nextX)} ${clamp(hardpoint.nextZ)})`}>
+          <circle r="4.8" fill="#f59e0b" fillOpacity=".18" stroke="#fbbf24" strokeWidth="1" strokeDasharray="2 1.5"/>
+          <text y="2.1" textAnchor="middle" fill="#fbbf24" stroke="#111" strokeWidth=".35" fontSize="6.5" fontWeight="bold">H</text>
+        </g>}
+        {hardpoint&&<g transform={`translate(${clamp(hardpoint.x)} ${clamp(hardpoint.z)})`}>
+          <circle r="5.5" fill="#22d3ee" fillOpacity=".2" stroke="#67e8f9" strokeWidth="1.1"/>
+          <path d="M0,-3.4 L3.4,0 L0,3.4 L-3.4,0 Z" fill="#22d3ee" stroke="#ecfeff" strokeWidth=".6"/>
+        </g>}
         {intel&&<text x={clamp(intel.x)} y={clamp(intel.z)+2} textAnchor="middle" fill="#fff" stroke="#111" strokeWidth=".3" fontSize="8">◇</text>}
         {bombX!==undefined&&bombZ!==undefined&&<g transform={`translate(${bombX} ${bombZ})`}><path d="M0,-5 L5,0 L0,5 L-5,0 Z" fill="#fb923c" stroke="#fff" strokeWidth="1"/><circle r="1.2" fill="#111827"/></g>}
         <g transform={`translate(${selfX} ${selfZ}) rotate(${heading})`}>
@@ -52,7 +60,7 @@ export function Minimap({ radar, compact, objective, intel, bomb }: { radar: Non
         </g>
         <text x="50" y="8" textAnchor="middle" fontSize="5.5" fill="#cbd5e1" fontWeight="bold">N</text>
       </svg>
-      <div className="absolute bottom-1 left-1.5 text-[8px] font-semibold tracking-widest text-white/65">○ ALLY · ◇ ENEMY · ✹ BOMB · ▲ YOU</div>
+      <div className="absolute bottom-1 left-1.5 text-[8px] font-semibold tracking-widest text-white/65">○ ALLY · ◇ ENEMY · ◆ POINT · ✹ BOMB · ▲ YOU</div>
     </div>
   );
 }

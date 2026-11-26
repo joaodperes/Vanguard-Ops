@@ -229,7 +229,7 @@ export function hardpointZonesForMap(mapId: string): HardpointZone[] {
     bunker: [[-25,0,-25],[25,0,-25],[0,0,0],[-25,0,25],[25,0,25]],
   };
   const positions = layouts[mapId] ?? layouts.dustwater;
-  return positions.map((pos,index)=>({id:String(index),pos,radius:6}));
+  return positions.map((pos,index)=>({id:String(index),pos,radius:6.25}));
 }
 export interface HardpointState {
   activeIndex: number; nextIndex: number; zoneOrder: number[]; rotationIndex: number;
@@ -269,7 +269,14 @@ export function tickHardpoint(
   // During transition, activeIndex deliberately remains the outgoing point:
   // keep capturing/scoring it until the new point activates.
   const zone = zones[state.activeIndex], radius = zone.radius ?? HARDPOINT_RULES.captureRadius;
-  const red = players.some(p => p.alive && p.team === "red" && inside(p.pos, zone.pos, radius));
+  // A legacy/standalone Hardpoint participant can arrive with the generic FFA
+  // team token. Hardpoint is always a team objective, so when no combatant has
+  // a resolved side yet, let those participants capture for Red rather than
+  // leaving an occupied point permanently neutral.
+  const hasAssignedTeam = players.some(p => p.team === "red" || p.team === "blue");
+  const red = players.some(p => p.alive &&
+    (p.team === "red" || (!hasAssignedTeam && (p.team as string) === "ffa")) &&
+    inside(p.pos, zone.pos, radius));
   const blue = players.some(p => p.alive && p.team === "blue" && inside(p.pos, zone.pos, radius));
   state.owner = red && blue ? "contested" : red ? "red" : blue ? "blue" : "neutral";
   if (state.owner === "contested" || state.owner === "neutral") {

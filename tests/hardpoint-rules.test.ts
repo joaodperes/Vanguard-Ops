@@ -27,6 +27,23 @@ describe("Hardpoint map layouts and rotation", () => {
     }
   });
 
+  test("a lone legacy FFA participant can capture the Hardpoint instead of leaving it neutral", () => {
+    const zones = hardpointZonesForMap("whiteout_depot");
+    const state = createHardpointState(0, HARDPOINT_RULES.zoneCount);
+    const player = { id: "solo-player", team: "ffa" as any, alive: true, pos: zones[0].pos };
+
+    const result = tickHardpoint(state, zones, [player], 1000, 50);
+
+    expect(result.state.owner).toBe("red");
+    expect(result.scored).toBe("red");
+    expect(result.state.scores.red).toBeGreaterThan(0);
+  });
+
+  test("capture radius matches the visible Hardpoint boundary", () => {
+    const zone = hardpointZonesForMap("whiteout_depot")[0];
+    expect(zone.radius).toBe(6.25);
+  });
+
   test("the current point keeps scoring throughout the rotation countdown", () => {
     const zones = hardpointZonesForMap("dustwater");
     const state = createHardpointState(0, HARDPOINT_RULES.zoneCount);

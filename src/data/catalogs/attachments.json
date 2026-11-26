@@ -365,7 +365,7 @@
     "slot": "grip",
     "unlockLevel": 16,
     "unlockCost": 400,
-    "description": "Regain accurate hipfire 3× faster after sprinting (95ms instead of 300ms) and raise sights faster. Slightly more recoil.",
+    "description": "Regain accurate hipfire 3× faster after sprinting (95ms instead of 300ms) and raise sights faster. Still cannot fire while sprinting. Slightly more recoil.",
     "weaponCategories": [
       "assault",
       "smg",

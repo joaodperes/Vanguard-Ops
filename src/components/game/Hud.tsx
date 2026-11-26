@@ -500,7 +500,7 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
           </div>
         )}
         {mode === "hardpoint" && hud.hardpoint && <div className="absolute top-16 left-1/2 z-30 -translate-x-1/2 text-center">
-          <div className={`inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/65 px-3 py-1.5 text-[11px] font-black tracking-wider shadow-lg ${hardpointOwnerColor}`}><span className="h-2 w-2 rounded-full bg-current animate-pulse"/>{hud.hardpoint.phase === "transition" ? "ROTATING" : hud.hardpoint.owner === "contested" ? "CONTESTED" : hud.hardpoint.owner === "neutral" ? "NEUTRAL" : hud.hardpoint.owner === hud.playerTeam ? "FRIENDLY" : "ENEMY"}<span className="text-current tabular-nums">· {Math.ceil(hardpointRemainingMs/1000)}s</span></div>
+          <div className={`inline-flex items-center gap-2 whitespace-nowrap rounded-full border border-white/15 bg-black/65 px-3 py-1.5 text-[11px] font-black tracking-wider shadow-lg ${hardpointOwnerColor}`}>{hud.hardpoint.phase === "transition" ? "ROTATING" : hud.hardpoint.owner === "contested" ? "CONTESTED" : hud.hardpoint.owner === "neutral" ? "NEUTRAL" : hud.hardpoint.owner === hud.playerTeam ? "FRIENDLY" : "ENEMY"}<span className="text-current tabular-nums">· {Math.ceil(hardpointRemainingMs/1000)}s</span></div>
         </div>}
 
 
@@ -622,7 +622,7 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
         </button>
       </div>
 
-      {hud.radar && <Minimap radar={hud.radar} compact={isTouch} objective={hud.operationWaypoint} intel={hud.operation?.intel ? undefined:hud.operationIntel} bomb={hud.searchDestroy?.bomb.status==="dropped" ? {x:hud.searchDestroy.bomb.pos[0],z:hud.searchDestroy.bomb.pos[2]} : undefined} />}
+      {hud.radar && <Minimap radar={hud.radar} compact={isTouch} objective={hud.operationWaypoint} intel={hud.operation?.intel ? undefined:hud.operationIntel} bomb={hud.searchDestroy?.bomb.status==="dropped" ? {x:hud.searchDestroy.bomb.pos[0],z:hud.searchDestroy.bomb.pos[2]} : undefined} hardpoint={hud.radar.hardpoint} />}
 
       {/* bottom left: health + regen cooldown + sprint indicator (desktop only —
           mobile uses the centered bottom cluster below). */}
