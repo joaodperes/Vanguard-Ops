@@ -4000,7 +4000,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       ai.ammoInMag=botMagazineCapacity(primaryId,primaryAtt??emptyBotAttachments());
       ai.secondaryAmmoInMag=kit.emptyPrimary?0:botMagazineCapacity(secondaryId,secondaryAtt??emptyBotAttachments());
       bot.weaponId=primaryId;bot.weaponSkinId=kit.emptyPrimary?(kit.secondaryWeaponSkinId??"default"):kit.weaponSkinId;
-      ai.frontierAmmoRemaining=ai.ammoInMag+ai.secondaryAmmoInMag;
+      ai.frontierAmmoRemaining=ai.ammoInMag+ai.secondaryAmmoInMag+frontierReserveAmmo(Math.max(ai.ammoInMag,ai.secondaryAmmoInMag)*3);
       room.droppedWeapons.delete(nearby.id);ai.reloadingUntil=0;ai.burstShotsLeft=0;ai.nextShotAt=now+350;
     }
   }
@@ -4014,6 +4014,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       currentWeaponId:bot.weaponId,primaryWeaponId:kit.weaponId,
       secondaryWeaponId:kit.secondaryWeaponId,meleeWeaponId:melee,
       ammoInMag:ai.ammoInMag,inactiveAmmoInMag:ai.secondaryAmmoInMag,
+      totalAmmoRemaining:ai.frontierAmmoRemaining,
       meleeMagazineSize:weaponById(melee).stats.magSize,now,nextSwitchAt:ai.nextWeaponSwitchAt,
     });
     if(fallback){
@@ -4576,11 +4577,11 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     const enemyVisible = dist < 35;
     const wantSmartReload = shouldBotSmartReload(ai.ammoInMag, eff.magSize, enemyVisible,
       ai.skill, canStartWeaponReload(weapon.stats, ai.ammoInMag), Math.random());
-    if (room.mode!=="frontier" && !isThrowingKnife(weapon.id) && (!ai.sprinting || perk==="field_loader") && (ai.ammoInMag <= 0 || wantSmartReload) && now > ai.reloadingUntil) {
+    if (!isThrowingKnife(weapon.id) && (!ai.sprinting || perk==="field_loader") && (ai.ammoInMag <= 0 || wantSmartReload) && now > ai.reloadingUntil) {
       const durationMs = botReloadDurationMs({
         reloadStyle: weapon.stats.reloadStyle, reloadPerRound: weapon.stats.reloadPerRound,
         effectiveReloadTime: eff.reloadTime, magazineSize: eff.magSize,
-        weaponReloadTime: weapon.stats.reloadTime, frontier: false,
+        weaponReloadTime: weapon.stats.reloadTime, frontier: room.mode === "frontier",
         perkMultiplier: reloadDurationMultiplier(perk),
       });
       ai.reloadingUntil = now + durationMs;
