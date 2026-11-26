@@ -7684,7 +7684,8 @@ export class FPSEngine {
             // and alive=true), so this is a client-side estimate that makes
             // the countdown visible during the wait.
             const respawnDelay = this.opts.mode === "survival" ? SURVIVAL_RESPAWN_MS : RESPAWN_DELAY_MS;
-            this.respawnAt = this.opts.mode === "searchdestroy" ? 0 : performance.now() + (respawnDelayForMode(this.opts.mode, RESPAWN_DELAY_MS, SURVIVAL_RESPAWN_MS) ?? respawnDelay);
+            this.respawnAt = this.opts.mode === "survival" || this.opts.mode === "searchdestroy"
+              ? 0 : performance.now() + (respawnDelayForMode(this.opts.mode, RESPAWN_DELAY_MS, SURVIVAL_RESPAWN_MS) ?? respawnDelay);
             this.sound.play("death", { volume: 0.8 });
           }
           // Trigger the death-fall animation on the victim's combatant (if it's
