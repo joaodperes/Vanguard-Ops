@@ -4497,7 +4497,12 @@ export class FPSEngine {
       this.ammoInMag>0 && !this.matchEnded;
     const fanAnim=fanHammerAnimating && !this.controls.reducedMotion ? Math.sin(now*.036)*.12 : 0;
     const fanRoll=fanHammerAnimating && !this.controls.reducedMotion ? Math.sin(now*.036+Math.PI/2)*.07 : 0;
-    const totalRotX = reloadPitch + this.vmRecoilPitch + sprintPitch + meleeSwingPitch + swapPitch + meleeHoldPitch + fanAnim +
+    // Keep the weapon's vertical firing kick readable, but stop its full
+    // viewmodel pitch from sweeping the sight picture on compact automatics.
+    // Camera/gameplay recoil is unchanged; this only damps the cosmetic model.
+    const adsViewmodelPitchFactor = this.aiming &&
+      ["smg","pdw","assault","lmg"].includes(wDef.category) ? 0.62 : 1;
+    const totalRotX = reloadPitch + this.vmRecoilPitch * adsViewmodelPitchFactor + sprintPitch + meleeSwingPitch + swapPitch + meleeHoldPitch + fanAnim +
       (tasered?0.035*Math.sin(twitchTime*24.5):0);
     const totalRotZ = reloadRoll + sprintRoll + meleeSwingRoll + swapRoll + fanRoll +
       (tasered?0.045*Math.sin(twitchTime*18.2+0.7):0);
