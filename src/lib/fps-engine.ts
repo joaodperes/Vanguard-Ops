@@ -3811,7 +3811,7 @@ export class FPSEngine {
       } else if (st === "laser") {
         // Side-mounted projector: preserve the central sight channel on compact
         // pistols instead of placing a grey housing directly over the bore.
-        const laserSide = Math.max(.012, (WEAPON_VISUALS[this.weaponId]?.receiver?.[0] ?? .12) / 2 - .012);
+        const laserSide = Math.max(.008, (WEAPON_VISUALS[this.weaponId]?.receiver?.[0] ?? .12) / 2 - .020);
         const box = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.03, 0.06), accentMat);
         box.position.x = laserSide;
         scopeGroup.add(box);
