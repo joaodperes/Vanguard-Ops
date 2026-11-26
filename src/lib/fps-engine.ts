@@ -1,5 +1,7 @@
 import {DEFAULT_CONTROLS,canonicalKey,stick,type ControlSettings} from "./control-settings";
 import { applyDamageFactors } from "./combat-damage-rules";
+import { resolveFrontierBotWeaponFallback } from "./bot-weapon-selection";
+import { resolveBotPursuitSpeed } from "./bot-movement-rules";
 import {squadIntent} from "./squad-coordination";
 import { operationById, createOperationState, tickOperation, operationEncounter, operationConfigValid, operationTarget, operationSite, operationAwarenessMultiplier, operationFeedbackEvents, syncOperationCartCollider, type OperationState } from "./operations";
 import { survivalRoleForSlot, survivalRoleHealthMultiplier, survivalFrontalArmor, tickSurvivalSpecialists, createSurvivalObjective, tickSurvivalObjective, survivalObjectiveSite, survivalObjectiveText, SURVIVAL_ROLE_INFO, type SurvivalRole, type SurvivalActor, type SurvivalObjective } from "./survival-encounters";
@@ -12979,28 +12981,24 @@ export class FPSEngine {
       ai.reloadingUntil=0;
       this.rebuildCombatantMesh(c);
     }
-    // Frontier bots automatically cycle to a loaded firearm, then melee,
-    // instead of attempting to reload an empty weapon forever.
-    if(this.opts.mode==="frontier" && ai.ammoInMag<=0 && !ai.wonderEquippedUntil &&
-       !this.orbitalBotHolders.has(c.id) && now>=(ai.nextWeaponSwitchAt??0)){
-      const currentIsPrimary=c.weaponId===(ai.primaryWeaponId??"");
-      const otherId=currentIsPrimary?ai.secondaryWeaponId:ai.primaryWeaponId;
-      const otherAmmo=ai.secondaryAmmoInMag??0;
-      if(otherId && otherAmmo>0){
-        const old=ai.ammoInMag;ai.ammoInMag=otherAmmo;
-        ai.secondaryAmmoInMag=old;
-        c.weaponId=otherId;ai.attachments=botActiveAttachments(ai.primaryWeaponId??otherId,otherId,
-          ai.primaryAttachments??emptyBotAttachments(),ai.secondaryWeaponId,ai.secondaryAttachments);
-        ai.nextWeaponSwitchAt=now+500;
+    // The same pure Frontier fallback decision is used by the authoritative server.
+    if(this.opts.mode==="frontier" && !ai.wonderEquippedUntil &&
+       !this.orbitalBotHolders.has(c.id)){
+      const fallback=resolveFrontierBotWeaponFallback({
+        currentWeaponId:c.weaponId,primaryWeaponId:ai.primaryWeaponId??"rifle_ar",
+        secondaryWeaponId:ai.secondaryWeaponId,meleeWeaponId:this.opts.loadout.meleeWeaponId??"knife_tactical",
+        ammoInMag:ai.ammoInMag,inactiveAmmoInMag:ai.secondaryAmmoInMag,
+        meleeMagazineSize:weaponById(this.opts.loadout.meleeWeaponId??"knife_tactical").stats.magSize,
+        now,nextSwitchAt:ai.nextWeaponSwitchAt,
+      });
+      if(fallback){
+        c.weaponId=fallback.weaponId;ai.ammoInMag=fallback.ammoInMag;
+        ai.secondaryAmmoInMag=fallback.inactiveAmmoInMag;
+        ai.attachments=fallback.activeSlot==="melee"?emptyBotAttachments():
+          botActiveAttachments(ai.primaryWeaponId??fallback.weaponId,fallback.weaponId,
+            ai.primaryAttachments??emptyBotAttachments(),ai.secondaryWeaponId,ai.secondaryAttachments);
+        ai.nextWeaponSwitchAt=fallback.nextSwitchAt;
         ai.reloadingUntil=0;ai.burstShotsLeft=0;this.rebuildCombatantMesh(c);
-      }else{
-        const melee=this.opts.loadout.meleeWeaponId??"knife_tactical";
-        if(c.weaponId!==melee){
-          c.weaponId=melee;ai.ammoInMag=weaponById(melee).stats.magSize;
-          ai.attachments=emptyBotAttachments();
-          ai.reloadingUntil=0;ai.nextWeaponSwitchAt=now+500;
-          ai.burstShotsLeft=0;this.rebuildCombatantMesh(c);
-        }
       }
     }
     const flashBlinded=(this.botFlashUntil.get(c.id)??0)>now;
@@ -13266,8 +13264,14 @@ export class FPSEngine {
         ai.envJumpVelocityY=MOVEMENT.jumpVelocity;ai.envLaunchX=0;ai.envLaunchZ=0;ai.nextCombatJumpAt=now+botTactics(ai.difficulty).jumpCooldown;
       }
       const botCarryingFlag=this.opts.mode==="ctf"&&(this.ctfFlags.red.carrierId===c.id||this.ctfFlags.blue.carrierId===c.id);
-      const speed = (botCarryingFlag ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * botMovementPerkMultiplier(perk,ai.sprinting)/botMovementPerkMultiplier(perk) * ctfCarrierWeaponSpeed(eff.moveSpeed,botCarryingFlag) *
-        (orbitalReaperEquipped(this.map,c.weaponId)&&!botCarryingFlag?ORBITAL_REAPER_SPEED_MULTIPLIER:1) * sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame") * floodgateWaterEffect(c.pos[0],c.pos[1],c.pos[2],floodAge,this.map.cover).speedMultiplier;
+      const speed = resolveBotPursuitSpeed({
+        moveSpeed:ai.moveSpeed,carryingFlag:botCarryingFlag,flagSpeedMultiplier:CTF_SPEED_MULTIPLIER,
+        sprinting:ai.sprinting,perkSpeedMultiplier:botMovementPerkMultiplier(perk,ai.sprinting),
+        perkBaseSpeedMultiplier:botMovementPerkMultiplier(perk),
+        weaponMoveSpeedMultiplier:ctfCarrierWeaponSpeed(eff.moveSpeed,botCarryingFlag),
+        orbitalMultiplier:orbitalReaperEquipped(this.map,c.weaponId)&&!botCarryingFlag?ORBITAL_REAPER_SPEED_MULTIPLIER:1,
+        environmentMultiplier:sludgeMovementFactor(c.pos,c.team,Date.now(),[...this.wonderFields.values()],this.opts.mode==="ffa"||this.opts.mode==="gungame") * floodgateWaterEffect(c.pos[0],c.pos[1],c.pos[2],floodAge,this.map.cover).speedMultiplier,
+      });
       const ideal=w.category==="melee" ? Math.max(.7,w.stats.range-.15) : stance.idealDistance;
       const chaseThreshold=w.category==="melee" ? ideal : ideal+3;
       // Determine the desired movement vector for this frame.
