@@ -104,9 +104,22 @@ export async function getSession(req: NextRequest): Promise<SessionInfo | null> 
   const token = readCookie(req, SESSION_COOKIE);
   const playerId = verifySessionToken(token);
   if (!playerId) return null;
+  // Keep session resolution independent of newer Player columns. Existing
+  // SQLite databases may not have received lazy schema additions yet; selecting
+  // the entire Player row here would fail before getOrCreatePlayer can apply
+  // its compatibility checks.
   const user = await db.user.findUnique({
     where: { playerId },
-    include: { player: true },
+    select: {
+      email: true,
+      player: {
+        select: {
+          id: true,
+          playerKey: true,
+          name: true,
+        },
+      },
+    },
   });
   if (!user || !user.player) return null;
   return {
