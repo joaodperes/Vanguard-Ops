@@ -37,6 +37,14 @@ describe("Search & Destroy", () => {
     expect(dropSearchDestroyBomb(dropped,"attacker",[2,0,2])?.type).toBe("dropped");
     expect(applySearchDestroyAction(dropped,{kind:"pickup",playerId:"mate",team:"red",alive:true,pos:[5.5,0,2]},sites,100)?.type).toBe("picked_up");
   });
+  test("allows any living defender to defuse and rejects attackers",()=>{
+    const state=createSearchDestroyState(0,"attacker",[0,0,0]);
+    state.phase="planted";state.bomb.status="planted";state.bomb.pos=[0,0,0];state.bomb.detonatesAt=60000;
+    expect(applySearchDestroyAction(state,{kind:"defuse",playerId:"attacker-mate",team:"red",alive:true,pos:[0,0,0]},sites,1000)).toBeNull();
+    expect(applySearchDestroyAction(state,{kind:"defuse",playerId:"second-defender",team:"blue",alive:true,pos:[0,0,0]},sites,2000)).toBeNull();
+    expect(applySearchDestroyAction(state,{kind:"defuse",playerId:"second-defender",team:"blue",alive:true,pos:[0,0,0]},sites,8999)).toBeNull();
+    expect(applySearchDestroyAction(state,{kind:"defuse",playerId:"second-defender",team:"blue",alive:true,pos:[0,0,0]},sites,9000)?.type).toBe("defused");
+  });
   test("holds a round-end intermission before the next preparation phase",()=>{
     const state=createSearchDestroyState(0,"carrier",[0,0,0]);state.phase="live";
     finishSearchDestroyRound(state,"red","elimination",1000);
