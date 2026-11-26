@@ -107,7 +107,7 @@ import { dragonBreathIgnition,dragonBreathVisualUntil } from "./incendiary-statu
 import { corrosionImpactDamage, corrosionTickDamage, corrosionImpactDistance, CORROSION_DURATION_MS, CORROSION_TICK_MS } from "./corrosion-damage";
 import { stormPelletDirections, traceStormPellet, stormMinePosition, stormMineInReach, stormEnemy, stormTargetPoint, nextStormChainTarget, STORM_MINE_TRIGGER_RADIUS, STORM_MINE_ARM_MS, STORM_MINE_LIFETIME_MS, STORM_MAX_MINES_PER_OWNER, STORM_MINE_TARGET_COOLDOWN_MS, STORM_MAX_DIRECT_HITS_PER_TARGET, STORM_DIRECT_DAMAGE, STORM_MINE_DAMAGE, STORM_CHAIN_JUMPS, STORM_MINE_JUMPS, STORM_CHAIN_DECAY, STORM_MINE_CHAIN_RADIUS, type StormVictim } from "./stormweaver";
 import { advanceKillChain, type KillChainState } from "./kill-chain";
-import { frontierWeaponIdAllowed, searchDestroySitesForMap, SEARCH_DESTROY_RULES } from "./game-mode-rules";
+import { frontierWeaponIdAllowed, searchDestroySitesForMap, SEARCH_DESTROY_RULES, hardpointZonesForMap } from "./game-mode-rules";
 import { isFlagDefenseKill, largestScoreDeficit } from "./match-bonus-tracking";
 import { advanceIncrementalReload } from "./incremental-reload";
 import { shotSpread, shotBloomIncrease, recoilKickRadians, sustainedRecoilMultiplier, firingMotionFactor, spreadShotDirection } from "./weapon-accuracy";
@@ -2374,7 +2374,7 @@ export class FPSEngine {
 
   private ensureHardpointZoneMarkers() {
     if (this.hardpointZoneMarkers.length) return;
-    const positions: Vec3[] = [[-20,0,-34],[20,0,-34],[0,0,8],[-42,0,40],[42,0,40]];
+    const positions: Vec3[] = hardpointZonesForMap(this.map.id).map(zone=>zone.pos as Vec3);
     this.hardpointZoneMarkers = positions.map((pos) => {
       const group = new THREE.Group();
       const glow = new THREE.Mesh(new THREE.RingGeometry(5.35, 6.25, 64),
@@ -2396,10 +2396,12 @@ export class FPSEngine {
       return;
     }
     this.ensureHardpointZoneMarkers();
-    const target=this.hardpointState.phase==="transition"?this.hardpointState.nextIndex:this.hardpointState.activeIndex;
     this.hardpointZoneMarkers.forEach((marker,index)=>{
-      const active=index===target; marker.visible=active;
-      const color=this.hardpointState?.phase==="transition"?0xfbbf24:0x38bdf8;
+      const isCurrent=index===this.hardpointState!.activeIndex;
+      const isNext=this.hardpointState!.phase==="transition"&&index===this.hardpointState!.nextIndex;
+      marker.visible=isCurrent||isNext;
+      // Keep the outgoing point cyan while the incoming point previews in amber.
+      const color=isNext?0xfbbf24:0x38bdf8;
       marker.traverse(child=>{
         if(child instanceof THREE.Mesh && child.material instanceof THREE.MeshBasicMaterial){
           child.material.color.setHex(color);
@@ -7348,7 +7350,19 @@ export class FPSEngine {
           }
         }
         this.teamScores = msg.teamScores;
-        this.hardpointState=msg.hardpoint;
+        if(msg.hardpoint){
+          const previous=this.hardpointState,next=msg.hardpoint;
+          if(previous&&previous.owner!==next.owner&&next.owner!=="neutral"){
+            this.sound.play("objective_assigned",{volume:0.72,throttleMs:700});
+          }
+          if(previous?.phase==="active"&&next.phase==="transition"){
+            this.sound.play("countdown_tick",{volume:0.8,throttleMs:700});
+          }
+          if(previous?.phase==="transition"&&next.phase==="active"&&previous.activeIndex!==next.activeIndex){
+            this.sound.play("objective_complete",{volume:0.62,throttleMs:1000});
+          }
+          this.hardpointState=next;
+        }else this.hardpointState=undefined;
         this.updateHardpointZoneMarkers();
         this.searchDestroyState=msg.searchDestroy;
         if(msg.frontierAmmoRemaining)this.frontierAmmoRemaining=msg.frontierAmmoRemaining[this.selfId];
