@@ -1,5 +1,6 @@
 import {squadIntent} from "./squad-coordination";
 import { applyDamageFactors, resolveHealthDamage, resolveEliminationState } from "./combat-damage-rules";
+import { resolveRespawnState, respawnDelayForMode } from "./respawn-rules";
 import { resolveFrontierBotWeaponFallback } from "./bot-weapon-selection";
 import { resolveBotPursuitSpeed } from "./bot-movement-rules";
 import { cloneFrontierLoadout, frontierDropWeapon } from "./frontier-loadout-drops";
@@ -2398,13 +2399,17 @@ function scheduleRespawn(room: Room, p: PlayerNet) {
   room.boltReadyAt.delete(p.id);
   room.boltCharges.delete(p.id);
   // Search & Destroy is elimination-only: players return when the next round starts.
-  if(room.mode==="searchdestroy")return;
-  if (room.respawnTimers.has(p.id)) return;
-  const delay = room.mode === "survival" ? SURVIVAL_RESPAWN_MS : RESPAWN_DELAY_MS;
+  const delay = respawnDelayForMode(room.mode, RESPAWN_DELAY_MS, SURVIVAL_RESPAWN_MS);
+  if (delay === null || room.respawnTimers.has(p.id)) return;
   const timer = setTimeout(() => {
     const sp = pickSpawn(p.team, room);
-    p.pos = sp;
-    p.health=MAX_HEALTH;p.riotShieldRaised=false;
+    const transition = resolveRespawnState({
+      position: sp, maxHealth: MAX_HEALTH, now: Date.now(), spawnProtectionMs: 2500,
+    });
+    p.pos = transition.position;
+    p.health = transition.health;
+    p.alive = transition.alive;
+    p.riotShieldRaised=false;
     const currentKit=room.loadouts.get(p.id);
     // Bulwark is also a Wonder: keep broken-shield cooldown across death.
     if(currentKit?.perkId!=="wonder_weapon" || currentKit.wonderWeaponId!==RIOT_SHIELD_ID){
@@ -2431,7 +2436,7 @@ function scheduleRespawn(room: Room, p: PlayerNet) {
     if (!p.isBot) syncServerTactical(room,p.id);
     // Spawn protection: 2.5s grace period after respawn so the player can orient
     // before bots start shooting them. Bots also skip spawn-protected targets.
-    p.spawnProtectedUntil = Date.now() + 2500;
+    p.spawnProtectedUntil = transition.spawnProtectedUntil;
     room.respawnTimers.delete(p.id);
     io.to(room.id).emit("message", { t: "respawn", playerId: p.id, pos: sp, health: MAX_HEALTH } as S2C);
   }, delay) as unknown as number;
@@ -2765,8 +2770,10 @@ function recoverSurvivalPlayers(room: Room) {
     room.burstState.delete(playerId);
     room.reloadingPlayers.delete(playerId);
     room.adsStartedAt.delete(playerId);
-    const pos = pickSpawn(p.team, room);
-    p.pos = pos; p.health = MAX_HEALTH; p.alive = true;
+    const transition=resolveRespawnState({
+      position:pickSpawn(p.team,room),maxHealth:MAX_HEALTH,now:Date.now(),spawnProtectionMs:0,
+    });
+    p.pos=transition.position;p.health=transition.health;p.alive=transition.alive;
     applyQueuedLoadout(room, p);
     p.weaponId = room.loadouts.get(p.id)?.weaponId ?? "rifle_ar";
     refillPlayerWonderAmmo(room, p);
@@ -3158,7 +3165,11 @@ function tickRoomSimulation(room: Room) {
       // fresh round anchor rather than clustering around stale combat positions.
       for(const c of actors)c.alive=false;
       for(const c of actors){
-        c.pos=pickSpawn(c.team,room);c.alive=true;c.health=MAX_HEALTH;c.spawnProtectedUntil=now+1800;
+        const transition=resolveRespawnState({
+          position:pickSpawn(c.team,room),maxHealth:MAX_HEALTH,now,spawnProtectionMs:1800,
+        });
+        c.pos=transition.position;c.alive=transition.alive;c.health=transition.health;
+        c.spawnProtectedUntil=transition.spawnProtectedUntil;
         // Survivors also need a respawn event: otherwise their predicted local
         // position stays at the previous round's final location.
         if(!c.isBot)io.to(c.id).emit("message",{
