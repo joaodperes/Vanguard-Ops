@@ -118,6 +118,7 @@ import { frontierWeaponIdAllowed, frontierReserveAmmo, searchDestroySitesForMap,
 import { isFlagDefenseKill, largestScoreDeficit } from "./match-bonus-tracking";
 import { advanceIncrementalReload } from "./incremental-reload";
 import { botReloadDurationMs, incrementalReloadStepMs, shouldBotSmartReload, weaponReloadDurationMs } from "./weapon-reload-rules";
+import { weaponFireIntervalMs, weaponShotReady } from "./weapon-fire-rules";
 import { shotSpread, shotBloomIncrease, recoilKickRadians, sustainedRecoilMultiplier, firingMotionFactor, spreadShotDirection } from "./weapon-accuracy";
 import { shotgunPelletDirection, shotgunConeRadians } from "./shotgun-pattern";
 import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty, survivalPrepSeconds, type SurvivalTier } from "./survival";
@@ -11925,9 +11926,9 @@ export class FPSEngine {
       const now = performance.now();
       // Fan Hammer uses the right trigger for held rapid-fire; left remains semi-auto.
       if(fanHammerActive && fanHammerTrigger){
-        const fanGap=1000/FAN_HAMMER_FIRE_RATE;
+        const fanGap=weaponFireIntervalMs(FAN_HAMMER_FIRE_RATE);
         if(this.ammoInMag<=0&&!this.reloading){this.sound.play("empty_click",{volume:.36});this.startReload();}
-        else if(this.ammoInMag>0 && now-this.lastShotAt>=fanGap*.88 && !this.reloading && !this.sprinting && this.alive && !this.matchEnded)
+        else if(this.ammoInMag>0 && weaponShotReady(now,this.lastShotAt,fanGap,.88) && !this.reloading && !this.sprinting && this.alive && !this.matchEnded)
           this.fireOneShot(w,undefined,true);
       }
       // Semi-auto and burst weapons used to skip fireOneShot at zero ammo.
@@ -11952,7 +11953,7 @@ export class FPSEngine {
           this.burstNextAt = now + burstShotIntervalMs(this.eff.fireRate, w.category);
         } else {
           // Burst complete — enforce a longer inter-burst delay (the weapon's stated fireRate).
-          this.burstEndsAt = now + 1000 / Math.max(1, this.eff.fireRate);
+          this.burstEndsAt = now + weaponFireIntervalMs(this.eff.fireRate);
         }
       }
       // ---- Decide whether to START a new shot / burst ----
@@ -11962,11 +11963,11 @@ export class FPSEngine {
         const isSemi = !isAuto && !isBurst;
         if(fanHammerActive){
           // The left trigger stays semiautomatic while the right trigger fans.
-          if((this.mousePressedThisFrame||this.touchPressedThisFrame)&&this.ammoInMag>0&&now-this.lastShotAt>1000/Math.max(1,this.eff.fireRate)*.9)
+          if((this.mousePressedThisFrame||this.touchPressedThisFrame)&&this.ammoInMag>0&&weaponShotReady(now,this.lastShotAt,weaponFireIntervalMs(this.eff.fireRate),.9))
             this.fireOneShot(w);
         } else if (isAuto) {
           // Full-auto: fire continuously while trigger is held, gated by fireRate.
-          if (now - this.lastShotAt > 1000 / Math.max(1, this.eff.fireRate) * 0.9) {
+          if (weaponShotReady(now,this.lastShotAt,weaponFireIntervalMs(this.eff.fireRate),.9)) {
             this.fireOneShot(w);
           }
         } else if (isBurst) {
@@ -11982,8 +11983,9 @@ export class FPSEngine {
           const singleBolt = w.special?.kind === "bolt" &&
             crossbowReloadControlsCadence(this.eff.magSize);
           const ready = singleBolt ||
-            now-this.lastShotAt > 1000/Math.max(w.special?.kind==="bolt" ? .1 : 1,this.eff.fireRate) *
-              (w.special?.kind==="bolt" ? 1 : .9);
+            weaponShotReady(now,this.lastShotAt,
+              weaponFireIntervalMs(this.eff.fireRate,w.special?.kind==="bolt" ? .1 : 1),
+              w.special?.kind==="bolt" ? 1 : .9);
           if(w.wonder?.kind==="rail"){
             // Railgun must be deliberately charged by holding fire. No accidental instant shot.
             if(this.ammoInMag<=0||this.reloading){
