@@ -331,9 +331,11 @@ export function buildFirstPersonWeapon(
   // polymer/metal palette used by modern sidearms. Keep this local so other
   // weapons and shared engine materials are not mutated.
   const bastion = id === "pistol_bastion";
-  const bastionSteel = new THREE.MeshStandardMaterial({ color: 0x45443f, roughness: 0.58, metalness: 0.82 });
-  const bastionDarkSteel = new THREE.MeshStandardMaterial({ color: 0x292a28, roughness: 0.68, metalness: 0.76 });
-  const bastionWornSteel = new THREE.MeshStandardMaterial({ color: 0x827b6b, roughness: 0.48, metalness: 0.86 });
+  // Use a visibly grey, matte gunmetal base. High metalness + very dark colour
+  // made the previous finish read as glossy black/obsidian rather than steel.
+  const bastionSteel = new THREE.MeshStandardMaterial({ color: 0x5b5a53, roughness: 0.82, metalness: 0.58 });
+  const bastionDarkSteel = new THREE.MeshStandardMaterial({ color: 0x3b3b36, roughness: 0.86, metalness: 0.48 });
+  const bastionWornSteel = new THREE.MeshStandardMaterial({ color: 0x85847a, roughness: 0.76, metalness: 0.62 });
   const sig = fullSkinMaterial ?? signatureMaterial ?? (bastion ? bastionDarkSteel : new THREE.MeshBasicMaterial({ color: p.signature }));
   const metal = fullSkinMaterial ?? (bastion ? bastionSteel : new THREE.MeshBasicMaterial({ color: 0x29313b }));
   const edge = fullSkinMaterial ?? (bastion ? bastionWornSteel : new THREE.MeshBasicMaterial({ color: 0x69737e }));
