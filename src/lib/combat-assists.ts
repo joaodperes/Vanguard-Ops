@@ -12,3 +12,22 @@ export function countEligibleAssists(
     id!==killerId&&c.team===killerTeam&&c.damage>=15&&now-c.at<=10000
   ).map(([id])=>id);
 }
+
+
+export interface DamageContributionState { damage:number; at:number }
+
+/** Accumulate damage against one victim using the shared 10-second window. */
+export function accumulateDamageContribution(
+  previous:DamageContributionState|undefined,damage:number,victimHealth:number,now:number,
+):DamageContributionState {
+  const recent=previous&&now-previous.at<10000?previous.damage:0;
+  const applied=Math.max(0,Math.min(Number.isFinite(damage)?damage:0,Math.max(0,Number.isFinite(victimHealth)?victimHealth:0)));
+  return {damage:recent+applied,at:now};
+}
+
+/** Shared minimum-damage and recency test for a potential teammate assist. */
+export function isAssistContributionEligible(
+  contribution:DamageContributionState,now:number,
+):boolean {
+  return contribution.damage>=15&&now-contribution.at<=10000;
+}
