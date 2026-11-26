@@ -38,11 +38,11 @@ describe("Forest Warfare and Breakwater route-design PoCs",()=>{
   });
 
   test("Forest tree-deck collision covers the central playable disk",()=>{
-    for(let x=-12;x<=12;x+=.5)for(let z=-12;z<=12;z+=.5){
+    for(const centreX of [-94,94])for(let x=-12;x<=12;x+=.5)for(let z=-12;z<=12;z+=.5){
       if(x*x+z*z>12*12)continue;
       expect(FOREST_TREE_DECKS.some(box=>
-        Math.abs(x-box.pos[0])<=box.size[0]&&Math.abs(z-box.pos[2])<=box.size[2]
-      ),`unsupported treetop point ${x},${z}`).toBe(true);
+        Math.abs(centreX+x-box.pos[0])<=box.size[0]&&Math.abs(z-box.pos[2])<=box.size[2]
+      ),`unsupported treetop point ${centreX+x},${z}`).toBe(true);
     }
   });
 
