@@ -714,7 +714,14 @@ export function buildFirstPersonWeapon(
   }
   if (p.features.includes("brake")) {
     tube(0,0,muzzle+.005,p.bore*2,.12,metal,12);
-    for(let i=0;i<3;i++) box(w*.04,.030,muzzle-.04+i*.028,.095,.009,.01,edge);
+    // Brake ports are side-mounted instead of decorative top plates. The old
+    // raised plates sat in the ADS sightline on compact pistols (notably the
+    // Burst Pistol) and could also obstruct low-mounted optics on rifles.
+    for (const side of [-1,1]) {
+      for (const zOffset of [-.025,.020]) {
+        box(side*p.bore*1.72,.006,muzzle+zOffset,.012,.024,.026,edge);
+      }
+    }
   }
   if (p.features.includes("muzzle")) tube(0,0,muzzle+.015,p.bore*1.45,.075,sig,14);
   if (p.features.includes("shield")) box(0,.075,guardZ,.19,.085,p.guardLength*.72,bodyMat);
