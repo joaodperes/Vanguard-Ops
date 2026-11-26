@@ -13558,8 +13558,13 @@ export class FPSEngine {
       const orderGoal=squadIntent({self:c,allies:[...this.combatants.values(),{id:this.selfId,team:this.opts.team,pos:[this.pos.x,this.pos.y,this.pos.z] as Vec3,alive:this.alive,health:this.health}],mode:this.opts.mode,now,critical:this.opts.mode==="ctf"&&(!!this.ctfFlags.red.carrierId||!!this.ctfFlags.blue.carrierId||ai.ctfGuarding)});
       if(orderGoal){ai.wanderTarget=[...orderGoal.goal];ai.highGroundPatrol=null;}
       const patrolGoal=ai.highGroundPatrol;
-      const patrolPoint=patrolGoal?cityHighGroundStep(c.pos,patrolGoal,
-        this.coverNear(c.pos[0],c.pos[2],35)):ai.wanderTarget;
+      const scavengerDrop=this.opts.mode==="frontier"&&weaponById(c.weaponId).category==="melee"&&(ai.secondaryAmmoInMag??0)<=0
+        ?[...this.droppedWeaponMeshes.entries()].map(([id,mesh])=>({id,mesh,distance:Math.hypot(c.pos[0]-mesh.position.x,c.pos[2]-mesh.position.z)}))
+          .filter(item=>item.distance<=35).sort((x,y)=>x.distance-y.distance)[0]
+        :undefined;
+      const scavengerPoint=scavengerDrop?[scavengerDrop.mesh.position.x,scavengerDrop.mesh.position.y,scavengerDrop.mesh.position.z] as Vec3:undefined;
+      const patrolPoint=scavengerPoint??(patrolGoal?cityHighGroundStep(c.pos,patrolGoal,
+        this.coverNear(c.pos[0],c.pos[2],35)):ai.wanderTarget);
       const navPoint=botMapRouteGoal(this.map.id,c.pos,patrolPoint);
       const dx=navPoint[0]-c.pos[0],dz=navPoint[2]-c.pos[2];
       const d=Math.hypot(dx,dz);
