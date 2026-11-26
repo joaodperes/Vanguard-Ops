@@ -13,7 +13,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
-    "test:smoke": "bun test tests/catalog-contract.test.ts tests/content-catalogs.test.ts tests/dustwater-geometry.test.ts tests/frontier-rules.test.ts tests/combat-damage-rules.test.ts tests/bot-combat-rules.test.ts",
+    "test:smoke": "bun test tests/catalog-contract.test.ts tests/content-catalogs.test.ts tests/dustwater-geometry.test.ts tests/frontier-rules.test.ts tests/combat-damage-rules.test.ts tests/combat-assists.test.ts tests/bot-combat-rules.test.ts",
     "perf:benchmark": "bun scripts/benchmark-performance.ts",
     "typecheck": "tsc --noEmit",
     "db:setup": "prisma generate && prisma db push",
