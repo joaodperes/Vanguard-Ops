@@ -442,7 +442,7 @@ export function cityBuildingBoxes(p:MapProp):CoverBox[]{
     // Move the external flight beyond the wall's collision envelope so its
     // entrance and treads are reachable from the street.
     const side=p.stairSide==="east"?1:-1;
-    const stairX=side*(w/2+2.35),count=Math.ceil(h/.39);
+    const stairX=side*(w/2+1.67),count=Math.ceil(h/.39);
     const tread=(d-5.2)/count,crest=-d/2+3.2;
     for(let i=0;i<count;i++){
       const height=h*(i+1)/count,z=crest+(count-1-i)*tread;
