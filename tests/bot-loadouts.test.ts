@@ -20,6 +20,19 @@ describe("Frontier combat fallbacks", () => {
     expect(client).toContain('this.opts.mode==="frontier" && ai.ammoInMag<=0');
     expect(client).toContain('const melee=this.opts.loadout.meleeWeaponId??"knife_tactical"');
   });
+  test("Frontier deaths drop the active firearm and nearby players can replace its slot", () => {
+    const server=readFileSync(new URL("../src/lib/game-server.ts",import.meta.url),"utf8");
+    const protocol=readFileSync(new URL("../src/lib/game-protocol.ts",import.meta.url),"utf8");
+    const engine=readFileSync(new URL("../src/lib/fps-engine.ts",import.meta.url),"utf8");
+    expect(server).toContain('const slot=victim.weaponId===kit?.weaponId?"primary"');
+    expect(server).toContain('room.droppedWeapons.set(id,{id,ownerId:victim.id,weaponId:victim.weaponId');
+    expect(server).toContain('Math.hypot(p.pos[0]-drop.pos[0],p.pos[2]-drop.pos[2])>1.65');
+    expect(server).toContain('kit.secondaryWeaponId=drop.weaponId');
+    expect(server).toContain('room.frontierAmmoRemaining.set(p.id,Math.max(0,drop.ammoRemaining))');
+    expect(protocol).toContain('droppedWeapons?: {id:string;ownerId:string;weaponId:string');
+    expect(engine).toContain('this.addDroppedWeapon(drop.id,drop.weaponId,drop.pos)');
+    expect(engine).toContain('case "weaponPickup":');
+  });
   test("Frontier crossbow bots recover their own nearby dropped bolts", () => {
     const server=readFileSync(new URL("../src/lib/game-server.ts",import.meta.url),"utf8");
     expect(server).toContain('weaponById(bot.weaponId).special?.kind==="bolt"');
