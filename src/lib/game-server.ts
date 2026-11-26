@@ -5322,11 +5322,9 @@ async function handle(socket: any, msg: C2S) {
         room.frontierAmmoRemaining.set(socket.id,Math.max(0,drop.ammoRemaining));
       }
       if(drop.weaponId==="crossbow_reclaimer"){
-
+        // A scavenged crossbow starts ready instead of inheriting an old cooldown.
         room.boltReadyAt.delete(socket.id);
-
         room.boltCharges.set(socket.id,0);
-
       }
 
       room.droppedWeapons.delete(drop.id);
