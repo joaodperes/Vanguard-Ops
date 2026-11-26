@@ -7352,7 +7352,7 @@ export class FPSEngine {
         this.teamScores = msg.teamScores;
         if(msg.hardpoint){
           const previous=this.hardpointState,next=msg.hardpoint;
-          if(previous&&previous.owner!==next.owner&&next.owner!=="neutral"){
+          if(previous&&previous.owner!==next.owner){
             this.sound.play("objective_assigned",{volume:0.72,throttleMs:700});
           }
           if(previous?.phase==="active"&&next.phase==="transition"){
