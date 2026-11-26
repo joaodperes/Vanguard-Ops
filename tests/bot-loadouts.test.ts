@@ -32,6 +32,9 @@ describe("Frontier combat fallbacks", () => {
     expect(protocol).toContain('droppedWeapons?: {id:string;ownerId:string;weaponId:string');
     expect(engine).toContain('this.addDroppedWeapon(drop.id,drop.weaponId,drop.pos)');
     expect(engine).toContain('case "weaponPickup":');
+    expect(server).toContain('as S2C);\n           break;\n         }\n       }' );
+    expect(engine).toContain("this.opts.loadout.secondaryWeaponId=msg.weaponId");
+    expect(engine).toContain("this.frontierAmmoRemaining=msg.ammoRemaining");
   });
   test("Frontier crossbow bots recover their own nearby dropped bolts", () => {
     const server=readFileSync(new URL("../src/lib/game-server.ts",import.meta.url),"utf8");
