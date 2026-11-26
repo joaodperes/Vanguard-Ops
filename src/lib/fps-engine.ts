@@ -171,7 +171,7 @@ export interface LobbyState {
 
 export interface EngineOptions {
   mode: GameMode;
-  gungamePreset?: "all" | "cqc" | "long_range";
+  gungamePreset?: "all" | "cqc" | "long_range" | "assault" | "smg" | "shotgun" | "dmr" | "sniper" | "lmg";
   gungameMultiplier?: number;
   botCount: number;
   online: boolean;
