@@ -4,6 +4,7 @@ import { io as ioClient, type Socket } from "socket.io-client";
 import { useGame } from "@/lib/game-store";
 import { waitForAttachmentSaves } from "@/lib/attachment-save-queue";
 import { displayLabel, displayMapLabel, weaponCategoryLabel } from "@/lib/display-labels";
+import { TEAM_IDENTITIES } from "@/lib/team-identity";
 import { resolveGameServerConnection } from "@/lib/game-network";
 import { MAP_FOOTPRINT, type MapPace } from "@/lib/map-footprint";
 import { MAP_BLUEPRINTS } from "@/lib/map-blueprints";
@@ -568,7 +569,7 @@ export function Play() {
                       ? "Total combatants in the match (no teams)"
                       : roomConfig.mode === "survival"
                       ? "" //Play solo or as a duo; duo waves spawn 1.75× as many enemies
-                      : "Players per team · red vs blue"
+                      : "Players per team · Alpha vs Bravo"
                   }
                 >
                   {roomConfig.mode === "survival" ? (
@@ -874,8 +875,8 @@ function RoomBrowser({
           {pending?.needsTeam && (
             <div className="grid grid-cols-3 gap-2">
               {([
-                { id: "red" as const, label: "Red Team", color: "#ef4444", desc: "Crimson squad" },
-                { id: "blue" as const, label: "Blue Team", color: "#06b6d4", desc: "Cyan squad" },
+                { id: "red" as const, label: TEAM_IDENTITIES.red.label, color: TEAM_IDENTITIES.red.hex, desc: "Alpha squad" },
+                { id: "blue" as const, label: TEAM_IDENTITIES.blue.label, color: TEAM_IDENTITIES.blue.hex, desc: "Bravo squad" },
                 { id: "auto" as const, label: "Auto", color: "#facc15", desc: "Balanced pick" },
               ]).map((t) => {
                 const sel = teamChoice === t.id;
