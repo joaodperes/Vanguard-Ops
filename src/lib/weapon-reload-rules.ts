@@ -50,3 +50,16 @@ export function weaponReloadDurationMs(
     (modifiers.survivalMultiplier ?? 1) *
     (modifiers.akimboSingleHand ? 0.72 : 1);
 }
+
+/** Shared low-ammo reload decision for offline and authoritative AI. */
+export function shouldBotSmartReload(
+  ammoInMag: number,
+  magazineSize: number,
+  enemyVisible: boolean,
+  skill: number,
+  canReload: boolean,
+  randomRoll: number,
+): boolean {
+  const lowAmmo = ammoInMag <= Math.max(1, Math.floor(magazineSize * 0.3));
+  return lowAmmo && !enemyVisible && skill > 0.4 && canReload && randomRoll < 0.02;
+}
