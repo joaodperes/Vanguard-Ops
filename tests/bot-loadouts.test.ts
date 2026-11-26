@@ -24,6 +24,9 @@ describe("Frontier combat fallbacks", () => {
     const server=readFileSync(new URL("../src/lib/game-server.ts",import.meta.url),"utf8");
     expect(server).toContain('weaponById(bot.weaponId).special?.kind==="bolt"');
     expect(server).toContain('bolt.ownerId!==bot.id');
+    expect(server).toContain('const boltIsPrimary=bot.loadout.weaponId==="crossbow_reclaimer"');
+    expect(server).toContain('const boltIsSecondary=bot.loadout.secondaryWeaponId==="crossbow_reclaimer"');
+    expect(server).toContain('else ai.secondaryAmmoInMag=Math.min(capacity,(ai.secondaryAmmoInMag??0)+1)');
     expect(server).toContain('ai.ammoInMag=Math.min(boltWeapon.stats.magSize,ai.ammoInMag+1)');
     expect(server).toContain('{t:"boltRemoved",id:bolt.id}');
   });
