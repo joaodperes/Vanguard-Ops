@@ -220,7 +220,7 @@ export function Play() {
       mode,
       mapId: selectedMap,
       teamSize,
-      fillWithBots: mode === "survival" ? false : mode === "frontier" ? true : roomConfig.fillWithBots,
+      fillWithBots: mode === "survival" ? false : roomConfig.fillWithBots,
       password: roomConfig.password.trim() ? roomConfig.password.trim() : null,
       roomName: roomConfig.roomName.trim() || undefined,
       botDifficulty: roomConfig.botDifficulty,
@@ -343,7 +343,7 @@ export function Play() {
                   <p className="text-xs text-white/50 mb-3">Choose a mode, then create a room with your preferred settings or browse active rooms.</p>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {(["ffa", "tdm", "killconfirmed", "ctf", "survival", "gungame", "searchdestroy", "hardpoint", "frontier"] as GameMode[]).map((m) => (
-                      <ModePickCard key={m} mode={m} selected={roomConfig.mode === m} onSelect={(mode) => setRoomConfig({ mode, fillWithBots: mode === "frontier" ? true : roomConfig.fillWithBots, mapId: mapAllowedForMode(mode,roomConfig.mapId)?roomConfig.mapId:mode==="ctf"?"forest_warfare":mode==="searchdestroy"||mode==="hardpoint"||mode==="frontier"?"dustwater":"compound", scoreLimit: MATCH_MODES[mode].defaultScoreLimit, timeLimit: MATCH_MODES[mode].defaultTimeLimit * 60, searchDestroyRoundTimeSeconds: 120, searchDestroyRoundsToWin: 6 })} />
+                      <ModePickCard key={m} mode={m} selected={roomConfig.mode === m} onSelect={(mode) => setRoomConfig({ mode, fillWithBots: roomConfig.fillWithBots, mapId: mapAllowedForMode(mode,roomConfig.mapId)?roomConfig.mapId:mode==="ctf"?"forest_warfare":mode==="searchdestroy"||mode==="hardpoint"||mode==="frontier"?"dustwater":"compound", scoreLimit: MATCH_MODES[mode].defaultScoreLimit, timeLimit: MATCH_MODES[mode].defaultTimeLimit * 60, searchDestroyRoundTimeSeconds: 120, searchDestroyRoundsToWin: 6 })} />
                     ))}
                   </div>
 
@@ -632,9 +632,9 @@ export function Play() {
                 </Section>
                 {/* Bot difficulty (FFA / TDM / Gun Game only — survival scales per wave) */}
                 {roomConfig.mode !== "survival" && (
-                  <Section icon={<Gauge className="w-4 h-4 text-rose-400" />} title={roomConfig.mode === "frontier" ? "Bot Difficulty" : "Bot Fill & Difficulty"} hint={roomConfig.mode === "frontier" ? "Frontier always fills open slots with bots. Choose their skill." : "Play without bots or choose their skill. Only active bot matches use difficulty-based rewards."}>
+                  <Section icon={<Gauge className="w-4 h-4 text-rose-400" />} title="Bot Fill & Difficulty" hint="Play without bots or choose their skill. Only active bot matches use difficulty-based rewards.">
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {BOT_DIFFICULTY_OPTIONS.filter(d => roomConfig.mode !== "frontier" || d.id !== "none").map((d) => {
+                      {BOT_DIFFICULTY_OPTIONS.map((d) => {
                         const selected = d.id === "none" ? !roomConfig.fillWithBots : roomConfig.fillWithBots && roomConfig.botDifficulty === d.id;
                         return (
                           <button
