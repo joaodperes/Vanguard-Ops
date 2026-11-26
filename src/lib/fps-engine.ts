@@ -2917,15 +2917,27 @@ export class FPSEngine {
           const tx=w*.22,tz=0;
           const towerStone=new THREE.MeshStandardMaterial({color:0x9c8873,roughness:.88});
           const spireMat=new THREE.MeshStandardMaterial({color:0x57483d,roughness:.9});
-          const spire=new THREE.Mesh(new THREE.ConeGeometry(2.65,3.1,4),spireMat);
-          spire.position.set(tx,h+4.15,tz);spire.rotation.y=Math.PI/4;spire.castShadow=true;group.add(spire);
+          // The church tower is an extra storey with an open vertical shaft.
           for(const side of [-1,1]){
-            cube(group,towerStone,tx+side*1.85,h+1.55,tz,.28,3.1,.28);
-            cube(group,towerStone,tx,h+1.55,tz+side*1.85,3.7,3.1,.28);
+            cube(group,towerStone,tx+side*1.85,h+4.4,tz,.28,8.8,.28);
+            cube(group,towerStone,tx,h+4.4,tz+side*1.85,3.7,8.8,.28);
           }
-          cube(group,towerStone,tx,h+3.0,tz,4.2,.28,4.2);
-          cube(group,trim,tx,h+5.95,tz,.22,1.15,.22);
-          cube(group,trim,tx,h+6.15,tz,.9,.18,.22);
+          // Mid-tower landing is a ring, leaving a 2m square aperture for the ladder.
+          const slabY=h+3.0;
+          cube(group,towerStone,tx-1.55,slabY,tz,1.1,.28,4.2);
+          cube(group,towerStone,tx+1.55,slabY,tz,1.1,.28,4.2);
+          cube(group,towerStone,tx,slabY,tz-1.55,2.0,.28,1.1);
+          cube(group,towerStone,tx,slabY,tz+1.55,2.0,.28,1.1);
+          // Visible timber ladder matches the narrow climbable collision treads.
+          const ladderBase=h,ladderHeight=8.8;
+          for(const side of [-1,1])
+            cube(group,wood,tx+side*.56,ladderBase+ladderHeight/2,tz,.12,ladderHeight,.12);
+          for(let rung=0;rung<=20;rung++)
+            cube(group,wood,tx,ladderBase+.35+rung*.42,tz,1.12,.09,.12);
+          const spire=new THREE.Mesh(new THREE.ConeGeometry(2.65,3.1,4),spireMat);
+          spire.position.set(tx,h+10.45,tz);spire.rotation.y=Math.PI/4;spire.castShadow=true;group.add(spire);
+          cube(group,trim,tx,h+11.85,tz,.22,1.15,.22);
+          cube(group,trim,tx,h+12.05,tz,.9,.18,.22);
         }
       }else if(p.kind==="dock"){
         const timber=new THREE.MeshStandardMaterial({color:0xa87b52,roughness:.9});

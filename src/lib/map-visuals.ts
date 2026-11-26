@@ -353,8 +353,8 @@ export function cityHasUsableInteriorStairs(p:MapProp):boolean{
  */
 export function cityFixtureMaterial(style:CityFixtureStyle):
   "thin_wood"|"light_cover"|"reinforced" {
-  if(style==="partition"||style==="plant"||style==="sofa"||style==="reception"||
-     style==="display"||style==="exam_bed")return "light_cover";
+  // Ordinary interior decoration is timber and can be destroyed; heavy machinery
+  // remains reinforced. This keeps the same material contract in solo and online play.
   if(["oven","server_rack","treadmill","locker","espresso"].includes(style))return "reinforced";
   return "thin_wood";
 }
@@ -400,43 +400,72 @@ export function cityBuildingBoxes(p:MapProp):CoverBox[]{
     put(0,h/2,-d/2,w/2,h/2,wall);
     put(-w/2,h/2,0,wall,h/2,d/2);
     put(w/2,h/2,0,wall,h/2,d/2);
-    put(-(w+door)/4,h/2,d/2,front/2,h/2,wall);
-    put((w+door)/4,h/2,d/2,front/2,h/2,wall);
-    put(0,(h+2.5)/2,d/2,door/2,(h-2.5)/2,wall);
-    if(cityHasUsableInteriorStairs(p)){
-    // Four real slab sections frame the working internal hatch.
-    const hatchX=w/2-2.8,hatchZ=-d/2+3.4,hatchW=3.6,hatchD=5.2;
-    const ax=hatchX-hatchW/2,bx=hatchX+hatchW/2;
-    const az=hatchZ-hatchD/2,bz=hatchZ+hatchD/2;
-    put((-w/2+ax)/2,h+.16,0,(ax+w/2)/2,.16,d/2,"platform");
-    put((bx+w/2)/2,h+.16,0,(w/2-bx)/2,.16,d/2,"platform");
-    put((ax+bx)/2,h+.16,(-d/2+az)/2,(bx-ax)/2,.16,(az+d/2)/2,"platform");
-    put((ax+bx)/2,h+.16,(bz+d/2)/2,(bx-ax)/2,.16,(d/2-bz)/2,"platform");
-    // Interior flight occupies its own east-side aisle, climbs toward
-    // the back and terminates INSIDE the roof aperture.
-    const count=Math.ceil(h/.39),stairRise=h+.32,tread=(d-5.2)/count;
-    const crest=-d/2+3.2;
-    for(let i=0;i<count;i++){
-      const height=stairRise*(i+1)/count,z=crest+(count-1-i)*tread;
-      put(hatchX,height/2,z,1.15,height/2+.001,tread/2+.015,"stair");
+
+    // Keep the street entrance and add a separate entrance aligned with the
+    // interior stair aisle; otherwise the first treads sit behind a solid wall.
+    const interiorStairs=cityHasUsableInteriorStairs(p);
+    const hatchX=w/2-2.8;
+    const openings:[number,number][]=[[-door/2,door/2]];
+    if(interiorStairs)openings.push([hatchX-2.1,hatchX+2.1]);
+    openings.sort((a,b)=>a[0]-b[0]);
+    let cursor=-w/2;
+    for(const [start,end] of openings){
+      if(start>cursor+.01)put((cursor+start)/2,h/2,d/2,(start-cursor)/2,h/2,wall);
+      if(h>2.5)put((start+end)/2,(h+2.5)/2,d/2,(end-start)/2,(h-2.5)/2,wall);
+      cursor=Math.max(cursor,end);
     }
-    const landingOffset=Math.max(1.2,tread/2+.65);
-    put(hatchX,h+.16,crest+landingOffset,1.8,.16,.6,"platform");
+    if(cursor<w/2-.01)put((cursor+w/2)/2,h/2,d/2,(w/2-cursor)/2,h/2,wall);
+
+    if(interiorStairs){
+      // Square roof hatch: no ceiling slab overlaps the stair exit.
+      const hatchZ=-d/2+3.8,hatchW=4.2,hatchD=4.2;
+      const ax=hatchX-hatchW/2,bx=hatchX+hatchW/2;
+      const az=hatchZ-hatchD/2,bz=hatchZ+hatchD/2;
+      put((-w/2+ax)/2,h+.16,0,(ax+w/2)/2,.16,d/2,"platform");
+      put((bx+w/2)/2,h+.16,0,(w/2-bx)/2,.16,d/2,"platform");
+      put((ax+bx)/2,h+.16,(-d/2+az)/2,(bx-ax)/2,.16,(az+d/2)/2,"platform");
+      put((ax+bx)/2,h+.16,(bz+d/2)/2,(bx-ax)/2,.16,(d/2-bz)/2,"platform");
+      const count=Math.ceil(h/.39),stairRise=h+.32,tread=(d-hatchD)/count;
+      const crest=-d/2+3.6;
+      for(let i=0;i<count;i++){
+        const height=stairRise*(i+1)/count,z=crest+(count-1-i)*tread;
+        put(hatchX,height/2,z,1.15,height/2+.001,tread/2+.015,"stair");
+      }
+      const landingOffset=Math.max(1.2,tread/2+.65);
+      put(hatchX,h+.16,crest+landingOffset,1.8,.16,.6,"platform");
     }else{
       // Sealed roof: no hatch, hidden stairs or fake fire-escape access.
       put(0,h+.16,0,w/2,.16,d/2,"platform");
     }
   }
   if(p.roofAccess??true){
-    // Fire escapes only on designated climbable buildings.
+    // Move the external flight beyond the wall's collision envelope so its
+    // entrance and treads are reachable from the street.
     const side=p.stairSide==="east"?1:-1;
-    const stairX=side*(w/2+1.65),count=Math.ceil(h/.39);
+    const stairX=side*(w/2+2.35),count=Math.ceil(h/.39);
     const tread=(d-5.2)/count,crest=-d/2+3.2;
     for(let i=0;i<count;i++){
       const height=h*(i+1)/count,z=crest+(count-1-i)*tread;
       put(stairX,height/2,z,1.25,height/2+.001,tread/2+.015,"stair");
     }
-    put(side*(w/2+.82),h+.16,crest,1.45,.16,1.5,"platform");
+    put(side*(w/2+.95),h+.16,crest,1.45,.16,1.5,"platform");
+
+    // Timber parapets protect the roof perimeter, with one opening at the
+    // external stair landing. Their ballistic IDs replicate destruction online.
+    const roofY=h+.32,parapetHalf=.55,lot=p.lotId??(p.x+":"+p.z);
+    put(0,roofY+parapetHalf,-d/2,w/2,parapetHalf,.18,"cover","thin_wood",`city:roof-parapet:${lot}:north`);
+    put(0,roofY+parapetHalf,d/2,w/2,parapetHalf,.18,"cover","thin_wood",`city:roof-parapet:${lot}:south`);
+    for(const sideSign of [-1,1]){
+      const intervals:[number,number][]=sideSign===side
+        ?[[-d/2,crest-1.8],[crest+1.8,d/2]]
+        :[[-d/2,d/2]];
+      for(let i=0;i<intervals.length;i++){
+        const [start,end]=intervals[i],length=end-start;
+        if(length<=.1)continue;
+        put(sideSign*w/2,roofY+parapetHalf,(start+end)/2,.18,parapetHalf,length/2,
+          "cover","thin_wood",`city:roof-parapet:${lot}:side-${sideSign}:${i}`);
+      }
+    }
   }
   for(const [index,fixture] of cityInteriorFixtures({...p,w,d}).entries()){
     const material=cityFixtureMaterial(fixture.style);
