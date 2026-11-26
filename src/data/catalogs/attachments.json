@@ -809,7 +809,7 @@
   {
     "id": "mag_slug",
     "name": "Slug Rounds",
-    "description": "One accurate heavy projectile for deliberate mid-range engagements. No shotgun pellet spread.",
+    "description": "One accurate, heavy projectile for deliberate mid-range engagements. Higher slug impact damage, extended range and minimal spread.",
     "slot": "magazine",
     "unlockLevel": 16,
     "unlockCost": 500,
@@ -825,7 +825,7 @@
   {
     "id": "mag_pellets",
     "name": "Buckshot Swarm",
-    "description": "Fourteen widely scattered pellets: high point-blank impact, rapidly loses effectiveness with distance.",
+    "description": "Fourteen widely scattered pellets: high point-blank impact, rapidly loses effectiveness with distance. Slightly reduced pellet damage to keep the larger pattern in check.",
     "slot": "magazine",
     "unlockLevel": 12,
     "unlockCost": 420,
