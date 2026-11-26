@@ -12758,7 +12758,7 @@ export class FPSEngine {
       const otherAmmo=ai.secondaryAmmoInMag??0;
       if(otherId && otherAmmo>0){
         const old=ai.ammoInMag;ai.ammoInMag=otherAmmo;
-        if(currentIsPrimary)ai.secondaryAmmoInMag=old;else ai.primaryAmmoInMag=old;
+        ai.secondaryAmmoInMag=old;
         c.weaponId=otherId;ai.attachments=botActiveAttachments(ai.primaryWeaponId??otherId,otherId,
           ai.primaryAttachments??emptyBotAttachments(),ai.secondaryWeaponId,ai.secondaryAttachments);
         ai.nextWeaponSwitchAt=now+500;
