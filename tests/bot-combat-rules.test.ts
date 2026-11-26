@@ -130,7 +130,7 @@ describe("shared Frontier loadout drop rules", () => {
 
 describe("shared bot reload timing", () => {
   test("uses the same incremental shell interval in both simulations", () => {
-    expect(incrementalReloadStepMs(0.42, 2.4, 6, 2.4)).toBeCloseTo(420);
+    expect(Math.abs(incrementalReloadStepMs(0.42, 2.4, 6, 2.4) - 420)).toBeLessThan(1e-9);
     expect(incrementalReloadStepMs(undefined, 2.4, 6, 2.4)).toBeCloseTo(400);
   });
 
