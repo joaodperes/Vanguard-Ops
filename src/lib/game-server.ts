@@ -5292,14 +5292,17 @@ async function handle(socket: any, msg: C2S) {
       if(!player?.alive||!drop||Date.now()>=drop.expiresAt||
         Math.hypot(player.pos[0]-drop.pos[0],player.pos[2]-drop.pos[2])>2.25)return;
       const kit=room.loadouts.get(socket.id);if(!kit)return;
+      const previousSlotWeapon=drop.slot==="primary"?kit.weaponId:(kit.secondaryWeaponId??"pistol_side");
+      const wasHoldingSlot=player.weaponId===previousSlotWeapon;
       if(drop.slot==="primary"){
         kit.weaponId=drop.weaponId;kit.weaponSkinId=drop.skinId;kit.attachments={...drop.attachments};kit.emptyPrimary=false;
-        if(player.weaponId===kit.weaponId){player.weaponId=drop.weaponId;player.weaponSkinId=drop.skinId;}
       }else{
         kit.secondaryWeaponId=drop.weaponId;kit.secondaryWeaponSkinId=drop.skinId;kit.secondaryAttachments={...drop.attachments};
       }
-      room.frontierAmmoRemaining??=new Map();
-      room.frontierAmmoRemaining.set(socket.id,Math.max(0,drop.ammoRemaining));
+      if(wasHoldingSlot){player.weaponId=drop.weaponId;player.weaponSkinId=drop.skinId;
+        room.frontierAmmoRemaining??=new Map();
+        room.frontierAmmoRemaining.set(socket.id,Math.max(0,drop.ammoRemaining));
+      }
       room.droppedWeapons.delete(drop.id);
       io.to(room.id).emit("message",{t:"weaponPickup",id:drop.id,playerId:socket.id,weaponId:drop.weaponId,slot:drop.slot,skinId:drop.skinId,attachments:drop.attachments,ammoRemaining:drop.ammoRemaining} as S2C);
       break;
