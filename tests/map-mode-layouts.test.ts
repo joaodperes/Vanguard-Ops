@@ -27,7 +27,7 @@ describe("mode availability and spawn capacity",()=>{
   for(const id of ["forest_warfare","orbital_nexus","floodgate","whiteout_depot"]){expect(mapAllowedForMode("ffa",id)).toBe(false);expect(mapAllowedForMode("survival",id)).toBe(false);}
   expect(MAP_LIST.filter(m=>mapAllowedForMode("ctf",m.id))).toHaveLength(6);
  });
- test("Search & Destroy enables Dustwater, Verdant Ruins and Ridgefall; Hardpoint remains Dustwater-only",()=>{
+ test("Search & Destroy enables Dustwater, Verdant Ruins and Ridgefall; Hardpoint supports three authored arenas",()=>{
   const sdMaps=MAP_LIST.filter(map=>mapAllowedForMode("searchdestroy",map.id)).map(map=>map.id).sort();
   expect(sdMaps).toEqual(["compound","dustwater","skybridge"]);
   for(const id of ["compound","skybridge"]){
@@ -39,7 +39,9 @@ describe("mode availability and spawn capacity",()=>{
     expect(sites).toHaveLength(2);
     for(const site of sites)expect(botPositionEmbedded(map.cover,site.pos)).toBe(false);
   }
-  expect(MAP_LIST.filter(map=>mapAllowedForMode("hardpoint",map.id)).map(map=>map.id).sort()).toEqual(["bunker","dustwater","floodgate"]);
+  expect(MAP_LIST.filter(map=>mapAllowedForMode("hardpoint",map.id)).map(map=>map.id).sort()).toEqual(["dustwater","floodgate","whiteout_depot"]);
+  expect(mapAllowedForMode("hardpoint","whiteout_depot")).toBe(true);
+  expect(mapAllowedForMode("hardpoint","bunker")).toBe(false);
   const sites=searchDestroySitesForMap("dustwater",getMap("dustwater").size);
   expect(sites.map(site=>site.id)).toEqual(["A","B"]);
   expect(sites[1].pos).toEqual([36,0,-40]);
