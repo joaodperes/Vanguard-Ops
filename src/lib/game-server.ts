@@ -4954,29 +4954,7 @@ async function handle(socket: any, msg: C2S) {
          at:moveNow,
        });
        p.pos=next;
-       if(room.mode==="frontier"){
-         const now=Date.now();
-         for(const [id,drop] of room.droppedWeapons){
-           if(now>=drop.expiresAt){room.droppedWeapons.delete(id);continue;}
-           if(Math.hypot(p.pos[0]-drop.pos[0],p.pos[2]-drop.pos[2])>1.65)continue;
-           const kit=room.loadouts.get(p.id);if(!kit)continue;
-           const slot=drop.slot;
-           const previousSlotWeapon=slot==="primary"?kit.weaponId:(kit.secondaryWeaponId??"pistol_side");
-           const wasHoldingSlot=p.weaponId===previousSlotWeapon;
-           if(slot==="primary"){
-             kit.weaponId=drop.weaponId;kit.weaponSkinId=drop.skinId;kit.attachments={...drop.attachments};
-             kit.emptyPrimary=false;
-           }else{
-             kit.secondaryWeaponId=drop.weaponId;kit.secondaryWeaponSkinId=drop.skinId;kit.secondaryAttachments={...drop.attachments};
-           }
-           if(wasHoldingSlot){p.weaponId=drop.weaponId;p.weaponSkinId=drop.skinId;}
-           room.frontierAmmoRemaining??=new Map();
-           room.frontierAmmoRemaining.set(p.id,Math.max(0,drop.ammoRemaining));
-           room.droppedWeapons.delete(id);
-           io.to(room.id).emit("message",{t:"weaponPickup",id,playerId:p.id,weaponId:drop.weaponId,slot,skinId:drop.skinId,attachments:drop.attachments,ammoRemaining:drop.ammoRemaining} as S2C);
-           break;
-         }
-       }
+
        if (!room.ended && room.preMatchCountdown <= 0 && lavaAt(room.map.environment, next)) {
          applyDamage(room, "world", p, p.health, false, LAVA_DEATH_SOURCE);
          break;
@@ -5305,6 +5283,25 @@ async function handle(socket: any, msg: C2S) {
       }
       room.reloadingPlayers.set(socket.id,Date.now()+Math.max(0,reloadMs));
       io.to(room.id).emit("message", { t: "reloadFx", playerId: socket.id } as S2C);
+      break;
+    }
+    case "pickupWeapon": {
+      const room=rooms.get(socketToRoom.get(socket.id)??"");
+      if(!room||room.mode!=="frontier"||room.state!=="playing")return;
+      const player=room.players.get(socket.id),drop=room.droppedWeapons.get(msg.dropId);
+      if(!player?.alive||!drop||Date.now()>=drop.expiresAt||
+        Math.hypot(player.pos[0]-drop.pos[0],player.pos[2]-drop.pos[2])>2.25)return;
+      const kit=room.loadouts.get(socket.id);if(!kit)return;
+      if(drop.slot==="primary"){
+        kit.weaponId=drop.weaponId;kit.weaponSkinId=drop.skinId;kit.attachments={...drop.attachments};kit.emptyPrimary=false;
+        if(player.weaponId===kit.weaponId){player.weaponId=drop.weaponId;player.weaponSkinId=drop.skinId;}
+      }else{
+        kit.secondaryWeaponId=drop.weaponId;kit.secondaryWeaponSkinId=drop.skinId;kit.secondaryAttachments={...drop.attachments};
+      }
+      room.frontierAmmoRemaining??=new Map();
+      room.frontierAmmoRemaining.set(socket.id,Math.max(0,drop.ammoRemaining));
+      room.droppedWeapons.delete(drop.id);
+      io.to(room.id).emit("message",{t:"weaponPickup",id:drop.id,playerId:socket.id,weaponId:drop.weaponId,slot:drop.slot,skinId:drop.skinId,attachments:drop.attachments,ammoRemaining:drop.ammoRemaining} as S2C);
       break;
     }
     case "recoverBolt": {
