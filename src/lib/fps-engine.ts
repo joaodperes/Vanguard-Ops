@@ -4318,9 +4318,12 @@ export class FPSEngine {
     // magnified optics transition to the HUD scope overlay to keep the view clear.
     const visualWeaponId = this.viewmodelWeaponId || this.weaponId;
     const wDef = weaponById(visualWeaponId);
-    const isSniperScoped = wDef.category === "sniper" && this.adsProgress > 0.5;
     const isMagnifiedSight = this.sightDef.type === "acog" || this.sightDef.type === "hunter" ||
       this.sightDef.type === "thermal" || this.sightDef.type === "nvg" || this.sightDef.type === "sniper_scope";
+    // A sniper using iron sights must use the same close, unobstructed iron-sight
+    // framing as other weapons. The old category-only check retained the scope
+    // camera distance after the Hunting Rifle's default scope was replaced.
+    const isSniperScoped = wDef.category === "sniper" && this.adsProgress > 0.5 && isMagnifiedSight;
     const receiverHeight = (WEAPON_VISUALS[visualWeaponId]?.receiver?.[1] ?? .18)
       * (this.vmScale/FIRST_PERSON_COMPACT_SCALE);
     const clearance=adsClearance(wDef,this.sightDef.type,receiverHeight);
