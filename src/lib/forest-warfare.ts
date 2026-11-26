@@ -107,10 +107,10 @@ export const FOREST_TREE_STAIRS: CoverBox[] = ([-1,1] as const).flatMap(sign=>{
 // Fine circular collision slices closely follow the rendered 13-unit deck.
 // The previous seven broad rectangles left unsupported corners at the rim.
 export const FOREST_TREE_DECKS: CoverBox[] = ([-1,1] as const).flatMap(sign=>{
-  const x=sign*CTF_TREE_X,radius=13,slices=26,depth=radius*2/slices;
+  const x=sign*CTF_TREE_X,radius=13,slices=104,depth=radius*2/slices;
   return Array.from({length:slices},(_,i)=>{
     const z=-radius+(i+.5)*depth;
-    const halfWidth=Math.sqrt(Math.max(0,radius*radius-z*z))-.08;
+    const halfWidth=Math.sqrt(Math.max(0,radius*radius-z*z))+.05;
     return {
       pos:[x,CTF_TREE_TOP-.24,z] as Vec3,
       size:[Math.max(.2,halfWidth),.24,depth/2+.025] as Vec3,
