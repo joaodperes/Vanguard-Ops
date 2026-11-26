@@ -30,6 +30,6 @@ contracts.
 
 The repository has one GitHub Actions workflow:
 `.github/workflows/dev-validation.yml`. It runs TypeScript syntax/type validation
-and content/file-reference validation on pushes and pull requests targeting
-`dev` or `main`. The optional `bun run test:smoke` command runs the maintained
-catalog/content and focused combat-rule tests. These local tests are not CI gates.
+content/file-reference validation and `bun run test:smoke` on pushes and pull
+requests targeting `dev` or `main`. The smoke suite covers catalog/content
+contracts and reusable combat rules.
