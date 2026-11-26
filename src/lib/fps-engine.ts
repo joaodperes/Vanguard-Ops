@@ -337,7 +337,6 @@ export interface HudState {
   // blocked until stamina regens above a small threshold.
   stamina: number;
   staminaCooldownMs: number;
-  frontierDashCooldownMs?: number; // Frontier dash recharge remaining (0..3000ms)
   weaponPickupPrompt?: string;
   // Equipped weapon slot. Drives the HUD's weapon-slot indicator (1/2/3).
   weaponSlot: WeaponSlot;
@@ -1108,8 +1107,6 @@ export class FPSEngine {
   private frontierAmmoRemaining?:number;
   private modeInteractHeld=false;
   private modeInteractSentAt=0;
-  private frontierDodgeReadyAt=0;
-  private frontierDodgeUntil=0;
   private ctfFlagMeshes: Record<FlagTeam, THREE.Group> | null = null;
   private ctfNotice: { label: string; at: number } | undefined;
   private ctfCaptures = 0;
@@ -4857,7 +4854,7 @@ export class FPSEngine {
       if (code === "KeyR" && !this.mechActive) this.startReload();
       if (code === "KeyE" && !e.repeat && (this.pointerLocked||this.touchMode)) {
         if(this.opts.mode==="searchdestroy"){e.preventDefault();this.modeInteractHeld=true;}
-        else if(this.opts.mode==="frontier"){e.preventDefault();if(!this.tryPickupNearbyWeapon())this.triggerFrontierDodge();}
+        else if(this.opts.mode==="frontier"){e.preventDefault();this.tryPickupNearbyWeapon();}
         else this.enterNearbyMech();
       }
       if(code==="KeyB"&&!e.repeat&&this.opts.mode==="searchdestroy"&&
@@ -4946,13 +4943,8 @@ export class FPSEngine {
   /** Touch interaction mirrors keyboard/controller mode actions. */
   setTouchInteract(held:boolean){
     if(this.opts.mode==="searchdestroy"){this.setModeInteractHeld(held);return;}
-    if(this.opts.mode==="frontier"){if(held&&!this.tryPickupNearbyWeapon())this.triggerFrontierDodge();return;}
+    if(this.opts.mode==="frontier"){if(held)this.tryPickupNearbyWeapon();return;}
     if(held)this.touchInteract();
-  }
-  triggerFrontierDodge(){
-    const now=performance.now();if(this.opts.mode!=="frontier"||now<this.frontierDodgeReadyAt||!this.alive)return;
-    const boost=MOVEMENT.walk*1.85;this.vel.x+=Math.sin(this.yaw)*boost;this.vel.z+=Math.cos(this.yaw)*boost;
-    this.frontierDodgeUntil=now+220;this.frontierDodgeReadyAt=now+3000;
   }
   private frontierVaultAhead(){
     if(this.opts.mode!=="frontier"||this.pos.y>0.25)return false;
@@ -5176,7 +5168,7 @@ export class FPSEngine {
     this.yaw-=look[0]*sensitivity;this.pitch-=look[1]*sensitivity*(this.invertY?-1:1);this.pitch=Math.max(-Math.PI/2+.05,Math.min(Math.PI/2-.05,this.pitch));
     if(edge(0))this.touchJump();if(edge(2))this.touchReload();if(edge(3))this.swapWeapon(quickSwapTarget(this.currentSlot,this.lastSlot));
     if(this.opts.mode==="searchdestroy")this.setModeInteractHeld(!!buttons[1]);
-    else if(edge(1)){if(this.opts.mode==="frontier")this.triggerFrontierDodge();else this.touchInteract();}
+    else if(edge(1)){if(this.opts.mode==="frontier")this.tryPickupNearbyWeapon();else this.touchInteract();}
     if(edge(11))this.touchQuickMelee();if(edge(5))this.touchUseEquipment();
     if(edge(4))this.touchSwap("wonder");if(edge(12))this.touchSwap("primary");if(edge(13))this.touchSwap("secondary");if(edge(14))this.touchSwap("melee");
   }
@@ -7886,8 +7878,9 @@ export class FPSEngine {
       case "weaponPickup":
         this.removeDroppedWeapon(msg.id);
         if(msg.playerId===this.selfId){
-          const attachments={sight:msg.attachments.sight??null,barrel:msg.attachments.barrel??null,
-            grip:msg.attachments.grip??null,magazine:msg.attachments.magazine??null};
+          const receivedAttachments=msg.attachments??{};
+          const attachments={sight:receivedAttachments.sight??null,barrel:receivedAttachments.barrel??null,
+            grip:receivedAttachments.grip??null,magazine:receivedAttachments.magazine??null};
           const weapon=weaponById(msg.weaponId);
           const effective=computeEffectiveStats(weapon,attachments);
           if(msg.slot==="primary"){
@@ -7905,6 +7898,11 @@ export class FPSEngine {
             this.weaponId=msg.weaponId;this.eff=effective;this.sightDef=sightDefForType(effective.sightType);
             this.ammoInMag=Math.min(effective.magSize,msg.ammoRemaining);
             this.startWeaponSwapVisual(0);
+          }
+          if(msg.weaponId==="crossbow_reclaimer"){
+            // A picked-up crossbow is a fresh chamber: discard stale cocking state.
+            this.boltCharges=0;
+            if(this.currentSlot===msg.slot){this.reloading=false;this.reloadEndsAt=0;this.reloadStartedAt=0;}
           }
           if(this.currentSlot===msg.slot)this.frontierAmmoRemaining=msg.ammoRemaining;
           this.sound.play("swap",{volume:.65});
@@ -8770,6 +8768,7 @@ export class FPSEngine {
       new THREE.MeshBasicMaterial({color:0x38bdf8,transparent:true,opacity:.75}));
     glow.rotation.x=Math.PI/2;glow.position.y=.08;group.add(glow);
     group.position.set(position[0],Math.max(.12,position[1]),position[2]);
+    group.userData.weaponId=weaponId;
     group.rotation.y=weaponId.length*.17;
     this.scene.add(group);this.droppedWeaponMeshes.set(id,group);
   }
@@ -12584,7 +12583,7 @@ export class FPSEngine {
     else if(this.activePerkId === "lightweight") speedMul *= 1.12;
     if(this.localCryoSlowUntil>performance.now())speedMul*=CRYO_SLOW_FACTOR;
     if(this.opts.mode==="survival")speedMul*=survivalMovementMultiplier(this.survivalUpgradeRanks,performance.now()-this.survivalLastKillAt);
-    if(this.opts.mode==="frontier"){speedMul*=1.2;if(this.sprinting)speedMul*=1.18;if(performance.now()<this.frontierDodgeUntil)speedMul*=1.85;}
+    if(this.opts.mode==="frontier"){speedMul*=1.2;if(this.sprinting)speedMul*=1.18;}
     const carryingFlag=this.opts.mode==="ctf" && (this.ctfFlags.red.carrierId===this.selfId||this.ctfFlags.blue.carrierId===this.selfId);
     if(reaperMovement&&!carryingFlag)speedMul*=ORBITAL_REAPER_SPEED_MULTIPLIER;
     if(carryingFlag)speedMul*=CTF_SPEED_MULTIPLIER;
@@ -14093,10 +14092,11 @@ export class FPSEngine {
     }
     scoreboard.sort((a, b) => b.score - a.score || b.kills - a.kills);
     const nearbyWeapon=[...this.droppedWeaponMeshes.entries()]
-      .map(([id,mesh])=>({id,distance:Math.hypot(this.pos.x-mesh.position.x,this.pos.z-mesh.position.z)}))
+      .map(([id,mesh])=>({id,weaponId:String(mesh.userData.weaponId??""),distance:Math.hypot(this.pos.x-mesh.position.x,this.pos.z-mesh.position.z)}))
       .filter(drop=>drop.distance<=2.25).sort((a,b)=>a.distance-b.distance)[0];
+    const nearbyWeaponName=nearbyWeapon?.weaponId?weaponById(nearbyWeapon.weaponId).name:"weapon";
     const weaponPickupPrompt=this.opts.mode==="frontier"&&this.alive&&nearbyWeapon
-      ?(this.opts.online?"E / INTERACT · PICK UP WEAPON":"WEAPON DROP"):undefined;
+      ?(this.opts.online?"PRESS E TO SWAP FOR "+nearbyWeaponName.toUpperCase():"WEAPON DROP"):undefined;
     const hardpointZones = this.opts.mode === "hardpoint" && this.hardpointState
       ? hardpointZonesForMap(this.map.id) : [];
     const activeHardpointZone = this.hardpointState
@@ -14171,7 +14171,6 @@ export class FPSEngine {
         ? Math.round(Math.hypot(this.pos.x-this.searchDestroyState.bomb.pos[0],this.pos.z-this.searchDestroyState.bomb.pos[2]))
         : undefined,
       frontierAmmoRemaining: this.frontierAmmoRemaining,
-      frontierDashCooldownMs: this.opts.mode==="frontier" ? Math.max(0,this.frontierDodgeReadyAt-now) : undefined,
       weaponPickupPrompt,
       orbitalKillsRequired:reactorObjective(this.map)?.killsRequired,
       orbitalCharge:reactorObjective(this.map)?this.orbitalCharge:undefined,
