@@ -5755,8 +5755,8 @@ export class FPSEngine {
         const damage=explonandoDamage(d);
         if(!damage)continue;
         const botOwner=this.combatants.get(bomb.ownerId);
-        if(botOwner)this.damageFromOfflineBotTactical(botOwner,target,damage,"frag",false,"perk_explonando");
-        else this.applyDamageLocal(target,damage,false,"perk_explonando");
+        if(botOwner)this.damageFromOfflineBotTactical(botOwner,target,damage,"frag",false,"equipment_frag");
+        else this.applyDamageLocal(target,damage,false,"equipment_frag");
       }
       if(bomb.ownerId!==this.selfId && this.alive &&
          blastCanDamage(bomb.ownerId,bomb.ownerTeam,this.selfId,this.opts.team as string,this.opts.mode)){
@@ -5766,10 +5766,10 @@ export class FPSEngine {
         const damage=d===null?0:explonandoDamage(d);
         if(damage>0){
           const owner=this.combatants.get(bomb.ownerId);
-          this.takeDamage(damage,owner?.name??"Bot",bomb.ownerTeam,false,"perk_explonando",owner?.pos);
+          this.takeDamage(damage,owner?.name??"Bot",bomb.ownerTeam,false,"equipment_frag",owner?.pos);
         }
       }
-      this.damageLocalBallisticCoverExplosion(bomb.pos,EXPLO_RADIUS,EXPLO_DAMAGE,"perk_explonando");
+      this.damageLocalBallisticCoverExplosion(bomb.pos,EXPLO_RADIUS,EXPLO_DAMAGE,"equipment_frag");
     }
   }
 
@@ -7693,7 +7693,7 @@ export class FPSEngine {
             // event itself eliminates any race and guarantees per-weapon skin
             // challenges (Breacher, Longshot, etc.) progress on the weapon
             // actually used for the kill.
-            if (msg.weaponId !== "perk_explonando") this.recordPerWeaponKill(msg.weaponId, !!msg.headshot, this.combatants.get(msg.victimId));
+            if (msg.weaponId !== "equipment_frag") this.recordPerWeaponKill(msg.weaponId, !!msg.headshot, this.combatants.get(msg.victimId));
             // Kill confirmation SFX (headshot chime is brighter).
             if (msg.headshot) this.sound.play("headshot", { volume: 0.8 });
             this.sound.play("kill", { volume: 0.6 });
@@ -10491,7 +10491,7 @@ export class FPSEngine {
       // for Gun Game (where the player cycles through every progression weapon):
       // per-weapon skin challenges (Breacher, Longshot, etc.) read this map to
       // progress on the weapon actually used, not the match-start weapon.
-      if (!this.opts.firingRange && sourceWeaponId !== "perk_explonando") this.recordPerWeaponKill(sourceWeaponId, head, victim);
+      if (!this.opts.firingRange && sourceWeaponId !== "equipment_frag") this.recordPerWeaponKill(sourceWeaponId, head, victim);
       if (this.opts.mode === "ctf" && (this.opts.team === "red" || this.opts.team === "blue") &&
         isFlagDefenseKill(flagAtHome(this.ctfFlags[this.opts.team]), victim.pos, ctfHome(this.opts.team, this.map.id))) this.defenseKills++;
       if (this.opts.mode === "tdm") this.teamScores[this.opts.team as "red" | "blue"] += 1;
@@ -10520,7 +10520,7 @@ export class FPSEngine {
       this.registerPlayerKill();
       // Gun Game: advance the local player's tier on each kill. If they were
       // already on the final weapon (the knife), this kill wins the match.
-      if (this.opts.mode === "gungame" && sourceWeaponId !== "perk_explonando") {
+      if (this.opts.mode === "gungame") {
         const won = this.advanceLocalGungameTier();
         if (won) { this.finalizeMatchLocal(); return; }
       }
