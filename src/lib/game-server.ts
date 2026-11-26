@@ -4273,8 +4273,14 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       reactionReady,aimSettled,ai.ammoInMag>0,now<ai.reloadingUntil,ai.difficulty,ai.archetype);
     ai.sprinting=stance.sprinting;
     ai.aiming=stance.aiming && !isTaserAdsBlocked(room.equipmentAdsBlockedUntil.get(bot.id)??0,now);
-    if(now>=(ai.nextCombatJumpAt??0)&&botWantsCombatJump(ai.difficulty,weapon.category,dist,clearShot,
-      ai.envJumpVelocityY===undefined&&botHasJumpClearance(roomCoverNear(room,bot.pos[0],bot.pos[2],2.5),bot.pos),now,ai.nextCombatJumpAt??0,Math.random())){
+    const hasCombatJumpClearance =
+      ai.envJumpVelocityY===undefined &&
+      botHasJumpClearance(roomCoverNear(room,bot.pos[0],bot.pos[2],2.5),bot.pos);
+    const wantsCombatJump = botWantsCombatJump(
+      ai.difficulty,weapon.category,dist,clearShot,hasCombatJumpClearance,
+      now,ai.nextCombatJumpAt??0,Math.random()
+    );
+    if(now>=(ai.nextCombatJumpAt??0)&&wantsCombatJump){
       ai.envJumpVelocityY=MOVEMENT.jumpVelocity;
       ai.envLaunchX=0;ai.envLaunchZ=0;
       ai.nextCombatJumpAt=now+botTactics(ai.difficulty).jumpCooldown;
