@@ -142,7 +142,6 @@ describe("shared bot reload timing", () => {
   });
 
   test("incremental weapons schedule one round at a time with perk timing", () => {
-    const { botReloadDurationMs } = require("../src/lib/weapon-reload-rules");
     expect(botReloadDurationMs({
       reloadStyle: "incremental", reloadPerRound: 0.35,
       effectiveReloadTime: 2.1, magazineSize: 6, weaponReloadTime: 2.1,
