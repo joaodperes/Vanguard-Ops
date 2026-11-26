@@ -923,15 +923,19 @@ export function buildFirstPersonWeapon(
       break;
     }
     case "bullpup":{
-      const reaver=id==="rifle_burst";
-      const stem=box(0,.052,rearZ-.035,w*(reaver?.92:1.05),reaver?.105:.12,reaver?.16:.19,bodyMat);
+      const compactButt=id==="rifle_burst" || id==="rifle_hydra";
+      const hydra=id==="rifle_hydra";
+      const stem=box(0,.052,rearZ-.035,w*(compactButt?.92:1.05),compactButt?.105:.12,
+        hydra?.125:compactButt?.16:.19,bodyMat);
       stem.name="weapon_stock_stem";
-      // Reaver BR's oversized bullpup butt rose into the rear iron-sight
-      // picture. Keep the stock's recognizable shape but trim its lower pad.
-      const lower=box(0,reaver?-.052:-.065,rearZ+(reaver?.055:.075),
-        w*(reaver?.82:1.08),reaver?.055:.08,reaver?.085:.12,darkMat);
+      // Reaver BR and Hydra Twin bullpup butts rose into the rear sight
+      // picture. Trim their lower pads while preserving their silhouettes.
+      const lower=box(0,compactButt?-.052:-.065,rearZ+(compactButt?.055:.075),
+        w*(compactButt?.82:1.08),compactButt?.055:.08,
+        hydra?.065:compactButt?.085:.12,darkMat);
       lower.name="weapon_stock_lower";
-      const bridge=box(0,-.015,rearZ+.075,w*(reaver?.58:.75),reaver?.05:.07,.055,bodyMat);
+      const bridge=box(0,-.015,rearZ+.075,w*(compactButt?.58:.75),
+        compactButt?.05:.07,.055,bodyMat);
       bridge.name="weapon_stock_bridge";
       break;
     }
