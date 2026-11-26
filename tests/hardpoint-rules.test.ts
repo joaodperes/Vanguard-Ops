@@ -8,7 +8,7 @@ import {
 describe("Hardpoint map layouts and rotation", () => {
   test("replaces Blacksite with a larger Hardpoint arena", () => {
     expect(mapAllowedForMode("hardpoint", "bunker")).toBe(false);
-    expect(mapAllowedForMode("hardpoint", "emberhold")).toBe(true);
+    expect(mapAllowedForMode("hardpoint", "whiteout_depot")).toBe(true);
     expect(mapAllowedForMode("hardpoint", "dustwater")).toBe(true);
     expect(mapAllowedForMode("hardpoint", "floodgate")).toBe(true);
     expect(resolveRoomSelection("hardpoint", "bunker", 5).mapId).toBe("emberhold");
@@ -22,7 +22,7 @@ describe("Hardpoint map layouts and rotation", () => {
       const zones = hardpointZonesForMap(map.id);
       expect(zones).toHaveLength(HARDPOINT_RULES.zoneCount);
       for (const zone of zones) {
-        expect(insideRegions(zone.pos[0], zone.pos[2], regions, zone.radius ?? 6)).toBe(true);
+        expect(insideRegions(zone.pos[0], zone.pos[2], regions, 6.25)).toBe(true);
       }
     }
   });
