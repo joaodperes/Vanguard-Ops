@@ -1,14 +1,12 @@
-# Automated validation policy
+# Automated validation
 
-Automated checks are intentionally limited to data-agnostic contracts:
+The repository keeps only generic catalog/schema contract tests:
 
-- TypeScript compilation checks source syntax and type consistency.
-- Catalog contract tests validate schemas, stable IDs, supported keys and references.
-- Content validation checks catalog values, IDs, cross-catalog references and authored map references.
-- The production build verifies that the application can be compiled for deployment.
+- `catalog-contract.test.ts` checks catalog structure and stable identifiers.
+- `content-catalogs.test.ts` checks data-agnostic catalog contracts.
 
-Gameplay tuning, weapon balance, AI decisions, map geometry presentation, model continuity,
-audio feel and other subjective or frequently changing feature behavior are not CI test gates.
-Do not add hardcoded snapshots or numerical design assertions for those areas.
+Feature-specific tests that asserted gameplay balance, AI decisions, map presentation,
+model geometry, audio behavior or other changeable design choices have been removed.
 
-`bun run test:smoke` runs only the generic catalog/schema contract tests.
+GitHub Actions has one validation workflow. It runs TypeScript syntax/type checking
+and the content validator for authored data and file references.

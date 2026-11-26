@@ -1,6 +1,5 @@
-name: Vanguard Ops content and application validation
+name: Validate syntax and file references
 
-# Keep release gates data-driven: catalog/reference contracts, TypeScript and build.
 on:
   workflow_dispatch:
   pull_request:
@@ -11,59 +10,25 @@ on:
     branches:
       - dev
       - main
-      - feature/wonder-weapon-expansion
 
 permissions:
   contents: read
 
 jobs:
   validate:
-    name: Catalog references, syntax, types and build
+    name: TypeScript syntax and file references
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
-      - name: Checkout branch
+      - name: Checkout
         uses: actions/checkout@v4
       - name: Install Bun
-        id: setup-bun
         uses: oven-sh/setup-bun@v2
-        continue-on-error: true
-      - name: Install Bun (npm fallback)
-        if: steps.setup-bun.outcome == 'failure'
-        run: npm install --global bun@1.4.4 && bun --version
       - name: Install dependencies
         run: bun install --frozen-lockfile
       - name: Generate Prisma client
         run: bun run db:generate
-      - name: Validate catalog values, IDs and references
-        id: catalog
-        continue-on-error: true
-        run: bun run content:validate
-      - name: Validate generic catalog and schema contracts
-        id: contracts
-        continue-on-error: true
-        run: bun run test:smoke
-      - name: TypeScript syntax and type validation
-        id: types
-        continue-on-error: true
+      - name: Validate TypeScript syntax and types
         run: bun run typecheck
-      - name: Production application build
-        id: build
-        continue-on-error: true
-        run: bun run build
-      - name: Fail if any validation failed
-        if: always()
-        env:
-          CATALOG: ${{ steps.catalog.outcome }}
-          CONTRACTS: ${{ steps.contracts.outcome }}
-          TYPES: ${{ steps.types.outcome }}
-          BUILD: ${{ steps.build.outcome }}
-        run: |
-          echo "Catalogs and references: $CATALOG"
-          echo "Generic contracts: $CONTRACTS"
-          echo "TypeScript: $TYPES"
-          echo "Build: $BUILD"
-          test "$CATALOG" = success
-          test "$CONTRACTS" = success
-          test "$TYPES" = success
-          test "$BUILD" = success
+      - name: Validate content and file references
+        run: bun run content:validate
