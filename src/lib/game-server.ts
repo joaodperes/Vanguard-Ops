@@ -264,7 +264,7 @@ interface Room {
   // TYPE list is fixed (e.g. slot 4 is always "sniper"), the specific sniper
   // is randomly chosen when the match starts — so each match feels different.
   gungameWeapons: string[];
-  gungamePreset: "all" | "cqc" | "long_range";
+  gungamePreset: "all" | "cqc" | "long_range" | "assault" | "smg" | "shotgun" | "dmr" | "sniper" | "lmg";
   gungameMultiplier: number;
   sprintState: Map<string, boolean>;
   /** Last server-received sprint frame; used to settle hipfire after release. */
