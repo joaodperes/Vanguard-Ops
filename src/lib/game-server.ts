@@ -193,6 +193,7 @@ interface Room {
   searchDestroyState?: SearchDestroyState;
   searchDestroyPlayerActions: Map<string,{plants:number;defuses:number}>;
   frontierAmmoRemaining?: Map<string,number>;
+  droppedWeapons: Map<string,{id:string;ownerId:string;weaponId:string;slot:"primary"|"secondary";skinId:string;attachments:Record<string,string|null>;ammoRemaining:number;pos:Vec3;expiresAt:number}>;
   cleanupTimer?: ReturnType<typeof setTimeout>;
   id: string;
   mode: GameMode;
@@ -730,7 +731,7 @@ function createLobbyRoom(
     environmentWalls: new Map((map.environment ?? []).filter(o => o.type === "destructible_wall").map(o => [o.id, o.type === "destructible_wall" ? o.hp : 0])),
     materialCoverHp: new Map(), materialCoverDestroyed: new Set(),
     environmentCooldown: new Map(),
-    specialHeat: new Map(), wonderCharges: new Map(), chronoAnchors:new Map(),phantomDecoys:new Map(),cryoSlowUntil:new Map(),mechDrops:new Map(),playerMechs:new Map(), clusterVolleys: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormMines: new Map(), stormMineCooldown: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), harbingerDrones: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), poison: new Map(), burning: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentBotNextAt: new Map(), equipmentMines: new Map(), equipmentRechargeAt: new Map(), deployedCovers: new Map(), equipmentFlashUntil: new Map(), equipmentAdsBlockedUntil: new Map(), quickMeleeAt: new Map(), throwingKnives: new Map(), reloadingPlayers: new Map(), akimboLastHandShot:new Map(), autoBloom: new Map(), shotPosture: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
+    specialHeat: new Map(), wonderCharges: new Map(), chronoAnchors:new Map(),phantomDecoys:new Map(),cryoSlowUntil:new Map(),mechDrops:new Map(),playerMechs:new Map(), clusterVolleys: new Map(), adsStartedAt: new Map(), lastMotionAt: new Map(), stormMines: new Map(), stormMineCooldown: new Map(), smartTags: new Map(), hellfireUntil: new Map(), wonderFields: new Map(), deathBombs: new Map(), turrets: new Map(), harbingerDrones: new Map(), gravityWells: new Map(), boltReadyAt: new Map(), boltCharges: new Map(), droppedBolts: new Map(), droppedWeapons:new Map(), poison: new Map(), burning: new Map(), equipmentCharges: new Map(), equipmentLastAt: new Map(), equipmentBotNextAt: new Map(), equipmentMines: new Map(), equipmentRechargeAt: new Map(), deployedCovers: new Map(), equipmentFlashUntil: new Map(), equipmentAdsBlockedUntil: new Map(), quickMeleeAt: new Map(), throwingKnives: new Map(), reloadingPlayers: new Map(), akimboLastHandShot:new Map(), autoBloom: new Map(), shotPosture: new Map(), lastDamagedAt: new Map(), scavengerDrops: new Map(),
     burstState: new Map(),
   };
   room.map = {...room.map, cover:[...room.map.cover]}; // isolate per-room barricades from map catalog
@@ -980,7 +981,7 @@ function snapshot(room: Room): S2C {
       ctfBases: {red:ctfBase("red",room.map),blue:ctfBase("blue",room.map)}, ctfRulesVersion: 2 } : {}),
     ...(room.hardpointState ? { hardpoint: room.hardpointState } : {}),
     ...(room.searchDestroyState ? { searchDestroy: room.searchDestroyState } : {}),
-    ...(room.mode==="frontier" ? { frontierAmmoRemaining: Object.fromEntries([...room.players.values()].map(player=>{
+    ...(room.mode==="frontier" ? { droppedWeapons:[...room.droppedWeapons.values()], frontierAmmoRemaining: Object.fromEntries([...room.players.values()].map(player=>{
       const loadout=room.loadouts.get(player.id);
       const attachments=loadout?.secondaryWeaponId===player.weaponId?loadout.secondaryAttachments:loadout?.attachments;
       const mag=computeEffectiveStats(weaponById(player.weaponId),attachments).magSize;
@@ -2107,6 +2108,20 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
         const wid = key.slice(attackerId.length + 1);
         const rules = weaponById(wid).wonder;
         if (rules) room.wonderCharges.set(key, accelerateWonderCharge(state,{...rules,rechargeMs:rules.rechargeMs*wonderModuleEffects(wid,room.loadouts.get(attackerId)?.wonderModuleId).rechargeMul},Date.now()));
+      }
+    }
+    if(room.mode==="frontier"){
+      const kit=room.loadouts.get(victim.id);
+      const weapon=weaponById(victim.weaponId);
+      const slot=victim.weaponId===kit?.weaponId?"primary":
+        victim.weaponId===kit?.secondaryWeaponId?"secondary":null;
+      if(kit&&slot&&weapon.category!=="melee"&&!weapon.wonder){
+        const attachments=slot==="secondary"?(kit.secondaryAttachments??{sight:null,barrel:null,grip:null,magazine:null}):kit.attachments;
+        const ammoRemaining=room.frontierAmmoRemaining?.get(victim.id)??computeEffectiveStats(weapon,attachments).magSize;
+        const id=genId("weapon");
+        const pos:Vec3=[victim.pos[0],Math.max(.35,victim.pos[1]+.12),victim.pos[2]];
+        const expiresAt=Date.now()+45000;
+        room.droppedWeapons.set(id,{id,ownerId:victim.id,weaponId:victim.weaponId,slot,skinId:slot==="secondary"?(kit.secondaryWeaponSkinId??"default"):kit.weaponSkinId,attachments:{...attachments},ammoRemaining,pos,expiresAt});
       }
     }
     victim.alive = false;
@@ -4908,6 +4923,29 @@ async function handle(socket: any, msg: C2S) {
          at:moveNow,
        });
        p.pos=next;
+       if(room.mode==="frontier"){
+         const now=Date.now();
+         for(const [id,drop] of room.droppedWeapons){
+           if(now>=drop.expiresAt){room.droppedWeapons.delete(id);continue;}
+           if(Math.hypot(p.pos[0]-drop.pos[0],p.pos[2]-drop.pos[2])>1.65)continue;
+           const kit=room.loadouts.get(p.id);if(!kit)continue;
+           const slot=drop.slot;
+           if(slot==="primary"){
+             if(kit.emptyPrimary)continue;
+             kit.weaponId=drop.weaponId;kit.weaponSkinId=drop.skinId;kit.attachments={...drop.attachments};
+           }else{
+             kit.secondaryWeaponId=drop.weaponId;kit.secondaryWeaponSkinId=drop.skinId;kit.secondaryAttachments={...drop.attachments};
+           }
+           if((slot==="primary"&&p.weaponId===kit.weaponId)||(slot==="secondary"&&p.weaponId===drop.weaponId)){
+             p.weaponId=drop.weaponId;p.weaponSkinId=drop.skinId;
+           }
+           room.frontierAmmoRemaining??=new Map();
+           room.frontierAmmoRemaining.set(p.id,Math.max(0,drop.ammoRemaining));
+           room.droppedWeapons.delete(id);
+           io.to(room.id).emit("message",{t:"weaponPickup",id,playerId:p.id} as S2C);
+           break;
+         }
+       }
        if (!room.ended && room.preMatchCountdown <= 0 && lavaAt(room.map.environment, next)) {
          applyDamage(room, "world", p, p.health, false, LAVA_DEATH_SOURCE);
          break;
