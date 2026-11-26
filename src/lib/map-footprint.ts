@@ -20,7 +20,7 @@ export const MAP_FOOTPRINT: Record<MapId, { scale: number; pace: MapPace; descri
   floodgate: {scale:1,pace:"tactical",description:"16v16 CTF · covered turbine hall, spillway pressure purges and maintenance-yard flanks"},
   orbital_nexus: {scale:1,pace:"balanced",description:"Mirrored flag vaults, reactor deck, jet launch pads and three assault lanes"},
   bunker: {scale:0.72,pace:"compact",description:"Tight vault rooms and rapid circular flanks"},
-  shipyard: {scale:0.88,pace:"compact",description:"Short dockside brawls around crane and market cover"},
+  shipyard: {scale:0.88,pace:"balanced",description:"Container wharf with stacked freight routes, loading alleys and a climbable crane lookout"},
   compound: {scale:0.98,pace:"balanced",description:"Mossy jungle courtyards, rocks and temple flanks"},
   terminal: {scale:1.02,pace:"tactical",description:"Afterlight City shared neighborhood in natural daylight"},
   skybridge: {scale:1.07,pace:"tactical",description:"Enclosed steelworks with machinery lanes, freight bays and elevated gantries"},
