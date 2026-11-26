@@ -946,6 +946,7 @@ function joinLobbyRoom(
 }
 
 function snapshot(room: Room): S2C {
+  if(room.mode==="frontier")for(const [id,drop] of room.droppedWeapons)if(Date.now()>=drop.expiresAt)room.droppedWeapons.delete(id);
   const players: SnapshotPlayer[] = [];
   for (const p of room.players.values()) {
     players.push({ ...toSnap(p,room.loadouts.get(p.id)), perkId: room.loadouts.get(p.id)?.perkId, downed: room.downed.has(p.id) });
