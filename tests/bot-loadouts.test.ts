@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { WEAPONS, compatibleAttachments, computeEffectiveStats, weaponById } from "../src/lib/game-data";
 import { MAX_HEALTH } from "../src/lib/game-protocol";
 import {
@@ -9,6 +10,21 @@ import {
 } from "../src/lib/bot-loadouts";
 import { BOT_ELIGIBLE_WEAPONS, FRONTIER_BOT_PRESET_BY_ARCHETYPE, botArchetypeWeapons, type BotArchetype } from "../src/lib/bot-archetypes";
 import { FRONTIER_LOADOUTS, frontierLoadoutForPreset } from "../src/lib/frontier-loadouts";
+
+describe("Frontier combat fallbacks", () => {
+  test("server and offline bots switch to their other magazine and then melee when empty", () => {
+    const server=readFileSync(new URL("../src/lib/game-server.ts",import.meta.url),"utf8");
+    const client=readFileSync(new URL("../src/lib/fps-engine.ts",import.meta.url),"utf8");
+    expect(server).toContain('room.mode==="frontier" && ai.ammoInMag<=0');
+    expect(server).toContain('const melee=kit.meleeWeaponId??"knife_tactical"');
+    expect(client).toContain('this.opts.mode==="frontier" && ai.ammoInMag<=0');
+    expect(client).toContain('const melee=this.opts.loadout.meleeWeaponId??"knife_tactical"');
+  });
+  test("Frontier server accepts the melee weapon slot", () => {
+    const server=readFileSync(new URL("../src/lib/game-server.ts",import.meta.url),"utf8");
+    expect(server).not.toContain('if(room.mode==="frontier"&&msg.slot!=="primary"&&msg.slot!=="secondary")return;');
+  });
+});
 
 describe("bot perk and weapon policy", () => {
   test("Frontier bot archetypes map one-to-one to the four player kits",()=>{
