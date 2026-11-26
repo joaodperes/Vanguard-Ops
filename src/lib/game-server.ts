@@ -908,8 +908,8 @@ function startMatchInRoom(room: Room, socketId: string): boolean {
     const actors=allCombatants(room);
     for(const actor of actors)actor.alive=false;
     for(const actor of actors){
-      actor.alive=true;actor.health=MAX_HEALTH;
       actor.pos=pickSpawn(actor.team,room);
+      actor.alive=true;actor.health=MAX_HEALTH;
       actor.spawnProtectedUntil=room.startTime+2500;
     }
     // Resolve after bot fill: an attacker-side bot can carry the bomb when
@@ -3126,7 +3126,7 @@ function tickRoomSimulation(room: Room) {
       // fresh round anchor rather than clustering around stale combat positions.
       for(const c of actors)c.alive=false;
       for(const c of actors){
-        c.alive=true;c.health=MAX_HEALTH;c.pos=pickSpawn(c.team,room);c.spawnProtectedUntil=now+1800;
+        c.pos=pickSpawn(c.team,room);c.alive=true;c.health=MAX_HEALTH;c.spawnProtectedUntil=now+1800;
         // Survivors also need a respawn event: otherwise their predicted local
         // position stays at the previous round's final location.
         if(!c.isBot)io.to(c.id).emit("message",{
