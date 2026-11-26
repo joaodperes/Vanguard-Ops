@@ -2067,7 +2067,7 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
   // Only count actual opponent damage. Contributions are cleared at death, so
   // an assist cannot leak into the next respawn of the same victim.
   if (attacker && attacker.id !== victim.id && attacker.team !== victim.team &&
-    (room.mode==="tdm"||room.mode==="killconfirmed"||room.mode==="survival")) {
+    (room.mode==="tdm"||room.mode==="killconfirmed"||room.mode==="ctf"||room.mode==="survival")) {
     const contributions=room.damageContributions.get(victim.id)??new Map<string,Contribution>();
     const now=Date.now();
     const previous=contributions.get(attackerId);
