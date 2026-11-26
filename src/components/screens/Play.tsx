@@ -168,7 +168,7 @@ export function Play() {
   // Apply the profile preference once when this player's room-creation screen
   // opens. Later manual selections remain untouched while the screen is open.
   useEffect(() => {
-    if (!profile || appliedDefaultDifficultyFor.current === playerKey) return;
+    if (!profile || profile.playerKey !== playerKey || appliedDefaultDifficultyFor.current === playerKey) return;
     appliedDefaultDifficultyFor.current = playerKey;
     setRoomConfig({ botDifficulty: profile.defaultBotDifficulty ?? "normal" });
   }, [profile, playerKey, setRoomConfig]);
