@@ -3997,11 +3997,8 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       const primaryAtt=kit.emptyPrimary?kit.secondaryAttachments:kit.attachments;
       const secondaryAtt=kit.emptyPrimary?kit.attachments:kit.secondaryAttachments;
       bot.loadout=kit;room.loadouts.set(bot.id,kit);
-      ai.primaryWeaponId=kit.weaponId;ai.secondaryWeaponId=kit.secondaryWeaponId;
-      ai.primaryAttachments=primaryAtt??emptyBotAttachments();ai.secondaryAttachments=secondaryAtt??emptyBotAttachments();
       ai.ammoInMag=botMagazineCapacity(primaryId,primaryAtt??emptyBotAttachments());
       ai.secondaryAmmoInMag=kit.emptyPrimary?0:botMagazineCapacity(secondaryId,secondaryAtt??emptyBotAttachments());
-      ai.attachments=botActiveAttachments(kit.weaponId,primaryId,kit.attachments??emptyBotAttachments(),kit.secondaryWeaponId,kit.secondaryAttachments);
       bot.weaponId=primaryId;bot.weaponSkinId=kit.emptyPrimary?(kit.secondaryWeaponSkinId??"default"):kit.weaponSkinId;
       ai.frontierAmmoRemaining=ai.ammoInMag+ai.secondaryAmmoInMag;
       room.droppedWeapons.delete(nearby.id);ai.reloadingUntil=0;ai.burstShotsLeft=0;ai.nextShotAt=now+350;
@@ -4583,7 +4580,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       const durationMs = botReloadDurationMs({
         reloadStyle: weapon.stats.reloadStyle, reloadPerRound: weapon.stats.reloadPerRound,
         effectiveReloadTime: eff.reloadTime, magazineSize: eff.magSize,
-        weaponReloadTime: weapon.stats.reloadTime, frontier: room.mode === "frontier",
+        weaponReloadTime: weapon.stats.reloadTime, frontier: false,
         perkMultiplier: reloadDurationMultiplier(perk),
       });
       ai.reloadingUntil = now + durationMs;
