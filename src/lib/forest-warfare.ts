@@ -88,33 +88,34 @@ export function forestLogCoverId(p:Pick<ForestObject,"x"|"z">):string{
 // Natural, VISIBLE cliff/rock barrier around precisely the floor union.
 export const FOREST_PERIMETER: CoverBox[] = regionBoundary(FOREST_REGIONS, 10);
 
-// Discrete long flights of half-metre steps. Both stair geometry and render
-// share these boxes; the final riser directly meets the deck rim.
+// Narrow, open timber flights reach each tree deck from opposite sides.
+// Treads are thin surfaces (not overlapping full-height wedges), so the
+// trunk remains visible and the stairs occupy a much smaller visual volume.
 export const FOREST_TREE_STAIRS: CoverBox[] = ([-1,1] as const).flatMap(sign=>{
   const x=sign*CTF_TREE_X;
   const steps:CoverBox[]=[];
-  const count=24,tread=.94;
+  const count=Math.ceil(CTF_TREE_TOP/.42),tread=.56,thickness=.16;
   for(const side of [-1,1] as const) for(let i=0;i<count;i++){
     const top=CTF_TREE_TOP*(i+1)/count;
     const center=side*(11.6+(count-i-.5)*tread);
-    steps.push({pos:[x,top/2,center],size:[2.7,top/2,tread/2+.025],kind:"stair"});
+    steps.push({pos:[x,top-thickness/2,center],size:[.78,thickness/2,tread/2+.025],kind:"stair"});
   }
   return steps;
 });
 
-// Slices approximate the circular treetop, so collision extends to the
-// visually rendered round deck (unlike a hidden square platform).
+// Fine circular collision slices closely follow the rendered 13-unit deck.
+// The previous seven broad rectangles left unsupported corners at the rim.
 export const FOREST_TREE_DECKS: CoverBox[] = ([-1,1] as const).flatMap(sign=>{
-  const x=sign*CTF_TREE_X;
-  const strips:[number,number,number][]=[
-    [0,3,11.6],[-4.3,1.3,10.5],[4.3,1.3,10.5],
-    [-7.1,1.5,8.8],[7.1,1.5,8.8],[-9.8,2.1,5.7],[9.8,2.1,5.7],
-  ];
-  return strips.map(([z,hz,hx])=>({
-    pos:[x,CTF_TREE_TOP-.24,z] as Vec3,
-    size:[hx,.24,hz] as Vec3,
-    kind:"platform" as const,
-  }));
+  const x=sign*CTF_TREE_X,radius=13,slices=26,depth=radius*2/slices;
+  return Array.from({length:slices},(_,i)=>{
+    const z=-radius+(i+.5)*depth;
+    const halfWidth=Math.sqrt(Math.max(0,radius*radius-z*z))-.08;
+    return {
+      pos:[x,CTF_TREE_TOP-.24,z] as Vec3,
+      size:[Math.max(.2,halfWidth),.24,depth/2+.025] as Vec3,
+      kind:"platform" as const,
+    };
+  });
 });
 /** Visible low cover flanking each root and either stair approach. */
 export const FOREST_BASE_COVER: CoverBox[] = ([-1,1] as const).flatMap(sign=>{
@@ -131,26 +132,49 @@ export const FOREST_BASE_COVER: CoverBox[] = ([-1,1] as const).flatMap(sign=>{
     {pos:[x+sign*15,1.0,9] as Vec3,size:[2.1,1.0,1.3] as Vec3,kind:"cover" as const,material:"concrete" as const},
   ];
 });
-/** Interconnected canopy spine and cross-bridges link both home-tree decks. */
-const FOREST_CANOPY_COVER: CoverBox[] = [
-  {pos:[0,CTF_TREE_TOP-.24,0],size:[87,.24,1.8],kind:"platform"},
-  {pos:[-45,CTF_TREE_TOP-.24,0],size:[1.8,.24,16],kind:"platform"},
-  {pos:[45,CTF_TREE_TOP-.24,0],size:[1.8,.24,16],kind:"platform"},
+/** A staggered canopy route links both home trees without a single straight bridge.
+ * Overlapping landings make the turns readable and provide several route choices. */
+export const FOREST_CANOPY_COVER: CoverBox[] = [
+  {pos:[-74,11.92,0],size:[22,.10,1.9],kind:"platform"},
+  {pos:[-55,11.92,2],size:[5,.10,4.2],kind:"platform"},
+  {pos:[-40,11.92,4],size:[21,.10,1.9],kind:"platform"},
+  {pos:[-20,11.92,0],size:[4,.10,4],kind:"platform"},
+  {pos:[0,11.92,-3],size:[22,.10,1.9],kind:"platform"},
+  {pos:[20,11.92,0],size:[4,.10,4],kind:"platform"},
+  {pos:[40,11.92,4],size:[21,.10,1.9],kind:"platform"},
+  {pos:[55,11.92,2],size:[5,.10,4.2],kind:"platform"},
+  {pos:[74,11.92,0],size:[22,.10,1.9],kind:"platform"},
+  // A raised northern loop branches off the western span and reconnects near centre.
+  {pos:[-40,11.92,-2],size:[.9,.10,8],kind:"platform"},
+  {pos:[-40,11.92,-13],size:[5,.10,4],kind:"platform"},
+  {pos:[-28,11.92,-13],size:[12,.10,.9],kind:"platform"},
+  {pos:[-18,11.92,-8],size:[.9,.10,6],kind:"platform"},
+  {pos:[-18,11.92,-4],size:[3,.10,2],kind:"platform"},
+  // A smaller southern loop gives the eastern half a second approach.
+  {pos:[40,11.92,10],size:[.9,.10,7],kind:"platform"},
+  {pos:[40,11.92,19],size:[5,.10,3],kind:"platform"},
+  {pos:[28,11.92,19],size:[12,.10,.9],kind:"platform"},
+  {pos:[18,11.92,13],size:[.9,.10,6],kind:"platform"},
+  {pos:[18,11.92,9],size:[3,.10,2],kind:"platform"},
 ];
-/** Four broad stair flights make the canopy network accessible from both sides. */
-const forestCanopyAccessStairs: CoverBox[] = ([-1,1] as const).flatMap(xSign=>
-  ([-1,1] as const).map(zSign=>{
-    const x=xSign*45, z=zSign*16, height=CTF_TREE_TOP, count=Math.ceil(height/.42), run=20, tread=run/count;
-    return Array.from({length:count},(_,i)=>{
-      const top=height*(i+1)/count;
-      return {
-        pos:[x,top/2,z+zSign*(count-i-.5)*tread] as Vec3,
-        size:[1.8,top/2,tread/2+.025] as Vec3,
-        kind:"stair" as const,
-      };
-    });
-  })
-).flat();
+/** Low, staggered natural obstacles break the long sightline without sealing the walkway. */
+export const FOREST_CANOPY_OBSTACLES: CoverBox[] = [
+  {pos:[-69,12.52,.25],size:[.72,.5,.62],kind:"cover",material:"reinforced"},
+  {pos:[-39,12.48,4.1],size:[1.05,.46,.38],kind:"cover",material:"thin_wood",ballisticId:"forest:canopy:log:west"},
+  {pos:[-18,12.43,-3.4],size:[.55,.41,.55],kind:"cover",material:"reinforced"},
+  {pos:[9,12.49,-2.4],size:[.8,.47,.72],kind:"cover",material:"reinforced"},
+  {pos:[41,12.48,4.2],size:[1.1,.46,.38],kind:"cover",material:"thin_wood",ballisticId:"forest:canopy:log:east"},
+  {pos:[70,12.50,-.15],size:[.7,.48,.68],kind:"cover",material:"reinforced"},
+  {pos:[-40,12.45,-13],size:[.7,.42,.7],kind:"cover",material:"reinforced"},
+  {pos:[40,12.45,19],size:[.7,.42,.7],kind:"cover",material:"reinforced"},
+];
+/** Timber support posts beneath exposed bridge joints, deliberately offset from the ground lanes. */
+export const FOREST_CANOPY_SUPPORTS: CoverBox[] = [
+  {pos:[-55,5.9,0],size:[.28,5.9,.28],kind:"cover",material:"thin_wood"},
+  {pos:[-20,5.9,-3],size:[.28,5.9,.28],kind:"cover",material:"thin_wood"},
+  {pos:[20,5.9,4],size:[.28,5.9,.28],kind:"cover",material:"thin_wood"},
+  {pos:[55,5.9,0],size:[.28,5.9,.28],kind:"cover",material:"thin_wood"},
+];
 /** Waist-high parapets, interrupted where the stairs meet the flag deck. */
 export const FOREST_TREE_PARAPETS: CoverBox[] = ([-1,1] as const).flatMap(sign=>{
   const x=sign*CTF_TREE_X;
@@ -167,8 +191,9 @@ export const FOREST_WARFARE_COVER: CoverBox[]=[
   })),
   ...FOREST_TREE_DECKS,
   ...FOREST_CANOPY_COVER,
+  ...FOREST_CANOPY_OBSTACLES,
+  ...FOREST_CANOPY_SUPPORTS,
   ...FOREST_TREE_STAIRS,
-  ...forestCanopyAccessStairs,
   ...FOREST_BASE_COVER,
   ...FOREST_TREE_PARAPETS,
   // Foliage is visual-only; fallen logs splinter while mature trunks
