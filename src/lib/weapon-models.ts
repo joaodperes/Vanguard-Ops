@@ -906,9 +906,10 @@ export function buildFirstPersonWeapon(
       break;
     }
     case "heavy":{
-      const stem=box(0,-.035,rearZ+.055,w*.96,.18,.23,darkMat);
+      const reaver = id === "rifle_reaver";
+      const stem=box(0,-.035,rearZ+.055,w*(reaver?.68:.96),reaver?.12:.18,reaver?.15:.23,darkMat);
       stem.name="weapon_stock_stem";
-      box(0,-.07,rearZ+.16,w*1.05,.20,.037,sig);
+      box(0,-.07,rearZ+(reaver?.105:.16),w*(reaver?.76:1.05),reaver?.13:.20,reaver?.028:.037,sig);
       break;
     }
     case "wire":
