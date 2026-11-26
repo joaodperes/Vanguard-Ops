@@ -2170,8 +2170,9 @@ export class FPSEngine {
       return;
     }
     if((victim.spawnProtectedUntil??0)>Date.now())return;
-    victim.health-=damage;
-    if(victim.health>0)return;
+    const healthResult=resolveHealthDamage(victim.health,damage,victim.alive);
+    victim.health=healthResult.health;
+    if(!healthResult.killed)return;
     victim.alive=false;victim.deaths++;
 
     this.dropOfflineFrontierLoadout(victim);
@@ -2248,8 +2249,9 @@ export class FPSEngine {
     }
     const victim=this.combatants.get(target.id);
     if(!victim||!victim.alive)return;
-    victim.health-=profile.damage;
-    if(victim.health>0)return;
+    const healthResult=resolveHealthDamage(victim.health,profile.damage,victim.alive);
+    victim.health=healthResult.health;
+    if(!healthResult.killed)return;
     const recent=this.offlineAssistDamage.get(victim.id);
     if(attacker.team===this.opts.team&&victim.team!==this.opts.team&&
       (this.opts.mode==="tdm"||this.opts.mode==="killconfirmed"||this.opts.mode==="ctf")&&
@@ -3396,8 +3398,9 @@ export class FPSEngine {
         const key=c.id+"|floodgate-surge";
         if(now>=(this.environmentCooldown.get(key)??0)){
           this.environmentCooldown.set(key,now+900);
-          c.health=Math.max(0,c.health-28);
-          if(c.health<=0){
+          const healthResult=resolveHealthDamage(c.health,28,c.alive);
+          c.health=healthResult.health;
+          if(healthResult.killed){
             this.eliminateBotByEnvironment(c, "env_floodgate_surge", now);
             continue;
           }
@@ -3422,8 +3425,10 @@ export class FPSEngine {
         const interval = o.type === "fire" ? 250 : 900;
         if (now < (this.environmentCooldown.get(key) ?? 0)) continue;
         this.environmentCooldown.set(key, now + interval);
-        c.health -= o.type === "fire" ? o.dps * interval / 1000 : o.damage;
-        if (c.health <= 0) {
+        const hazardDamage=o.type === "fire" ? o.dps * interval / 1000 : o.damage;
+        const healthResult=resolveHealthDamage(c.health,hazardDamage,c.alive);
+        c.health=healthResult.health;
+        if (healthResult.killed) {
           this.eliminateBotByEnvironment(c, o.type, now);
           break;
         }
@@ -13799,8 +13804,9 @@ export class FPSEngine {
     if((victim.spawnProtectedUntil??0)>Date.now())return;
     if(directLethal)damage=tacticalDirectDamage(damage,victim.health,!!victim.bossMaxHealth);
     damage=survivalNonLethalTaserDamage(damage,victim.health,this.opts.mode,attacker.isBot,sourceWeaponId);
-    victim.health-=damage;
-    if(victim.health>0)return;
+    const healthResult=resolveHealthDamage(victim.health,damage,victim.alive);
+    victim.health=healthResult.health;
+    if(!healthResult.killed)return;
     victim.alive=false;victim.deaths++;
 
     this.dropOfflineFrontierLoadout(victim);
@@ -13990,8 +13996,9 @@ export class FPSEngine {
           nearest.victim.ai.lastAlert=botRememberHit(attacker.id,attacker.pos,performance.now());
           nearest.victim.ai.nextDecisionAt=0;
         }
-        nearest.victim.health -= dmg;
-        if (nearest.victim.health <= 0 && nearest.victim.alive) {
+        const healthResult=resolveHealthDamage(nearest.victim.health,dmg,nearest.victim.alive);
+        nearest.victim.health=healthResult.health;
+        if (healthResult.killed) {
           const recent=this.offlineAssistDamage.get(nearest.victim.id);
           if (attacker.team === this.opts.team && nearest.victim.team !== this.opts.team &&
               (this.opts.mode==="tdm"||this.opts.mode==="killconfirmed"||this.opts.mode==="ctf") &&
