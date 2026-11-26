@@ -870,7 +870,7 @@
     "description": "Lightweight bolt-action rifle with optional optics and no factory scope. Each shot requires a full bolt cycle to eject the spent casing before firing again. A precise headshot is lethal; body shots require two hits. No body penetration and very limited cover penetration.",
     "stats": {
       "damage": 100,
-      "fireRate": 0.95,
+      "fireRate": 0.75,
       "magSize": 5,
       "reloadTime": 2.6,
       "spread": 0.002,
