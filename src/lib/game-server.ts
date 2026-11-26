@@ -1057,6 +1057,27 @@ function snapshot(room: Room): S2C {
   return base;
 }
 
+function snapshotForPlayer(room:Room,viewer:PlayerNet,base:S2C=snapshot(room)):S2C {
+  const state=room.searchDestroyState;
+  // Defenders know the bomb is armed and can hear its fuse, but the server does
+  // not send them the planted site or world position. Attackers retain both.
+  if(base.t==="snapshot"&&room.mode==="searchdestroy"&&state?.bomb.status==="planted"&&
+     viewer.team!==state.attackerTeam){
+    return {...base,searchDestroy:{...state,bomb:{...state.bomb,siteId:null,pos:[0,0,0]}}} as S2C;
+  }
+  return base;
+}
+
+function broadcastRoomSnapshot(room:Room):void {
+  const base=snapshot(room);
+  if(room.mode==="searchdestroy"&&room.searchDestroyState?.bomb.status==="planted"){
+    for(const viewer of room.players.values())
+      io.to(viewer.id).emit("message",snapshotForPlayer(room,viewer,base));
+  }else{
+    io.to(room.id).emit("message",base);
+  }
+}
+
 function toSnap(p: PlayerNet,loadout?:LoadoutWire): SnapshotPlayer {
   // Advance authoritative recharge even while the shield is holstered.
   const shield=tickRiotShield(p.riotShieldHp??RIOT_SHIELD_HP,p.riotShieldReadyAt??0,Date.now());
@@ -2538,7 +2559,7 @@ function endMatch(room: Room, reason: "other" | "gungame_victory" = "other", win
   }
   // Decisive scores can end the server's 20Hz tick before its next snapshot.
   // Deliver one final authoritative state, then the verdict in socket order.
-  io.to(room.id).emit("message", snapshot(room));
+  broadcastRoomSnapshot(room);
   const sharedModeStats={
     ...(room.searchDestroyState?{searchDestroy:{redRounds:room.searchDestroyState.roundWins.red,blueRounds:room.searchDestroyState.roundWins.blue,roundsPlayed:room.searchDestroyState.round}}:{}),
     ...(room.hardpointState?{hardpoint:{redObjectiveSeconds:Math.floor(room.hardpointState.objectiveMs.red/1000),blueObjectiveSeconds:Math.floor(room.hardpointState.objectiveMs.blue/1000),contestedSeconds:Math.floor(Math.max(room.hardpointState.contestedMs.red,room.hardpointState.contestedMs.blue)/1000),redScore:Math.floor(room.hardpointState.scores.red),blueScore:Math.floor(room.hardpointState.scores.blue)}}:{}),
@@ -2936,7 +2957,7 @@ function tickRoomSimulation(room: Room) {
         room.survivalUpgradeDeadline=null;
       }
       if(survivalPauseActive(room.players.size,room.survivalOffers.size,room.survivalMenuPaused)){
-        io.to(room.id).emit("message",snapshot(room));
+        broadcastRoomSnapshot(room);
         return; // No wave prep, enemies, match clock, health regen or world ticks.
       }
     }
@@ -3081,7 +3102,7 @@ function tickRoomSimulation(room: Room) {
     }
     tickWonderExpansion(room,now);
     tickScavengerDrops(room, now);
-    io.to(room.id).emit("message", snapshot(room));
+    broadcastRoomSnapshot(room);
     return;
   }
   // Round 20: Only tick the timer if there IS a time limit (timeLeft > 0).
@@ -3160,7 +3181,7 @@ function tickRoomSimulation(room: Room) {
     if (room.ended) return;
   }
   // broadcast ~ every tick (20Hz). Could throttle to 15Hz to save bandwidth but fine.
-  io.to(room.id).emit("message", snapshot(room));
+  broadcastRoomSnapshot(room);
 }
 
 /** Manage planted recall anchors, decoy signal, and physical drops at 20 Hz. */
@@ -5210,7 +5231,15 @@ async function handle(socket: any, msg: C2S) {
         if(event.type==="planted")stats.plants++;else stats.defuses++;
         room.searchDestroyPlayerActions.set(player.id,stats);
       }
-      if(event)io.to(room.id).emit("message",{t:"modeEvent",event} as S2C);
+      if(event?.type==="planted"){
+        // Plant confirmation is global; only the attacking side receives the site id.
+        for(const viewer of room.players.values()){
+          const visibleEvent=viewer.team===state.attackerTeam
+            ? event
+            : {type:"planted" as const,playerId:event.playerId,detonatesAt:event.detonatesAt};
+          io.to(viewer.id).emit("message",{t:"modeEvent",event:visibleEvent} as S2C);
+        }
+      }else if(event)io.to(room.id).emit("message",{t:"modeEvent",event} as S2C);
       break;
     }
     case "shot": {
@@ -5542,7 +5571,7 @@ async function handle(socket: any, msg: C2S) {
         // Match already in progress — send a live snapshot so the joiner sees
         // current positions/scores immediately, and tell others about the new
         // player so they render the joiner's avatar.
-        socket.emit("message", snapshot(room));
+        socket.emit("message", snapshotForPlayer(room,me));
         socket.to(room.id).emit("message", { t: "respawn", playerId: socket.id, pos: me.pos, health: me.health } as S2C);
       }
       break;
