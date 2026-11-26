@@ -28,7 +28,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
 };
 
 export function Profile() {
-  const { profile, setScreen, playerKey, refreshProfile, session, signOut } = useGame();
+  const { profile, setScreen, playerKey, refreshProfile, session, setSession, signOut } = useGame();
   const [matches, setMatches] = useState<MatchRecordView[]>([]);
   const [achievements, setAchievements] = useState<AchievementView[]>([]);
   const [titleBusy, setTitleBusy] = useState(false);
@@ -36,6 +36,29 @@ export function Profile() {
   const [cosmeticError,setCosmeticError]=useState("");
   const [titleError, setTitleError] = useState("");
   const [accountBusy, setAccountBusy] = useState(false);
+  const [callsignDraft, setCallsignDraft] = useState(profile?.name ?? "");
+  const [callsignBusy, setCallsignBusy] = useState(false);
+  const [callsignError, setCallsignError] = useState("");
+  const [callsignSuccess, setCallsignSuccess] = useState("");
+  useEffect(() => { if (profile?.name) setCallsignDraft(profile.name); }, [profile?.name]);
+  async function saveCallsign() {
+    const trimmed = callsignDraft.trim();
+    if (!playerKey || callsignBusy) return;
+    if (trimmed.length < 3 || trimmed.length > 20 || !/^[a-zA-Z0-9 _-]+$/.test(trimmed)) {
+      setCallsignError("Use 3–20 characters: letters, numbers, spaces, _ or -."); setCallsignSuccess(""); return;
+    }
+    if (trimmed === profile?.name) { setCallsignError(""); setCallsignSuccess("Your callsign is already set to this name."); return; }
+    setCallsignBusy(true); setCallsignError(""); setCallsignSuccess("");
+    try {
+      const response = await fetch("/api/profile", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ playerKey, name: trimmed }) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? "Unable to change callsign.");
+      if (session) setSession({ ...session, name: trimmed });
+      await refreshProfile();
+      setCallsignDraft(trimmed); setCallsignSuccess("Callsign updated successfully.");
+    } catch (error) { setCallsignError(error instanceof Error ? error.message : "Unable to change callsign."); }
+    finally { setCallsignBusy(false); }
+  }
   async function equipTitle(id:string) {
     if (!playerKey || titleBusy) return;
     setTitleBusy(true); setTitleError("");
@@ -252,6 +275,16 @@ export function Profile() {
 
           <TabsContent value="customization" className="mt-5">
             <section aria-label="Profile customization" className="rounded-2xl border border-white/10 bg-zinc-900/50 p-5">
+              <div className="mb-5 rounded-xl border border-cyan-500/20 bg-black/30 p-4">
+                <h2 className="text-white font-bold text-sm mb-1">Callsign</h2>
+                <p className="text-xs text-white/45 mb-3">Change the name displayed in your profile and matches. 3–20 characters.</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input aria-label="New callsign" value={callsignDraft} maxLength={20} disabled={callsignBusy} onChange={e => { setCallsignDraft(e.target.value); setCallsignError(""); setCallsignSuccess(""); }} className="min-w-0 flex-1 rounded-lg border border-cyan-500/30 bg-zinc-950 px-3 py-2 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-1 focus:ring-cyan-500/50" />
+                  <Button onClick={() => void saveCallsign()} disabled={callsignBusy || callsignDraft.trim() === profile.name} className="bg-cyan-700 hover:bg-cyan-600 text-white">{callsignBusy ? "Saving…" : "Save Callsign"}</Button>
+                </div>
+                {callsignError && <p role="alert" className="mt-2 text-xs text-rose-400">{callsignError}</p>}
+                {callsignSuccess && <p role="status" className="mt-2 text-xs text-emerald-400">{callsignSuccess}</p>}
+              </div>
               <h2 className="text-white font-bold text-sm mb-4">Title &amp; Nameplate</h2>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <label htmlFor="equipped-mastery-title" className="text-xs text-amber-300">Match nameplate title</label>
