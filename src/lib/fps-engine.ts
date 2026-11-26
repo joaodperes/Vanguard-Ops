@@ -7904,7 +7904,8 @@ export class FPSEngine {
             this.boltCharges=0;
             if(this.currentSlot===msg.slot){this.reloading=false;this.reloadEndsAt=0;this.reloadStartedAt=0;}
           }
-          if(this.currentSlot===msg.slot)this.frontierAmmoRemaining=msg.ammoRemaining;
+          // Frontier reserve is a player-level pool, including pickups for the inactive slot.
+          this.frontierAmmoRemaining=msg.ammoRemaining;
           this.sound.play("swap",{volume:.65});
         }
         break;
