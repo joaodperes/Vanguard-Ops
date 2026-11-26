@@ -115,7 +115,7 @@ import { advanceKillChain, type KillChainState } from "./kill-chain";
 import { frontierWeaponIdAllowed, frontierReserveAmmo, searchDestroySitesForMap, SEARCH_DESTROY_RULES, hardpointZonesForMap } from "./game-mode-rules";
 import { isFlagDefenseKill, largestScoreDeficit } from "./match-bonus-tracking";
 import { advanceIncrementalReload } from "./incremental-reload";
-import { botReloadDurationMs, incrementalReloadStepMs, weaponReloadDurationMs } from "./weapon-reload-rules";
+import { botReloadDurationMs, incrementalReloadStepMs, shouldBotSmartReload, weaponReloadDurationMs } from "./weapon-reload-rules";
 import { shotSpread, shotBloomIncrease, recoilKickRadians, sustainedRecoilMultiplier, firingMotionFactor, spreadShotDirection } from "./weapon-accuracy";
 import { shotgunPelletDirection, shotgunConeRadians } from "./shotgun-pattern";
 import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty, survivalPrepSeconds, type SurvivalTier } from "./survival";
@@ -13454,9 +13454,8 @@ export class FPSEngine {
       // Bots reload when empty (always) OR when below 30% mag AND no enemy is currently
       // visible/close (smart reload). Higher-skill bots are smarter about this.
       const enemyVisible = dist < 35;
-      const lowAmmo = ai.ammoInMag <= Math.max(1, Math.floor(eff.magSize * 0.3));
-      const wantSmartReload = lowAmmo && !enemyVisible && ai.skill > 0.4 &&
-        canStartWeaponReload(w.stats, ai.ammoInMag) && Math.random() < 0.02;
+      const wantSmartReload = shouldBotSmartReload(ai.ammoInMag, eff.magSize, enemyVisible,
+        ai.skill, canStartWeaponReload(w.stats, ai.ammoInMag), Math.random());
       if (!isThrowingKnife(w.id) && (!ai.sprinting || perk==="field_loader") && (ai.ammoInMag <= 0 || wantSmartReload) && now > ai.reloadingUntil) {
         const durationMs = botReloadDurationMs({
           reloadStyle: w.stats.reloadStyle, reloadPerRound: w.stats.reloadPerRound,
