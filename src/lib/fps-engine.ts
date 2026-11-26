@@ -1,4 +1,5 @@
 import {DEFAULT_CONTROLS,canonicalKey,stick,type ControlSettings} from "./control-settings";
+import { applyDamageFactors } from "./combat-damage-rules";
 import {squadIntent} from "./squad-coordination";
 import { operationById, createOperationState, tickOperation, operationEncounter, operationConfigValid, operationTarget, operationSite, operationAwarenessMultiplier, operationFeedbackEvents, syncOperationCartCollider, type OperationState } from "./operations";
 import { survivalRoleForSlot, survivalRoleHealthMultiplier, survivalFrontalArmor, tickSurvivalSpecialists, createSurvivalObjective, tickSurvivalObjective, survivalObjectiveSite, survivalObjectiveText, SURVIVAL_ROLE_INFO, type SurvivalRole, type SurvivalActor, type SurvivalObjective } from "./survival-encounters";
@@ -10289,18 +10290,18 @@ export class FPSEngine {
       victim.ai.nextDecisionAt=0;
     }
     if(this.opts.mode==="survival"&&victim.isBot&&!this.opts.online){
-      damage*=survivalOutgoingMultiplier(this.survivalUpgradeRanks,{
+      damage=applyDamageFactors(damage,survivalOutgoingMultiplier(this.survivalUpgradeRanks,{
         headshot:head,
         distance:Math.hypot(this.pos.x-victim.pos[0],this.pos.z-victim.pos[2]),
         boss:!!victim.bossMaxHealth,aiming:this.aiming,
         healthFraction:this.health/MAX_HEALTH,
         sinceKillMs:performance.now()-this.survivalLastKillAt,
         sinceHeadshotKillMs:performance.now()-this.survivalLastHeadshotKillAt,
-      });
+      }));
     }
     if(directLethal)damage=tacticalDirectDamage(damage,victim.health,!!victim.bossMaxHealth);
     if(this.opts.mode==="survival"&&victim.isBot&&!this.opts.online&&sourceWeaponId!==LAVA_DEATH_SOURCE)
-      damage*=survivalFrontalArmor(victim.survivalRole,victim.yaw,victim.pos,[this.pos.x,this.pos.y,this.pos.z],head);
+      damage=applyDamageFactors(damage,survivalFrontalArmor(victim.survivalRole,victim.yaw,victim.pos,[this.pos.x,this.pos.y,this.pos.z],head));
     victim.health -= damage;
     if (victim.health <= 0 && victim.alive) {
       if(sourceWeaponId==="wonder_deadlock"&&this.wonderModuleId==="tag_relay"){
