@@ -11,6 +11,21 @@ import {
 import { BOT_ELIGIBLE_WEAPONS, FRONTIER_BOT_PRESET_BY_ARCHETYPE, botArchetypeWeapons, type BotArchetype } from "../src/lib/bot-archetypes";
 import { FRONTIER_LOADOUTS, frontierLoadoutForPreset } from "../src/lib/frontier-loadouts";
 
+
+describe("Frontier dropped weapon interaction", () => {
+  test("weapon pickup requires an explicit nearby server-validated request", () => {
+    const server=readFileSync(new URL("../src/lib/game-server.ts",import.meta.url),"utf8");
+    const client=readFileSync(new URL("../src/lib/fps-engine.ts",import.meta.url),"utf8");
+    const protocol=readFileSync(new URL("../src/lib/game-protocol.ts",import.meta.url),"utf8");
+    expect(protocol).toContain('{ t: "pickupWeapon"; dropId: string }');
+    expect(server).toContain('case "pickupWeapon": {');
+    expect(server).toContain('>2.25)return;');
+    expect(server).not.toContain('Math.hypot(p.pos[0]-drop.pos[0],p.pos[2]-drop.pos[2])>1.65');
+    expect(client).toContain('this.socket.emit("message",{t:"pickupWeapon",dropId:closest}');
+    expect(client).toContain('weaponPickupPrompt');
+  });
+});
+
 describe("Frontier combat fallbacks", () => {
   test("server and offline bots switch to their other magazine and then melee when empty", () => {
     const server=readFileSync(new URL("../src/lib/game-server.ts",import.meta.url),"utf8");
