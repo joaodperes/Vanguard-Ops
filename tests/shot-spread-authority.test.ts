@@ -56,6 +56,15 @@ describe("one authoritative spread calculation", () => {
     expect(later).toBeLessThan(first*5);
   });
 
+  test("hipfire no longer adds category floors or a blanket 1.9 multiplier", () => {
+    const rifle=weaponById("rifle_ar");
+    const hip=shotSpread(rifle.stats,rifle.category,false,0,0,false);
+    expect(hip).toBeCloseTo(rifle.stats.spread,10);
+    const sniper=weaponById("sniper_scout");
+    expect(shotSpread(sniper.stats,sniper.category,false,0,0,false)
+      ).toBeCloseTo(sniper.stats.spread,10);
+  });
+
   test("ADS vs hipfire uses the same weapon stats and firing posture", () => {
     const rifle=weaponById("rifle_ar");
     const ads=shotSpread(rifle.stats,rifle.category,true,0,0,true);
