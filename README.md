@@ -165,7 +165,7 @@ Development continues on the `dev` branch and validated changes are promoted to 
 
 The project's original source code is distributed under the **MIT License**. See [LICENSE](LICENSE). Third-party packages remain subject to their own licenses.
 
-Map compatibility, player limits and spawn safety: [map modes and spawns](docs/map-modes-and-spawns.md).
+For map layouts and notable map-specific mechanics, see [the maps reference](docs/maps.md).
 
 Survival adds specialist enemies and rotating relay, supply and terminal objectives in solo and co-op. 
 
