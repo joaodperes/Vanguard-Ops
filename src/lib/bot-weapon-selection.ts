@@ -11,6 +11,7 @@ export interface FrontierBotWeaponFallbackInput {
   meleeWeaponId: string;
   ammoInMag: number;
   inactiveAmmoInMag?: number;
+  totalAmmoRemaining?: number;
   meleeMagazineSize: number;
   now: number;
   nextSwitchAt?: number;
@@ -27,12 +28,22 @@ export interface FrontierBotWeaponFallback {
 export function resolveFrontierBotWeaponFallback(
   input: FrontierBotWeaponFallbackInput,
 ): FrontierBotWeaponFallback | null {
-  if (input.ammoInMag > 0 || input.now < (input.nextSwitchAt ?? 0)) return null;
+  if (input.now < (input.nextSwitchAt ?? 0)) return null;
+  // A depleted shared pool overrides stale magazine contents after a reload.
+  const totalDepleted = input.totalAmmoRemaining !== undefined && input.totalAmmoRemaining <= 0;
+  if (input.ammoInMag > 0 && !totalDepleted) return null;
 
   const isPrimary = input.currentWeaponId === input.primaryWeaponId;
   const isSecondary = !!input.secondaryWeaponId &&
     input.currentWeaponId === input.secondaryWeaponId;
   if (!isPrimary && !isSecondary) return null;
+
+  if (totalDepleted) {
+    return {
+      weaponId: input.meleeWeaponId, activeSlot: "melee", ammoInMag: input.meleeMagazineSize,
+      inactiveAmmoInMag: input.inactiveAmmoInMag ?? 0, nextSwitchAt: input.now + 500,
+    };
+  }
 
   const otherWeaponId = isPrimary ? input.secondaryWeaponId : input.primaryWeaponId;
   const otherAmmo = input.inactiveAmmoInMag ?? 0;
