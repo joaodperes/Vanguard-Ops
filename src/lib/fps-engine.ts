@@ -13375,7 +13375,7 @@ export class FPSEngine {
         ai.burstEndsAt = now + durationMs;
       }
     } else {
-      const orderGoal=squadIntent({self:c,allies:[...this.combatants.values(),{id:this.selfId,team:this.opts.team,pos:[this.pos.x,this.pos.y,this.pos.z] as Vec3,alive:this.alive,health:this.health}],mode:this.opts.mode,now,order:this.squadOrder,critical:this.opts.mode==="ctf"&&(!!this.ctfFlags.red.carrierId||!!this.ctfFlags.blue.carrierId||ai.ctfGuarding)});
+      const orderGoal=squadIntent({self:c,allies:[...this.combatants.values(),{id:this.selfId,team:this.opts.team,pos:[this.pos.x,this.pos.y,this.pos.z] as Vec3,alive:this.alive,health:this.health}],mode:this.opts.mode,now,critical:this.opts.mode==="ctf"&&(!!this.ctfFlags.red.carrierId||!!this.ctfFlags.blue.carrierId||ai.ctfGuarding)});
       if(orderGoal){ai.wanderTarget=[...orderGoal.goal];ai.highGroundPatrol=null;}
       const patrolGoal=ai.highGroundPatrol;
       const patrolPoint=patrolGoal?cityHighGroundStep(c.pos,patrolGoal,
