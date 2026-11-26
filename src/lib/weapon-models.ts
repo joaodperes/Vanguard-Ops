@@ -333,9 +333,9 @@ export function buildFirstPersonWeapon(
   const bastion = id === "pistol_bastion";
   // Use a visibly grey, matte gunmetal base. High metalness + very dark colour
   // made the previous finish read as glossy black/obsidian rather than steel.
-  const bastionSteel = new THREE.MeshStandardMaterial({ color: 0x5b5a53, roughness: 0.82, metalness: 0.58 });
-  const bastionDarkSteel = new THREE.MeshStandardMaterial({ color: 0x3b3b36, roughness: 0.86, metalness: 0.48 });
-  const bastionWornSteel = new THREE.MeshStandardMaterial({ color: 0x85847a, roughness: 0.76, metalness: 0.62 });
+  const bastionSteel = new THREE.MeshStandardMaterial({ color: 0x969995, roughness: 0.40, metalness: 0.88 });
+  const bastionDarkSteel = new THREE.MeshStandardMaterial({ color: 0x555a57, roughness: 0.50, metalness: 0.84 });
+  const bastionWornSteel = new THREE.MeshStandardMaterial({ color: 0xc1c1b8, roughness: 0.34, metalness: 0.90 });
   const sig = fullSkinMaterial ?? signatureMaterial ?? (bastion ? bastionDarkSteel : new THREE.MeshBasicMaterial({ color: p.signature }));
   const metal = fullSkinMaterial ?? (bastion ? bastionSteel : new THREE.MeshBasicMaterial({ color: 0x29313b }));
   const edge = fullSkinMaterial ?? (bastion ? bastionWornSteel : new THREE.MeshBasicMaterial({ color: 0x69737e }));
