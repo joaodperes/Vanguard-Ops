@@ -16,6 +16,7 @@ import { LAVA_DEATH_SOURCE } from "@/lib/dynamic-environment";
 import { orbitalChargeLabel } from "@/lib/orbital-reactor";
 import { ctfFlagLine, killRank, teamScorePerspective } from "@/lib/hud-top-stats";
 import { combatIdentity } from "@/lib/combat-identity";
+import { TEAM_IDENTITIES, teamIdentity } from "@/lib/team-identity";
 import { Heart, Zap, Trophy, Skull, Clock, LogOut, Users, UserRound, AlertTriangle, Crosshair as CrosshairIcon, Shield, ChevronUp, Siren, ChevronLeft, ChevronRight, Bomb } from "lucide-react";
 import { HARDPOINT_RULES, SEARCH_DESTROY_RULES } from "@/lib/game-mode-rules";
 
@@ -442,11 +443,11 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
               ) : mode === "tdm" || mode === "hardpoint" || mode === "frontier" ? (
                 <>
                   <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1.5 px-2 py-1" : "gap-2 px-3 py-1.5"}`}>
-                    <span className="text-red-300 font-bold text-[10px]">R</span>
-                    <span className={`text-red-300 font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{Math.round(hud.teamScores.red)}</span>
+                    <span className="font-bold text-[9px] tracking-wide" style={{color: TEAM_IDENTITIES.red.hex}}>A</span>
+                    <span className={`font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`} style={{color: TEAM_IDENTITIES.red.hex}}>{Math.round(hud.teamScores.red)}</span>
                     <span className="text-white/30">–</span>
-                    <span className={`text-blue-300 font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`}>{Math.round(hud.teamScores.blue)}</span>
-                    <span className="text-blue-300 font-bold text-[10px]">B</span>
+                    <span className={`font-black tabular-nums ${isTouch ? "text-xs" : "text-sm"}`} style={{color: TEAM_IDENTITIES.blue.hex}}>{Math.round(hud.teamScores.blue)}</span>
+                    <span className="font-bold text-[9px] tracking-wide" style={{color: TEAM_IDENTITIES.blue.hex}}>B</span>
                   </div>
                   {mode !== "hardpoint" && <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex items-center ${isTouch ? "gap-1 px-2 py-1" : "gap-1.5 px-3 py-1.5"}`}>
                     <span className="text-white/60 text-[10px] font-bold">K/D</span>
@@ -455,9 +456,9 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
                 </>
               ) : mode === "searchdestroy" && hud.searchDestroy ? (
                 <div className={`bg-black/65 backdrop-blur rounded-lg border border-white/10 flex flex-wrap items-center justify-center ${isTouch ? "gap-x-2 gap-y-1 px-2 py-1" : "gap-x-3 gap-y-1 px-3 py-1.5"}`}>
-                  <span className="inline-flex items-center gap-1 text-red-300 text-[10px] font-black tabular-nums">RED <span className="inline-flex items-center gap-px">{Array.from({length:Math.min(16,hud.teamAlive?.red??0)}).map((_,i)=><UserRound key={i} className="h-3 w-3"/>)}</span> {hud.searchDestroy.roundWins.red}</span>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-black tabular-nums" style={{color:TEAM_IDENTITIES.red.hex}}>ALPHA <span className="inline-flex items-center gap-px">{Array.from({length:Math.min(16,hud.teamAlive?.red??0)}).map((_,i)=><UserRound key={i} className="h-3 w-3"/>)}</span> {hud.searchDestroy.roundWins.red}</span>
                   <span className="text-white/35">–</span>
-                  <span className="inline-flex items-center gap-1 text-blue-300 text-[10px] font-black tabular-nums">BLUE <span className="inline-flex items-center gap-px">{Array.from({length:Math.min(16,hud.teamAlive?.blue??0)}).map((_,i)=><UserRound key={i} className="h-3 w-3"/>)}</span> {hud.searchDestroy.roundWins.blue}</span>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-black tabular-nums" style={{color:TEAM_IDENTITIES.blue.hex}}>BRAVO <span className="inline-flex items-center gap-px">{Array.from({length:Math.min(16,hud.teamAlive?.blue??0)}).map((_,i)=><UserRound key={i} className="h-3 w-3"/>)}</span> {hud.searchDestroy.roundWins.blue}</span>
                   <span className={`font-black uppercase ${hud.playerTeam === hud.searchDestroy.attackerTeam ? "text-amber-300" : "text-cyan-300"} ${isTouch ? "text-[9px]" : "text-[10px]"}`}>{hud.playerTeam === hud.searchDestroy.attackerTeam ? "ATTACKERS" : "DEFENDERS"}</span>
                 </div>
               ) : mode === "killconfirmed" || mode === "ctf" ? (
@@ -1084,31 +1085,32 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
 }
 
 function teamColor(t: string) {
-  return t === "red" ? "text-red-400" : t === "blue" ? "text-blue-400" : "text-white/80";
+  return teamIdentity(t)?.textClass ?? "text-white/80";
 }
 function teamDot(t: string) {
-  return t === "red" ? "bg-red-500" : t === "blue" ? "bg-blue-500" : "bg-white/60";
+  return teamIdentity(t)?.dotClass ?? "bg-white/60";
 }
 
 // ---- TDM scoreboard team panel ----
-// Renders one half of the Team Deathmatch scoreboard: a colored header
-// (Red/Blue accent + the team's total score) followed by a compact table of
+// Renders one half of a team-mode scoreboard: a colored header
+// (Alpha/Bravo identity + the team's total score) followed by a compact table of
 // that team's players sorted by score (desc). The local player's row is
 // highlighted emerald (same as the FFA table). Every player whose team matches
 // `selfTeam` (i.e. friendlies — which in a team panel is either everyone or
 // no-one) gets a small Shield icon prefix so allies are visually distinct.
 function TeamPanel({ team, score, rows, selfTeam, scoreLabel, limit, teamAlive, isAttacker, mode }: { team: "red" | "blue"; score: number; rows: ScoreRow[]; selfTeam?: string; scoreLabel: string; limit?: number; teamAlive?: number; isAttacker?: boolean; mode: GameMode }) {
-  const accent = team === "red" ? "border-red-500/40" : "border-blue-500/40";
-  const headerBg = team === "red" ? "bg-red-500/10" : "bg-blue-500/10";
-  const headerText = team === "red" ? "text-red-400" : "text-blue-400";
-  const dotColor = team === "red" ? "bg-red-500" : "bg-blue-500";
-  const allyColor = team === "red" ? "text-red-300/80" : "text-blue-300/80";
+  const identity = TEAM_IDENTITIES[team];
+  const accent = identity.borderClass;
+  const headerBg = identity.backgroundClass;
+  const headerText = identity.textClass;
+  const dotColor = identity.dotClass;
+  const allyColor = identity.allyTextClass;
   const sorted = [...rows].sort((a, b) => b.score - a.score || b.kills - a.kills);
   return (
     <div className={`flex-1 rounded-lg border ${accent} overflow-hidden`}>
       <div className={`px-3 py-2 ${headerBg} flex items-center gap-2`}>
         <span className={`inline-block w-2.5 h-2.5 rounded-full ${dotColor}`} />
-        <span className={`${headerText} font-bold uppercase tracking-wider text-xs`}>{team === "red" ? "Red Team" : "Blue Team"}</span>{mode==="searchdestroy"&&<span className="text-white/45 text-[10px] uppercase">{isAttacker?"Attackers":"Defenders"} · {teamAlive??0} alive</span>}
+        <span className={`${headerText} font-bold uppercase tracking-wider text-xs`}>{identity.label}</span>{mode==="searchdestroy"&&<span className="text-white/45 text-[10px] uppercase">{isAttacker?"Attackers":"Defenders"} · {teamAlive??0} alive</span>}
         <span className="ml-auto text-white font-black text-lg tabular-nums">{score}{limit !== undefined && limit > 0 && <span className="text-white/50 text-xs font-normal">/{limit}</span>}</span>
       </div>
       <table className="w-full text-sm">
