@@ -5,14 +5,14 @@ import { chooseSpawn } from "../src/lib/spawn-selection";
 describe("Search & Destroy squad deployment", () => {
   test("teammates use the same tight spawn cluster instead of spreading across the map", () => {
     const base = getMap("dustwater", "searchdestroy");
-    const map = {
+    const map: typeof base = {
       ...base,
       cover: [],
       environment: [],
       props: [],
       spawns: {
         ...base.spawns,
-        red: [[0, 0, 0], [4, 0, 0], [8, 0, 0], [80, 0, 0], [84, 0, 0], [88, 0, 0]],
+        red: [[0, 0, 0], [4, 0, 0], [8, 0, 0], [80, 0, 0], [84, 0, 0], [88, 0, 0]] as typeof base.spawns.red,
       },
     };
     const room = {};
