@@ -2416,7 +2416,6 @@ function scheduleRespawn(room: Room, p: PlayerNet) {
       p.riotShieldHp=RIOT_SHIELD_HP;p.riotShieldReadyAt=0;
     }
     room.lastDamagedAt.delete(p.id);
-    p.alive = true;
     room.equipmentFlashUntil.delete(p.id);
     room.equipmentAdsBlockedUntil.delete(p.id);
     applyQueuedLoadout(room, p);
@@ -2777,11 +2776,11 @@ function recoverSurvivalPlayers(room: Room) {
     applyQueuedLoadout(room, p);
     p.weaponId = room.loadouts.get(p.id)?.weaponId ?? "rifle_ar";
     refillPlayerWonderAmmo(room, p);
-    p.spawnProtectedUntil = 0;
+    p.spawnProtectedUntil = transition.spawnProtectedUntil;
     room.lastDamagedAt.delete(p.id);
     room.throwingKnives.set(p.id,fullThrowingKnives());
     syncThrowingKnifeAmmo(room,p,Date.now());
-    io.to(room.id).emit("message", { t: "survivalRecovered", playerId: p.id, pos, health: MAX_HEALTH } as S2C);
+    io.to(room.id).emit("message", { t: "survivalRecovered", playerId: p.id, pos: transition.position, health: transition.health } as S2C);
   }
   room.downed.clear();
 }
