@@ -597,7 +597,7 @@
     "unlockCost": 1200,
     "description": "Full-auto shotgun. 8 pellets per shell, sustained suppression.",
     "stats": {
-      "damage": 9,
+      "damage": 13,
       "fireRate": 2.5,
       "magSize": 10,
       "reloadTime": 3.4,
