@@ -327,12 +327,10 @@ export function buildFirstPersonWeapon(
   const woodenFurniture = id === "sniper_scout" || id === "dmr_heavy" || id === "shotgun_br";
   const woodMat = new THREE.MeshStandardMaterial({ color: 0x80502d, roughness: 0.82, metalness: 0.02 });
   const woodDarkMat = new THREE.MeshStandardMaterial({ color: 0x55331f, roughness: 0.88, metalness: 0.01 });
-  // The Bastion gets an aged, blued-steel finish rather than the clean grey
-  // polymer/metal palette used by modern sidearms. Keep this local so other
-  // weapons and shared engine materials are not mutated.
+  // The Bastion uses a light satin-steel finish with restrained specular response.
+  // Keeping metalness moderate preserves the grey base under the game lighting
+  // instead of relying on environment reflections that can make it read black.
   const bastion = id === "pistol_bastion";
-  // Use a visibly grey, matte gunmetal base. High metalness + very dark colour
-  // made the previous finish read as glossy black/obsidian rather than steel.
   const bastionSteel = new THREE.MeshStandardMaterial({ color: 0xaeb2af, roughness: 0.36, metalness: 0.28 });
   const bastionDarkSteel = new THREE.MeshStandardMaterial({ color: 0x737875, roughness: 0.43, metalness: 0.24 });
   const bastionWornSteel = new THREE.MeshStandardMaterial({ color: 0xd2d3cc, roughness: 0.30, metalness: 0.32 });
@@ -455,8 +453,8 @@ export function buildFirstPersonWeapon(
       const wear = box(side*.061,-.075,-.205,.003,.012,.045,bastionWornSteel);
       wear.name = "bastion_worn_frame_edge";
     }
-    // A dark, worn cylinder separates visually from the frame without reading
-    // as a bright modern alloy; the flutes remain visible in side lighting.
+    // A slightly darker satin-steel cylinder separates from the brighter frame;
+    // its reduced outer web keeps the cylinder proportionate to the slimmer body.
     const cylinderBand = new THREE.Mesh(new THREE.TorusGeometry(.068,.004,6,24),bastionWornSteel);
     cylinderBand.name = "bastion_cylinder_wear_band";
     cylinderBand.rotation.x=Math.PI/2;
