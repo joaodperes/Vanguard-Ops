@@ -133,9 +133,9 @@ export const FOREST_BASE_COVER: CoverBox[] = ([-1,1] as const).flatMap(sign=>{
 });
 /** Interconnected canopy spine and cross-bridges link both home-tree decks. */
 const FOREST_CANOPY_COVER: CoverBox[] = [
-  {pos:[0,CTF_TREE_TOP-.24,0],size:[87,.24,1.8],kind:"platform",ballisticId:"forest:canopy:spine"},
-  {pos:[-45,CTF_TREE_TOP-.24,0],size:[1.8,.24,16],kind:"platform",ballisticId:"forest:canopy:west-cross"},
-  {pos:[45,CTF_TREE_TOP-.24,0],size:[1.8,.24,16],kind:"platform",ballisticId:"forest:canopy:east-cross"},
+  {pos:[0,CTF_TREE_TOP-.24,0],size:[87,.24,1.8],kind:"platform"},
+  {pos:[-45,CTF_TREE_TOP-.24,0],size:[1.8,.24,16],kind:"platform"},
+  {pos:[45,CTF_TREE_TOP-.24,0],size:[1.8,.24,16],kind:"platform"},
 ];
 /** Four broad stair flights make the canopy network accessible from both sides. */
 const forestCanopyAccessStairs: CoverBox[] = ([-1,1] as const).flatMap(xSign=>
