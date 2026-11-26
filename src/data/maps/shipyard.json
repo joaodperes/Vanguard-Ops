@@ -257,6 +257,19 @@
         "h": 0.2,
         "kind": "platform",
         "autoStairs": false
+      },
+      {
+        "id": "bw-east-rim-stack-stairs",
+        "x": 57,
+        "z": 38,
+        "y": 0,
+        "h": 6.4,
+        "w": 1.5,
+        "d": 8.2,
+        "kind": "stairs",
+        "axis": "x",
+        "sign": -1,
+        "label": "East rim container access"
       }
     ],
     "spawns": {
@@ -517,6 +530,16 @@
         "d": 4.4,
         "h": 3.2,
         "color": "#437c8f"
+      },
+      {
+        "kind": "container",
+        "x": 62,
+        "z": 38,
+        "y": 3.2,
+        "w": 10,
+        "d": 4.4,
+        "h": 3.2,
+        "color": "#e9bf42"
       }
     ],
     "surfaces": {
