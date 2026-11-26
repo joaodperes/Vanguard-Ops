@@ -8,6 +8,7 @@ import { Trophy, RotateCcw, Home, Zap, Coins, TrendingUp, Star, Crown, Award, Ta
 import { toast } from "sonner";
 import { weaponById, WEAPONS, WEAPON_SKINS, ATTACHMENTS, PLAYER_SKINS } from "@/lib/game-data";
 import { displayLabel } from "@/lib/display-labels";
+import { TEAM_IDENTITIES, teamIdentity } from "@/lib/team-identity";
 import { perkById } from "@/lib/perks";
 import { operationById, operationStars, operationStarCriteria, operationTimePerformance, formatOperationTime, nextOperation } from "@/lib/operations";
 import { SURVIVAL_TIER_INFO } from "@/lib/survival";
@@ -314,11 +315,11 @@ export function Results() {
 
         {r.modeStats?.searchDestroy&&<div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 mb-5">
           <div className="text-xs font-black tracking-widest text-amber-300 uppercase mb-2">Search & Destroy · Campaign Report</div>
-          <div className="flex flex-wrap gap-6 text-sm text-white/80"><span>Rounds won · RED <b>{r.modeStats.searchDestroy.redRounds}</b> / BLUE <b>{r.modeStats.searchDestroy.blueRounds}</b></span><span>Rounds played · <b>{r.modeStats.searchDestroy.roundsPlayed}</b></span></div>
+          <div className="flex flex-wrap gap-6 text-sm text-white/80"><span>Rounds won · <span style={{color:TEAM_IDENTITIES.red.hex}}>ALPHA</span> <b>{r.modeStats.searchDestroy.redRounds}</b> / <span style={{color:TEAM_IDENTITIES.blue.hex}}>BRAVO</span> <b>{r.modeStats.searchDestroy.blueRounds}</b></span><span>Rounds played · <b>{r.modeStats.searchDestroy.roundsPlayed}</b></span></div>
         </div>}
         {r.modeStats?.hardpoint&&<div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 mb-5">
           <div className="text-xs font-black tracking-widest text-emerald-300 uppercase mb-2">Hardpoint · Objective Report</div>
-          <div className="flex flex-wrap gap-6 text-sm text-white/80"><span>Objective time · RED <b>{r.modeStats.hardpoint.redObjectiveSeconds}s</b> / BLUE <b>{r.modeStats.hardpoint.blueObjectiveSeconds}s</b></span><span>Contested · <b>{r.modeStats.hardpoint.contestedSeconds}s</b></span><span>Final score · <b>{r.modeStats.hardpoint.redScore}–{r.modeStats.hardpoint.blueScore}</b></span></div>
+          <div className="flex flex-wrap gap-6 text-sm text-white/80"><span>Objective time · <span style={{color:TEAM_IDENTITIES.red.hex}}>ALPHA</span> <b>{r.modeStats.hardpoint.redObjectiveSeconds}s</b> / <span style={{color:TEAM_IDENTITIES.blue.hex}}>BRAVO</span> <b>{r.modeStats.hardpoint.blueObjectiveSeconds}s</b></span><span>Contested · <b>{r.modeStats.hardpoint.contestedSeconds}s</b></span><span>Final score · <b>{r.modeStats.hardpoint.redScore}–{r.modeStats.hardpoint.blueScore}</b></span></div>
         </div>}
         {r.modeStats?.frontier&&<div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 mb-5">
           <div className="text-xs font-black tracking-widest text-amber-300 uppercase mb-2">Frontier · Ammunition Report</div>
@@ -358,7 +359,7 @@ export function Results() {
                         </span>
                       </td>
                       <td className="px-2 py-2">
-                        <span className={`inline-block w-2 h-2 rounded-full mr-2 ${s.team === "red" ? "bg-red-500" : s.team === "blue" ? "bg-blue-500" : "bg-white/60"}`} />
+                        <span className={`inline-block w-2 h-2 rounded-full mr-2 ${teamIdentity(s.team)?.dotClass ?? "bg-white/60"}`} />
                         <span className={isMe ? "text-emerald-300 font-semibold" : "text-white/90"}>{s.name}</span>
                         {s.isBot && <span className="ml-1.5 text-white/30 text-xs">BOT</span>}
                       </td>
