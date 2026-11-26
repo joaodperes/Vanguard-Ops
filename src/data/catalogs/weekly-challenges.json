@@ -403,7 +403,6 @@
     "icon": "Bomb",
     "focus": "operations",
     "category": "weekly",
-    "mode": "searchdestroy",
     "eliteEligible": false
   },
   {
@@ -417,7 +416,6 @@
     "icon": "Trophy",
     "focus": "operations",
     "category": "weekly",
-    "mode": "searchdestroy",
     "eliteEligible": false
   },
   {
@@ -431,7 +429,6 @@
     "icon": "Shield",
     "focus": "operations",
     "category": "weekly",
-    "mode": "hardpoint",
     "eliteGoal": 1800
   },
   {
@@ -445,7 +442,6 @@
     "icon": "Trophy",
     "focus": "operations",
     "category": "weekly",
-    "mode": "hardpoint",
     "eliteEligible": false
   },
   {
@@ -459,7 +455,6 @@
     "icon": "Crosshair",
     "focus": "operations",
     "category": "weekly",
-    "mode": "frontier",
     "eliteGoal": 150
   },
   {
@@ -473,7 +468,6 @@
     "icon": "Trophy",
     "focus": "operations",
     "category": "weekly",
-    "mode": "frontier",
     "eliteEligible": false
   }
 ]
