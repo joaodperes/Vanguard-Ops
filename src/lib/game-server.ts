@@ -496,11 +496,13 @@ function spawnBots(room: Room) {
     ai.moveSpeed*=botMovementPerkMultiplier(loadout.perkId);
     if(loadout.secondaryWeaponId){
 
-      const reserveSlotWeapon=loadout.emptyPrimary?loadout.weaponId:loadout.secondaryWeaponId;
+      const reserveSlotWeapon=loadout.secondaryWeaponId;
 
-      const reserveSlotAttachments=loadout.emptyPrimary?loadout.attachments:loadout.secondaryAttachments;
 
-      ai.secondaryAmmoInMag=botMagazineCapacity(reserveSlotWeapon,reserveSlotAttachments);
+      const reserveSlotAttachments=loadout.secondaryAttachments;
+
+
+      ai.secondaryAmmoInMag=loadout.emptyPrimary?0:botMagazineCapacity(reserveSlotWeapon,reserveSlotAttachments);
 
     }
     // In gungame, every combatant (including bots) starts on the first
