@@ -11,12 +11,12 @@ describe("Hardpoint map layouts and rotation", () => {
     expect(mapAllowedForMode("hardpoint", "whiteout_depot")).toBe(true);
     expect(mapAllowedForMode("hardpoint", "dustwater")).toBe(true);
     expect(mapAllowedForMode("hardpoint", "floodgate")).toBe(true);
-    expect(resolveRoomSelection("hardpoint", "bunker", 5).mapId).toBe("emberhold");
+    expect(resolveRoomSelection("hardpoint", "bunker", 5).mapId).toBe("whiteout_depot");
   });
 
   test("all selectable Hardpoint zones fit fully inside each map footprint", () => {
     const maps = MAP_LIST.filter(map => mapAllowedForMode("hardpoint", map.id));
-    expect(maps.map(map => map.id).sort()).toEqual(["dustwater", "emberhold", "floodgate"]);
+    expect(maps.map(map => map.id).sort()).toEqual(["dustwater", "floodgate", "whiteout_depot"]);
     for (const map of maps) {
       const regions = MAP_BLUEPRINTS.maps[map.id].regions;
       const zones = hardpointZonesForMap(map.id);
