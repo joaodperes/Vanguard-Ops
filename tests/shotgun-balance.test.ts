@@ -148,10 +148,10 @@ describe("shotgun attachment combinations", () => {
 
     // Buckshot Swarm retains a theoretical headshot one-shot, but its
     // reduced per-pellet modifier reins in the 14-pellet volley.
-    expect(swarm.damage).toBe(8);
+    expect(swarm.damage).toBe(7);
     expect(swarm.pellets).toBe(14);
-    expect(swarm.damage * swarm.pellets).toBe(112);
-    expect(swarm.damage * swarm.pellets * swarm.headshotMult).toBeCloseTo(145.6);
+    expect(swarm.damage * swarm.pellets).toBe(98);
+    expect(swarm.damage * swarm.pellets * swarm.headshotMult).toBeCloseTo(127.4);
     expect(swarm.range).toBeCloseTo(base.range * 0.75);
 
     // Slugs gain a meaningful damage increase while preserving their
