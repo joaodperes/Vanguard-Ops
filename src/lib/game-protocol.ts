@@ -121,7 +121,7 @@ export interface CreateRoomConfig {
   denialScoreEnabled?: boolean; // +1 team/player point for recovering friendly dogtags 
   searchDestroyRoundTimeSeconds?: number; // Search & Destroy round duration, seconds;
   searchDestroyRoundsToWin?: number; // Search & Destroy rounds required to win the match
-  gungamePreset?: "all" | "cqc" | "long_range";
+  gungamePreset?: "all" | "cqc" | "long_range" | "assault" | "smg" | "shotgun" | "dmr" | "sniper" | "lmg";
   gungameMultiplier?: number; // whole list 1–5 times; default 1
   survivalPlayers?: 1 | 2; // max human co-op partners, defaults to solo
   operationId?: string;
