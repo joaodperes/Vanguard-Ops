@@ -1487,6 +1487,7 @@ export type C2S =
   | { t: "exitMech" } // pilot voluntarily leaves and consumes the Juggernaut
   | { t: "mechShot"; mode: "minigun" | "secondary"; origin: Vec3; dir: Vec3 }
   | { t: "recoverBolt"; boltId: string }
+  | { t: "pickupWeapon"; dropId: string }
   | { t: "quickMelee" }
   | { t: "collectScavenger"; id: string }
   | { t: "useEquipment" } // intent only; server validates the item, aim and stock
