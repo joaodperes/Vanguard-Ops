@@ -13546,7 +13546,7 @@ export class FPSEngine {
         const durationMs = botReloadDurationMs({
           reloadStyle: w.stats.reloadStyle, reloadPerRound: w.stats.reloadPerRound,
           effectiveReloadTime: eff.reloadTime, magazineSize: eff.magSize,
-          weaponReloadTime: w.stats.reloadTime, frontier: this.opts.mode === "frontier",
+          weaponReloadTime: w.stats.reloadTime, frontier: false,
           perkMultiplier: reloadDurationMultiplier(perk),
         });
         ai.reloadingUntil = now + durationMs;
