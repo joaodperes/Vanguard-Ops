@@ -59,6 +59,7 @@ export function frontierLoadoutForPreset(base: LoadoutWire, presetId: FrontierLo
   if (!preset) return { ...base, emptyPrimary: false };
   return {
     ...base,
+    frontierPresetId: preset.id,
     perkId: undefined,
     equipmentId: undefined,
     wonderWeaponId: undefined,
