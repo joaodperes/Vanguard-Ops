@@ -867,7 +867,7 @@
     "category": "sniper",
     "unlockLevel": 5,
     "unlockCost": 500,
-    "description": "Lightweight bolt-action rifle with optional optics and no factory scope. Each shot requires a full bolt cycle to eject the spent casing before firing again. A precise headshot is lethal; body shots require two hits. No body penetration and very limited cover penetration.",
+    "description": "Lightweight bolt-action rifle with optional optics and no factory scope. Each shot requires a full bolt cycle to eject the spent casing before firing again. A precise headshot is lethal; body shots deal 95 damage and require a follow-up hit. No body penetration and very limited cover penetration.",
     "stats": {
       "damage": 95,
       "fireRate": 0.75,
