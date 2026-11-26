@@ -5317,10 +5317,11 @@ async function handle(socket: any, msg: C2S) {
       }else{
         kit.secondaryWeaponId=drop.weaponId;kit.secondaryWeaponSkinId=drop.skinId;kit.secondaryAttachments=attachments;
       }
-      if(wasHoldingSlot){player.weaponId=drop.weaponId;player.weaponSkinId=drop.skinId;
-        room.frontierAmmoRemaining??=new Map();
-        room.frontierAmmoRemaining.set(socket.id,Math.max(0,drop.ammoRemaining));
-      }
+      if(wasHoldingSlot){player.weaponId=drop.weaponId;player.weaponSkinId=drop.skinId;}
+      // Frontier reserve belongs to the player, not the active slot. A pickup
+      // must carry its ammo pool even when the player swaps to it later.
+      room.frontierAmmoRemaining??=new Map();
+      room.frontierAmmoRemaining.set(socket.id,Math.max(0,drop.ammoRemaining));
       if(drop.weaponId==="crossbow_reclaimer"){
         // A scavenged crossbow starts ready instead of inheriting an old cooldown.
         room.boltReadyAt.delete(socket.id);
