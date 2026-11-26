@@ -1,5 +1,7 @@
 import {squadIntent} from "./squad-coordination";
 import { applyDamageFactors } from "./combat-damage-rules";
+import { resolveFrontierBotWeaponFallback } from "./bot-weapon-selection";
+import { resolveBotPursuitSpeed } from "./bot-movement-rules";
 import { operationById, nextOperation, createOperationState, tickOperation, damageOperationEscort, operationSite, operationEncounter, operationConfigValid, operationAwarenessMultiplier, type OperationState } from "./operations";
 import { survivalRoleForSlot, survivalRoleHealthMultiplier, survivalFrontalArmor, tickSurvivalSpecialists, createSurvivalObjective, tickSurvivalObjective, SURVIVAL_ROLE_INFO, type SurvivalActor, type SurvivalObjective } from "./survival-encounters";
 import { survivalPauseActive, survivalFirstChoiceDeadline, remainingSurvivalUpgradeSeconds } from "./survival-pause";
@@ -3968,23 +3970,21 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
   }
   // Frontier bots fall back to their sidearm when their current magazine is
   // empty, then to their configured melee weapon when both firearms are dry.
-  if(room.mode==="frontier" && ai.ammoInMag<=0 && !ai.wonderEquippedUntil &&
-     !room.orbitalHolders.has(bot.id) && now>=(ai.nextWeaponSwitchAt??0)){
+  // Keep Frontier's empty-magazine fallback identical to the offline bot simulation.
+  if(room.mode==="frontier" && !ai.wonderEquippedUntil && !room.orbitalHolders.has(bot.id)){
     const kit=bot.loadout;
-    const currentIsPrimary=bot.weaponId===kit.weaponId;
-    const otherId=currentIsPrimary?kit.secondaryWeaponId:kit.weaponId;
-    const otherAmmo=ai.secondaryAmmoInMag??0;
-    if(otherId && otherAmmo>0){
-      const old=ai.ammoInMag;ai.ammoInMag=otherAmmo;
-      ai.secondaryAmmoInMag=old;
-      bot.weaponId=otherId;ai.nextWeaponSwitchAt=now+500;
+    const melee=kit.meleeWeaponId??"knife_tactical";
+    const fallback=resolveFrontierBotWeaponFallback({
+      currentWeaponId:bot.weaponId,primaryWeaponId:kit.weaponId,
+      secondaryWeaponId:kit.secondaryWeaponId,meleeWeaponId:melee,
+      ammoInMag:ai.ammoInMag,inactiveAmmoInMag:ai.secondaryAmmoInMag,
+      meleeMagazineSize:weaponById(melee).stats.magSize,now,nextSwitchAt:ai.nextWeaponSwitchAt,
+    });
+    if(fallback){
+      bot.weaponId=fallback.weaponId;ai.ammoInMag=fallback.ammoInMag;
+      ai.secondaryAmmoInMag=fallback.inactiveAmmoInMag;
+      ai.nextWeaponSwitchAt=fallback.nextSwitchAt;
       ai.reloadingUntil=0;ai.burstShotsLeft=0;
-    }else{
-      const melee=kit.meleeWeaponId??"knife_tactical";
-      if(bot.weaponId!==melee){
-        bot.weaponId=melee;ai.ammoInMag=weaponById(melee).stats.magSize;
-        ai.reloadingUntil=0;ai.nextWeaponSwitchAt=now+500;ai.burstShotsLeft=0;
-      }
     }
   }
   // Frontier crossbow bots retrieve their own recoverable bolts just as
@@ -4289,7 +4289,14 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
       ai.nextCombatJumpAt=now+botTactics(ai.difficulty).jumpCooldown;
     }
     const botCarryingFlag=room.mode==="ctf"&&(room.flags.red.carrierId===bot.id||room.flags.blue.carrierId===bot.id);
-    const moveSpeed = (botCarryingFlag ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * botMovementPerkMultiplier(perk,ai.sprinting)/botMovementPerkMultiplier(perk) * ctfCarrierWeaponSpeed(eff.moveSpeed,botCarryingFlag) * (orbitalReaperEquipped(room.map,bot.weaponId)&&!botCarryingFlag?ORBITAL_REAPER_SPEED_MULTIPLIER:1) * sludgeMovementFactor(bot.pos,bot.team,now,[...room.wonderFields.values()],room.mode==="ffa"||room.mode==="gungame") * floodgateWaterEffect(bot.pos[0],bot.pos[1],bot.pos[2],floodAge,room.map.cover).speedMultiplier * ((room.cryoSlowUntil.get(bot.id)??0)>now?CRYO_SLOW_FACTOR:1);
+    const moveSpeed = resolveBotPursuitSpeed({
+      moveSpeed:ai.moveSpeed,carryingFlag:botCarryingFlag,flagSpeedMultiplier:CTF_SPEED_MULTIPLIER,
+      sprinting:ai.sprinting,perkSpeedMultiplier:botMovementPerkMultiplier(perk,ai.sprinting),
+      perkBaseSpeedMultiplier:botMovementPerkMultiplier(perk),
+      weaponMoveSpeedMultiplier:ctfCarrierWeaponSpeed(eff.moveSpeed,botCarryingFlag),
+      orbitalMultiplier:orbitalReaperEquipped(room.map,bot.weaponId)&&!botCarryingFlag?ORBITAL_REAPER_SPEED_MULTIPLIER:1,
+      environmentMultiplier:sludgeMovementFactor(bot.pos,bot.team,now,[...room.wonderFields.values()],room.mode==="ffa"||room.mode==="gungame") * floodgateWaterEffect(bot.pos[0],bot.pos[1],bot.pos[2],floodAge,room.map.cover).speedMultiplier * ((room.cryoSlowUntil.get(bot.id)??0)>now?CRYO_SLOW_FACTOR:1),
+    });
     const ideal = weapon.category==="melee" ? Math.max(.7,weapon.stats.range-.15) : stance.idealDistance;
     // Melee bots must close to the actual weapon's reach, not stop 3m short.
     const chaseThreshold=weapon.category==="melee" ? ideal : ideal+3;
