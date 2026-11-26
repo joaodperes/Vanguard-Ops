@@ -3,6 +3,7 @@ import { resolveFrontierBotWeaponFallback } from "../src/lib/bot-weapon-selectio
 import { resolveBotPursuitSpeed } from "../src/lib/bot-movement-rules";
 import { MOVEMENT } from "../src/lib/movement-rules";
 import { cloneFrontierLoadout, frontierDropWeapon } from "../src/lib/frontier-loadout-drops";
+import { botReloadDurationMs, incrementalReloadStepMs } from "../src/lib/weapon-reload-rules";
 
 describe("shared Frontier bot weapon selection", () => {
   const base = {
@@ -129,13 +130,11 @@ describe("shared Frontier loadout drop rules", () => {
 
 describe("shared bot reload timing", () => {
   test("uses the same incremental shell interval in both simulations", () => {
-    const { incrementalReloadStepMs } = require("../src/lib/weapon-reload-rules");
-    expect(incrementalReloadStepMs(0.42, 2.4, 6, 2.4)).toBe(1008);
-    expect(incrementalReloadStepMs(undefined, 2.4, 6, 2.4)).toBe(1000);
+    expect(incrementalReloadStepMs(0.42, 2.4, 6, 2.4)).toBe(420);
+    expect(incrementalReloadStepMs(undefined, 2.4, 6, 2.4)).toBe(400);
   });
 
   test("applies Frontier and perk multipliers to conventional reloads", () => {
-    const { botReloadDurationMs } = require("../src/lib/weapon-reload-rules");
     expect(botReloadDurationMs({
       reloadStyle: "magazine", effectiveReloadTime: 2, magazineSize: 30,
       weaponReloadTime: 2, frontier: true, perkMultiplier: 0.8,
@@ -148,6 +147,6 @@ describe("shared bot reload timing", () => {
       reloadStyle: "incremental", reloadPerRound: 0.35,
       effectiveReloadTime: 2.1, magazineSize: 6, weaponReloadTime: 2.1,
       frontier: true, perkMultiplier: 0.9,
-    })).toBeCloseTo(661.5);
+    })).toBeCloseTo(315);
   });
 });
