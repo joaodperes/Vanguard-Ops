@@ -4093,7 +4093,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     const origin:Vec3=[bot.pos[0],bot.pos[1]+1.45,bot.pos[2]];
     const dir=normalize([scout.pos[0]-origin[0],scout.pos[1]-origin[1],scout.pos[2]-origin[2]]);
     scout.hp-=Math.max(5,eff.damage*.55);ai.ammoInMag--;ai.lastFiredAt=now;
-    ai.nextShotAt=now+1000/Math.max(.5,eff.fireRate);
+    ai.nextShotAt=now+weaponFireIntervalMs(eff.fireRate,.5);
     io.to(room.id).emit("message",{t:"shotFx",origin,dir,weaponId:bot.weaponId,
       attackerId:bot.id,skinId:bot.weaponSkinId,suppressed:false} as S2C);
     if(scout.hp<=0){room.harbingerDrones.delete(scout.id);io.to(room.id).emit("message",{t:"harbingerRemoved",id:scout.id} as S2C);}
@@ -4547,7 +4547,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
           ai.nextShotAt = now + weaponFireIntervalMs(eff.fireRate) * (1.0 + (1 - ai.skill) * 0.4) + Math.random() * 30;
         }
       } else {
-        ai.nextShotAt = now + 1000 / Math.max(1, eff.fireRate) * (1.4 + (1 - ai.skill) * 0.6) + Math.random() * 200;
+        ai.nextShotAt = now + weaponFireIntervalMs(eff.fireRate) * (1.4 + (1 - ai.skill) * 0.6) + Math.random() * 200;
       }
       if (!didHit && Math.random() < 0.15) ai.nextShotAt += 200; // miss hesitation
     }
