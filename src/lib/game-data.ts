@@ -633,12 +633,11 @@ export function promoteChallengeToElite(base: ChallengeDef): ChallengeDef {
  * Missing telemetry must never be interpreted as qualifying for a filtered quest.
  */
 export function contextualChallengeDelta(
-  challenge: Pick<ChallengeDef, "metric" | "mapId" | "attachmentId" | "survivalTier" | "mode">,
+  challenge: Pick<ChallengeDef, "metric" | "mapId" | "attachmentId" | "survivalTier">,
   match: { mapId?: string; survivalTier?: string; mode: string; kills: number; perAttachmentKills?: Record<string, number> },
   baseDelta: number,
 ): number {
   if (challenge.mapId && challenge.mapId !== match.mapId) return 0;
-  if (challenge.mode && challenge.mode !== match.mode) return 0;
   if (challenge.survivalTier && (match.mode !== "survival" || challenge.survivalTier !== match.survivalTier)) return 0;
   if (challenge.attachmentId) {
     if (challenge.metric !== "kills") return 0;
