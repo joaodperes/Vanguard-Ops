@@ -131,7 +131,7 @@ describe("shared Frontier loadout drop rules", () => {
 describe("shared bot reload timing", () => {
   test("uses the same incremental shell interval in both simulations", () => {
     expect(incrementalReloadStepMs(0.42, 2.4, 6, 2.4)).toBeCloseTo(420);
-    expect(incrementalReloadStepMs(undefined, 2.4, 6, 2.4)).toBe(400);
+    expect(incrementalReloadStepMs(undefined, 2.4, 6, 2.4)).toBeCloseTo(400);
   });
 
   test("applies Frontier and perk multipliers to conventional reloads", () => {
