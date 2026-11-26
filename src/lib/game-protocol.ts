@@ -1344,7 +1344,7 @@ export const mapAllowedForMode = (mode: GameMode, id: MapId | string): boolean =
     if (id === "dustwater") { const pools=map.modeSpawns?.searchdestroy; return !!pools && pools.red.length>=3 && pools.blue.length>=3; }
     return (id === "compound" || id === "skybridge") && map.spawns.red.length>=3 && map.spawns.blue.length>=3;
   }
-  if (mode === "hardpoint") return id === "dustwater" || id === "emberhold" || id === "floodgate";
+  if (mode === "hardpoint") return id === "dustwater" || id === "whiteout_depot" || id === "floodgate";
   // Frontier is intentionally limited to its three authored arenas.
   if (mode === "frontier") {
     if (id === "dustwater") {
@@ -1360,7 +1360,7 @@ export const mapAllowedForMode = (mode: GameMode, id: MapId | string): boolean =
  * for the selected map must not send the old map's team size to the server. */
 export function resolveRoomSelection(mode: GameMode, mapId: MapId, teamSize: TeamSize): { mapId: MapId; teamSize: TeamSize } {
   const effectiveMapId: MapId = mapAllowedForMode(mode, mapId)
-    ? mapId : mode === "ctf" ? "forest_warfare" : mode === "hardpoint" ? "emberhold" : mode === "searchdestroy" || mode === "frontier" ? "dustwater" : "compound";
+    ? mapId : mode === "ctf" ? "forest_warfare" : mode === "hardpoint" ? "whiteout_depot" : mode === "searchdestroy" || mode === "frontier" ? "dustwater" : "compound";
   return {
     mapId: effectiveMapId,
     // Direct/invalid room selections reset to the effective map recommendation.
