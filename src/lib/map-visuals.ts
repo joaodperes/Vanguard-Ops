@@ -559,7 +559,10 @@ export function propColliders(props:readonly MapProp[],spawns:readonly Vec3[],au
       put(0,h*.8,0,w/2,.325,d*.08);
       continue;
     }
-    result.push({kind:"cover",pos:[p.x,p.y??(size[1]),p.z],size,
+    // Elevated containers use bottom elevation (p.y) in both the visible
+    // model and collision body; centring the collider at p.y made stacked
+    // containers physically offset from their rendered mesh.
+    result.push({kind:"cover",pos:[p.x,(p.y??0)+size[1],p.z],size,
       material:p.kind==="rock"?"concrete":"reinforced"});
   }
   return result;
