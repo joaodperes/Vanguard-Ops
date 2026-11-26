@@ -72,7 +72,7 @@ export const WEAPON_VISUALS: Record<string, Profile> = {
   pistol_machine:  { receiver: [.105,.115,.29],guardLength:.13, barrelLength:.13, bore:.022, stock:"wire",      magazine:"straight", body:"block",features:["guard","rail"],signature:0xc85c5c },
   launcher_rocket: { receiver: [.23,.24,.61],  guardLength:.26, barrelLength:.70, bore:.115, stock:"none",      magazine:"rocket",   body:"block",features:["shield","carry","muzzle"],signature:0x93aa67 },
   pistol_ghost:    { receiver: [.087,.088,.18],guardLength:.04, barrelLength:.07,bore:.016, stock:"none",magazine:"grip",body:"slim",features:[],signature:0x8fe7bf },
-  pistol_bastion:  { receiver: [.125,.14,.25],guardLength:.065,barrelLength:.28,bore:.038,stock:"none",magazine:"revolver",body:"tapered",features:["muzzle"],signature:0xcaa07a },
+  pistol_bastion:  { receiver: [.112,.14,.25],guardLength:.065,barrelLength:.28,bore:.038,stock:"none",magazine:"revolver",body:"tapered",features:["muzzle"],signature:0xcaa07a },
   pdw_mamba:       { receiver: [.112,.115,.25],guardLength:.075,barrelLength:.09,bore:.018, stock:"none",magazine:"straight",body:"ribbed",features:["vent","muzzle"],signature:0xd5db4a },
   pdw_sentinel:    { receiver: [.13,.125,.29],guardLength:.12, barrelLength:.13,bore:.026, stock:"wire",magazine:"straight",body:"block",features:["rail","guard"],signature:0x6fe2b7 },
   launcher_breach: { receiver: [.25,.22,.48],guardLength:.20, barrelLength:.46,bore:.105, stock:"none",magazine:"rocket",body:"angular",features:["shield","muzzle"],signature:0xb48b53 },
@@ -333,9 +333,9 @@ export function buildFirstPersonWeapon(
   const bastion = id === "pistol_bastion";
   // Use a visibly grey, matte gunmetal base. High metalness + very dark colour
   // made the previous finish read as glossy black/obsidian rather than steel.
-  const bastionSteel = new THREE.MeshStandardMaterial({ color: 0x969995, roughness: 0.40, metalness: 0.88 });
-  const bastionDarkSteel = new THREE.MeshStandardMaterial({ color: 0x555a57, roughness: 0.50, metalness: 0.84 });
-  const bastionWornSteel = new THREE.MeshStandardMaterial({ color: 0xc1c1b8, roughness: 0.34, metalness: 0.90 });
+  const bastionSteel = new THREE.MeshStandardMaterial({ color: 0xaeb2af, roughness: 0.36, metalness: 0.28 });
+  const bastionDarkSteel = new THREE.MeshStandardMaterial({ color: 0x737875, roughness: 0.43, metalness: 0.24 });
+  const bastionWornSteel = new THREE.MeshStandardMaterial({ color: 0xd2d3cc, roughness: 0.30, metalness: 0.32 });
   const sig = fullSkinMaterial ?? signatureMaterial ?? (bastion ? bastionDarkSteel : new THREE.MeshBasicMaterial({ color: p.signature }));
   const metal = fullSkinMaterial ?? (bastion ? bastionSteel : new THREE.MeshBasicMaterial({ color: 0x29313b }));
   const edge = fullSkinMaterial ?? (bastion ? bastionWornSteel : new THREE.MeshBasicMaterial({ color: 0x69737e }));
@@ -387,18 +387,18 @@ export function buildFirstPersonWeapon(
     // (rear of cylinder: z=-.099; front of shield: z=-.096), while remaining
     // fixed to the frame when the cylinder swings sideways for reloading.
     const recoilShield=new THREE.Mesh(
-      new THREE.CylinderGeometry(.089,.084,.066,24),frameMat);
+      new THREE.CylinderGeometry(.081,.078,.060,24),frameMat);
     recoilShield.name="bastion_recoil_shield";
     recoilShield.rotation.x=Math.PI/2; // circular XY silhouette, barrel-parallel axis
     add(recoilShield,0,-.027,-.063);
     // Continuous rounded backstrap connects the upper frame, recoil shield,
     // hammer housing and wooden grip. Unlike the removed generic receiver,
     // this fills the rear void WITHOUT swallowing the exposed cylinder.
-    const backstrap=new THREE.Mesh(new THREE.CapsuleGeometry(.054,.126,8,16),frameMat);
+    const backstrap=new THREE.Mesh(new THREE.CapsuleGeometry(.049,.120,8,16),frameMat);
     backstrap.name="bastion_solid_backstrap";
     backstrap.rotation.x=-.18;
     add(backstrap,0,-.128,-.006);
-    const lowerBridge=box(0,-.126,-.091,.075,.030,.112,frameMat);
+    const lowerBridge=box(0,-.126,-.091,.068,.030,.108,frameMat);
     lowerBridge.name="bastion_lower_frame_bridge";
     // Cast side cheeks are thick, closed plates, not skinny wire outlines.
     // They overlap the round recoil shield and topstrap at their upper edge,
@@ -415,28 +415,28 @@ export function buildFirstPersonWeapon(
       for(const [z,y] of cheekOutline.slice(1))shape.lineTo(-z,y);
       shape.closePath();
       const geo=new THREE.ExtrudeGeometry(shape,{
-        depth:.022,bevelEnabled:true,bevelThickness:.004,
-        bevelSize:.003,bevelSegments:2,steps:1,
+        depth:.017,bevelEnabled:true,bevelThickness:.003,
+        bevelSize:.0025,bevelSegments:2,steps:1,
       });
       geo.rotateY(Math.PI/2); // authored z/y outline -> weapon Z/Y, extrude along X
       const cheek=new THREE.Mesh(geo,frameMat);
       cheek.name=side>0?"bastion_right_frame_cheek":"bastion_left_frame_cheek";
-      add(cheek,side>0?.049:-.071,0,0);
+      add(cheek,side>0?.045:-.062,0,0);
       // Barrel-to-frame yoke rails curve around the cylinder and terminate IN
       // the recoil shield instead of ending as disconnected, floating arcs.
       const arc=new THREE.CatmullRomCurve3([
-        new THREE.Vector3(side*.032,.050,-.324),
-        new THREE.Vector3(side*.071,.018,-.291),
-        new THREE.Vector3(side*.084,-.069,-.263),
-        new THREE.Vector3(side*.081,-.122,-.204),
-        new THREE.Vector3(side*.079,-.117,-.128),
-        new THREE.Vector3(side*.065,-.057,-.068),
+        new THREE.Vector3(side*.028,.050,-.324),
+        new THREE.Vector3(side*.062,.018,-.291),
+        new THREE.Vector3(side*.074,-.069,-.263),
+        new THREE.Vector3(side*.072,-.122,-.204),
+        new THREE.Vector3(side*.070,-.117,-.128),
+        new THREE.Vector3(side*.058,-.057,-.068),
       ]);
-      const rail=new THREE.Mesh(new THREE.TubeGeometry(arc,24,.012,8,false),edge);
+      const rail=new THREE.Mesh(new THREE.TubeGeometry(arc,24,.010,8,false),edge);
       rail.name="bastion_curved_frame_rail";
       add(rail,0,0,0);
     }
-    const grip=new THREE.Mesh(new THREE.CapsuleGeometry(.045,.13,6,14),bastion ? bastionDarkSteel : darkMat);
+    const grip=new THREE.Mesh(new THREE.CapsuleGeometry(.039,.13,6,14),bastion ? bastionDarkSteel : darkMat);
     grip.name="bastion_rounded_grip";
     grip.rotation.x=-.22;
     add(grip,0,-.183,.025);
@@ -446,18 +446,18 @@ export function buildFirstPersonWeapon(
       for (const [z,y,r] of [[-.205,-.035,.010],[-.105,-.145,.008],[.005,-.115,.007]] as const) {
         const pin = new THREE.Mesh(new THREE.CylinderGeometry(r,r,.006,12),bastionWornSteel);
         pin.rotation.z=Math.PI/2;
-        add(pin,side*.073,y,z);
+        add(pin,side*.062,y,z);
       }
       const latch = new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,.012,12),bastionDarkSteel);
       latch.rotation.z=Math.PI/2;
-      add(latch,side*.077,.005,-.105);
+      add(latch,side*.066,.005,-.105);
       // Small rubbed edges on the frame, deliberately subtle rather than chrome.
-      const wear = box(side*.072,-.075,-.205,.003,.012,.045,bastionWornSteel);
+      const wear = box(side*.061,-.075,-.205,.003,.012,.045,bastionWornSteel);
       wear.name = "bastion_worn_frame_edge";
     }
     // A dark, worn cylinder separates visually from the frame without reading
     // as a bright modern alloy; the flutes remain visible in side lighting.
-    const cylinderBand = new THREE.Mesh(new THREE.TorusGeometry(.073,.004,6,24),bastionWornSteel);
+    const cylinderBand = new THREE.Mesh(new THREE.TorusGeometry(.068,.004,6,24),bastionWornSteel);
     cylinderBand.name = "bastion_cylinder_wear_band";
     cylinderBand.rotation.x=Math.PI/2;
     add(cylinderBand,0,-.027,-.151);
@@ -472,9 +472,9 @@ export function buildFirstPersonWeapon(
     add(new THREE.Mesh(new THREE.TubeGeometry(triggerLoop,20,.007,7,false),metal),0,0,0);
     // Slim contrasting oval grip panels reinforce the hammer-fired silhouette.
     for(const side of [-1,1]){
-      const inlay=new THREE.Mesh(new THREE.CapsuleGeometry(.019,.075,4,10),metal);
+      const inlay=new THREE.Mesh(new THREE.CapsuleGeometry(.016,.075,4,10),metal);
       inlay.rotation.x=-.22;
-      add(inlay,side*.040,-.198,.031);
+      add(inlay,side*.035,-.198,.031);
     }
   }
   // Grips, firing controls, rails and side-mounted panels are large enough to read in hip-fire.
@@ -822,7 +822,7 @@ export function buildFirstPersonWeapon(
       drum.name="revolver_cylinder_body";
       drum.rotation.x=Math.PI/2;
       cylinder.add(drum);
-      const frontWeb=new THREE.Mesh(new THREE.CylinderGeometry(id==="pistol_bastion"?.081:.066,id==="pistol_bastion"?.081:.066,.013,16),sig);
+      const frontWeb=new THREE.Mesh(new THREE.CylinderGeometry(id==="pistol_bastion"?.075:.066,id==="pistol_bastion"?.075:.066,.013,16),sig);
       frontWeb.name="revolver_cylinder_front_web";
       frontWeb.rotation.x=Math.PI/2;
       frontWeb.position.z=-BASTION_CYLINDER_HALF_LENGTH+.009;
