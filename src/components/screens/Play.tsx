@@ -493,18 +493,17 @@ export function Play() {
                           </div>
                         </div>
                         <div>
-                          <div className="text-white font-semibold text-sm mb-2">Weapon List Multiplier</div></div>
+                          <div className="text-white font-semibold text-sm mb-2">Weapon List Multiplier</div>
                           <div className="rounded-xl border border-white/5 bg-black/20 p-3">
                             <div className="flex flex-wrap gap-2">
-                            {([1,2,3,4,5] as const).map(n => (
-                              <button type="button" key={n} onClick={() => setRoomConfig({gungameMultiplier:n})}
-                                className={`min-w-11 px-3 py-2 rounded-lg border text-xs font-bold ${roomConfig.gungameMultiplier === n ? "bg-purple-500/20 border-purple-400/60 text-purple-200" : "bg-black/20 border-white/10 text-white/50 hover:text-white"}`}>
-                                {n}×
-                              </button>
-                            ))}
-                          </div>
+                              {([1,2,3,4,5] as const).map(n => (
+                                <button type="button" key={n} onClick={() => setRoomConfig({gungameMultiplier:n})}
+                                  className={`min-w-11 px-3 py-2 rounded-lg border text-xs font-bold ${roomConfig.gungameMultiplier === n ? "bg-purple-500/20 border-purple-400/60 text-purple-200" : "bg-black/20 border-white/10 text-white/50 hover:text-white"}`}>
+                                  {n}×
+                                </button>
+                              ))}
                             </div>
-                          <p className="text-white/40 text-xs mt-2">{30 * roomConfig.gungameMultiplier} weapon tiers total; default is 1× (30 tiers).</p>
+                            <p className="text-white/40 text-xs mt-2">{30 * roomConfig.gungameMultiplier} weapon tiers total; default is 1× (30 tiers).</p>
                           </div>
                         </div>
                       </div>
