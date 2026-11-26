@@ -502,7 +502,7 @@
       "grip",
       "magazine"
     ],
-    "baseSightType": "iron"
+    "baseSightType": "sniper_scope"
   },
   {
     "id": "lmg_hv",
@@ -895,7 +895,7 @@
       "grip",
       "magazine"
     ],
-    "baseSightType": "sniper_scope"
+    "baseSightType": "iron"
   },
   {
     "id": "rifle_burst",
