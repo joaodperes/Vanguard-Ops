@@ -5,7 +5,7 @@ import { bastionReloadFrame, bastionLoaderContact } from "./bastion-revolver-rig
  * Timelines use elapsed time from an action's own start (never the weapon's
  * catalog reload time: recoverable bolts and active venting override it).
  */
-export type ReloadMotion = "magazine" | "shell" | "cylinder" | "cylinder_speedloader" | "side_bolt" | "bolt" | "vent";
+export type ReloadMotion = "magazine" | "shell" | "cylinder" | "cylinder_speedloader" | "side_bolt" | "bolt_action" | "bolt" | "vent";
 export type DeployMotion = "throw" | "place" | "aim";
 
 /** Cosmetic viewmodel swap only. Weapon readiness and Gun Game progression
@@ -292,6 +292,7 @@ export function sampleRiotShieldSwapMotion(progress: number): {
 export function reloadMotionFor(weaponId: string, category: string, special?: string): ReloadMotion {
   if (special === "heat") return "vent";
   if (weaponId === "sniper_heavy") return "side_bolt";
+  if (weaponId === "sniper_scout") return "bolt_action";
   if (special === "bolt") return "bolt";
   if (category === "shotgun") return "shell";
   if (weaponId === "pistol_magnum") return "cylinder";
@@ -337,6 +338,21 @@ export function sampleReloadMotion(progress:number,kind:ReloadMotion,
     const back: [number,number,number] = [-.21,-.035,.10];
     const hand=p<.22?mix(home,port,ease(p/.22)):p<.5?mix(port,back,ease((p-.22)/.28)):p<.78?mix(back,port,ease((p-.5)/.28)):mix(port,home,ease((p-.78)/.22));
     return {...empty,dip:-.07*weight,pitch:.08*weight,roll:-.18*weight,hand,prop:hand,handRoll:.35*weight,propVisible:p>.28&&p<.7};
+  }
+  if (kind === "bolt_action") {
+    // Cycle the Hunting Rifle's bolt: lift, pull back to extract/eject the
+    // spent casing, push forward and lock down before the next shot.
+    const port:[number,number,number]=[-.16,-.035,-.18];
+    const back:[number,number,number]=[-.21,-.035,.10];
+    const hand=p<.16?mix(home,port,ease(p/.16))
+      :p<.43?mix(port,back,ease((p-.16)/.27))
+      :p<.72?mix(back,port,ease((p-.43)/.29))
+      :mix(port,home,ease((p-.72)/.28));
+    const casing:[number,number,number]=[-.27,.035,-.08];
+    const eject=ease((p-.25)/.22);
+    return {...empty,dip:-.055*weight,pitch:.07*weight,roll:-.12*weight,
+      hand,prop:[casing[0]-.18*eject,casing[1]+.10*eject,casing[2]+.16*eject],
+      handRoll:.3*weight,propVisible:p>.25&&p<.49};
   }
   if (kind === "bolt") {
     // The offhand slides an arrow horizontally ALONG the crossbow's upper
