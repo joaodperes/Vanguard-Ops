@@ -900,6 +900,7 @@ export class FPSEngine {
   private riotShieldHitFlashAt=0;
   private riotShieldModel:THREE.Group|null=null;
   private lastCountdownSecond=0;
+  private lastSearchDestroyBombTickSecond=-1;
   private clusterVolleys=new Map<string,ClusterVolley & {offline:boolean;done:Set<number>;dealt:Map<string,number>;meshes:Map<number,THREE.Mesh>}>();
   private wonderStates = new Map<string, WonderChargeState>();
   // Online deployment is NOT charged locally until server confirms placement.
@@ -2502,8 +2503,35 @@ export class FPSEngine {
       }
     }
   }
+  private buildSearchDestroySiteMarkers(){
+    if(this.opts.mode!=="searchdestroy")return;
+    const wood=new THREE.MeshStandardMaterial({color:0x765035,roughness:.9});
+    const red=new THREE.MeshStandardMaterial({color:0xa82e27,roughness:.58,emissive:0x260604});
+    const metal=new THREE.MeshStandardMaterial({color:0xc6b89d,roughness:.48,metalness:.28});
+    for(const site of searchDestroySitesForMap(this.map.id,this.map.size)){
+      const marker=new THREE.Group();
+      marker.position.set(site.pos[0],site.pos[1],site.pos[2]);
+      const ring=new THREE.Mesh(new THREE.RingGeometry(3.65,4.05,40),
+        new THREE.MeshBasicMaterial({color:0xffb13b,transparent:true,opacity:.78,side:THREE.DoubleSide,depthWrite:false}));
+      ring.rotation.x=-Math.PI/2;ring.position.y=.055;marker.add(ring);
+      const crate=new THREE.Mesh(new THREE.BoxGeometry(1.5,.68,1.12),wood);
+      crate.position.y=.34;crate.castShadow=true;crate.receiveShadow=true;marker.add(crate);
+      for(const offset of [-.42,0,.42]){
+        const stick=new THREE.Mesh(new THREE.CylinderGeometry(.115,.115,1.08,8),red);
+        stick.rotation.z=Math.PI/2;stick.position.set(offset,.92,0);stick.castShadow=true;marker.add(stick);
+        for(const end of [-1,1]){
+          const cap=new THREE.Mesh(new THREE.CylinderGeometry(.125,.125,.065,8),metal);
+          cap.rotation.z=Math.PI/2;cap.position.set(offset+end*.55,.92,0);marker.add(cap);
+        }
+      }
+      const beacon=new THREE.PointLight(0xff8d32,1.7,9);
+      beacon.position.y=1.8;marker.add(beacon);
+      this.scene.add(marker);
+    }
+  }
   private buildMapProps() {
     this.buildObjectiveMarkers();
+    this.buildSearchDestroySiteMarkers();
     if(this.map.id==="orbital_nexus"||reactorObjective(this.map))this.buildOrbitalScenery();
     this.cityInteriorDetailGroups=[];
     if(this.map.id==="forest_warfare"){this.buildForestWarfare();return;}
@@ -7365,6 +7393,13 @@ export class FPSEngine {
         }else this.hardpointState=undefined;
         this.updateHardpointZoneMarkers();
         this.searchDestroyState=msg.searchDestroy;
+        if(this.opts.mode==="searchdestroy"&&msg.searchDestroy?.phase==="planted"&&msg.searchDestroy.bomb.detonatesAt!==null){
+          const seconds=Math.max(0,Math.ceil((msg.searchDestroy.bomb.detonatesAt-Date.now())/1000));
+          if(seconds>0&&seconds<=10&&seconds!==this.lastSearchDestroyBombTickSecond){
+            this.lastSearchDestroyBombTickSecond=seconds;
+            this.sound.play("countdown_tick",{volume:Math.min(1,.78+(10-seconds)*.022)});
+          }
+        }else this.lastSearchDestroyBombTickSecond=-1;
         if(msg.frontierAmmoRemaining)this.frontierAmmoRemaining=msg.frontierAmmoRemaining[this.selfId];
         this.trackScoreDeficit();
         if(this.opts.mode==="ctf")this.ctfCaptures=msg.scores[this.selfId]??this.ctfCaptures;
@@ -14062,6 +14097,8 @@ export class FPSEngine {
       ctfFlags: this.opts.mode === "ctf" ? this.ctfFlags : undefined,
       hardpoint: this.hardpointState,
       searchDestroy: this.searchDestroyState,
+      searchDestroyCarrierAlert:this.searchDestroyState?.phase==="preparation"&&
+        this.searchDestroyState.bomb.status==="carried"&&this.searchDestroyState.bomb.carrierId===this.selfId,
        searchDestroyRoundNotice:this.searchDestroyRoundNotice,
        searchDestroyInteraction:(()=>{const s=this.searchDestroyState;if(!s||!this.alive||s.phase==="preparation"||s.phase==="round_end"||s.phase==="match_end")return undefined;const sites=searchDestroySitesForMap(this.map.id,this.map.size);let kind:"plant"|"defuse"|"pickup"|undefined,label="",progress=0;if(s.bomb.status==="dropped"&&this.opts.team===s.attackerTeam&&Math.hypot(this.pos.x-s.bomb.pos[0],this.pos.z-s.bomb.pos[2])<=SEARCH_DESTROY_RULES.pickupRadius){kind="pickup";label="HOLD E TO PICK UP BOMB";}else if(s.phase==="planted"&&this.opts.team!==s.attackerTeam&&Math.hypot(this.pos.x-s.bomb.pos[0],this.pos.z-s.bomb.pos[2])<=SEARCH_DESTROY_RULES.interactionRadius){kind="defuse";label="HOLD E TO DEFUSE";const p=s.bomb.defuseProgress;progress=p?.playerId===this.selfId?Math.min(100,Math.max(0,(Date.now()-p.startedAt)/(SEARCH_DESTROY_RULES.defuseSeconds*1000)*100)):0;}else if(s.phase==="live"&&s.bomb.carrierId===this.selfId){const site=sites.reduce((a,b)=>Math.hypot(this.pos.x-a.pos[0],this.pos.z-a.pos[2])<=Math.hypot(this.pos.x-b.pos[0],this.pos.z-b.pos[2])?a:b);const inRange=Math.hypot(this.pos.x-site.pos[0],this.pos.z-site.pos[2])<=site.radius;if(inRange){kind="plant";label="HOLD E TO PLANT";const p=s.bomb.plantProgress;progress=p?.playerId===this.selfId?Math.min(100,Math.max(0,(Date.now()-p.startedAt)/(SEARCH_DESTROY_RULES.plantSeconds*1000)*100)):0;}}return kind?{kind,label,progress}:undefined;})(),
       searchDestroyCarrierName: this.searchDestroyState?.bomb.status==="carried"&&
