@@ -8767,7 +8767,7 @@ export class FPSEngine {
     if(this.opts.mode!=="frontier"||this.opts.online)return;
     const loadout=this.opts.loadout;
     const copy:LoadoutWire={...loadout,attachments:{...loadout.attachments},secondaryAttachments:{...(loadout.secondaryAttachments??emptyBotAttachments())}};
-    const shownWeapon=this.weaponId===copy.secondaryWeaponId?(copy.secondaryWeaponId??copy.weaponId):copy.weaponId;
+    const shownWeapon=copy.emptyPrimary?(copy.secondaryWeaponId??copy.weaponId):(this.weaponId===copy.secondaryWeaponId?(copy.secondaryWeaponId??copy.weaponId):copy.weaponId);
     this.addDroppedWeapon("offline_loadout_"+this.selfId+"_"+Date.now(),shownWeapon,[this.pos.x,this.pos.y,this.pos.z],copy,Date.now()+45000);
   }
 
@@ -8790,8 +8790,9 @@ export class FPSEngine {
     if(!loadout)return false;
     this.pendingLoadout=loadout;
     this.equipQueuedLoadout();
-    this.frontierAmmoRemaining=this.primaryEff.magSize+this.secondaryEff.magSize+
-      frontierReserveAmmo(Math.max(this.primaryEff.magSize,this.secondaryEff.magSize)*3);
+    const primaryMag=loadout.emptyPrimary?0:this.primaryEff.magSize;
+    this.frontierAmmoRemaining=primaryMag+this.secondaryEff.magSize+
+      frontierReserveAmmo(Math.max(primaryMag,this.secondaryEff.magSize)*3);
     this.removeDroppedWeapon(closest);
     this.sound.play("swap",{volume:.65});
     return true;
