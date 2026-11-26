@@ -930,6 +930,7 @@ export class FPSEngine {
   private heatStates = new Map<string, HeatState>();
   private boltCharges = 0;
   private boltPickups = new Map<string, { mesh: THREE.Object3D; ownerId: string; pos: Vec3; expiresAt: number; retryAt: number }>();
+  private droppedWeaponMeshes = new Map<string,THREE.Object3D>();
   private localBoltSequence = 0;
   private boltFlights = new Map<string, { start: THREE.Vector3; end: THREE.Vector3; born: number; duration: number }>();
   private poisonByVictim = new Map<string, { expiresAt: number; tickAt: number; weaponId: string; damagePerTick?: number; ownerId?:string }>();
@@ -7213,6 +7214,11 @@ export class FPSEngine {
         this.onlineBurning.set(msg.victimId,Date.now()+Math.max(0,msg.durationMs));
         break;
       case "snapshot":
+        if(msg.droppedWeapons){
+          const live=new Set(msg.droppedWeapons.map(d=>d.id));
+          for(const drop of msg.droppedWeapons)this.addDroppedWeapon(drop.id,drop.weaponId,drop.pos);
+          for(const id of this.droppedWeaponMeshes.keys())if(!live.has(id))this.removeDroppedWeapon(id);
+        }
         if(msg.deployedCovers)this.reconcileDeployCovers(msg.deployedCovers);
         for(const volley of msg.clusterVolleys??[])this.addClusterVolley({...volley,launchedAt:msg.serverNow?gravityClientTime(volley.launchedAt,msg.serverNow,Date.now()):volley.launchedAt},false);
         // Authoritative poison status is sent to everyone, not just the
@@ -7794,6 +7800,9 @@ export class FPSEngine {
         break;
       case "scavengerDrop":
         if (this.activePerkId === "scavenger") this.spawnScavengerPickup(msg.id, msg.pos, msg.expiresAt);
+        break;
+      case "weaponPickup":
+        this.removeDroppedWeapon(msg.id);
         break;
       case "scavengerRemove":
         this.removeScavengerPickup(msg.id);
@@ -8625,6 +8634,32 @@ export class FPSEngine {
       this.boltCharges = Math.min(3, this.boltCharges + 1);
     }
     this.sound.play("reload", { volume: 0.28 });
+  }
+
+  private addDroppedWeapon(id:string,weaponId:string,position:Vec3){
+    if(this.droppedWeaponMeshes.has(id))return;
+    const group=new THREE.Group();
+    const body=new THREE.Mesh(new THREE.BoxGeometry(.82,.12,.16),
+      new THREE.MeshStandardMaterial({color:0x64748b,metalness:.72,roughness:.3,emissive:0x172554,emissiveIntensity:.28}));
+    body.position.y=.18;group.add(body);
+    const stock=new THREE.Mesh(new THREE.BoxGeometry(.25,.1,.13),
+      new THREE.MeshStandardMaterial({color:0x334155,roughness:.75}));
+    stock.position.set(-.48,.16,0);group.add(stock);
+    const barrel=new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,.42,7),
+      new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.8,roughness:.25}));
+    barrel.rotation.z=Math.PI/2;barrel.position.set(.55,.19,0);group.add(barrel);
+    const glow=new THREE.Mesh(new THREE.TorusGeometry(.22,.018,5,20),
+      new THREE.MeshBasicMaterial({color:0x38bdf8,transparent:true,opacity:.75}));
+    glow.rotation.x=Math.PI/2;glow.position.y=.08;group.add(glow);
+    group.position.set(position[0],Math.max(.12,position[1]),position[2]);
+    group.rotation.y=weaponId.length*.17;
+    this.scene.add(group);this.droppedWeaponMeshes.set(id,group);
+  }
+  private removeDroppedWeapon(id:string){
+    const mesh=this.droppedWeaponMeshes.get(id);if(!mesh)return;
+    this.scene.remove(mesh);
+    mesh.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();const mats=Array.isArray(o.material)?o.material:[o.material];mats.forEach(m=>m.dispose());}});
+    this.droppedWeaponMeshes.delete(id);
   }
 
   private spawnBoltPickup(id: string, ownerId: string, position: Vec3, expiresAt: number) {
