@@ -14266,7 +14266,8 @@ export class FPSEngine {
       .filter(drop=>drop.distance<=2.25).sort((a,b)=>a.distance-b.distance)[0];
     const nearbyDropLoadout=nearbyWeapon
       ?this.droppedWeaponMeshes.get(nearbyWeapon.id)?.userData.loadout as LoadoutWire|undefined:undefined;
-    const nearbyPreset=FRONTIER_LOADOUTS.find(p=>p.id===nearbyDropLoadout?.frontierPresetId);
+    const nearbyPreset=FRONTIER_LOADOUTS.find(p=>p.id===nearbyDropLoadout?.frontierPresetId)??
+      FRONTIER_LOADOUTS.find(p=>p.primary===nearbyDropLoadout?.weaponId&&p.secondary===nearbyDropLoadout?.secondaryWeaponId);
     const nearbyKitName=nearbyPreset?.name??(nearbyWeapon?.weaponId?weaponById(nearbyWeapon.weaponId).name:"weapon");
     const weaponPickupPrompt=this.opts.mode==="frontier"&&this.alive&&nearbyWeapon
       ?(this.opts.online?(nearbyKitName.toUpperCase()+" KIT · PRESS E TO PICK UP"):(nearbyKitName.toUpperCase()+" KIT · LOADOUT DROP")):undefined;
