@@ -9,7 +9,7 @@ export const PERKS = [
   { id: "steady", name: "Steady", description: "25% less recoil and 35% less weapon sway.", icon: "crosshair", unlockLevel: 16 },
   { id: "athlete", name: "Athlete", description: "Sprint for twice as long before stamina runs out.", icon: "activity", unlockLevel: 19 },
   { id: "scavenger", name: "Scavenger", description: "Your eliminations drop private ammo packs that only you can see and collect. Fully reloads the magazine of your currently held conventional firearm.", icon: "package", unlockLevel: 22 },
-  { id: "explonando", name: "Explonando", description: "On death, leave behind an explosive that detonates after 2 seconds, damaging nearby enemies.", icon: "bomb", unlockLevel: 25 },
+  { id: "explonando", name: "Martyrdom", description: "On death, leave behind an explosive that detonates after 2 seconds, damaging nearby enemies.", icon: "bomb", unlockLevel: 25 },
   { id: "well_prepared", name: "Well Prepared", description: "Equip a second distinct primary weapon in your secondary slot instead of a sidearm.", icon: "backpack", unlockLevel: 28 },
   { id: "silent_steps", name: "Silent Steps", description: "Move without making footstep sounds. Gunfire and other actions remain audible.", icon: "volume-x", unlockLevel: 31 },
   { id: "tactician", name: "Tactician", description: "Regenerate one used tactical equipment charge every 18 seconds, up to its normal capacity.", icon: "timer-reset", unlockLevel: 34 },
