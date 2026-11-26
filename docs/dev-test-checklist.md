@@ -24,8 +24,9 @@ bun run typecheck
 bun run content:validate
 ```
 
-The small, data-agnostic catalog contract tests can also be run with
-`bun run test:smoke`. They are not a substitute for manual acceptance.
+The catalog/content contract and reusable combat-rule tests run with
+`bun run test:smoke` locally and in CI. They are not a substitute for manual
+acceptance.
 
 ## Manual acceptance
 
