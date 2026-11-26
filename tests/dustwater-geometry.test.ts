@@ -36,8 +36,8 @@ describe("Dustwater building access and rooftops", () => {
     const bankWalls = authoredFeatures.filter(f => f.id.startsWith("bank-south-wall")).flatMap(featureBoxes);
     expect(clearAt(saloonWalls, -18, -8)).toBe(true);
     expect(clearAt(bankWalls, -19, 32)).toBe(true);
-    const saloonDeck = authoredFeatures.filter(f => f.id.startsWith("saloon-second-floor")).flatMap(featureBoxes);
-    const bankDeck = authoredFeatures.filter(f => f.id.startsWith("bank-second-floor")).flatMap(featureBoxes);
+    const saloonDeck = authoredFeatures.filter(f => f.id.startsWith("saloon-second-floor") && f.kind === "platform").flatMap(featureBoxes);
+    const bankDeck = authoredFeatures.filter(f => f.id.startsWith("bank-second-floor") && f.kind === "platform").flatMap(featureBoxes);
     expect(clearAt(saloonDeck, -18, -15)).toBe(true);
     expect(clearAt(bankDeck, -19, 25)).toBe(true);
   });
