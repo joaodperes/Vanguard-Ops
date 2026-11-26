@@ -1344,7 +1344,7 @@ export const mapAllowedForMode = (mode: GameMode, id: MapId | string): boolean =
     if (id === "dustwater") { const pools=map.modeSpawns?.searchdestroy; return !!pools && pools.red.length>=3 && pools.blue.length>=3; }
     return (id === "compound" || id === "skybridge") && map.spawns.red.length>=3 && map.spawns.blue.length>=3;
   }
-  if (mode === "hardpoint") return id === "dustwater" || id === "bunker" || id === "floodgate";
+  if (mode === "hardpoint") return id === "dustwater" || id === "emberhold" || id === "floodgate";
   // Frontier is intentionally limited to its three authored arenas.
   if (mode === "frontier") {
     if (id === "dustwater") {
