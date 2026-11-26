@@ -5419,9 +5419,13 @@ async function handle(socket: any, msg: C2S) {
         newWeaponId=selected.id;
       }
       // Validate the weapon exists and remains within the Frontier weapon set.
-      if(room.mode==="frontier"&&!frontierWeaponIdAllowed(newWeaponId))return;
+      if(room.mode==="frontier"&&msg.slot!=="melee"&&!frontierWeaponIdAllowed(newWeaponId))return;
+
       const w = weaponById(newWeaponId);
+
       if (!w) return;
+
+      if(room.mode==="frontier"&&msg.slot==="melee"&&w.category!=="melee")return;
       p.weaponId = newWeaponId;
       p.riotShieldRaised=false;
       room.smartTags.delete(socket.id);
