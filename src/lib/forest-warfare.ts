@@ -61,6 +61,8 @@ for(let trial=0;trial<1100 && added<72;trial++) {
   // Avoid the tree trunks, deck-access footprint, entrance runs,
   // delivery circles and spawn protection zones.
   if(Math.abs(Math.abs(x)-94)<5 && Math.abs(z)<37)continue;
+  // Keep the four new canopy access flights clear from ground to landing.
+  if([-45,45].some(rampX=>Math.abs(x-rampX)<4.5&&Math.abs(z)>13&&Math.abs(z)<38))continue;
   if(Math.abs(Math.abs(x)-107)<6 && Math.abs(z)<8)continue;
   if(protectedSpawns.some(([sx,sz])=>Math.hypot(x-sx,z-sz)<5.8))continue;
   if(layout.some(o=>Math.hypot(x-o.x,z-o.z)<(o.kind==="tree"?7:5.2)))continue;
@@ -129,6 +131,26 @@ export const FOREST_BASE_COVER: CoverBox[] = ([-1,1] as const).flatMap(sign=>{
     {pos:[x+sign*15,1.0,9] as Vec3,size:[2.1,1.0,1.3] as Vec3,kind:"cover" as const,material:"concrete" as const},
   ];
 });
+/** Interconnected canopy spine and cross-bridges link both home-tree decks. */
+const FOREST_CANOPY_COVER: CoverBox[] = [
+  {pos:[0,CTF_TREE_TOP-.24,0],size:[87,.24,1.8],kind:"platform",ballisticId:"forest:canopy:spine"},
+  {pos:[-45,CTF_TREE_TOP-.24,0],size:[1.8,.24,16],kind:"platform",ballisticId:"forest:canopy:west-cross"},
+  {pos:[45,CTF_TREE_TOP-.24,0],size:[1.8,.24,16],kind:"platform",ballisticId:"forest:canopy:east-cross"},
+];
+/** Four broad stair flights make the canopy network accessible from both sides. */
+const forestCanopyAccessStairs: CoverBox[] = ([-1,1] as const).flatMap(xSign=>
+  ([-1,1] as const).map(zSign=>{
+    const x=xSign*45, z=zSign*16, height=CTF_TREE_TOP, count=Math.ceil(height/.42), run=20, tread=run/count;
+    return Array.from({length:count},(_,i)=>{
+      const top=height*(i+1)/count;
+      return {
+        pos:[x,top/2,z+zSign*(count-i-.5)*tread] as Vec3,
+        size:[1.8,top/2,tread/2+.025] as Vec3,
+        kind:"stair" as const,
+      };
+    });
+  })
+).flat();
 /** Waist-high parapets, interrupted where the stairs meet the flag deck. */
 export const FOREST_TREE_PARAPETS: CoverBox[] = ([-1,1] as const).flatMap(sign=>{
   const x=sign*CTF_TREE_X;
@@ -144,7 +166,9 @@ export const FOREST_WARFARE_COVER: CoverBox[]=[
     pos:[sign*CTF_TREE_X,5.9,0] as Vec3,size:[2.65,5.9,2.65] as Vec3,kind:"solid" as const,
   })),
   ...FOREST_TREE_DECKS,
+  ...FOREST_CANOPY_COVER,
   ...FOREST_TREE_STAIRS,
+  ...forestCanopyAccessStairs,
   ...FOREST_BASE_COVER,
   ...FOREST_TREE_PARAPETS,
   // Foliage is visual-only; fallen logs splinter while mature trunks
