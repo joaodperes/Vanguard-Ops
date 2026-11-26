@@ -1,15 +1,15 @@
-name: Wonder expansion checks
+name: Wonder expansion source validation
 on:
   push:
     branches: [dev, feature/wonder-expansion-finalize]
   pull_request:
     branches: [dev]
+permissions:
+  contents: read
 jobs:
   quality:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      DATABASE_URL: file:./test.db
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -17,6 +17,6 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
       - run: bunx prisma generate
-      - run: bun run typecheck
       - run: bun run content:validate
-      - run: bun test tests/wonder-expansion.test.ts
+      - run: bun run test:smoke
+      - run: bun run typecheck

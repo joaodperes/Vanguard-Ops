@@ -91,7 +91,8 @@
       "mag_extended",
       "mag_quickdraw",
       "mag_balanced",
-      "mag_lightweight"
+      "mag_lightweight",
+      "mag_penetrator"
     ],
     "sight": [
       "sight_hunter",

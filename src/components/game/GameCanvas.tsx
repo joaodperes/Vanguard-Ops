@@ -366,7 +366,6 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, operationId
         </div>
       )}
       {mode==="searchdestroy"&&isTouch&&touchStarted&&!lobbyActive&&!menuOpen&&<button type="button" className="pointer-events-auto absolute bottom-36 left-1/2 z-40 -translate-x-1/2 rounded-full border border-amber-300/50 bg-amber-950/85 px-5 py-3 text-xs font-black tracking-widest text-amber-100 shadow-lg" onPointerDown={e=>{e.preventDefault();engineInstance?.setModeInteractHeld(true);}} onPointerUp={()=>engineInstance?.setModeInteractHeld(false)} onPointerCancel={()=>engineInstance?.setModeInteractHeld(false)} onPointerLeave={()=>engineInstance?.setModeInteractHeld(false)}>HOLD · INTERACT</button>}
-      {mode==="frontier"&&isTouch&&touchStarted&&!lobbyActive&&!menuOpen&&<button type="button" className="pointer-events-auto absolute bottom-36 right-5 z-40 rounded-full border border-amber-300/50 bg-amber-950/85 px-4 py-3 text-xs font-black tracking-widest text-amber-100 shadow-lg" onPointerDown={e=>{e.preventDefault();engineInstance?.triggerFrontierDodge();}}>DODGE</button>}
       {hud && !lobbyActive && <Hud hud={hud} onExit={openMenu} onExitMech={()=>engineInstance?.exitMech()} onSpectatorCycle={direction=>engineInstance?.cycleSpectatorTarget(direction)} onDropBomb={()=>engineInstance?.dropSearchDestroyBomb()} mode={mode} crosshairColor={settings.crosshairColor} crosshairSize={settings.crosshairSize} reticleStyle={hud.weaponSlot==="secondary" ? loadout.secondaryReticleId??"classic" : loadout.primaryReticleId??"classic"} showPing={settings.showPing} isTouch={isTouch && touchStarted} scopeOverlay={settings.scopeOverlay} />}
       {/* Mobile touch controls (hidden while in lobby) */}
       {isTouch && touchStarted && !lobbyActive && !menuOpen && !upgradePending && !upgradeWaiting && !hud?.matchEnding && <TouchControls engine={engineInstance} mode={mode} akimbo={!!hud?.akimbo} />}
@@ -376,7 +375,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, operationId
           <div className="bg-black/70 backdrop-blur-sm border border-white/10 rounded-xl px-8 py-6 text-center pointer-events-none">
             <div className="text-2xl font-bold tracking-widest text-white mb-1">{tutorial ? "FIELD TRAINING · CLICK TO START" : firingRange ? "FIRING RANGE · CLICK TO TEST" : "CLICK TO PLAY · CONTROLLER: START"}</div>
             <div className="text-sm text-white/60">{hud?.akimbo ? "Akimbo: L-Click left · R-Click right · Both together fire simultaneously · No ADS" : "WASD move · Mouse aim · L-Click fire · R-Click ADS"} · R reload · Shift sprint · Space jump</div>
-            <div className="text-xs text-white/50 mt-2">1/2/3 swap weapon · F quick melee · {mode === "frontier" ? "E dodge" : "G tactical"} · Q quick-swap · Tab scoreboard · Esc menu</div>
+            <div className="text-xs text-white/50 mt-2">1/2/3 swap weapon · F quick melee · Q quick-swap · Tab scoreboard · Esc menu</div>
             <div className="text-xs text-amber-300/70 mt-2">{tutorial ? "Press Escape to use the tutorial controls" : firingRange ? "Press Escape to reopen the trial loadout menu" : "A 5-second countdown will start once you enter the match."}</div>
           </div>
         </div>
@@ -390,7 +389,7 @@ export function GameCanvas({ loadout, mode, botCount, botDifficulty, operationId
           <div className="bg-black/70 backdrop-blur-sm border border-amber-500/30 rounded-xl px-8 py-6 text-center">
             <div className="text-2xl font-bold tracking-widest text-amber-300 mb-1">{tutorial ? "TAP TO TRAIN" : firingRange ? "TAP TO TEST" : "TAP TO PLAY"}</div>
             <div className="text-sm text-white/60">Left stick to move (push far = sprint) · Drag right to look</div>
-            <div className="text-xs text-white/40 mt-1">Left: Jump + weapon swap · Right: Fire + ADS + Reload + Quick Melee{mode === "frontier" ? " + Dodge" : " + Tactical"}</div>
+            <div className="text-xs text-white/40 mt-1">Left: Jump + weapon swap · Right: Fire + ADS + Reload + Quick Melee</div>
             <div className="text-xs text-white/40 mt-2">{operationId ? "Operations" : mode === "survival" ? "Survival" : mode === "ctf" ? "Capture the Flag" : mode === "tdm" ? "Team Deathmatch" : mode === "killconfirmed" ? "Kill Confirmed" : mode === "gungame" ? "Gun Game" : "Free-For-All"} · {hud?.mapName ? displayMapLabel(hud.mapName) : ""}</div>
           </div>
         </button>
