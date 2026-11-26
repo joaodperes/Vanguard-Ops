@@ -8832,7 +8832,7 @@ export class FPSEngine {
     const secondaryId=ai.secondaryWeaponId??(primaryId==="pistol_side"?"pistol_bastion":"pistol_side");
     const toWire=(a?:BotAttachmentMap)=>({sight:a?.sight??null,barrel:a?.barrel??null,grip:a?.grip??null,magazine:a?.magazine??null});
     const loadout:LoadoutWire=cloneFrontierLoadout({
-      frontierPresetId:ai.frontierPresetId,
+      frontierPresetId:ai.frontierPresetId,emptyPrimary:ai.frontierPresetId==="gunslinger",
       weaponId:primaryId,secondaryWeaponId:secondaryId,meleeWeaponId:"knife_tactical",
       weaponSkinId:victim.weaponSkinId||"default",secondaryWeaponSkinId:"default",meleeWeaponSkinId:"default",
       playerSkinId:victim.playerSkinId||"default",attachments:toWire(ai.primaryAttachments??ai.attachments),
