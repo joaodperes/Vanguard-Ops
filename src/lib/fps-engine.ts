@@ -4824,7 +4824,7 @@ export class FPSEngine {
       if (code === "KeyR" && !this.mechActive) this.startReload();
       if (code === "KeyE" && !e.repeat && (this.pointerLocked||this.touchMode)) {
         if(this.opts.mode==="searchdestroy"){e.preventDefault();this.modeInteractHeld=true;}
-        else if(this.opts.mode==="frontier"){e.preventDefault();this.triggerFrontierDodge();}
+        else if(this.opts.mode==="frontier"){e.preventDefault();if(!this.tryPickupNearbyWeapon())this.triggerFrontierDodge();}
         else this.enterNearbyMech();
       }
       if(code==="KeyB"&&!e.repeat&&this.opts.mode==="searchdestroy"&&
@@ -4913,7 +4913,7 @@ export class FPSEngine {
   /** Touch interaction mirrors keyboard/controller mode actions. */
   setTouchInteract(held:boolean){
     if(this.opts.mode==="searchdestroy"){this.setModeInteractHeld(held);return;}
-    if(this.opts.mode==="frontier"){if(held)this.triggerFrontierDodge();return;}
+    if(this.opts.mode==="frontier"){if(held&&!this.tryPickupNearbyWeapon())this.triggerFrontierDodge();return;}
     if(held)this.touchInteract();
   }
   triggerFrontierDodge(){
@@ -8707,6 +8707,18 @@ export class FPSEngine {
       this.boltCharges = Math.min(3, this.boltCharges + 1);
     }
     this.sound.play("reload", { volume: 0.28 });
+  }
+
+  private tryPickupNearbyWeapon():boolean {
+    if(this.opts.mode!=="frontier"||!this.opts.online||!this.alive||!this.socket?.connected)return false;
+    let closest:string|undefined,best=2.25;
+    for(const [id,mesh] of this.droppedWeaponMeshes){
+      const distance=Math.hypot(this.pos.x-mesh.position.x,this.pos.z-mesh.position.z);
+      if(distance<best){best=distance;closest=id;}
+    }
+    if(!closest)return false;
+    this.socket.emit("message",{t:"pickupWeapon",dropId:closest} as C2S);
+    return true;
   }
 
   private addDroppedWeapon(id:string,weaponId:string,position:Vec3){
