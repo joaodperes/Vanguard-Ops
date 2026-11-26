@@ -2374,7 +2374,7 @@ export class FPSEngine {
 
   private ensureHardpointZoneMarkers() {
     if (this.hardpointZoneMarkers.length) return;
-    const positions: Vec3[] = hardpointZonesForMap(this.map.id).map(zone=>zone.pos as Vec3);
+    const positions: Vec3[] = hardpointZonesForMap(this.map.id).map(zone=>[...zone.pos] as Vec3);
     this.hardpointZoneMarkers = positions.map((pos) => {
       const group = new THREE.Group();
       const glow = new THREE.Mesh(new THREE.RingGeometry(5.35, 6.25, 64),
