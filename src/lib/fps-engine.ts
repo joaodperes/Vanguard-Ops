@@ -5995,7 +5995,7 @@ export class FPSEngine {
   swapWeapon(slot: WeaponSlot) {
     if (this.equipmentAction || this.survivalDowned) return;
     if (this.opts.mode === "gungame") return;  // gungame auto-advances; no manual swap
-    if (this.opts.mode === "frontier" && slot !== "primary" && slot !== "secondary") return;
+
     if (this.opts.mode === "frontier" && this.opts.loadout.emptyPrimary && slot === "primary") return;
     if (this.currentSlot === slot) return;
     if (slot === "wonder" && !this.wonderWeaponId) return;
