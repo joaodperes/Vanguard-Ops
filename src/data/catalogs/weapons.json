@@ -867,7 +867,7 @@
     "category": "sniper",
     "unlockLevel": 5,
     "unlockCost": 500,
-    "description": "Lightweight, iron-sighted bolt-action rifle. A precise headshot is lethal; body shots require two hits. No body penetration and very limited cover penetration.",
+    "description": "Lightweight bolt-action rifle with optional optics and no factory scope. Each shot requires a full bolt cycle to eject the spent casing before firing again. A precise headshot is lethal; body shots require two hits. No body penetration and very limited cover penetration.",
     "stats": {
       "damage": 100,
       "fireRate": 0.95,
@@ -883,9 +883,11 @@
       "headshotMult": 2,
       "falloffEndMultiplier": 1.85,
       "minDamageMultiplier": 0.6,
-      "coverPenetration": 0.8
+      "coverPenetration": 0.8,
+      "reloadOnlyWhenEmpty": true
     },
     "attachments": [
+      "sight",
       "barrel",
       "grip",
       "magazine"
