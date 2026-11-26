@@ -4961,18 +4961,6 @@ export class FPSEngine {
     if(this.opts.mode==="frontier"){if(held)this.tryPickupNearbyWeapon();return;}
     if(held)this.touchInteract();
   }
-  private frontierVaultAhead(){
-    if(this.opts.mode!=="frontier"||this.pos.y>0.25)return false;
-    const fx=Math.sin(this.yaw),fz=Math.cos(this.yaw);
-    return this.map.cover.some(box=>{
-      if(box.kind==="accent"||box.kind==="platform"||box.kind==="stair")return false;
-      const dx=box.pos[0]-this.pos.x,dz=box.pos[2]-this.pos.z;
-      const forward=dx*fx+dz*fz,lateral=Math.abs(dx*fz-dz*fx);
-      const top=box.pos[1]+box.size[1],bottom=box.pos[1]-box.size[1];
-      return forward>0.15&&forward<1.65&&lateral<Math.max(box.size[0],box.size[2])+0.55&&
-        top>this.pos.y+0.15&&top<=this.pos.y+1.45&&bottom<=this.pos.y+0.35;
-    });
-  }
 
   private updateModeInteraction(now:number){
     if(!this.modeInteractHeld||this.opts.mode!=="searchdestroy"||!this.opts.online||!this.socket?.connected||now-this.modeInteractSentAt<220)return;
@@ -7883,6 +7871,13 @@ export class FPSEngine {
       case "weaponPickup":
         this.removeDroppedWeapon(msg.id);
         if(msg.playerId===this.selfId){
+          if(msg.loadout){
+            this.pendingLoadout=msg.loadout;
+            this.equipQueuedLoadout();
+            this.frontierAmmoRemaining=msg.ammoRemaining;
+            this.sound.play("swap",{volume:.65});
+            break;
+          }
           const receivedAttachments=msg.attachments??{};
           const attachments={sight:receivedAttachments.sight??null,barrel:receivedAttachments.barrel??null,
             grip:receivedAttachments.grip??null,magazine:receivedAttachments.magazine??null};
@@ -12588,7 +12583,6 @@ export class FPSEngine {
     else if(this.activePerkId === "lightweight") speedMul *= 1.12;
     if(this.localCryoSlowUntil>performance.now())speedMul*=CRYO_SLOW_FACTOR;
     if(this.opts.mode==="survival")speedMul*=survivalMovementMultiplier(this.survivalUpgradeRanks,performance.now()-this.survivalLastKillAt);
-    if(this.opts.mode==="frontier"){speedMul*=1.2;if(this.sprinting)speedMul*=1.18;}
     const carryingFlag=this.opts.mode==="ctf" && (this.ctfFlags.red.carrierId===this.selfId||this.ctfFlags.blue.carrierId===this.selfId);
     if(reaperMovement&&!carryingFlag)speedMul*=ORBITAL_REAPER_SPEED_MULTIPLIER;
     if(carryingFlag)speedMul*=CTF_SPEED_MULTIPLIER;
@@ -12637,9 +12631,7 @@ export class FPSEngine {
     if (wantJump) {
       this.lastJumpPressedAt = -Infinity;
       this.lastGroundedAt = -Infinity;
-      const frontierVault=this.frontierVaultAhead();
-      this.vel.y = MOVEMENT.jumpVelocity * (this.activePerkId === "lightweight" ? 1.08 : 1) * (this.opts.mode==="frontier"?(frontierVault?1.48:1.22):1);
-      if(frontierVault){this.vel.x+=Math.sin(this.yaw)*3.4;this.vel.z+=Math.cos(this.yaw)*3.4;}
+      this.vel.y = MOVEMENT.jumpVelocity * (this.activePerkId === "lightweight" ? 1.08 : 1);
       this.onGround = false;
       // Running takeoffs carry additional horizontal momentum, whether the
       // player is sprinting or moving at ordinary running speed.
@@ -13195,7 +13187,7 @@ export class FPSEngine {
       ai.aiming = stance.aiming && !isTaserAdsBlocked(this.botTacticalAdsBlockedUntil.get(c.id)??0,now);
       if(now>=(ai.nextCombatJumpAt??0)&&botWantsCombatJump(ai.difficulty,w.category,dist,clearShot,
         ai.envJumpVelocityY===undefined&&botHasJumpClearance(this.coverNear(c.pos[0],c.pos[2],2.5),c.pos),now,ai.nextCombatJumpAt??0,Math.random())){
-        ai.envJumpVelocityY=MOVEMENT.jumpVelocity*(this.opts.mode==="frontier"?1.22:1);ai.envLaunchX=0;ai.envLaunchZ=0;ai.nextCombatJumpAt=now+botTactics(ai.difficulty).jumpCooldown;
+        ai.envJumpVelocityY=MOVEMENT.jumpVelocity;ai.envLaunchX=0;ai.envLaunchZ=0;ai.nextCombatJumpAt=now+botTactics(ai.difficulty).jumpCooldown;
       }
       const botCarryingFlag=this.opts.mode==="ctf"&&(this.ctfFlags.red.carrierId===c.id||this.ctfFlags.blue.carrierId===c.id);
       const speed = (botCarryingFlag ? CTF_SPEED_MULTIPLIER : 1) * ai.moveSpeed * 6 * MOVEMENT.botPursuitMultiplier * (ai.sprinting ? 1.25 : 1) * botMovementPerkMultiplier(perk,ai.sprinting)/botMovementPerkMultiplier(perk) * ctfCarrierWeaponSpeed(eff.moveSpeed,botCarryingFlag) *
@@ -13304,7 +13296,13 @@ export class FPSEngine {
       if(clearShot&&reacted&&!ai.sprinting&&now>ai.nextShotAt&&now>ai.reloadingUntil)
         this.tryOfflineBotWonder(c,tgt,now);
 
-      if (!ai.sprinting && clearShot && reacted && now > ai.nextShotAt && ai.ammoInMag > 0 && now > ai.reloadingUntil && !burstPaused && (w.id!==ORBITAL_REAPER_ID||dist<=ORBITAL_PULSE_RADIUS)) {
+      const meleeInRange=w.category==="melee"&&dist<=w.stats.range+0.35;
+
+
+      if(meleeInRange)ai.sprinting=false;
+
+
+      if (!ai.sprinting && (clearShot||meleeInRange) && reacted && now > ai.nextShotAt && ai.ammoInMag > 0 && now > ai.reloadingUntil && !burstPaused && (w.id!==ORBITAL_REAPER_ID||dist<=ORBITAL_PULSE_RADIUS)) {
         const origin: Vec3 = [c.pos[0], c.pos[1] + 1.5, c.pos[2]];
         // Final aim = bot yaw/pitch + weapon spread + spray drift + distance spread + (miss boost)
         const aimYaw = c.yaw + ai.sprayDriftYaw + (Math.random() - 0.5) * (baseAimJitter + distSpread + missSpread);
@@ -14088,7 +14086,7 @@ export class FPSEngine {
       .filter(drop=>drop.distance<=2.25).sort((a,b)=>a.distance-b.distance)[0];
     const nearbyWeaponName=nearbyWeapon?.weaponId?weaponById(nearbyWeapon.weaponId).name:"weapon";
     const weaponPickupPrompt=this.opts.mode==="frontier"&&this.alive&&nearbyWeapon
-      ?(this.opts.online?"PRESS E TO SWAP FOR "+nearbyWeaponName.toUpperCase():"WEAPON DROP"):undefined;
+      ?(this.opts.online?"PRESS E TO PICK UP FULL LOADOUT":"LOADOUT DROP"):undefined;
     const hardpointZones = this.opts.mode === "hardpoint" && this.hardpointState
       ? hardpointZonesForMap(this.map.id) : [];
     const activeHardpointZone = this.hardpointState
