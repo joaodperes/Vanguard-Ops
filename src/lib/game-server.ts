@@ -4943,7 +4943,7 @@ async function handle(socket: any, msg: C2S) {
            room.frontierAmmoRemaining??=new Map();
            room.frontierAmmoRemaining.set(p.id,Math.max(0,drop.ammoRemaining));
            room.droppedWeapons.delete(id);
-           io.to(room.id).emit("message",{t:"weaponPickup",id,playerId:p.id} as S2C);
+           io.to(room.id).emit("message",{t:"weaponPickup",id,playerId:p.id,weaponId:drop.weaponId,slot,skinId:drop.skinId,attachments:drop.attachments,ammoRemaining:drop.ammoRemaining} as S2C);
            break;
          }
        }
