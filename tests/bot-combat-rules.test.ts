@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { resolveFrontierBotWeaponFallback } from "../src/lib/bot-weapon-selection";
 import { resolveBotPursuitSpeed } from "../src/lib/bot-movement-rules";
 import { MOVEMENT } from "../src/lib/movement-rules";
+import { cloneFrontierLoadout, frontierDropWeapon } from "../src/lib/frontier-loadout-drops";
 
 describe("shared Frontier bot weapon selection", () => {
   const base = {
@@ -64,5 +65,63 @@ describe("shared bot pursuit speed", () => {
       sprinting: false, perkSpeedMultiplier: 0, perkBaseSpeedMultiplier: 0,
       weaponMoveSpeedMultiplier: 1,
     })).toBeCloseTo(6 * MOVEMENT.botPursuitMultiplier);
+  });
+});
+
+
+describe("shared Frontier loadout drop rules", () => {
+  test("preserves every slot, attachment set and cosmetic when cloning a kit", () => {
+    const kit = {
+      weaponId: "rifle_ar", secondaryWeaponId: "pistol_side", meleeWeaponId: "knife_tactical",
+      weaponSkinId: "skin_primary", secondaryWeaponSkinId: "skin_secondary", meleeWeaponSkinId: "skin_melee",
+      playerSkinId: "skin_operator", nameplateId: "nameplate_elite",
+      primaryCharmId: "charm_primary", secondaryCharmId: "charm_secondary", meleeCharmId: "charm_melee",
+      attachments: { sight: "optic_red", barrel: null, grip: "grip_vertical", magazine: "mag_extended" },
+      secondaryAttachments: { sight: null, barrel: "barrel_suppressor", grip: null, magazine: null },
+      meleeAttachments: { sight: null, barrel: null, grip: null, magazine: null },
+    } as const;
+    const copy = cloneFrontierLoadout(kit as any);
+    expect(copy).toMatchObject({
+      weaponId: "rifle_ar", secondaryWeaponId: "pistol_side", meleeWeaponId: "knife_tactical",
+      weaponSkinId: "skin_primary", secondaryWeaponSkinId: "skin_secondary", meleeWeaponSkinId: "skin_melee",
+      playerSkinId: "skin_operator", nameplateId: "nameplate_elite",
+      primaryCharmId: "charm_primary", secondaryCharmId: "charm_secondary", meleeCharmId: "charm_melee",
+    });
+    expect(copy.attachments).toEqual(kit.attachments);
+    expect(copy.secondaryAttachments).toEqual(kit.secondaryAttachments);
+    expect(copy.meleeAttachments).toEqual(kit.meleeAttachments);
+    expect(copy.attachments).not.toBe(kit.attachments);
+    expect(copy.secondaryAttachments).not.toBe(kit.secondaryAttachments);
+  });
+
+  test("uses the currently held slot for the drop's visible weapon metadata", () => {
+    const kit = {
+      weaponId: "rifle_ar", secondaryWeaponId: "pistol_side",
+      weaponSkinId: "skin_primary", secondaryWeaponSkinId: "skin_secondary",
+      attachments: { sight: "optic_red", barrel: null, grip: null, magazine: null },
+      secondaryAttachments: { sight: null, barrel: "barrel_suppressor", grip: null, magazine: null },
+      playerSkinId: "default",
+    } as any;
+    expect(frontierDropWeapon(kit, "pistol_side")).toMatchObject({
+      slot: "secondary", weaponId: "pistol_side", skinId: "skin_secondary",
+      attachments: kit.secondaryAttachments,
+    });
+    expect(frontierDropWeapon(kit, "rifle_ar")).toMatchObject({
+      slot: "primary", weaponId: "rifle_ar", skinId: "skin_primary",
+      attachments: kit.attachments,
+    });
+  });
+
+  test("Gunslinger drops represent the secondary slot when the primary is empty", () => {
+    const kit = {
+      weaponId: "rifle_ar", secondaryWeaponId: "pistol_side", emptyPrimary: true,
+      weaponSkinId: "default", secondaryWeaponSkinId: "sidearm_skin",
+      attachments: { sight: null, barrel: null, grip: null, magazine: null },
+      secondaryAttachments: { sight: null, barrel: null, grip: null, magazine: null },
+      playerSkinId: "default",
+    } as any;
+    expect(frontierDropWeapon(kit, "rifle_ar")).toMatchObject({
+      slot: "secondary", weaponId: "pistol_side", skinId: "sidearm_skin",
+    });
   });
 });
