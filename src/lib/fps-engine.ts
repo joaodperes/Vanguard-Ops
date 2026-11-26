@@ -4436,7 +4436,9 @@ export class FPSEngine {
     } else if(this.visualReloadActive(now)&&!this.viewmodelAkimbo){
       const def=weaponById(this.weaponId);
       const style=reloadMotionFor(this.weaponId,def.category,def.special?.kind);
-      const pose=sampleReloadMotion((now-this.reloadStartedAt)/Math.max(1,this.reloadDurationMs),
+      const actionStart=this.weaponId==="sniper_scout"?this.boltActionStartedAt:this.reloadStartedAt;
+      const actionDuration=this.weaponId==="sniper_scout"?1050:this.reloadDurationMs;
+      const pose=sampleReloadMotion((now-actionStart)/Math.max(1,actionDuration),
         style,this.fpShellContacts??undefined,this.shellSequenceFor(style));
       reloadDipY=pose.dip;reloadPitch=pose.pitch;reloadRoll=pose.roll;
       hideFixedMagazine=pose.hideFixedMagazine;
