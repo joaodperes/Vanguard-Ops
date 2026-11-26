@@ -2087,7 +2087,7 @@ function applyDamage(room: Room, attackerId: string, victim: PlayerNet, damage: 
     const armorResult=resolveHealthDamage(mech.armor,dmg,true);
     mech.armor=armorResult.health;
     io.to(victim.id).emit("message",{t:"mechAmmo",armor:mech.armor,minigunAmmo:mech.minigunAmmo,secondaryAmmo:mech.secondaryAmmo} as S2C);
-    if(armorResult.killed){if(mech.moduleId==="emergency_ejection")victim.health=Math.max(30,victim.health);room.playerMechs.delete(victim.id);io.to(room.id).emit("message",{t:"mechDestroyed",id:mech.dropId,playerId:victim.id} as S2C);}
+    if(mech.armor<=0){if(mech.moduleId==="emergency_ejection")victim.health=Math.max(30,victim.health);room.playerMechs.delete(victim.id);io.to(room.id).emit("message",{t:"mechDestroyed",id:mech.dropId,playerId:victim.id} as S2C);}
     return;
   }
   const healthResult = resolveHealthDamage(victim.health, dmg, victim.alive);
