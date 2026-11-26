@@ -20,6 +20,9 @@ export function combatThreats(hazards: Iterable<CombatHazard>, viewer: {
 }, visible: (point: Vec3) => boolean): CombatThreat[] {
   const candidates: { threat: CombatThreat; pos: Vec3 }[] = [];
   for (const hazard of hazards) {
+    // Stormweaver mines remain fully functional and visible in-world, but do not
+    // produce the repeated HUD danger/counterplay alert.
+    if (hazard.weaponId === "wonder_stormweaver") continue;
     if (hazard.expiresAt <= viewer.now) continue;
     if (!hazard.hurtsEveryone && (hazard.ownerId === viewer.id ||
       (!viewer.freeForAll && hazard.ownerTeam === viewer.team))) continue;
