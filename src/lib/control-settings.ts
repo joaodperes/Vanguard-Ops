@@ -1,5 +1,5 @@
-export const DEFAULT_KEYS: Record<string,string> = Object.fromEntries(['KeyW','KeyS','KeyA','KeyD','ShiftLeft','Space','KeyR','KeyE','KeyX','KeyG','KeyF','Digit1','Digit2','Digit3','Digit4','KeyQ','Tab','KeyZ','KeyC','KeyV'].map(k=>[k,k]));
-export const CONTROL_LABELS: Record<string,string> = Object.fromEntries(Object.keys(DEFAULT_KEYS).map((k,i)=>[k,['Forward','Back','Left','Right','Sprint','Jump','Reload','Interact','Exit Juggernaut','Tactical','Quick melee','Primary','Secondary','Melee slot','Wonder','Quick swap','Scoreboard','Attack order','Defend order','Regroup order'][i]]));
+export const DEFAULT_KEYS: Record<string,string> = Object.fromEntries(['KeyW','KeyS','KeyA','KeyD','ShiftLeft','Space','KeyR','KeyE','KeyX','KeyG','KeyF','Digit1','Digit2','Digit3','Digit4','KeyQ','Tab'].map(k=>[k,k]));
+export const CONTROL_LABELS: Record<string,string> = Object.fromEntries(Object.keys(DEFAULT_KEYS).map((k,i)=>[k,['Forward','Back','Left','Right','Sprint','Jump','Reload','Interact','Exit Juggernaut','Tactical','Quick melee','Primary','Secondary','Melee slot','Wonder','Quick swap','Scoreboard'][i]]));
 export const keyLabel=(key:string)=>key.replace(/^Key|^Digit/,'').replace('Left',' L').replace('Right',' R');
 export function bindKey(keys:Record<string,string>,action:string,code:string){
  if(!DEFAULT_KEYS[action]||!/^(Key[A-Z]|Digit[0-9]|Space|Tab|Shift(Left|Right)|Control(Left|Right)|Alt(Left|Right)|Arrow(Up|Down|Left|Right))$/.test(code))return keys;
