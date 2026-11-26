@@ -15,8 +15,7 @@ export const HARDPOINT_RULES = Object.freeze({
   transitionSeconds: 10, captureRadius: 5.5,
 });
 export const FRONTIER_RULES = Object.freeze({
-  sprintMultiplier: 1.18, accelerationMultiplier: 1.2, jumpMultiplier: 1.22,
-  adsMoveMultiplier: 0.92, reserveAmmoMultiplier: 0.65, reloadTimeMultiplier: 1.12,
+  reserveAmmoMultiplier: 0.65, reloadTimeMultiplier: 1.12,
   allowedCategories: ["sniper", "dmr", "pistol", "shotgun"] as const,
   allowedWeaponIds: ["sniper_scout", "sniper_lr", "dmr_scout", "pistol_magnum", "shotgun_br", "shotgun_combat", "pistol_bastion", "pistol_side", "pistol_ghost", "crossbow_reclaimer"] as const,
   disabledEquipment: true, disabledExplosives: true,
@@ -27,10 +26,11 @@ export function frontierWeaponAllowed(category: string): category is FrontierWea
   return (FRONTIER_RULES.allowedCategories as readonly string[]).includes(category);
 }
 export function frontierWeaponIdAllowed(weaponId: string): boolean {
-  return (FRONTIER_RULES.allowedWeaponIds as readonly string[]).includes(weaponId);
+  return weaponId === "knife_tactical" || (FRONTIER_RULES.allowedWeaponIds as readonly string[]).includes(weaponId);
 }
-export function frontierMovementSpeed(baseSpeed: number, sprinting: boolean): number {
-  return baseSpeed * (sprinting ? FRONTIER_RULES.sprintMultiplier : FRONTIER_RULES.accelerationMultiplier);
+/** Frontier uses the same movement speed as every other standard mode. */
+export function frontierMovementSpeed(baseSpeed: number, _sprinting: boolean): number {
+  return baseSpeed;
 }
 export function frontierReserveAmmo(baseReserve: number): number {
   return Math.max(1, Math.floor(baseReserve * FRONTIER_RULES.reserveAmmoMultiplier));
