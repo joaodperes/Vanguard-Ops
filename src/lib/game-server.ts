@@ -4930,15 +4930,15 @@ async function handle(socket: any, msg: C2S) {
            if(Math.hypot(p.pos[0]-drop.pos[0],p.pos[2]-drop.pos[2])>1.65)continue;
            const kit=room.loadouts.get(p.id);if(!kit)continue;
            const slot=drop.slot;
+           const previousSlotWeapon=slot==="primary"?kit.weaponId:(kit.secondaryWeaponId??"pistol_side");
+           const wasHoldingSlot=p.weaponId===previousSlotWeapon;
            if(slot==="primary"){
-             if(kit.emptyPrimary)continue;
              kit.weaponId=drop.weaponId;kit.weaponSkinId=drop.skinId;kit.attachments={...drop.attachments};
+             kit.emptyPrimary=false;
            }else{
              kit.secondaryWeaponId=drop.weaponId;kit.secondaryWeaponSkinId=drop.skinId;kit.secondaryAttachments={...drop.attachments};
            }
-           if((slot==="primary"&&p.weaponId===kit.weaponId)||(slot==="secondary"&&p.weaponId===drop.weaponId)){
-             p.weaponId=drop.weaponId;p.weaponSkinId=drop.skinId;
-           }
+           if(wasHoldingSlot){p.weaponId=drop.weaponId;p.weaponSkinId=drop.skinId;}
            room.frontierAmmoRemaining??=new Map();
            room.frontierAmmoRemaining.set(p.id,Math.max(0,drop.ammoRemaining));
            room.droppedWeapons.delete(id);
