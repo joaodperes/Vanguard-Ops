@@ -1,5 +1,6 @@
 import {DEFAULT_CONTROLS,canonicalKey,stick,type ControlSettings} from "./control-settings";
 import { applyDamageFactors, resolveHealthDamage, resolveEliminationState } from "./combat-damage-rules";
+import { accumulateDamageContribution, isAssistContributionEligible } from "./combat-assists";
 import { resolveFrontierBotWeaponFallback } from "./bot-weapon-selection";
 import { resolveBotPursuitSpeed } from "./bot-movement-rules";
 import { cloneFrontierLoadout, frontierDropWeapon } from "./frontier-loadout-drops";
@@ -2257,7 +2258,7 @@ export class FPSEngine {
     const recent=this.offlineAssistDamage.get(victim.id);
     if(attacker.team===this.opts.team&&victim.team!==this.opts.team&&
       (this.opts.mode==="tdm"||this.opts.mode==="killconfirmed"||this.opts.mode==="ctf")&&
-      recent&&recent.damage>=15&&performance.now()-recent.at<=10000)this.assists++;
+      recent&&isAssistContributionEligible(recent,performance.now()))this.assists++;
     this.offlineAssistDamage.delete(victim.id);
     victim.alive=false;victim.deaths+=1;
     this.dropOfflineFrontierLoadout(victim);
@@ -10361,11 +10362,9 @@ export class FPSEngine {
     // friendly offline bot finishing the same enemy can award an assist.
     if (!this.opts.online && victim.team !== this.opts.team &&
         (this.opts.mode==="tdm"||this.opts.mode==="killconfirmed"||this.opts.mode==="ctf"||this.opts.mode==="survival")) {
+      const now=performance.now();
       const old=this.offlineAssistDamage.get(victim.id);
-      this.offlineAssistDamage.set(victim.id,{
-        damage:(old && performance.now()-old.at<=10000?old.damage:0)+Math.max(0,Math.min(damage,victim.health)),
-        at:performance.now(),
-      });
+      this.offlineAssistDamage.set(victim.id,accumulateDamageContribution(old,damage,victim.health,now));
     }
     if(victim.ai && victim.team!==this.opts.team){
       victim.ai.lastAlert=botRememberHit(this.selfId,[this.pos.x,this.pos.y,this.pos.z],performance.now());
@@ -14052,7 +14051,7 @@ export class FPSEngine {
           const recent=this.offlineAssistDamage.get(nearest.victim.id);
           if (attacker.team === this.opts.team && nearest.victim.team !== this.opts.team &&
               (this.opts.mode==="tdm"||this.opts.mode==="killconfirmed"||this.opts.mode==="ctf") &&
-              recent && recent.damage>=15 && performance.now()-recent.at<=10000)
+              recent && isAssistContributionEligible(recent,performance.now()))
             this.assists++;
           this.offlineAssistDamage.delete(nearest.victim.id);
           nearest.victim.alive = false; nearest.victim.deaths += 1;
