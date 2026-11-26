@@ -1,6 +1,6 @@
 # Automated validation
 
-The optional `bun run test:smoke` command runs the maintained local test set:
+The `bun run test:smoke` command runs the maintained test set locally and in CI:
 
 - `catalog-contract.test.ts` and `content-catalogs.test.ts` check catalog
   structure, stable identifiers and data-agnostic content contracts.
@@ -14,4 +14,4 @@ smoke suite.
 
 GitHub Actions has one validation workflow. It runs TypeScript syntax/type
 checking and the content validator for authored data and file references.
-The local smoke tests are not CI gates.
+The smoke suite is part of the GitHub Actions validation workflow.
