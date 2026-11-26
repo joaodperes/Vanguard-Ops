@@ -3809,19 +3809,22 @@ export class FPSEngine {
         base.position.y = -0.03;
         scopeGroup.add(base);
       } else if (st === "laser") {
-        // Laser sight: small projector box with a red emitter
+        // Side-mounted projector: preserve the central sight channel on compact
+        // pistols instead of placing a grey housing directly over the bore.
+        const laserSide = (WEAPON_VISUALS[this.weaponId]?.receiver?.[0] ?? .12) / 2 + .035;
         const box = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.03, 0.06), accentMat);
+        box.position.x = laserSide;
         scopeGroup.add(box);
         const emitter = new THREE.Mesh(
           new THREE.CircleGeometry(0.005, 10),
           fullLegendaryFinish ? this.weaponMat : new THREE.MeshBasicMaterial({ color: 0xff2222 })
         );
-        emitter.position.set(0, 0, -0.031);
+        emitter.position.set(laserSide, 0, -0.031);
         emitter.rotation.y = Math.PI;
         scopeGroup.add(emitter);
         // This marker inherits the complete sight/weapon/hand transform.
         const rayOrigin = new THREE.Object3D();
-        rayOrigin.position.set(0, 0, -0.034);
+        rayOrigin.position.set(laserSide, 0, -0.034);
         scopeGroup.add(rayOrigin);
         if(hand==="left")this.akimboLeftLaserEmitter=rayOrigin;
         else this.laserEmitter=rayOrigin;
@@ -3882,7 +3885,8 @@ export class FPSEngine {
       for(const hand of this.viewmodelAkimbo?["left","right"] as const:[null]){
         const laser = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.025, 0.08), glowMat);
         if(hand)laser.userData.akimboHand=hand;
-        addPart(laser,hand?(hand==="left"?-akimboOffset:akimboOffset)/this.vmScale:0,
+        const laserSide=(WEAPON_VISUALS[this.weaponId]?.receiver?.[0] ?? .12)/2+.025;
+        addPart(laser,laserSide+(hand?(hand==="left"?-akimboOffset:akimboOffset)/this.vmScale:0),
           -.09+(hand?-.045/this.vmScale:0),-.2);
         const rayOrigin=new THREE.Object3D();
         rayOrigin.position.set(0,0,-.041);
