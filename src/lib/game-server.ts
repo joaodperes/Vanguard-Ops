@@ -1,4 +1,4 @@
-import {squadIntent,validSquadOrder,squadOrderPoint,type SquadOrder} from "./squad-coordination";
+import {squadIntent} from "./squad-coordination";
 import { operationById, nextOperation, createOperationState, tickOperation, damageOperationEscort, operationSite, operationEncounter, operationConfigValid, operationAwarenessMultiplier, type OperationState } from "./operations";
 import { survivalRoleForSlot, survivalRoleHealthMultiplier, survivalFrontalArmor, tickSurvivalSpecialists, createSurvivalObjective, tickSurvivalObjective, SURVIVAL_ROLE_INFO, type SurvivalActor, type SurvivalObjective } from "./survival-encounters";
 import { survivalPauseActive, survivalFirstChoiceDeadline, remainingSurvivalUpgradeSeconds } from "./survival-pause";
@@ -179,8 +179,6 @@ interface BotAI {
 }
 
 interface Room {
-  squadOrders?:Map<string,SquadOrder>;
-  squadOrderCooldown?:Map<string,number>;
   mapVotes?: Record<string, MapId>;
   mapCandidates?: MapId[];
   resultsReady?: Set<string>;
@@ -4302,7 +4300,7 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     }
     // Bunker centre is a maze of tall blocks. Navigate toward a clear A*
     // waypoint when the direct chase lane is obstructed; keep weapon aim on target.
-    const coordinated=squadIntent({self:bot,allies:allCombatants(room),mode:room.mode,now,target:target.pos,order:room.squadOrders?.get(bot.team),critical:room.mode==="ctf"&&(!!room.flags.red.carrierId||!!room.flags.blue.carrierId||ai.ctfGuarding)});
+    const coordinated=squadIntent({self:bot,allies:allCombatants(room),mode:room.mode,now,target:target.pos,critical:room.mode==="ctf"&&(!!room.flags.red.carrierId||!!room.flags.blue.carrierId||ai.ctfGuarding)});
     if(coordinated){const dx=coordinated.goal[0]-bot.pos[0],dz=coordinated.goal[2]-bot.pos[2],length=Math.hypot(dx,dz);if(length>2){mvx=dx/length*moveSpeed/20;mvz=dz/length*moveSpeed/20;}}
     if ((dist > chaseThreshold || Math.abs(target.pos[1] - bot.pos[1]) > 1.3) &&
       (Math.abs(target.pos[1] - bot.pos[1]) > 1.3 || room.map.id==="bunker" ||
@@ -5040,16 +5038,6 @@ async function handle(socket: any, msg: C2S) {
       const remaining = left ?? (room.equipmentCharges.get(socket.id) ??
         equipmentById(room.loadouts.get(socket.id)?.equipmentId).charges);
       socket.emit("message", { t: "equipmentState", remaining, nextRechargeMs:Math.max(0,(room.equipmentRechargeAt.get(socket.id)??0)-Date.now()) } as S2C);
-      break;
-    }
-    case "squadOrder": {
-      const room=rooms.get(socketToRoom.get(socket.id)??"");const player=room?.players.get(socket.id);
-      if(!room||room.state!=="playing"||room.ended||!player?.alive||room.mode==="ffa"||room.mode==="gungame"||room.mode==="survival"||room.preMatchCountdown>0)return;
-      const now=Date.now();room.squadOrderCooldown??=new Map();
-      if(now-(room.squadOrderCooldown.get(socket.id)??0)<2000)return;
-      const order=validSquadOrder(msg.kind,squadOrderPoint(player.pos,player.yaw,msg.kind,room.map.spawns.ffa),player.pos,player.team,player.id,now);if(!order)return;
-      room.squadOrders??=new Map();room.squadOrders.set(player.team,order);room.squadOrderCooldown.set(socket.id,now);
-      for(const ally of room.players.values())if(ally.team===player.team)io.to(ally.id).emit("message",{t:"squadCommand",order} as S2C);
       break;
     }
     case "quickMelee": {
