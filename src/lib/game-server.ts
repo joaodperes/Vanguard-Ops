@@ -4324,6 +4324,29 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
         if(len>.25){mvx=wx/len*moveSpeed/20;mvz=wz/len*moveSpeed/20;}else ai.nextRouteAt=0;
       }
     }
+    // Hardpoint bots retain combat awareness and weapon fire, but objective
+    // movement takes priority over chasing a distant enemy. Once near the point,
+    // combat movement is allowed so they can contest while fighting.
+    if(room.mode==="hardpoint"&&room.hardpointState){
+      const zones=hardpointZonesForMap(room.map.id);
+      const zone=zones[room.hardpointState.phase==="transition"?room.hardpointState.nextIndex:room.hardpointState.activeIndex];
+      if(zone){
+        const goal=distributedObjectivePosition(zone.pos,bot.id,2.4);
+        const od=Math.hypot(goal[0]-bot.pos[0],goal[2]-bot.pos[2]);
+        if(od>7){
+          if(now>=(ai.nextRouteAt??0)&&room.routeBudget?.take()){
+            ai.routeWaypoint=botNextWaypoint(bot.pos,botMapRouteGoal(room.map.id,bot.pos,goal),room.map.cover,room.map.size,3,
+              floodgatePathHazards(room.map,room.floodgateBreachAt!==null),room.map.regions,roomCoverIndex(room),denseBotMap(room)?280:1000,floodAge)??goal;
+            ai.nextRouteAt=now+850+botRouteJitter(bot.id);
+          }
+          const waypoint=ai.routeWaypoint??goal;
+          const wx=waypoint[0]-bot.pos[0],wz=waypoint[2]-bot.pos[2],len=Math.hypot(wx,wz);
+          if(len>.25){mvx=wx/len*moveSpeed/20;mvz=wz/len*moveSpeed/20;ai.sprinting=od>18;}
+        }else{
+          ai.routeWaypoint=null;ai.nextRouteAt=0;
+        }
+      }
+    }
     // Substepped movement with wall collision (ported from the offline engine).
     // Without this, online bots teleport through walls/cover to reach the player.
     // Task 16-a: SUBSTEP tightened from 0.20 to 0.15 so the upcoming thin cover
