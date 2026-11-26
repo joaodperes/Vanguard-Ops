@@ -7874,7 +7874,7 @@ export class FPSEngine {
             this.ammoInMag=Math.min(effective.magSize,msg.ammoRemaining);
             this.startWeaponSwapVisual(0);
           }
-          this.frontierAmmoRemaining=msg.ammoRemaining;
+          if(this.currentSlot===msg.slot)this.frontierAmmoRemaining=msg.ammoRemaining;
           this.sound.play("swap",{volume:.65});
         }
         break;
