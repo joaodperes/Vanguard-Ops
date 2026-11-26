@@ -368,7 +368,7 @@ export function cityBuildingBoxes(p:MapProp):CoverBox[]{
   // is constructed in its own coordinates, then quarter-turned as a whole.
   const w=odd?(p.d??20):(p.w??20),d=odd?(p.w??20):(p.d??20),h=p.h??6.4;
   const cosine=[1,0,-1,0][quarter],sine=[0,1,0,-1][quarter];
-  const wall=.42,door=Math.min(5,w*.31),front=(w-door)/2;
+  const wall=.42,door=Math.min(5,w*.31);
   const a:CoverBox[]=[];
   const put=(x:number,y:number,z:number,hx:number,hy:number,hz:number,kind:"cover"|"platform"|"stair"="cover",material:CoverBox["material"]="reinforced",ballisticId?:string)=>{
     if(hx>.01&&hy>.01&&hz>.01)a.push({

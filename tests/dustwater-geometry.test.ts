@@ -1,10 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import dustwater from "../src/data/maps/dustwater.json";
 import { cityBuildingBoxes, cityHasUsableInteriorStairs } from "../src/lib/map-visuals";
-import { featureBoxes } from "../src/lib/map-blueprints";
+import { featureBoxes, type MapFeature } from "../src/lib/map-blueprints";
+import type { MapProp } from "../src/lib/map-theme-contract";
 
 describe("Dustwater building access and rooftops", () => {
-  const buildings = dustwater.theme.props.filter(p => p.kind === "building");
+  const buildings = dustwater.theme.props.filter(p => p.kind === "building") as unknown as MapProp[];
 
   test("accessible roofs have destructible timber parapets and a stair landing opening", () => {
     expect(buildings.length).toBeGreaterThan(0);
@@ -49,8 +50,8 @@ describe("Dustwater building access and rooftops", () => {
 
 describe("Dustwater church tower ladder", () => {
   const features = dustwater.blueprint.features;
-  const ladder = features.find(f => f.id === "church-tower-stairs")!;
-  const roof = features.filter(f => f.id.startsWith("church-tower-platform-"));
+  const ladder = features.find(f => f.id === "church-tower-stairs") as unknown as MapFeature;
+  const roof = features.filter(f => f.id.startsWith("church-tower-platform-")) as unknown as MapFeature[];
 
   test("ladder collision rises to the taller tower roof in narrow vertical steps", () => {
     expect(ladder).toBeDefined();
@@ -64,7 +65,7 @@ describe("Dustwater church tower ladder", () => {
 
   test("top landing keeps a square opening around the ladder", () => {
     expect(roof.length).toBe(4);
-    const topBoxes = roof.flatMap(featureBoxes);
+    const topBoxes = roof.flatMap(feature => featureBoxes(feature));
     const blocked = topBoxes.some(box =>
       Math.abs(18 - box.pos[0]) < box.size[0] + .45 &&
       Math.abs(-15 - box.pos[2]) < box.size[2] + .45);
