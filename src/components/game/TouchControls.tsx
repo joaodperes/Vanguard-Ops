@@ -130,7 +130,6 @@ export function TouchControls({ engine, mode, akimbo = false }: Props) {
 
   return (
     <div className={`absolute inset-0 z-40 touch-none select-none ${prefs.touchLeftHanded?"vanguard-left-touch":""}`} style={{ touchAction: "none", opacity:prefs.touchOpacity,transform:prefs.touchLeftHanded?"scaleX(-1)":undefined }}>
-      <div className="absolute top-32 left-1/2 -translate-x-1/2 z-10 flex gap-1">{(["attack","defend","regroup"] as const).map(kind=><button key={kind} aria-label={`Squad ${kind}`} className="rounded border border-cyan-300/40 bg-black/60 p-2 text-xs text-cyan-100" onTouchStart={e=>{e.preventDefault();e.stopPropagation();engine?.sendSquadOrder(kind);}}>{kind}</button>)}</div>
       {/* Left half: movement joystick (floating) */}
       <div
         className="absolute left-0 top-0 bottom-0"
