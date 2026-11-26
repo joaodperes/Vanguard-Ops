@@ -3894,6 +3894,27 @@ function updateBotAI(room: Room, bot: PlayerNet & { ai: BotAI; loadout: LoadoutW
     bot.weaponId=next;ai.nextWeaponSwitchAt=now+1800;ai.nextShotAt=now+450;
     ai.reloadingUntil=0;
   }
+  // Frontier bots fall back to their sidearm when their current magazine is
+  // empty, then to their configured melee weapon when both firearms are dry.
+  if(room.mode==="frontier" && ai.ammoInMag<=0 && !ai.wonderEquippedUntil &&
+     !room.orbitalHolders.has(bot.id) && now>=(ai.nextWeaponSwitchAt??0)){
+    const kit=bot.loadout;
+    const currentIsPrimary=bot.weaponId===kit.weaponId;
+    const otherId=currentIsPrimary?kit.secondaryWeaponId:kit.weaponId;
+    const otherAmmo=currentIsPrimary?(ai.secondaryAmmoInMag??0):(ai.primaryAmmoInMag??0);
+    if(otherId && otherAmmo>0){
+      const old=ai.ammoInMag;ai.ammoInMag=otherAmmo;
+      if(currentIsPrimary)ai.secondaryAmmoInMag=old;else ai.primaryAmmoInMag=old;
+      bot.weaponId=otherId;ai.nextWeaponSwitchAt=now+500;
+      ai.reloadingUntil=0;ai.burstShotsLeft=0;
+    }else{
+      const melee=kit.meleeWeaponId??"knife_tactical";
+      if(bot.weaponId!==melee){
+        bot.weaponId=melee;ai.ammoInMag=weaponById(melee).stats.magSize;
+        ai.reloadingUntil=0;ai.nextWeaponSwitchAt=now+500;ai.burstShotsLeft=0;
+      }
+    }
+  }
   const flashBlinded=(room.equipmentFlashUntil.get(bot.id)??0)>now;
   if(flashBlinded){ai.targetId=null;ai.lastSighting=null;ai.lastAlert=null;}
   else hearBotNoise(room,bot,now);
@@ -5271,7 +5292,7 @@ async function handle(socket: any, msg: C2S) {
       if (room.state !== "playing") return;
       // Gun Game ignores manual swaps — weapon is driven by progression.
       if (room.mode === "gungame") return;
-      if(room.mode==="frontier"&&msg.slot!=="primary"&&msg.slot!=="secondary")return;
+
       const p = room.players.get(socket.id);
       if (!p || !p.alive || room.downed.has(socket.id)) return;
       const loadout = room.loadouts.get(socket.id);
