@@ -33,6 +33,12 @@ describe("shared Frontier bot weapon selection", () => {
     })).toMatchObject({ weaponId: "knife_tactical", activeSlot: "melee", ammoInMag: 1 });
   });
 
+  test("forces melee when the shared Frontier ammo pool is depleted despite stale magazine rounds", () => {
+    expect(resolveFrontierBotWeaponFallback({
+      ...base, currentWeaponId: "rifle_ar", ammoInMag: 8, inactiveAmmoInMag: 6, totalAmmoRemaining: 0,
+    })).toMatchObject({ weaponId: "knife_tactical", activeSlot: "melee", ammoInMag: 1 });
+  });
+
   test("does not repeatedly switch while already holding melee", () => {
     expect(resolveFrontierBotWeaponFallback({
       ...base, currentWeaponId: "knife_tactical", ammoInMag: 0,
