@@ -1,5 +1,6 @@
 import {DEFAULT_CONTROLS,canonicalKey,stick,type ControlSettings} from "./control-settings";
 import { applyDamageFactors, resolveHealthDamage, resolveEliminationState } from "./combat-damage-rules";
+import { resolveRespawnState, respawnDelayForMode } from "./respawn-rules";
 import { accumulateDamageContribution, isAssistContributionEligible } from "./combat-assists";
 import { resolveFrontierBotWeaponFallback } from "./bot-weapon-selection";
 import { resolveBotPursuitSpeed } from "./bot-movement-rules";
@@ -7683,7 +7684,7 @@ export class FPSEngine {
             // and alive=true), so this is a client-side estimate that makes
             // the countdown visible during the wait.
             const respawnDelay = this.opts.mode === "survival" ? SURVIVAL_RESPAWN_MS : RESPAWN_DELAY_MS;
-            this.respawnAt = this.opts.mode === "survival" || this.opts.mode === "searchdestroy" ? 0 : performance.now() + respawnDelay;
+            this.respawnAt = this.opts.mode === "searchdestroy" ? 0 : performance.now() + (respawnDelayForMode(this.opts.mode, RESPAWN_DELAY_MS, SURVIVAL_RESPAWN_MS) ?? respawnDelay);
             this.sound.play("death", { volume: 0.8 });
           }
           // Trigger the death-fall animation on the victim's combatant (if it's
@@ -8529,7 +8530,11 @@ export class FPSEngine {
   private respawnSelf() {
     this.equipQueuedLoadout();
     const sp = this.pickSpawn(this.opts.team as string);
-    this.pos.set(sp[0], sp[1], sp[2]);
+    const transition = resolveRespawnState({
+      position: sp, maxHealth: MAX_HEALTH, now: Date.now(),
+      spawnProtectionMs: this.opts.online ? 0 : 3000,
+    });
+    this.pos.set(...transition.position);
     this.cameraFeetY=this.pos.y;
     this.vel.set(0, 0, 0);
     this.onGround = true;
@@ -8539,18 +8544,18 @@ export class FPSEngine {
     this.touchJumpQueued = false;
     this.touchAutoSprintActive = false;
     if(this.wonderWeaponId!==RIOT_SHIELD_ID){this.riotShieldHp=RIOT_SHIELD_HP;this.riotShieldReadyAt=0;}
-    this.health = MAX_HEALTH; this.alive = true;
+    this.health = transition.health; this.alive = transition.alive;
     this.lastPlayerRespawnAt = performance.now();
-    this.lastServerHealth = MAX_HEALTH; // reset so the next snapshot doesn't sync down
+    this.lastServerHealth = transition.health; // reset so the next snapshot doesn't sync down
     this.refillAmmoOnRespawn();
     this.reloading = false;
     this.heatStates.clear(); this.boltCharges = 0; this.poisonByVictim.clear();
     this.equipmentCharges = equipmentById(this.opts.loadout.equipmentId).charges;
     this.equipmentNextRechargeAt=0;
     this.equipmentFlashUntil=0;this.equipmentFlashAudioUntil=0;this.equipmentAdsBlockedUntil=0;
-    // Round 20h: Local player spawn protection (offline only — online is
-    // handled by the server). 3 seconds of immunity.
-    if (!this.opts.online) this.selfSpawnProtectedUntil = Date.now() + 3000;
+    // Offline protection is part of the shared fresh-life transition; online
+    // protection is assigned authoritatively by the server.
+    if (!this.opts.online) this.selfSpawnProtectedUntil = transition.spawnProtectedUntil;
     this.respawnAt = 0;
   }
 
@@ -11754,7 +11759,7 @@ export class FPSEngine {
       // Still tick respawns (offline) + emit HUD so the respawn countdown shows.
       const now = performance.now();
       if (!this.opts.online && this.opts.mode !== "searchdestroy" && this.respawnAt === 0) {
-        this.respawnAt = now + (this.opts.mode === "survival" ? SURVIVAL_RESPAWN_MS : RESPAWN_DELAY_MS);
+        this.respawnAt = now + (respawnDelayForMode(this.opts.mode, RESPAWN_DELAY_MS, SURVIVAL_RESPAWN_MS) ?? RESPAWN_DELAY_MS);
       }
       if (!this.opts.online && this.opts.mode !== "searchdestroy" && this.respawnAt && now >= this.respawnAt) {
         this.respawnSelf();
@@ -12204,7 +12209,7 @@ export class FPSEngine {
     }
 
     if (!this.alive && this.respawnAt === 0 && !this.opts.online && this.opts.mode !== "searchdestroy") {
-      this.respawnAt = now + RESPAWN_DELAY_MS;
+      this.respawnAt = now + (respawnDelayForMode(this.opts.mode, RESPAWN_DELAY_MS, SURVIVAL_RESPAWN_MS) ?? RESPAWN_DELAY_MS);
     }
     if (!this.alive && this.respawnAt && now >= this.respawnAt && !this.opts.online && this.opts.mode !== "searchdestroy") {
       this.respawnSelf();
@@ -14164,7 +14169,8 @@ export class FPSEngine {
       if (this.opts.mode === "survival") {
         this.finalizeMatchLocal();
       } else {
-        this.respawnAt = this.opts.mode==="searchdestroy" ? 0 : performance.now() + RESPAWN_DELAY_MS;
+        this.respawnAt = respawnDelayForMode(this.opts.mode, RESPAWN_DELAY_MS, SURVIVAL_RESPAWN_MS) === null
+          ? 0 : performance.now() + (respawnDelayForMode(this.opts.mode, RESPAWN_DELAY_MS, SURVIVAL_RESPAWN_MS) ?? RESPAWN_DELAY_MS);
       }
     }
   }
