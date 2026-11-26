@@ -27,7 +27,7 @@ The breach time is recorded in the match environment clock and replicated in eac
 
 Before the dam collapses, four pressure vents use a 36-second shared repeating period, with a 7-second warning and 8-second active steam window. The hazard's warning is communicated by the flashing grates **without HUD countdowns**. After collapse, vents stop dealing steam damage, and the flood surge replaces them as the northern hazard.
 
-## Implementation and checks
+## Implementation reference
 
 - Geometry, hazards and spawn points: `src/data/maps/floodgate.json` (`blueprint`; old split file is a migration snapshot)
 - Colors and non-colliding machinery dressing: `src/data/maps/floodgate.json` (`theme`; old split file is a migration snapshot)
@@ -38,9 +38,3 @@ Before the dam collapses, four pressure vents use a 36-second shared repeating p
 - Deterministic dynamic stairs and bridges: `src/lib/floodgate-topple.ts`
 - Dam fracture layers: `src/lib/floodgate-dam-cracks.ts`
 - Wet footsteps: `src/lib/sound.ts`
-- Regression tests: `tests/map-battle-events.test.ts`, `tests/floodgate-hydraulics.test.ts`, `tests/footstep-audio.test.ts`, `tests/floodgate.test.ts` and shared layout/bot suites.
-
-Regression checks should cover high-ground and flank safety, an actual 41-hit Marksman DMR sequence, absence of permanent cover masking the core, replicated breach age, flooded front animation with constant draw-call count, and all CTF routes remaining traversable. Human offline and multiplayer playtesting is still recommended before promoting to `main`.
-
-
-Map Studio uses the unified `src/data/maps/floodgate.json` blueprint and theme; the previous split files remain migration references. Update the unified document when changing dam geometry, flooding layout or steam grates.

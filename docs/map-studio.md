@@ -87,9 +87,9 @@ The older `BASE_MAPS` geometry templates in `src/lib/game-protocol.ts` reuse the
 
 ## Validation and promotion
 
-Run `bun run content:validate`, `bun run test:smoke`, `bun run typecheck` and `bun run build`. Connection regressions cover all landing directions, multiple heights, ascent/descent, blocked headroom, rotation, resizing, copying and JSON roundtrips. Preserve client/server parity and Orbital reactor rules.
+Run `bun run content:validate` and `bun run typecheck`. Review authored map JSON against the canonical schema and inspect connected construction in both the 2D and 3D editor views. Preserve client/server parity for shared map behavior.
 
-Before promotion, verify real pointer/touch placement, player movement, inherited exact faces, undo/redo, draft recovery, map appearance and online behavior. See `docs/dev-test-checklist.md`; the previous guide is archived at `docs/archive/map-studio-before-connections.md`.
+Before promotion, verify real pointer/touch placement, player movement, inherited exact faces, undo/redo, draft recovery, map appearance and online behavior. See `docs/dev-test-checklist.md`.
 
 ## Bundled texture library
 

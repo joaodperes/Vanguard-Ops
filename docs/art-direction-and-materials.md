@@ -62,7 +62,7 @@ These are **candidates**, not assets currently checked into Vanguard Ops. Do not
 ## Safe future asset import workflow
 
 1. Choose one biome and one surface family (e.g. 128/256px mossy stone or painted industrial metal) before downloading large packs.
-2. Verify **license at the exact source item and download date**; keep URL, author, license and original terms in `docs/asset-provenance.md` if importing anything.
+2. Verify **license at the exact source item and download date**; keep URL, author, license and original license and provenance notes bundled beside the imported asset.
 3. Bundle compressed, power-of-two, seamless textures in the game; downsample consciously to 128–512 px to preserve the pixel/retro direction. Bake useful normal and roughness detail only when it remains readable.
 4. Expand the JSON recipe with an optional local asset path, and update the canonical map-theme contract, regenerate its JSON Schema and review rendering logic in one change. Restrict paths to local, allowlisted build assets; never fetch arbitrary URLs from client-side map JSON.
 5. Keep floor UV scale consistent per metre; use packed atlases/shared materials and avoid multiplying one mesh/draw call per tiny decoration.
@@ -72,12 +72,11 @@ These are **candidates**, not assets currently checked into Vanguard Ops. Do not
 
 ```sh
 bun run content:validate
-bun run test:smoke
 bun run typecheck
 bun run build
 ```
 
-`tests/map-surface-materials.test.ts` asserts complete surface recipes, correct biome texture patterns and world-space UV scaling. A green CI result is **not** a visual sign-off: compare live in-game scenes in daylight and night lighting, including walking up to a wall and inspecting 100-metre stretches without stretched or over-repeated motifs.
+The content validator checks the authored surface recipes and references. A green CI result is **not** a visual sign-off: compare live in-game scenes in daylight and night lighting, including walking up to a wall and inspecting long stretches without stretched or over-repeated motifs.
 
 ## Bundled texture addition
 

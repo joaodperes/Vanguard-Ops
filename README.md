@@ -137,7 +137,7 @@ The production server uses Next.js standalone output. **Back up your database be
 
 ## Documentation
 
-See the [documentation index](docs/README.md) for current operator/developer references and the historical archive. Implementation notes and regression tests are maintained in Git, but are not automatically packaged into the player-facing browser application.
+See the [documentation index](docs/README.md) for maintained operator and developer references. Retired implementation notes and completed proposals have been removed from the active docs; Git history remains available when historical context is needed.
 
 ## Validation and contributing
 
@@ -145,12 +145,11 @@ Use the checked-in Bun lockfile (`bun.lock`) as the dependency source of truth. 
 
 ```bash
 bun run content:validate
-bun run test:smoke
 bun run typecheck
 bun run build
 ```
 
-The `dev` and `main` GitHub Actions workflows run these checks on pushes and pull requests. Tests verify content, maps, player progression, multiplayer and weapon mechanics, but passing tests is not a substitute for manual playtesting or a safe production database migration. See [the QA and merge checklist](docs/dev-test-checklist.md) before releasing.
+The single GitHub Actions workflow, `.github/workflows/dev-validation.yml`, runs TypeScript syntax/type validation and content/file-reference validation on pushes and pull requests targeting `dev` or `main`. The optional `bun run test:smoke` command runs only generic catalog contract checks. Automated validation is not a substitute for manual playtesting or a safe production database migration. See [the QA and merge checklist](docs/dev-test-checklist.md) before releasing.
 
 ## Technology and project structure
 
@@ -160,7 +159,7 @@ The `dev` and `main` GitHub Actions workflows run these checks on pushes and pul
 - **Game content:** JSON catalogs in `src/data/catalogs/`; map layouts and themes in `src/data/`
 - **Deployment:** `Caddyfile` and a separate `mini-services/game-server/` entry point for supported hosting setups
 
-Development continues on the `dev` branch and validated changes are promoted to `main` through a normal pull request. Automated tests and technical documentation are retained on both branches, because they support ongoing maintenance and do not become part of the browser game bundle.
+Development continues on the `dev` branch and validated changes are promoted to `main` through a normal pull request. Generic catalog contract tests and maintained technical documentation are retained on both branches; retired feature-specific test suites and completed implementation notes are removed.
 
 ## License
 
@@ -168,7 +167,7 @@ The project's original source code is distributed under the **MIT License**. See
 
 Map compatibility, player limits and spawn safety: [map modes and spawns](docs/map-modes-and-spawns.md).
 
-Survival adds specialist enemies and rotating relay, supply and terminal objectives in solo and co-op. See [Survival encounter rules](docs/survival-encounters.md) for roles and counterplay.
+Survival adds specialist enemies and rotating relay, supply and terminal objectives in solo and co-op. 
 
 ### Playing together
 

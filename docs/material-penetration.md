@@ -97,12 +97,7 @@ Map Studio supports material-tagged cover, re-scaling and imported maps.
 Always validate thickness, angles, mixed body/cover paths, lag-free effects,
 movement collision after destruction and online server/client agreement.
 
-## Regression tests
 
-- `tests/unified-ballistics.test.ts`: energy expenditure, body/cover order,
-  ammo effects, capped hits and concrete protection.
-- `tests/material-cover-penetration.test.ts` and
-  `tests/material-penetration.test.ts`: thickness, material selection and
-  layered cover rules.
-- `tests/material-cover-destruction.test.ts`: integrity, shattering and replication.
-- `tests/tutorial.test.ts`: tutorial chapter index and checkpoint compatibility.
+## Validation
+
+Run `bun run content:validate` and `bun run typecheck`. Use the Firing Range to compare material thickness, weapon penetration budgets, mixed body/cover paths and damage retention. Repeat affected scenarios online to verify server/client agreement and confirm that destroyed cover updates collision for subsequent shots.

@@ -90,11 +90,7 @@ IDs persist in player campaign records. Sites reference collision-checked author
 FFA spawn pads; these are mission beacons rather than new scenery assets. The
 campaign whitelist permits its CTF-only maps without adding them to standard Survival.
 
-Run the Operations tests, full smoke suite, typecheck, content validation and build.
-Real-socket checks cover two-player co-op room creation, joining and difficulty
-preservation. Unit tests cover mission objectives, deadline, star-criteria
-breakdown, first-clear idempotency and account persistence. Human playtests remain necessary for combat pacing and route feel under
-fire. There is no new map geometry or cinematic/NPC scripting system.
+Validate authored mission/content references with `bun run content:validate` and run `bun run typecheck`. Manually play solo and two-player co-op deployments, including mission continuation, difficulty selection, objectives, extraction, account-bound rewards and reconnect behavior. Human playtests remain necessary for combat pacing and route feel under fire. There is no new map geometry or cinematic/NPC scripting system.
 
 
 ## Objective types and escort integrity

@@ -34,26 +34,3 @@ The room protocol includes `createRoom`, `listRooms`, `joinRoom`, `voteMap`,
 server together and restart the server. No catalogs or database schema change.
 Rooms remain in-memory and do not survive a server restart. Losing a results
 connection requires returning to match setup to rejoin an available room.
-
-## Verification
-
-- `tests/room-flow.test.ts`: compatible room maps, vote replacement/ties and
-  invitation URLs.
-- `tests/room-session.test.ts`: isolated client process checks connection
-  retention, round transitions, passwords and leaving.
-- `tests/room-flow-online.test.ts`: real Socket.IO clients and a temporary SQLite
-  database exercise private joining, host-only launch, idempotent reattachment,
-  retention beyond 15 seconds, voting, readiness, round reset, host departure and 
-  all six modes. Only the isolated server's simulation interval
-  is accelerated; its cleanup grace period uses real time.
-
-Manual browser QA: create a private lobby in two tabs, follow its invitation,
-change votes, finish a match, verify the results roster and rewards, start another
-arena, and leave as host. Repeat on a narrow touch screen and with clipboard
-access denied. Check late joining, the Gun Game first weapon and CTF reset rules.
-The six-mode selection remains a 3×2 grid.
-
-
-## Kill Confirmed dogtag lifetime
-
-Room hosts can select 10, 15, 25, 30 or 45 seconds, or Infinite. Infinite tags use `Number.MAX_SAFE_INTEGER` as their JSON-safe expiry timestamp and remain available until collected. The server validates the selected lifetime before accepting the room configuration; offline matches use the same expiry rule.

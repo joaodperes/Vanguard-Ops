@@ -112,8 +112,7 @@ material objects do not obstruct the existing central firing practice.
 These demos run locally; the main-map multiplayer server remains
 authoritative for ballistic cover destruction.
 
-## Validation / regression
 
-Run `bun test tests/firing-range.test.ts tests/material-cover-penetration.test.ts tests/material-cover-destruction.test.ts tests/body-penetration.test.ts`; for full cross-system checks run `bun run content:validate`, `bun run typecheck`, `bun run test:smoke` and `bun run build`.
+## Validation
 
-The new regression suite covers materials, multiple layers, grazing angle, budget and damage reduction, solid obstacles, shields/spawn immunity, magazine behavior and propagation of tags into published maps. Check the [dev workflow](../.github/workflows/dev-validation.yml) before promoting changes to main.
+Run `bun run content:validate` and `bun run typecheck`. In the Firing Range, compare each material with standard and high-penetration weapons, inspect damage before and after cover breaks, and confirm destroyed cover no longer blocks movement or shots. Repeat in an authoritative multiplayer match for server/client agreement.

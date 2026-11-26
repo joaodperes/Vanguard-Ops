@@ -82,7 +82,7 @@ an author forgets its tag.
   ruins stay protective. Stone ruins and temples now use *open pillar* collision,
   rather than an invisible bulletproof block over the empty interior.
 
-## Author checklist and tests
+## Author checklist
 
 For any new combat-visible surface: (1) decide structural vs nonstructural;
 (2) assign a material to its collision geometry, not the render mesh; (3) for
@@ -92,7 +92,3 @@ detail belonging to that collider; (5) verify late join, offline, blast and
 single-bullet penetration. Never tag a thick `platform` as a soft panel just
 to simulate a wooden texture.
 
-Run `bun test tests/map-material-standards.test.ts tests/material-penetration.test.ts tests/castle-ballistics.test.ts`
-and `bun run typecheck`. The tests include map-wide classification, unique
-identities, roof penetration, Whiteout pallet collision, Forest foliage, open
-ruin sightlines and Map Studio defaults/import migrations.

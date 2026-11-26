@@ -1,20 +1,35 @@
 # Vanguard Ops documentation
 
-The root [README](../README.md) explains the game and local startup. These guides are maintained alongside the application source, but **only compiled application assets ship to browsers**; keeping a guide or a regression test in Git does not add it to the downloadable game bundle.
+This folder contains maintained operator and developer references. Runtime behavior
+and live content are ultimately defined by the application source and canonical
+data under `src/`; these documents explain workflows and important contracts.
 
-## Current instructions
+## Development and operations
 
-- [Host a LAN/Tailscale party](lan-and-tailscale.md) — use the stable `main` branch; `dev` is for testing.
-- [QA and release promotion](dev-test-checklist.md) — automated checks, manual testing and safe `dev` → `main` promotion.
-- [Content and map authoring](content-authoring.md) — catalog source-of-truth, validation and JSON conventions.
-- [Map Studio](map-studio.md) — editor documentation for developers (work may be ahead on `dev`).
-- [Map modes and spawn safety](map-modes-and-spawns.md), [Floodgate](floodgate.md) and [Whiteout Depot](whiteout-depot.md) — active gameplay/map references.
-- [Player economy](economy-and-career-progression.md), [Career contracts and Shop](career-contracts-and-shop.md) and [Prestige/Wonder Weapons](prestige-wonder-weapons.md) — progression and persistent-data compatibility.
+- [QA and release promotion](dev-test-checklist.md) — the single CI workflow,
+  manual acceptance and safe `dev` → `main` promotion.
+- [Content authoring](content-authoring.md) — catalog source-of-truth, schemas,
+  validation and JSON conventions.
+- [Map Studio](map-studio.md) — map editing, connected construction and assets.
+- [LAN and Tailscale hosting](lan-and-tailscale.md) — host and join a private party.
+- [Room and match flow](match-flow.md) — lobby persistence, map voting and room
+  transitions.
+- [Operations campaign](operations.md) — mission objectives, co-op and rewards.
 
-## Historical design and implementation records
+## Gameplay and authoring references
 
-See [docs/archive](archive/README.md) for older feature-specific reviews, proposals and completed change logs, including Bullet Spitter. Use those for traceability, **not** as current balance or release specifications. Older documents remain available through Git history even if retired from the active index.
+- [Map modes and spawns](map-modes-and-spawns.md)
+- [Floodgate](floodgate.md) and [Whiteout Depot](whiteout-depot.md)
+- [Ballistic materials](ballistic-materials.md), [ballistic cover](ballistic-cover.md)
+  and [unified material penetration](material-penetration.md)
+- [Art direction and materials](art-direction-and-materials.md)
+- [Asset library and imports](asset-library-and-imports.md)
+- [Controls and accessibility](controls-and-accessibility.md)
 
 ## Validation
 
-The single full GitHub Actions workflow in `.github/workflows/dev-validation.yml` runs on both `main` and `dev`. It executes the complete `bun run test:smoke` suite, including the shipped Afterlight/Ridgefall and CTF regression tests. There is no need for a second map-only build workflow. Tests should remain in the repository as long as they guard shipped features.
+The repository has one GitHub Actions workflow:
+`.github/workflows/dev-validation.yml`. It runs TypeScript syntax/type validation
+and content/file-reference validation on pushes and pull requests targeting
+`dev` or `main`. The small generic catalog contract tests remain available
+through `bun run test:smoke`, but gameplay-specific test suites are not CI gates.

@@ -1,8 +1,7 @@
 # Controls and accessibility
 
 Settings includes keyboard rebinding with automatic conflict swapping; Escape is
-reserved for cancelling capture and opening the menu. All gameplay keys including
-squad orders and scoreboard can be rebound. Fire and ADS retain mouse buttons.
+reserved for cancelling capture and opening the menu. Gameplay actions and the scoreboard can be rebound. Fire and ADS retain mouse buttons.
 Settings persist locally and apply live. Older saves receive safe defaults.
 
 ADS sensitivity multiplies mouse/touch/controller aiming independently from base
@@ -24,6 +23,6 @@ Reduced motion removes weapon walking bob, sprint sway and HUD animation;
 weapon recoil, zoom, gameplay effects and combat timing remain consistent.
 Radar differentiates ally circles, enemy diamonds and the player's arrow.
 
-Validation: run `bun test tests/control-settings.test.ts`, the full smoke suite,
-typecheck and build. Physical controller, mobile multi-touch and browser visual
-playtests remain required; automated logic tests do not establish device support.
+
+Physical controller, mobile multi-touch and browser visual playtests remain necessary;
+automated syntax and content validation do not establish device support.
