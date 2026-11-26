@@ -7133,7 +7133,7 @@ export class FPSEngine {
       ctx.font="24px sans-serif";ctx.textAlign="left";ctx.fillText(plate.symbol,18,41);
     }
     ctx.fillStyle = plate?.id!=="standard" ? plate?.color??"#eeeeee" :
-      team === "red" ? "#ff6b6b" : team === "blue" ? "#6ba6ff" : "#dddddd";
+      teamIdentity(team)?.hex ?? "#dddddd";
     ctx.font = "bold 28px sans-serif";
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.strokeStyle = "rgba(0,0,0,0.85)"; ctx.lineWidth = 4;
