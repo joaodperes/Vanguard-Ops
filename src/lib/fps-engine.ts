@@ -12279,9 +12279,9 @@ export class FPSEngine {
       // Keep the spectator camera behind the operative rather than inside their
       // head mesh; the same offset is used by the match-finale camera path.
       this.camera.position.set(
-        spectatorTarget.pos[0]-Math.sin(spectatorTarget.yaw??0)*0.85,
-        spectatorTarget.pos[1]+EYE_HEIGHT+0.65,
-        spectatorTarget.pos[2]-Math.cos(spectatorTarget.yaw??0)*0.85,
+        spectatorTarget.pos[0],
+        spectatorTarget.pos[1]+EYE_HEIGHT,
+        spectatorTarget.pos[2],
       );
       this.camera.rotation.set(spectatorTarget.pitch??0,(spectatorTarget.yaw??0)+Math.PI,0,"YXZ");
     }else{
