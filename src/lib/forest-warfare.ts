@@ -133,31 +133,6 @@ export const FOREST_BASE_COVER: CoverBox[] = ([-1,1] as const).flatMap(sign=>{
     {pos:[x+sign*15,1.0,9] as Vec3,size:[2.1,1.0,1.3] as Vec3,kind:"cover" as const,material:"concrete" as const},
   ];
 });
-/** Runged tree ladders give players and bots recovery access along the canopy. */
-export const FOREST_TREE_LADDERS: CoverBox[] = ([-1,1] as const).flatMap(sign=>{
-  const x=sign*CTF_TREE_X+sign*3.5;
-  const count=Math.ceil(CTF_TREE_TOP/.42),rungs:CoverBox[]=[];
-  for(let i=0;i<count;i++){
-    const top=CTF_TREE_TOP*(i+1)/count;
-    rungs.push({pos:[x,top-.07,0],size:[.52,.07,.14],kind:"stair"});
-  }
-  return [
-    ...rungs,
-    {pos:[x-.8,CTF_TREE_TOP/2,0] as Vec3,size:[.07,CTF_TREE_TOP/2,.07] as Vec3,kind:"cover" as const,material:"thin_wood" as const},
-    {pos:[x+.8,CTF_TREE_TOP/2,0] as Vec3,size:[.07,CTF_TREE_TOP/2,.07] as Vec3,kind:"cover" as const,material:"thin_wood" as const},
-  ];
-});
-/** Waist-high bridge parapets, matching each long exposed segment and connector. */
-export const FOREST_CANOPY_RAILS: CoverBox[] = [
-  ...[-78,-36,0,36,78].flatMap(x=>[
-    {pos:[x,12.58,-1.55] as Vec3,size:[9,.58,.16] as Vec3,kind:"cover" as const,material:"thin_wood" as const},
-    {pos:[x,12.58,1.55] as Vec3,size:[9,.58,.16] as Vec3,kind:"cover" as const,material:"thin_wood" as const},
-  ]),
-  ...[-57,-15,15,57].flatMap(x=>[
-    {pos:[x-1.55,12.58,2] as Vec3,size:[.16,.58,4] as Vec3,kind:"cover" as const,material:"thin_wood" as const},
-    {pos:[x+1.55,12.58,2] as Vec3,size:[.16,.58,4] as Vec3,kind:"cover" as const,material:"thin_wood" as const},
-  ]),
-];
 /** A staggered canopy route links both home trees without a single straight bridge.
  * Overlapping landings make the turns readable and provide several route choices. */
 export const FOREST_CANOPY_COVER: CoverBox[] = [
@@ -215,10 +190,6 @@ export const FOREST_WARFARE_COVER: CoverBox[]=[
   })),
   ...FOREST_TREE_DECKS,
   ...FOREST_CANOPY_COVER,
-  ...FOREST_CANOPY_RAILS,
-  ...FOREST_TREE_LADDERS,
-  ...FOREST_CANOPY_OBSTACLES,
-  ...FOREST_CANOPY_SUPPORTS,
   ...FOREST_TREE_STAIRS,
   ...FOREST_BASE_COVER,
   ...FOREST_TREE_PARAPETS,
