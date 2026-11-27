@@ -53,7 +53,8 @@ describe("Forest Warfare and Breakwater route-design PoCs",()=>{
     expect(validateMapDocument(MAP_DOCUMENTS.shipyard)).toEqual([]);
     const map=MAPS.shipyard;
     const containers=map.props?.filter(p=>p.kind==="container")??[];
-    expect(containers.length).toBeGreaterThanOrEqual(40);
+    expect(containers.length).toBeGreaterThanOrEqual(18);
+    expect(MAP_DOCUMENTS.shipyard.theme.props.filter(p=>p.kind==="container").length).toBeGreaterThanOrEqual(40);
     expect(containers.some(p=>(p.y??0)>=3.2)).toBe(true);
     expect(map.cover.filter(c=>c.kind==="stair").length).toBeGreaterThan(40);
     expect(map.environment.length).toBe(0);
