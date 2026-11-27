@@ -496,6 +496,8 @@ export function propColliders(props:readonly MapProp[],spawns:readonly Vec3[],au
       continue;
     }
     const h=p.h??(p.kind==="shop"?7:3);
+    if(p.kind==="ladder"){const count=Math.ceil(h/.42),rise=h/count;for(let i=0;i<count;i++)result.push({kind:"stair",pos:[p.x,(i+1)*rise-.07,p.z],size:[(p.w??1.2)/2,.07,(p.d??.16)/2]});continue;}
+    if(p.kind==="crane"){result.push({kind:"solid",pos:[p.x,h*1.3,p.z],size:[.7,h*1.3,.7]});result.push({kind:"solid",pos:[p.x+p.w*.55,h*1.9,p.z],size:[.12,h*.85,.12]});result.push({kind:"solid",pos:[p.x+p.w*.15,h*2.55,p.z],size:[p.w*.95/2,.33,.4]});continue;}
     let size:Vec3|null=null;
     if(p.kind==="tree")size=[0.45,Math.min(3,h)/2,0.45];
     if(p.kind==="rock")size=[(p.w??4)/2,h*.38,(p.d??3)/2];
