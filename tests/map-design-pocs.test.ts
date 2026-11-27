@@ -1,7 +1,7 @@
 import {describe,expect,test} from "bun:test";
 import {MAPS} from "../src/lib/game-protocol";
 import {
-  FOREST_CANOPY_COVER,FOREST_TREE_DECKS,FOREST_TREE_STAIRS,
+  FOREST_CANOPY_COVER,FOREST_TREE_DECKS,FOREST_TREE_STAIRS,FOREST_TREE_LADDERS,
 } from "../src/lib/forest-warfare";
 import {MAP_DOCUMENTS,validateMapDocument} from "../src/lib/map-documents";
 import {containerSideStripes} from "../src/lib/container-details";
@@ -19,6 +19,7 @@ describe("Forest Warfare and Breakwater route-design PoCs",()=>{
   test("thin stair treads are scoped to Forest Warfare and Breakwater",()=>{
     expect(FOREST_TREE_STAIRS.length).toBeGreaterThan(80);
     expect(FOREST_TREE_STAIRS.every(t=>t.size[1]<=.091)).toBe(true);
+    expect(FOREST_TREE_LADDERS.length).toBeGreaterThanOrEqual(50);
     expect(MAPS.shipyard.cover.filter(c=>c.kind==="stair").every(c=>c.size[1]<=.091)).toBe(true);
     expect(MAPS.compound.cover.some(c=>c.kind==="stair"&&c.size[1]>.4)).toBe(true);
     expect(MAPS.bunker.cover.some(c=>c.kind==="stair"&&c.size[1]>.4)).toBe(true);
