@@ -489,9 +489,9 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
               {hud.searchDestroyBombDistance !== undefined && <span className="text-amber-200">BOMB · {hud.searchDestroyBombDistance}m AWAY</span>}
             </div>
             {hud.searchDestroyCarrierAlert && <div className="inline-flex items-center gap-2 rounded-lg border border-amber-300/70 bg-amber-950/85 px-4 py-2 text-xs font-black tracking-[0.18em] text-amber-200 shadow-lg shadow-amber-950/40" role="status" aria-live="polite"><Bomb className="h-4 w-4 animate-pulse"/> YOU HAVE THE BOMB · PREPARE TO PLANT</div>}
-            {hud.searchDestroyInteraction && <span className="font-black text-amber-100" role="status" aria-live="polite">{hud.searchDestroyInteraction.label}</span>}
+            {hud.searchDestroyInteraction && <div className="absolute bottom-[9%] left-1/2 z-40 -translate-x-1/2 rounded-lg border border-amber-300/40 bg-black/85 px-4 py-2 text-center text-xs font-black tracking-wider text-amber-100 shadow-lg" role="status" aria-live="polite">{hud.searchDestroyInteraction.label}</div>}
             {hud.searchDestroyInteraction?.kind==="plant" && hud.searchDestroyInteraction.progress>0 && (
-              <div className="absolute bottom-[17%] left-1/2 z-30 w-64 max-w-[88vw] -translate-x-1/2 rounded-lg border border-amber-300/40 bg-black/80 px-4 py-2 shadow-xl" role="status" aria-label="Bomb planting progress">
+              <div className="absolute bottom-[15%] left-1/2 z-40 w-64 max-w-[88vw] -translate-x-1/2 rounded-lg border border-amber-300/40 bg-black/80 px-4 py-2 shadow-xl" role="status" aria-label="Bomb planting progress">
                 <span className="mb-2 block text-center text-xs font-black text-amber-100">PLANTING BOMB</span>
                 <div className="h-1.5 w-full overflow-hidden rounded bg-white/15"><div className="h-full bg-amber-400 transition-[width] duration-100" style={{width:hud.searchDestroyInteraction.progress+"%"}}/></div>
               </div>
@@ -854,9 +854,9 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
       {/* respawn / S&D spectator overlay */}
       {!hud.alive && (
         <div className={`absolute inset-0 ${mode==="searchdestroy"?"bg-black/10 pointer-events-none":"bg-black/50"} flex flex-col items-center justify-center`}>
-          <div className={`text-rose-500 ${mode==="searchdestroy"?"text-3xl":"text-5xl"} font-black tracking-widest mb-2`} style={{ textShadow: "0 0 20px rgba(239,68,68,0.6)" }}>{mode==="searchdestroy"?"SPECTATING":"ELIMINATED"}</div>
+          {mode!=="searchdestroy"&&<div className="text-rose-500 text-5xl font-black tracking-widest mb-2" style={{ textShadow: "0 0 20px rgba(239,68,68,0.6)" }}>ELIMINATED</div>}
           {mode==="searchdestroy"&&hud.spectatorTargetName&&(
-            <div className="mt-2 flex items-center gap-3 rounded-full border border-white/15 bg-black/75 px-3 py-2 pointer-events-auto">
+            <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-3 rounded-full border border-white/15 bg-black/85 px-3 py-2 pointer-events-auto shadow-xl">
               <button type="button" aria-label="Spectate previous teammate" title="Previous teammate (←)" onClick={()=>onSpectatorCycle?.(-1)}
                 className="rounded-full p-2 text-white hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300"><ChevronLeft className="h-5 w-5"/></button>
               <div className="min-w-28 text-center">
@@ -868,8 +868,8 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
                 className="rounded-full p-2 text-white hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300"><ChevronRight className="h-5 w-5"/></button>
             </div>
           )}
-          {mode==="searchdestroy"&&!hud.spectatorTargetName&&<div className="mt-2 text-sm text-white/60">No living teammates</div>}
-          {mode==="searchdestroy"&&hud.spectatorTargetName&&<div className="mt-1 text-[10px] tracking-wide text-white/45">{isTouch?"Tap arrows to switch":"Use ← / → to switch teammates"}</div>}
+          {mode==="searchdestroy"&&!hud.spectatorTargetName&&<div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-sm text-white/60">No living teammates</div>}
+          {mode==="searchdestroy"&&hud.spectatorTargetName&&<div className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[10px] tracking-wide text-white/45">{isTouch?"Tap arrows to switch":"Use ← / → to switch teammates"}</div>}
           {mode!=="searchdestroy" && (hud.lastDeath?.weaponId === LAVA_DEATH_SOURCE ? (
             <div className="my-4 px-6 py-3 rounded-xl border border-amber-500/40 bg-black/75 text-amber-200">Fell into the lava moat</div>
           ) : hud.lastDeath && (
