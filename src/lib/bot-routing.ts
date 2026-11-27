@@ -235,10 +235,12 @@ export function botNextWaypoint(
     closest.f - closest.g + 2 < startNode.f ? closest : null);
   // If A* only made partial progress and the straight route is blocked by a
   // destructible wall, use a short, collision-checked side waypoint.
-  if (!destination) {
-    const detour=destructibleWallDetour(start,target,cover,bounds,hazards,index);
-    if(detour)return detour;
-  }
+  // Destructible walls frequently look traversable to the coarse grid, while
+  // the movement motor still treats them as solid. Prefer a collision-checked
+  // side waypoint whenever the straight objective line intersects a breakable
+  // wall, even if bounded A* found a partial route that would push into it.
+  const wallDetour=destructibleWallDetour(start,target,cover,bounds,hazards,index);
+  if(wallDetour)return wallDetour;
   if (!found) return null;
   let cursor = found.key;
   while (parents.has(cursor) && parents.get(cursor) !== startKey) {
