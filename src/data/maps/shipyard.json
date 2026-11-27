@@ -374,6 +374,36 @@
         "h": 1.4,
         "kind": "cover",
         "material": "light_cover"
+      },
+      {
+        "id": "bw-central-jump-box-1",
+        "x": -14,
+        "z": -1,
+        "w": 2.2,
+        "d": 2.2,
+        "h": 1.15,
+        "kind": "cover",
+        "material": "light_cover"
+      },
+      {
+        "id": "bw-central-jump-box-2",
+        "x": -12.2,
+        "z": -1,
+        "w": 2.2,
+        "d": 2.2,
+        "h": 2.3,
+        "kind": "cover",
+        "material": "light_cover"
+      },
+      {
+        "id": "bw-central-jump-box-3",
+        "x": -10.4,
+        "z": -1,
+        "w": 2.2,
+        "d": 2.2,
+        "h": 3.1,
+        "kind": "cover",
+        "material": "light_cover"
       }
     ],
     "spawns": {
@@ -893,6 +923,16 @@
         "d": 4.4,
         "h": 3.2,
         "color": "#337eaf"
+      },
+      {
+        "kind": "container",
+        "x": -18,
+        "z": -5,
+        "w": 12,
+        "d": 4.4,
+        "h": 3.2,
+        "color": "#d45739",
+        "tilt": 0.26
       }
     ],
     "surfaces": {
