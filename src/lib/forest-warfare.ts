@@ -183,11 +183,7 @@ export const FOREST_TREE_PARAPETS: CoverBox[] = ([-1,1] as const).flatMap(sign=>
 });
 export const FOREST_WARFARE_COVER: CoverBox[]=[
   ...FOREST_PERIMETER,
-  ...([-1,1] as const).map(sign=>({
-    // The trunk ends exactly at the underside of the deck; no intersecting
-    // coplanar volumes at the tree/bridge join.
-    pos:[sign*CTF_TREE_X,5.76,0] as Vec3,size:[2.65,5.76,2.65] as Vec3,kind:"solid" as const,
-  })),
+
   ...FOREST_TREE_DECKS,
   ...FOREST_CANOPY_COVER,
   ...FOREST_TREE_STAIRS,
