@@ -3046,7 +3046,8 @@ export class FPSEngine {
         }
       }else if(p.kind==="container"){
         const paint=p.color?new THREE.MeshStandardMaterial({color:p.color,roughness:.75,metalness:.25}):stone;
-        cube(group,paint,0,h/2,0,w,h,d);
+        const containerMesh=cube(group,paint,0,h/2,0,w,h,d);
+        if(p.tilt)containerMesh.rotation.z=p.tilt;
         // Removed intersecting corrugation overlay geometry to eliminate flickering.
       }else if(p.kind==="ladder"){const metal=new THREE.MeshStandardMaterial({color:0x78828b,metalness:.68,roughness:.45});const rail=(p.w??1.2)*.42;cube(group,metal,-rail,h/2,0,.08,h,.09);cube(group,metal,rail,h/2,0,.08,h,.09);const count=Math.ceil(h/.42),rise=h/count;for(let i=0;i<count;i++)cube(group,trim,0,(i+1)*rise-.07,0,(p.w??1.2)*.84,.14,(p.d??.16));for(let y=3;y<h-1;y+=3){const hoop=new THREE.Mesh(new THREE.TorusGeometry((p.w??1.2)*.78,.045,6,16),metal);hoop.position.y=y;hoop.rotation.x=Math.PI/2;group.add(hoop);}
       }else if(p.kind==="crane"){
