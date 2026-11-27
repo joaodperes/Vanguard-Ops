@@ -862,6 +862,7 @@ export function Hud({ hud, onExit, onExitMech, onSpectatorCycle, onDropBomb, mod
               <div className="min-w-28 text-center">
                 <div className="text-[10px] font-bold tracking-widest text-white/50">SPECTATING</div>
                 <div className="max-w-40 truncate text-sm font-bold text-white">{hud.spectatorTargetName}</div>
+                <div className="flex items-center justify-center gap-2 text-[10px] text-white/65"><span>HP {Math.ceil(hud.spectatorTargetHealth??0)}/{hud.spectatorTargetMaxHealth??100}</span><span>·</span><span className="max-w-28 truncate">{weaponById(hud.spectatorTargetWeaponId??"")?.name??"Weapon"}</span></div>
                 <div className="text-[10px] text-white/45">{hud.spectatorTargetIndex} / {hud.spectatorTargetCount}</div>
               </div>
               <button type="button" aria-label="Spectate next teammate" title="Next teammate (→)" onClick={()=>onSpectatorCycle?.(1)}
