@@ -21,7 +21,7 @@ describe("Forest Warfare and Breakwater route-design PoCs",()=>{
     expect(FOREST_TREE_STAIRS.every(t=>t.size[1]<=.091)).toBe(true);
     expect(FOREST_TREE_LADDERS.length).toBeGreaterThanOrEqual(50);
     const bwStairs=MAPS.shipyard.cover.filter(c=>c.kind==="stair");
-    const rampStairs=bwStairs.filter(c=>c.pos[0]>-25&&c.pos[0]<-11&&Math.abs(c.pos[2]+5)<2.3);
+    const rampStairs=bwStairs.filter(c=>c.pos[0]>-51&&c.pos[0]<-37&&Math.abs(c.pos[2]+32)<2.3);
     expect(bwStairs.filter(c=>!rampStairs.includes(c)).every(c=>c.size[1]<=.091)).toBe(true);
     expect(rampStairs.length).toBeGreaterThanOrEqual(7);
     expect(rampStairs.some(c=>c.size[1]>.1)).toBe(true);
