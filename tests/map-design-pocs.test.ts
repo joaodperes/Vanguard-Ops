@@ -60,3 +60,34 @@ describe("Forest Warfare and Breakwater route-design PoCs",()=>{
     expect(map.cover.some(c=>c.kind==="solid"&&c.size[1]>=2.4)).toBe(true);
   });
 });
+
+import {searchDestroySitesForMap} from "../src/lib/game-mode-rules";
+import {botNextWaypoint,botTraversableEdge} from "../src/lib/bot-routing";
+
+describe("Search & Destroy objective locations",()=>{
+  test("sites are distributed into covered map areas rather than a shared open lane",()=>{
+    const dustwater=searchDestroySitesForMap("dustwater",112);
+    const verdant=searchDestroySitesForMap("compound",148);
+    const ridgefall=searchDestroySitesForMap("skybridge",140);
+    expect(dustwater[0].pos).toEqual([-12,0,-15]);
+    expect(dustwater[1].pos).toEqual([15,0,25]);
+    expect(verdant[0].pos).toEqual([-78,0,50]);
+    expect(verdant[1].pos).toEqual([108,0,50]);
+    expect(ridgefall[0].pos).toEqual([-110,0,15]);
+    expect(ridgefall[1].pos).toEqual([100,0,30]);
+    expect(Math.hypot(ridgefall[0].pos[0]-ridgefall[1].pos[0],ridgefall[0].pos[2]-ridgefall[1].pos[2])).toBeGreaterThan(150);
+  });
+});
+
+describe("Bot navigation around destructible walls",()=>{
+  test("uses a reachable side waypoint when bounded route search cannot complete",()=>{
+    const wall={pos:[0,0,0] as [number,number,number],size:[4,2,1] as [number,number,number],kind:"cover" as const,environmentId:"test-wall"};
+    const cover=[wall];
+    const start:[number,number,number]=[-20,0,0],goal:[number,number,number]=[20,0,0];
+    const waypoint=botNextWaypoint(start,goal,cover,50,3,[],[],undefined,1);
+    expect(waypoint).not.toBeNull();
+    expect(Math.abs(waypoint![0])).toBeGreaterThan(4);
+    expect(Math.abs(waypoint![2])).toBeGreaterThan(1);
+    expect(botTraversableEdge(start,waypoint![0],waypoint![2],cover,[]) ).not.toBeNull();
+  });
+});
