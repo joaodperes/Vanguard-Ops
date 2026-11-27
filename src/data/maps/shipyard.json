@@ -94,7 +94,8 @@
         "kind": "stairs",
         "axis": "x",
         "sign": 1,
-        "label": "West container stack access"
+        "label": "West container stack access",
+        "thinTreads": true
       },
       {
         "id": "bw-east-stack-stairs",
@@ -107,7 +108,8 @@
         "kind": "stairs",
         "axis": "x",
         "sign": -1,
-        "label": "East container stack access"
+        "label": "East container stack access",
+        "thinTreads": true
       },
       {
         "id": "bw-north-gangway",
@@ -120,7 +122,8 @@
         "kind": "stairs",
         "axis": "z",
         "sign": 1,
-        "label": "North loading gangway"
+        "label": "North loading gangway",
+        "thinTreads": true
       },
       {
         "id": "bw-south-gangway",
@@ -133,7 +136,8 @@
         "kind": "stairs",
         "axis": "z",
         "sign": -1,
-        "label": "South loading gangway"
+        "label": "South loading gangway",
+        "thinTreads": true
       },
       {
         "id": "bw-crane-deck",
@@ -223,7 +227,8 @@
         "kind": "stairs",
         "axis": "x",
         "sign": -1,
-        "label": "East rim container access"
+        "label": "East rim container access",
+        "thinTreads": true
       },
       {
         "id": "bw-crane-ladder-landing",
