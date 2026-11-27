@@ -61,9 +61,11 @@ export interface SearchDestroyState {
 export interface SearchDestroySite { id: "A" | "B"; pos: ModeVec3; radius: number }
 /** Search & Destroy objective sites. Dustwater retains its authored sites; Verdant Ruins (compound) and Ridgefall (skybridge) use map-relative site locations. */
 export function searchDestroySitesForMap(mapId: string, mapSize: number): SearchDestroySite[] {
-  if (mapId === "dustwater") return [{id:"A",pos:[-36,0,-40],radius:5},{id:"B",pos:[36,0,-40],radius:5}];
-  if (mapId === "compound") return [{id:"A",pos:[-30,0,-5],radius:5},{id:"B",pos:[30,0,5],radius:5}];
-  if (mapId === "skybridge") return [{id:"A",pos:[-30,0,50],radius:5},{id:"B",pos:[30,0,50],radius:5}];
+  // Site locations are deliberately tucked beside authored cover/buildings,
+  // rather than on exposed open-ground points that can be watched together.
+  if (mapId === "dustwater") return [{id:"A",pos:[-12,0,-15],radius:5},{id:"B",pos:[15,0,25],radius:5}];
+  if (mapId === "compound") return [{id:"A",pos:[-78,0,50],radius:5},{id:"B",pos:[108,0,50],radius:5}];
+  if (mapId === "skybridge") return [{id:"A",pos:[-110,0,15],radius:5},{id:"B",pos:[100,0,30],radius:5}];
   const extent=Math.max(24,Math.min(62,mapSize*0.43));
   const depth=Math.max(12,Math.min(42,mapSize*0.30));
   return [{id:"A",pos:[-extent,0,-depth],radius:5},{id:"B",pos:[extent,0,-depth],radius:5}];
