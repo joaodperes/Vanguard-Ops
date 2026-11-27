@@ -135,7 +135,7 @@ export const FOREST_BASE_COVER: CoverBox[] = ([-1,1] as const).flatMap(sign=>{
 });
 /** Runged tree ladders give players and bots recovery access along the canopy. */
 export const FOREST_TREE_LADDERS: CoverBox[] = ([-1,1] as const).flatMap(sign=>{
-  const x=sign*CTF_TREE_X+sign*2.35;
+  const x=sign*CTF_TREE_X+sign*3.5;
   const count=Math.ceil(CTF_TREE_TOP/.42),rungs:CoverBox[]=[];
   for(let i=0;i<count;i++){
     const top=CTF_TREE_TOP*(i+1)/count;
