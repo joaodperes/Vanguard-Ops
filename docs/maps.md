@@ -154,3 +154,16 @@ Human playtests are still required at 3v3, 5v5 and 7v7: compare return times
 from both sides, base camping, deck usefulness, the intact/breached gallery,
 visibility against snow, KC tag retrieval and frame rate. Automated routing
 proves reachability rather than balance.
+
+
+## Search & Destroy
+
+Bomb sites are placed beside meaningful cover or inside building interiors, rather
+than exposed open-ground positions. Dustwater uses the saloon and depot interiors;
+Verdant Ruins uses covered quarry/ruin positions; Ridgefall separates the sites
+into the west furnace/forge area and east loading/storage area. This reduces
+long sightlines that let one operator camp both objectives simultaneously.
+
+When a planted bomb detonates and wins the round, the client plays an explosion
+visual and sound at the bomb's final replicated position. The round outcome and
+damage/scoring remain server-authoritative.
