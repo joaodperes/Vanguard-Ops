@@ -7510,7 +7510,16 @@ export class FPSEngine {
           this.hardpointState=next;
         }else this.hardpointState=undefined;
         this.updateHardpointZoneMarkers();
+        const previousSearchDestroy=this.searchDestroyState;
         this.searchDestroyState=msg.searchDestroy;
+        // Detonation is a cosmetic event only: the server remains authoritative
+        // for round scoring, but every client sees/hears the blast at the planted
+        // bomb's final position when the round transitions out of "planted".
+        if(this.opts.mode==="searchdestroy"&&previousSearchDestroy?.phase==="planted"&&
+          msg.searchDestroy?.phase==="round_end"&&msg.searchDestroy.lastRoundReason==="detonation"){
+          this.spawnExplosion(new THREE.Vector3(...msg.searchDestroy.bomb.pos),undefined,12);
+          this.sound.play("equipment_mine_detonate",{volume:0.92});
+        }
         if(this.opts.mode==="searchdestroy"&&msg.searchDestroy?.phase==="planted"&&msg.searchDestroy.bomb.detonatesAt!==null){
           const seconds=Math.max(0,Math.ceil((msg.searchDestroy.bomb.detonatesAt-Date.now())/1000));
           if(seconds>0&&seconds<=10&&seconds!==this.lastSearchDestroyBombTickSecond){
