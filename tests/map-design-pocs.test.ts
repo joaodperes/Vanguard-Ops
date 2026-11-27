@@ -2,7 +2,7 @@ import {describe,expect,test} from "bun:test";
 import {MAPS} from "../src/lib/game-protocol";
 import {
   FOREST_CANOPY_COVER,FOREST_CANOPY_OBSTACLES,FOREST_CANOPY_SUPPORTS,
-  FOREST_TREE_DECKS,FOREST_TREE_STAIRS,
+  FOREST_TREE_DECKS,FOREST_TREE_STAIRS,FOREST_TREE_LADDERS,FOREST_CANOPY_RAILS,
 } from "../src/lib/forest-warfare";
 import {MAP_DOCUMENTS,validateMapDocument} from "../src/lib/map-documents";
 
@@ -35,6 +35,8 @@ describe("Forest Warfare and Breakwater route-design PoCs",()=>{
     expect(platforms.length).toBeGreaterThanOrEqual(12);
     expect(FOREST_CANOPY_OBSTACLES.length).toBeGreaterThanOrEqual(6);
     expect(FOREST_CANOPY_SUPPORTS.length).toBeGreaterThanOrEqual(3);
+    expect(FOREST_TREE_LADDERS.filter(c=>c.kind==='stair').length).toBeGreaterThanOrEqual(50);
+    expect(FOREST_CANOPY_RAILS.length).toBeGreaterThanOrEqual(15;
   });
 
   test("Forest tree-deck collision covers the central playable disk",()=>{
