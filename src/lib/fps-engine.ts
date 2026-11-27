@@ -2011,6 +2011,12 @@ export class FPSEngine {
       place(new THREE.Mesh(new THREE.CylinderGeometry(2.65,3.1,11.52,16),bark),x,5.76,0);
       const deck=new THREE.Mesh(new THREE.CylinderGeometry(13,13,.48,48),barkLight);
       place(deck,x,11.76,0); // top face exactly y=12, same as shared collision
+      // Narrow, visible vertical ladder on the tree side; side rails are visual only
+      // so they cannot create invisible collision walls along the canopy route.
+      const ladderX=x+sign*3.5,ladderMetal=new THREE.MeshStandardMaterial({color:0x6f7b78,metalness:.55,roughness:.5});
+      place(new THREE.Mesh(new THREE.BoxGeometry(.12,12,.12),ladderMetal),ladderX-.62,6,0);
+      place(new THREE.Mesh(new THREE.BoxGeometry(.12,12,.12),ladderMetal),ladderX+.62,6,0);
+      for(let rung=0;rung<29;rung++)place(new THREE.Mesh(new THREE.BoxGeometry(1.18,.12,.16),ladderMetal),ladderX,(rung+1)*12/29-.06,0);
       // Leave the east/west deck edges open for the canopy bridge; a full
       // torus used to intersect the bridge and flicker at both connections.
       // Large high boughs frame the platform but never occlude a
