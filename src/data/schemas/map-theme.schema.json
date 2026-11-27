@@ -225,6 +225,9 @@
               }
             ]
           },
+          "tilt": {
+            "type": "number"
+          },
           "castleUse": {
             "type": "string",
             "enum": [
@@ -235,9 +238,6 @@
               "kitchens",
               "infirmary"
             ]
-          },
-          "tilt": {
-            "type": "number"
           }
         },
         "required": [
