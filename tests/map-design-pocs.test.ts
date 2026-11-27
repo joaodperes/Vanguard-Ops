@@ -59,6 +59,8 @@ describe("Forest Warfare and Breakwater route-design PoCs",()=>{
     expect(map.props?.some(p=>p.kind==="ladder")).toBe(true);
     expect(map.environment.length).toBe(0);
     expect(map.props?.some(p=>p.kind==="ladder")).toBe(true);
+    expect(map.environment.length).toBe(0);
+    expect(map.props?.some(p=>p.kind==="ladder")).toBe(true);
     // Lower and stacked container colliders align with their visible model bases.
     expect(map.cover.some(c=>c.kind==="cover"&&Math.abs(c.pos[0]-62)<.1&&Math.abs(c.pos[2]-38)<.1&&Math.abs(c.pos[1]-1.6)<.1)).toBe(true);
     expect(map.cover.some(c=>c.kind==="cover"&&Math.abs(c.pos[0]-62)<.1&&Math.abs(c.pos[2]-38)<.1&&Math.abs(c.pos[1]-4.8)<.1)).toBe(true);
