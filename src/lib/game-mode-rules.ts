@@ -63,12 +63,12 @@ export interface SearchDestroySite { id: "A" | "B"; pos: ModeVec3; radius: numbe
 export function searchDestroySitesForMap(mapId: string, mapSize: number): SearchDestroySite[] {
   // Site locations are deliberately tucked beside authored cover/buildings,
   // rather than on exposed open-ground points that can be watched together.
-  if (mapId === "dustwater") return [{id:"A",pos:[-12,0,-15],radius:5},{id:"B",pos:[15,0,25],radius:5}];
-  if (mapId === "compound") return [{id:"A",pos:[-78,0,50],radius:5},{id:"B",pos:[108,0,50],radius:5}];
-  if (mapId === "skybridge") return [{id:"A",pos:[-110,0,15],radius:5},{id:"B",pos:[100,0,30],radius:5}];
+  if (mapId === "dustwater") return [{id:"A",pos:[-12,0,-15],radius:8},{id:"B",pos:[15,0,25],radius:8}];
+  if (mapId === "compound") return [{id:"A",pos:[-78,0,50],radius:8},{id:"B",pos:[108,0,50],radius:8}];
+  if (mapId === "skybridge") return [{id:"A",pos:[-110,0,15],radius:8},{id:"B",pos:[100,0,30],radius:8}];
   const extent=Math.max(24,Math.min(62,mapSize*0.43));
   const depth=Math.max(12,Math.min(42,mapSize*0.30));
-  return [{id:"A",pos:[-extent,0,-depth],radius:5},{id:"B",pos:[extent,0,-depth],radius:5}];
+  return [{id:"A",pos:[-extent,0,-depth],radius:8},{id:"B",pos:[extent,0,-depth],radius:8}];
 }
 
 export interface SearchDestroyAction {
