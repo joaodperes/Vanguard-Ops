@@ -9,7 +9,7 @@ export function containerSideStripes(w:number,d:number,h:number):ContainerStripe
   for(let distance=-length/2+.75;distance<length/2-.3;distance+=1.25){
     for(const side of [-1,1]){
       stripes.push(longAlongX
-        ?{x:distance,y:h/2,z:side*(shortHalf+.045),w:.10,h:h*.75,d:.08}
+        ?{x:distance,y:h/2,z:side*(shortHalf+.065),w:.10,h:h*.75,d:.08}
         :{x:side*(shortHalf+.045),y:h/2,z:distance,w:.08,h:h*.75,d:.10});
     }
   }
