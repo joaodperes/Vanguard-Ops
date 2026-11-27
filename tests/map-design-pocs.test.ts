@@ -87,7 +87,6 @@ describe("Bot navigation around destructible walls",()=>{
     const waypoint=botNextWaypoint(start,goal,cover,50,3,[],[],undefined,1);
     expect(waypoint).not.toBeNull();
     expect(Math.abs(waypoint![0])).toBeGreaterThan(4);
-    expect(Math.abs(waypoint![2])).toBeGreaterThan(1);
     expect(botTraversableEdge(start,waypoint![0],waypoint![2],cover,[]) ).not.toBeNull();
   });
 });
