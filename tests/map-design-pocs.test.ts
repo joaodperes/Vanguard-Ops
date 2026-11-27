@@ -5,6 +5,7 @@ import {
   FOREST_TREE_DECKS,FOREST_TREE_STAIRS,FOREST_TREE_LADDERS,FOREST_CANOPY_RAILS,
 } from "../src/lib/forest-warfare";
 import {MAP_DOCUMENTS,validateMapDocument} from "../src/lib/map-documents";
+import {containerSideStripes} from "../src/lib/container-details";
 
 function rectanglesTouch(a:{pos:number[];size:number[]},b:{pos:number[];size:number[]}):boolean {
   const dx=Math.max(0,Math.abs(a.pos[0]-b.pos[0])-a.size[0]-b.size[0]);
@@ -13,6 +14,11 @@ function rectanglesTouch(a:{pos:number[];size:number[]},b:{pos:number[];size:num
 }
 
 describe("Forest Warfare and Breakwater route-design PoCs",()=>{
+  test("container corrugation ribs are offset clear of the base surface",()=>{
+    const ribs=containerSideStripes(12,4.4,3.2);
+    expect(ribs.length).toBeGreaterThan(10);
+    expect(ribs.every(r=>Math.abs(r.z)>2.2+r.d/2 || Math.abs(r.x)>6+r.w/2)).toBe(true);
+  });
   test("all authored stairs use thin treads rather than solid rising wedges",()=>{
     const forest=FOREST_TREE_STAIRS;
     const breakwater=MAPS.shipyard.cover.filter(c=>c.kind==="stair");
