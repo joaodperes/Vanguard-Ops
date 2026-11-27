@@ -136,19 +136,6 @@
         "label": "South loading gangway"
       },
       {
-        "id": "bw-crane-ladder",
-        "x": 25.8,
-        "z": 59,
-        "y": 0,
-        "h": 13.075,
-        "w": 1.05,
-        "d": 8.6,
-        "kind": "stairs",
-        "axis": "x",
-        "sign": 1,
-        "label": "Ground-to-crane fixed ladder"
-      },
-      {
         "id": "bw-crane-deck",
         "x": 21.5,
         "z": 59,
@@ -158,28 +145,6 @@
         "h": 0.25,
         "kind": "platform",
         "autoStairs": false
-      },
-      {
-        "id": "bw-crane-wall-north",
-        "x": 21.5,
-        "z": 56.55,
-        "w": 6.5,
-        "d": 0.7,
-        "h": 1.15,
-        "y": 13.325,
-        "kind": "cover",
-        "material": "sheet_metal"
-      },
-      {
-        "id": "bw-crane-wall-south",
-        "x": 21.5,
-        "z": 61.45,
-        "w": 6.5,
-        "d": 0.7,
-        "h": 1.15,
-        "y": 13.325,
-        "kind": "cover",
-        "material": "sheet_metal"
       },
       {
         "id": "bw-crate-west-aisle",
@@ -318,6 +283,90 @@
         "w": 4.2,
         "d": 3.5,
         "h": 1.3,
+        "kind": "cover",
+        "material": "light_cover"
+      },
+      {
+        "id": "bw-crane-platform",
+        "x": 33.5,
+        "z": 59,
+        "y": 13.075,
+        "w": 4.5,
+        "d": 5.2,
+        "h": 0.25,
+        "kind": "platform",
+        "autoStairs": false
+      },
+      {
+        "id": "bw-crane-guard-west",
+        "x": 31.5,
+        "z": 59,
+        "w": 0.3,
+        "d": 5.2,
+        "h": 1.15,
+        "y": 13.325,
+        "kind": "cover",
+        "material": "sheet_metal"
+      },
+      {
+        "id": "bw-crane-guard-north",
+        "x": 33.5,
+        "z": 56.5,
+        "w": 4.5,
+        "d": 0.3,
+        "h": 1.15,
+        "y": 13.325,
+        "kind": "cover",
+        "material": "sheet_metal"
+      },
+      {
+        "id": "bw-crane-guard-south",
+        "x": 33.5,
+        "z": 61.5,
+        "w": 4.5,
+        "d": 0.3,
+        "h": 1.15,
+        "y": 13.325,
+        "kind": "cover",
+        "material": "sheet_metal"
+      },
+      {
+        "id": "bw-central-cover-west",
+        "x": -20,
+        "z": -8,
+        "w": 5,
+        "d": 3.2,
+        "h": 1.4,
+        "kind": "cover",
+        "material": "light_cover"
+      },
+      {
+        "id": "bw-central-cover-east",
+        "x": 20,
+        "z": 4,
+        "w": 5,
+        "d": 3.2,
+        "h": 1.4,
+        "kind": "cover",
+        "material": "light_cover"
+      },
+      {
+        "id": "bw-central-cover-south",
+        "x": 0,
+        "z": 19,
+        "w": 5,
+        "d": 3.2,
+        "h": 1.4,
+        "kind": "cover",
+        "material": "light_cover"
+      },
+      {
+        "id": "bw-central-cover-north",
+        "x": 0,
+        "z": -19,
+        "w": 5,
+        "d": 3.2,
+        "h": 1.4,
         "kind": "cover",
         "material": "light_cover"
       }
@@ -673,6 +722,172 @@
         "d": 4.4,
         "h": 3.2,
         "color": "#d45739"
+      },
+      {
+        "kind": "ladder",
+        "x": 32.5,
+        "z": 59,
+        "y": 0,
+        "w": 1.25,
+        "d": 0.16,
+        "h": 13.075
+      },
+      {
+        "kind": "container",
+        "x": -5,
+        "z": -12,
+        "w": 12,
+        "d": 4.4,
+        "h": 3.2,
+        "color": "#b74137"
+      },
+      {
+        "kind": "container",
+        "x": 7,
+        "z": -12,
+        "w": 12,
+        "d": 4.4,
+        "h": 3.2,
+        "color": "#337eaf"
+      },
+      {
+        "kind": "container",
+        "x": -5,
+        "z": -1,
+        "w": 12,
+        "d": 4.4,
+        "h": 3.2,
+        "color": "#e9bf42"
+      },
+      {
+        "kind": "container",
+        "x": 7,
+        "z": -1,
+        "y": 3.2,
+        "w": 12,
+        "d": 4.4,
+        "h": 3.2,
+        "color": "#d45739"
+      },
+      {
+        "kind": "container",
+        "x": -5,
+        "z": 10,
+        "w": 12,
+        "d": 4.4,
+        "h": 3.2,
+        "color": "#437c8f"
+      },
+      {
+        "kind": "container",
+        "x": 7,
+        "z": 10,
+        "w": 12,
+        "d": 4.4,
+        "h": 3.2,
+        "color": "#b74137"
+      },
+      {
+        "kind": "container",
+        "x": -38,
+        "z": 12,
+        "w": 12,
+        "d": 4.4,
+        "h": 3.2,
+        "color": "#e9bf42"
+      },
+      {
+        "kind": "container",
+        "x": -26,
+        "z": 12,
+        "w": 12,
+        "d": 4.4,
+        "h": 3.2,
+        "color": "#337eaf"
+      },
+      {
+        "kind": "container",
+        "x": -38,
+        "z": 24,
+        "y": 3.2,
+        "w": 12,
+        "d": 4.4,
+        "h": 3.2,
+        "color": "#d45739"
+      },
+      {
+        "kind": "container",
+        "x": -26,
+        "z": 24,
+        "w": 12,
+        "d": 4.4,
+        "h": 3.2,
+        "color": "#437c8f"
+      },
+      {
+        "kind": "container",
+        "x": 0,
+        "z": 28,
+        "w": 10,
+        "d": 4.4,
+        "h": 3.2,
+        "color": "#b74137"
+      },
+      {
+        "kind": "container",
+        "x": 12,
+        "z": 28,
+        "w": 10,
+        "d": 4.4,
+        "h": 3.2,
+        "color": "#337eaf"
+      },
+      {
+        "kind": "container",
+        "x": 24,
+        "z": 28,
+        "y": 3.2,
+        "w": 10,
+        "d": 4.4,
+        "h": 3.2,
+        "color": "#e9bf42"
+      },
+      {
+        "kind": "container",
+        "x": 36,
+        "z": 28,
+        "w": 10,
+        "d": 4.4,
+        "h": 3.2,
+        "color": "#d45739"
+      },
+      {
+        "kind": "container",
+        "x": 0,
+        "z": -26,
+        "w": 10,
+        "d": 4.4,
+        "h": 3.2,
+        "color": "#437c8f"
+      },
+      {
+        "kind": "container",
+        "x": 12,
+        "z": -26,
+        "w": 10,
+        "d": 4.4,
+        "h": 3.2,
+        "color": "#b74137"
+      },
+      {
+        "kind": "container",
+        "x": 24,
+        "z": -26,
+        "y": 3.2,
+        "w": 10,
+        "d": 4.4,
+        "h": 3.2,
+        "color": "#337eaf"
       }
     ],
     "surfaces": {
