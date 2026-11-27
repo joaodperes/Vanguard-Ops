@@ -14,7 +14,7 @@ export interface MapFeature extends MapRegion {
   kind: "cover" | "platform" | "accent" | "stairs"; label?: string;
   /** Explicit ballistic material for a cover feature; never inferred from visuals. */
   material?: import("./cover-penetration").BallisticMaterial;
-  axis?: "x" | "z"; sign?: 1 | -1; autoStairs?: boolean;
+  axis?: "x" | "z"; sign?: 1 | -1; autoStairs?: boolean; thinTreads?: boolean;
   /** Saved quarter-turn orientation for Map Studio (collision extents remain axis-aligned). */
   turns?: 0 | 1 | 2 | 3;
   assemblyId?: string;
@@ -157,14 +157,13 @@ export function featureBoxes(feature: MapFeature): CoverBox[] {
 /** Independent stairs rise toward their (x,z) landing, starting in the sign direction. */
 export function stairFeatureBoxes(f:MapFeature):CoverBox[] {
   const h=Math.max(.3,f.h),baseY=f.y??0,steps=Math.ceil(h/.42),depth=f.d/steps,axis=f.axis??"z",sign=f.sign??1;
-  // Model individual treads, not a stack of overlapping solid wedges.
-  // Thin risers keep sightlines open and let players/bots step up one tread at a time.
-  const treadThickness=Math.min(.18,(h/steps)*.44);
+  // Thin treads are a per-map PoC; all other maps retain full stair blocks.
   return Array.from({length:steps},(_,i)=>{
     const top=baseY+h*(i+1)/steps,offset=sign*(steps-i-.5)*depth;
-    const y=top-treadThickness/2;
+    const thickness=f.thinTreads?Math.min(.18,(h/steps)*.44):top;
+    const y=f.thinTreads?top-thickness/2:top/2,halfY=f.thinTreads?thickness/2:top/2;
     return {pos:(axis==="z"?[f.x,y,f.z+offset]:[f.x+offset,y,f.z]) as Vec3,
-      size:(axis==="z"?[f.w/2,treadThickness/2,depth/2+.02]:[depth/2+.02,treadThickness/2,f.w/2]) as Vec3,kind:"stair" as const};
+      size:(axis==="z"?[f.w/2,halfY,depth/2+.02]:[depth/2+.02,halfY,f.w/2]) as Vec3,kind:"stair" as const};
   });
 }
 /** Place ground-box cover onto the top face of the closest elevated platform.
