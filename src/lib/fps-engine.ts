@@ -301,6 +301,9 @@ export interface HudState {
   killFeed: KillFeedEntry[];
   lastDeath?: { killer:string; weaponId:string; attachments:string[] };
   spectatorTargetName?: string;
+  spectatorTargetHealth?: number;
+  spectatorTargetMaxHealth?: number;
+  spectatorTargetWeaponId?: string;
   spectatorTargetIndex?: number;
   spectatorTargetCount?: number;
   lastElimination?: { at: number; victim: string; headshot: boolean };
@@ -14427,6 +14430,9 @@ export class FPSEngine {
       killFeed: this.killFeed,
       lastDeath: this.lastDeath,
       spectatorTargetName:spectatorIndex>=0?spectatorTargets[spectatorIndex].name:undefined,
+      spectatorTargetHealth:spectatorIndex>=0?spectatorTargets[spectatorIndex].health:undefined,
+      spectatorTargetMaxHealth:spectatorIndex>=0?MAX_HEALTH:undefined,
+      spectatorTargetWeaponId:spectatorIndex>=0?spectatorTargets[spectatorIndex].weaponId:undefined,
       spectatorTargetIndex:spectatorIndex>=0?spectatorIndex+1:undefined,
       spectatorTargetCount:spectatorTargets.length,
       lastElimination: this.lastElimination,
