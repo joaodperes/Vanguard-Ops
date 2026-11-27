@@ -235,6 +235,9 @@
               "kitchens",
               "infirmary"
             ]
+          },
+          "tilt": {
+            "type": "number"
           }
         },
         "required": [
