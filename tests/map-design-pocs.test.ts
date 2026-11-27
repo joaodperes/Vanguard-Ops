@@ -1,8 +1,7 @@
 import {describe,expect,test} from "bun:test";
 import {MAPS} from "../src/lib/game-protocol";
 import {
-  FOREST_CANOPY_COVER,FOREST_CANOPY_OBSTACLES,FOREST_CANOPY_SUPPORTS,
-  FOREST_TREE_DECKS,FOREST_TREE_STAIRS,FOREST_TREE_LADDERS,FOREST_CANOPY_RAILS,
+  FOREST_CANOPY_COVER,FOREST_TREE_DECKS,FOREST_TREE_STAIRS,
 } from "../src/lib/forest-warfare";
 import {MAP_DOCUMENTS,validateMapDocument} from "../src/lib/map-documents";
 import {containerSideStripes} from "../src/lib/container-details";
@@ -14,17 +13,15 @@ function rectanglesTouch(a:{pos:number[];size:number[]},b:{pos:number[];size:num
 }
 
 describe("Forest Warfare and Breakwater route-design PoCs",()=>{
-  test("container corrugation ribs are offset clear of the base surface",()=>{
-    const ribs=containerSideStripes(12,4.4,3.2);
-    expect(ribs.length).toBeGreaterThan(10);
-    expect(ribs.every(r=>Math.abs(r.z)>2.2+r.d/2 || Math.abs(r.x)>6+r.w/2)).toBe(true);
+  test("container flicker regression: no intersecting rib overlays",()=>{
+    expect(containerSideStripes(12,4.4,3.2)).toEqual([]);
   });
-  test("all authored stairs use thin treads rather than solid rising wedges",()=>{
-    const forest=FOREST_TREE_STAIRS;
-    const breakwater=MAPS.shipyard.cover.filter(c=>c.kind==="stair");
-    expect(forest.length).toBeGreaterThan(80);
-    expect(breakwater.length).toBeGreaterThan(40);
-    for(const tread of [...forest,...breakwater])expect(tread.size[1]).toBeLessThanOrEqual(.091);
+  test("thin stair treads are scoped to Forest Warfare and Breakwater",()=>{
+    expect(FOREST_TREE_STAIRS.length).toBeGreaterThan(80);
+    expect(FOREST_TREE_STAIRS.every(t=>t.size[1]<=.091)).toBe(true);
+    expect(MAPS.shipyard.cover.filter(c=>c.kind==="stair").every(c=>c.size[1]<=.091)).toBe(true);
+    expect(MAPS.compound.cover.some(c=>c.kind==="stair"&&c.size[1]>.4)).toBe(true);
+    expect(MAPS.bunker.cover.some(c=>c.kind==="stair"&&c.size[1]>.4)).toBe(true);
   });
 
   test("Forest canopy bridges form one connected, branching route network",()=>{
@@ -39,10 +36,7 @@ describe("Forest Warfare and Breakwater route-design PoCs",()=>{
     }
     expect(reached.size).toBe(platforms.length);
     expect(platforms.length).toBeGreaterThanOrEqual(12);
-    expect(FOREST_CANOPY_OBSTACLES.length).toBeGreaterThanOrEqual(6);
-    expect(FOREST_CANOPY_SUPPORTS.length).toBeGreaterThanOrEqual(3);
-    expect(FOREST_TREE_LADDERS.filter(c=>c.kind==='stair').length).toBeGreaterThanOrEqual(50);
-    expect(FOREST_CANOPY_RAILS.length).toBeGreaterThanOrEqual(15);
+    // Collision clutter along the canopy is intentionally removed until visible rail/ladder meshes exist.
   });
 
   test("Forest tree-deck collision covers the central playable disk",()=>{
@@ -58,9 +52,11 @@ describe("Forest Warfare and Breakwater route-design PoCs",()=>{
     expect(validateMapDocument(MAP_DOCUMENTS.shipyard)).toEqual([]);
     const map=MAPS.shipyard;
     const containers=map.props?.filter(p=>p.kind==="container")??[];
-    expect(containers.length).toBeGreaterThanOrEqual(10);
+    expect(containers.length).toBeGreaterThanOrEqual(40);
     expect(containers.some(p=>(p.y??0)>=3.2)).toBe(true);
     expect(map.cover.filter(c=>c.kind==="stair").length).toBeGreaterThan(40);
+    expect(map.environment.length).toBe(0);
+    expect(map.props?.some(p=>p.kind==="ladder")).toBe(true);
     // Lower and stacked container colliders align with their visible model bases.
     expect(map.cover.some(c=>c.kind==="cover"&&Math.abs(c.pos[0]-62)<.1&&Math.abs(c.pos[2]-38)<.1&&Math.abs(c.pos[1]-1.6)<.1)).toBe(true);
     expect(map.cover.some(c=>c.kind==="cover"&&Math.abs(c.pos[0]-62)<.1&&Math.abs(c.pos[2]-38)<.1&&Math.abs(c.pos[1]-4.8)<.1)).toBe(true);
