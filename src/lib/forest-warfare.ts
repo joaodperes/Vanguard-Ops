@@ -106,6 +106,15 @@ export const FOREST_TREE_STAIRS: CoverBox[] = ([-1,1] as const).flatMap(sign=>{
 
 // Fine circular collision slices closely follow the rendered 13-unit deck.
 // The previous seven broad rectangles left unsupported corners at the rim.
+/** Vertical tree ladders use rung collision only; rails are rendered, not blocking. */
+export const FOREST_TREE_LADDERS: CoverBox[] = ([-1,1] as const).flatMap(sign=>{
+  const x=sign*CTF_TREE_X+sign*3.5,count=Math.ceil(CTF_TREE_TOP/.42),rungs:CoverBox[]=[];
+  for(let i=0;i<count;i++){
+    const top=CTF_TREE_TOP*(i+1)/count;
+    rungs.push({pos:[x,top-.07,0],size:[.52,.07,.14],kind:"stair"});
+  }
+  return rungs;
+});
 export const FOREST_TREE_DECKS: CoverBox[] = ([-1,1] as const).flatMap(sign=>{
   const x=sign*CTF_TREE_X,radius=13,slices=104,depth=radius*2/slices;
   return Array.from({length:slices},(_,i)=>{
@@ -185,6 +194,7 @@ export const FOREST_WARFARE_COVER: CoverBox[]=[
   ...FOREST_PERIMETER,
 
   ...FOREST_TREE_DECKS,
+  ...FOREST_TREE_LADDERS,
   ...FOREST_CANOPY_COVER,
   ...FOREST_TREE_STAIRS,
   ...FOREST_BASE_COVER,
