@@ -112,6 +112,51 @@ export function botTraversableEdge(
  * Agents continue to use their existing movement motor and collision checks;
  * this function only chooses a route. Null means use normal obstacle avoidance.
  */
+/**
+ * If the bounded A* search cannot complete a route across a destructible wall,
+ * guide the bot to a verified point around the wall instead of returning a
+ * partial waypoint that repeatedly pushes into the obstruction.
+ */
+function destructibleWallDetour(
+  start: readonly number[], goal: readonly number[], cover: CoverBox[],
+  bounds: number, hazards: readonly Hazard[], index?: CoverSpatialIndex,
+): Vec3 | null {
+  const blockers = cover.filter(box => !!box.environmentId && box.kind !== "accent" &&
+    segmentIntersectsBox(start[0], start[2], goal[0], goal[2], box.pos[0], box.pos[2], box.size[0], box.size[2]));
+  if (!blockers.length) return null;
+  const candidates: Vec3[] = [];
+  for (const wall of blockers) {
+    const margin = 2.5;
+    const x = wall.pos[0], z = wall.pos[2], sx = wall.size[0] + margin, sz = wall.size[2] + margin;
+    candidates.push([x-sx, start[1], z-sz], [x+sx, start[1], z-sz],
+      [x-sx, start[1], z+sz], [x+sx, start[1], z+sz],
+      [x-sx, start[1], z], [x+sx, start[1], z], [x, start[1], z-sz], [x, start[1], z+sz]);
+  }
+  const reachable = candidates.filter(point =>
+    Math.abs(point[0]) < bounds-2 && Math.abs(point[2]) < bounds-2 &&
+    Math.hypot(point[0]-start[0],point[2]-start[2]) > 2.5 &&
+    botTraversableEdge(start as Vec3,point[0],point[2],cover,hazards,index) !== null);
+  reachable.sort((a,b)=>
+    Math.hypot(a[0]-start[0],a[2]-start[2])+Math.hypot(a[0]-goal[0],a[2]-goal[2])-
+    (Math.hypot(b[0]-start[0],b[2]-start[2])+Math.hypot(b[0]-goal[0],b[2]-goal[2])));
+  return reachable[0] ?? null;
+}
+
+function segmentIntersectsBox(
+  x0: number, z0: number, x1: number, z1: number,
+  cx: number, cz: number, hx: number, hz: number,
+): boolean {
+  // Slab intersection in X/Z, treating the wall as an axis-aligned rectangle.
+  let tMin=0, tMax=1;
+  for(const [origin,delta,lo,hi] of [[x0,x1-x0,cx-hx,cx+hx],[z0,z1-z0,cz-hz,cz+hz]] as const){
+    if(Math.abs(delta)<1e-8){if(origin<lo||origin>hi)return false;continue;}
+    const a=(lo-origin)/delta,b=(hi-origin)/delta;
+    tMin=Math.max(tMin,Math.min(a,b));tMax=Math.min(tMax,Math.max(a,b));
+    if(tMin>tMax)return false;
+  }
+  return true;
+}
+
 export function botNextWaypoint(
   start: readonly number[], goal: readonly number[], cover: CoverBox[],
   bounds: number, _legacyStep = 3, hazards: readonly Hazard[] = [], regions: readonly MapRegion[] = [],
@@ -188,6 +233,12 @@ export function botNextWaypoint(
   }
   const found = destination ?? (closest !== startNode &&
     closest.f - closest.g + 2 < startNode.f ? closest : null);
+  // If A* only made partial progress and the straight route is blocked by a
+  // destructible wall, use a short, collision-checked side waypoint.
+  if (!destination) {
+    const detour=destructibleWallDetour(start,target,cover,bounds,hazards,index);
+    if(detour)return detour;
+  }
   if (!found) return null;
   let cursor = found.key;
   while (parents.has(cursor) && parents.get(cursor) !== startKey) {
