@@ -497,6 +497,7 @@ export function propColliders(props:readonly MapProp[],spawns:readonly Vec3[],au
     }
     const h=p.h??(p.kind==="shop"?7:3);
     if(p.kind==="ladder"){const count=Math.ceil(h/.42),rise=h/count,width=p.w??1.2,depth=p.d??.16;for(let i=0;i<count;i++)result.push({kind:"stair",pos:[p.x,(i+1)*rise-.07,p.z],size:[width/2,.07,depth/2]});continue;}
+    if(p.kind==="container"&&p.tilt){const count=Math.ceil(h/.42),rise=h/count,stepDepth=(p.w??8)/count;for(let i=0;i<count;i++){const top=(i+1)*rise;result.push({kind:"stair",pos:[p.x-(p.w??8)/2+(i+.5)*stepDepth,top/2,p.z],size:[stepDepth/2,top/2,(p.d??7)/2],material:"reinforced"});}continue;}
     if(p.kind==="crane"){const cw=p.w??29;result.push({kind:"solid",pos:[p.x,h*1.3,p.z],size:[.7,h*1.3,.7]});result.push({kind:"solid",pos:[p.x+cw*.55,h*1.9,p.z],size:[.12,h*.85,.12]});result.push({kind:"solid",pos:[p.x+cw*.15,h*2.55,p.z],size:[cw*.95/2,.33,.4]});continue;}
     let size:Vec3|null=null;
     if(p.kind==="tree")size=[0.45,Math.min(3,h)/2,0.45];
