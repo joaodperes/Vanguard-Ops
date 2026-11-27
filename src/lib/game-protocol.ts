@@ -166,16 +166,14 @@ export function stairs(
   const stepDepth = depth / actualSteps;
   for (let i = 0; i < actualSteps; i++) {
     const stepTop = stepHeight * (i + 1);
-    const treadThickness = Math.min(0.18, Math.abs(stepHeight) * 0.44);
-    const cy = stepTop - treadThickness / 2;
-    // Each tread is a thin walkable surface, not a solid wedge from floor to top.
-    // This preserves the step-up path for bots while keeping sightlines open.
+    // Standard maps retain solid stepped blocks beneath their treads.
+    const cy = stepTop / 2;
     if (axis === "z") {
       const sz = z + sign * (stepDepth * (actualSteps - 1 - i) + stepDepth / 2);
-      out.push({ pos: [x, cy, sz], size: [width / 2, treadThickness / 2, stepDepth / 2 + 0.001], kind: "stair" });
+      out.push({ pos: [x, cy, sz], size: [width / 2, stepTop / 2, stepDepth / 2 + 0.001], kind: "stair" });
     } else {
       const sx = x + sign * (stepDepth * (actualSteps - 1 - i) + stepDepth / 2);
-      out.push({ pos: [sx, cy, z], size: [stepDepth / 2 + 0.001, treadThickness / 2, width / 2], kind: "stair" });
+      out.push({ pos: [sx, cy, z], size: [stepDepth / 2 + 0.001, stepTop / 2, width / 2], kind: "stair" });
     }
   }
   return out;
