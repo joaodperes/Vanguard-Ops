@@ -36,7 +36,7 @@ describe("Forest Warfare and Breakwater route-design PoCs",()=>{
     expect(FOREST_CANOPY_OBSTACLES.length).toBeGreaterThanOrEqual(6);
     expect(FOREST_CANOPY_SUPPORTS.length).toBeGreaterThanOrEqual(3);
     expect(FOREST_TREE_LADDERS.filter(c=>c.kind==='stair').length).toBeGreaterThanOrEqual(50);
-    expect(FOREST_CANOPY_RAILS.length).toBeGreaterThanOrEqual(15;
+    expect(FOREST_CANOPY_RAILS.length).toBeGreaterThanOrEqual(15);
   });
 
   test("Forest tree-deck collision covers the central playable disk",()=>{
