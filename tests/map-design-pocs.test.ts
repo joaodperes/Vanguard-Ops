@@ -76,6 +76,13 @@ describe("Search & Destroy objective locations",()=>{
     expect(ridgefall[0].pos).toEqual([-110,0,15]);
     expect(ridgefall[1].pos).toEqual([100,0,30]);
     expect(Math.hypot(ridgefall[0].pos[0]-ridgefall[1].pos[0],ridgefall[0].pos[2]-ridgefall[1].pos[2])).toBeGreaterThan(150);
+    const covered=(site:{pos:number[]},map:{cover:{pos:number[];size:number[]}[]})=>
+      Math.min(...map.cover.map(box=>Math.hypot(
+        Math.max(0,Math.abs(site.pos[0]-box.pos[0])-box.size[0]),
+        Math.max(0,Math.abs(site.pos[2]-box.pos[2])-box.size[2]),
+      )));
+    for(const [sites,map] of [[dustwater,MAPS.dustwater],[verdant,MAPS.compound],[ridgefall,MAPS.skybridge]] as const)
+      for(const site of sites)expect(covered(site,map)).toBeLessThanOrEqual(25);
   });
 });
 
