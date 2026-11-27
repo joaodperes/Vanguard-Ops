@@ -143,8 +143,8 @@ export const FOREST_TREE_LADDERS: CoverBox[] = ([-1,1] as const).flatMap(sign=>{
   }
   return [
     ...rungs,
-    {pos:[x-.58,CTF_TREE_TOP/2,0] as Vec3,size:[.07,CTF_TREE_TOP/2,.07] as Vec3,kind:"cover" as const,material:"thin_wood" as const},
-    {pos:[x+.58,CTF_TREE_TOP/2,0] as Vec3,size:[.07,CTF_TREE_TOP/2,.07] as Vec3,kind:"cover" as const,material:"thin_wood" as const},
+    {pos:[x-.8,CTF_TREE_TOP/2,0] as Vec3,size:[.07,CTF_TREE_TOP/2,.07] as Vec3,kind:"cover" as const,material:"thin_wood" as const},
+    {pos:[x+.8,CTF_TREE_TOP/2,0] as Vec3,size:[.07,CTF_TREE_TOP/2,.07] as Vec3,kind:"cover" as const,material:"thin_wood" as const},
   ];
 });
 /** Waist-high bridge parapets, matching each long exposed segment and connector. */
