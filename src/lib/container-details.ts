@@ -13,5 +13,5 @@ export function containerSideStripes(w:number,d:number,h:number):ContainerStripe
         :{x:side*(shortHalf+.045),y:h/2,z:distance,w:.08,h:h*.75,d:.10});
     }
   }
-  return stripes;
+  return [];
 }
