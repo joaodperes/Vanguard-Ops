@@ -126,6 +126,7 @@ import { shotgunPelletDirection, shotgunConeRadians } from "./shotgun-pattern";
 import { normalizeSurvivalTier, survivalWaveMutators, survivalWavesCleared, survivalBotDifficulty, survivalPrepSeconds, type SurvivalTier } from "./survival";
 import { chooseSurvivalUpgrade, generateSurvivalUpgradeChoices, survivalUpgradeDue, survivalOutgoingMultiplier, survivalIncomingMultiplier, survivalKillReward, survivalWaveHealing, survivalRegenDelayMultiplier, survivalRegenRateMultiplier, survivalMovementMultiplier, survivalReloadMultiplier, canUseSelfRevive, SURVIVAL_SELF_REVIVE_MS, SURVIVAL_SELF_REVIVE_HP, type SurvivalUpgradeId, type SurvivalUpgradeOffer, type SurvivalUpgradeRanks } from "./survival-upgrades";
 import { botCombatDecision, botPatrolSprint, botShotSpread } from "./bot-combat-posture";
+import { scoreBotTarget } from "./bot-target-selection";
 import { botRememberSighting, botInvestigation, botCanHearNoise, botRememberNoise, botRememberHit, botAlertInvestigation, type BotNoise, type BotAlert, type BotSighting } from "./bot-awareness";
 import { botArchetypeForSlot, botArchetypeForCategory, botArchetypeWeapon, botArchetypeWeapons, BOT_ELIGIBLE_WEAPONS, FRONTIER_BOT_PRESET_BY_ARCHETYPE, botPersonality, botArchetypeHighGroundChance, type BotArchetype } from "./bot-archetypes";
 import { MOVEMENT, SPRINT_STAMINA, shouldTouchAutoSprint, responsiveHorizontalVelocity, canUseBufferedJump, runJumpTakeoffVelocity, sprintRecoverySpreadMultiplier, sprintRecoveryAdsRate } from "@/lib/movement-rules";
@@ -743,6 +744,8 @@ export class FPSEngine {
   // Only expensive A* searches are budgeted. Every bot still moves and collides each frame.
   private botRouteBudget = new BotRouteBudget();
   private botEnemySearchCache = new Map<string,{nextAt:number;targetId:string|null}>();
+  // Target intent lasts beyond the short perception cache, so bots can maintain focus fire.
+  private botTargetMemory = new Map<string,{targetId:string;until:number}>();
   private botAnimationAt = new Map<string,number>();
   // Decorative interior detail is distance-culled; collision never is.
   private cityInteriorDetailGroups:{node:THREE.Group;x:number;z:number}[]=[];
@@ -13970,7 +13973,7 @@ export class FPSEngine {
   }
 
   private nearestEnemy(c: Combatant): Combatant | null {
-    let best: Combatant | null = null; let bestD = Infinity;
+    let best: Combatant | null = null; let bestScore = Infinity;
     const selfC: Combatant = {
       id: this.selfId, name: this.opts.playerName, team: this.opts.team as string, isBot: false, isSelf: true,
       pos: [this.pos.x, this.pos.y, this.pos.z], yaw: 0, pitch: 0, health: this.health, alive: this.alive,
@@ -13991,23 +13994,35 @@ export class FPSEngine {
     const escort=this.operationEscortTarget();
     const candidates = [...(this.actorIndex.size
       ?this.actorIndex.near(c.pos[0],c.pos[2],radius):this.combatants.values()), selfC,...(escort?[escort]:[])];
-    // Bots require LINE OF SIGHT to acquire a target (no longer omniscient).
-    // If no visible enemy exists, the bot wanders. This makes bots feel less
-    // psychic — you can break LoS to escape them.
+    const weaponRange=Math.max(1,weaponById(c.weaponId).stats.range);
+    const previous=this.botTargetMemory.get(c.id);
+    const preferredTarget=previous&&now<previous.until?previous.targetId:null;
+    // Coordinated bots softly favor enemies already being engaged by teammates.
+    const focusCounts=new Map<string,number>();
+    for(const [botId,intent] of this.botTargetMemory){
+      if(botId===c.id||now>=intent.until)continue;
+      focusCounts.set(intent.targetId,(focusCounts.get(intent.targetId)??0)+1);
+    }
+    // Bots require LINE OF SIGHT to acquire a target. If no visible enemy
+    // exists, the bot wanders; target scoring only applies to visible rivals.
     for (const e of candidates) {
       if (e.id === c.id || !e.alive || (this.opts.mode === "survival" && e.isBot)) continue;
       if (e.id!=="__operation_escort__"&&e.team === c.team && this.opts.mode !== "ffa" && this.opts.mode !== "gungame") continue;
       const d = Math.hypot(e.pos[0] - c.pos[0], e.pos[2] - c.pos[2]);
-      if (d >= bestD) continue;
-      // Only acquire targets within engagement range AND with clear LoS.
       if (d > Math.min(botDetectionRange(c.ai?.difficulty??"normal",weaponById(c.weaponId).category)*botAwarenessPerkMultiplier(c.perkId)*awareness,
         this.map.id==="whiteout_depot"?whiteoutVisibility(this.environmentTime,c.pos):Infinity)) continue;
       const fromY = c.pos[1] + PLAYER_HEIGHT / 2;
       const toY = e.pos[1] + PLAYER_HEIGHT / 2;
       if (!this.hasLineOfSight([c.pos[0], fromY, c.pos[2]], [e.pos[0], toY, e.pos[2]],e.id==="__operation_escort__")) continue;
-      bestD = d;
-      best = e;
+      const targetMaxHealth=e.survivalMaxHealth??e.bossMaxHealth??e.eliteMaxHealth??MAX_HEALTH;
+      const score=scoreBotTarget({
+        distance:d,health:e.health,maxHealth:targetMaxHealth,weaponRange,
+        isPreferred:e.id===preferredTarget,focusCount:focusCounts.get(e.id)??0,
+      });
+      if(score<bestScore){bestScore=score;best=e;}
     }
+    if(best)this.botTargetMemory.set(c.id,{targetId:best.id,until:now+2200});
+    else this.botTargetMemory.delete(c.id);
     this.botEnemySearchCache.set(c.id,{targetId:best?.id??null,
       nextAt:now+130+botRouteJitter(c.id,90)});
     return best;
