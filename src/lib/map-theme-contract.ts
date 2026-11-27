@@ -11,7 +11,7 @@ import {CASTLE_PROP_KINDS,CASTLE_SERVICES} from "./castle-scenery";
 
 export const MAP_PROP_KINDS = [
   "tree","bush","rock","ruin","temple","shop","lamp","container","crane",
-  "terminal","sign","dynamite","antenna","building","boat","dock","garden","bench",
+  "terminal","sign","dynamite","antenna","ladder","building","boat","dock","garden","bench",
   "bandstand","sarcophagus","furnace","conveyor","hydraulic_press","generator",
   "storage_rack","vent_stack","industrial_pipe","steel_coil","cargo_pallet",
   ...CASTLE_PROP_KINDS,
