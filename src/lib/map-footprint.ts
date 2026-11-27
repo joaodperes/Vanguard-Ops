@@ -135,14 +135,14 @@ export function applyMapFootprint(base:MapDef,draft?:{blueprint:MapBlueprint;the
   // Ridgefall replaces the old skybridge arena. The inherited breakable wall
   // at (0,-28) sat inside the new central staircase, could absorb shots and
   // was not a usable doorway. Keep only authored factory hazards instead.
-  const legacyEnvironmentSource=base.id==="dustwater"?[]:base.id==="skybridge"
+  const legacyEnvironmentSource=(base.id==="dustwater"||base.id==="shipyard")?[]:base.id==="skybridge"
     ?(scaledBase.environment??[]).filter(o=>o.id!=="skybridge_wall")
     :scaledBase.environment??[];
   const legacyEnvironment=compileVisibleLegacyBoxes(
     legacyEnvironmentSource,plan.legacyEnvironmentDisabled,plan.legacyEnvironmentOverrides);
   const fullCover = [...legacyCover,...flankFeatures.flatMap(featureBoxes),
     ...propColliders(props,allSpawns,flankFeatures),
-    ...regionBoundary(regions,base.id==="shipyard"?4.8:base.id==="skybridge"?18:11)];
+    ...regionBoundary(regions,base.id==="shipyard"?20:base.id==="skybridge"?18:11)];
   const initialSpawns = { ffa:addSpawns("ffa"),red:addSpawns("red"),blue:addSpawns("blue") };
   const expandedSpawns = isAfterlight ? {
     ffa: expandCitySpawnPositions(initialSpawns.ffa,regions,fullCover,32,props),
