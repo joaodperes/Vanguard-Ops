@@ -49,7 +49,7 @@ import { teamIdentity } from "./team-identity";
 import { cityInteriorFixtures, cityFixtureMaterial, cityFixtureBallisticId, CITY_USE_FACADE_COLORS, CITY_FACADE_TINTS, mapPropBallisticId } from "./map-visuals";
 import {isCastlePropKind,castleFixtureBoxes} from "./castle-scenery";
 import {buildCastleScenery} from "./castle-prop-model";
-import { containerSideStripes } from "./container-details";
+
 import {buildFactoryMachinery,isFactoryMachineKind} from "./factory-machinery";
 import {buildSteamVent,updateSteamVent} from "./steam-vent-visuals";
 import {whiteoutWeatherStatus,type MapEventStatus} from "./map-event-status";
@@ -3041,8 +3041,8 @@ export class FPSEngine {
       }else if(p.kind==="container"){
         const paint=p.color?new THREE.MeshStandardMaterial({color:p.color,roughness:.75,metalness:.25}):stone;
         cube(group,paint,0,h/2,0,w,h,d);
-        for(const rib of containerSideStripes(w,d,h))
-          cube(group,trim,rib.x,rib.y,rib.z,rib.w,rib.h,rib.d);
+        // Removed intersecting corrugation overlay geometry to eliminate flickering.
+      }else if(p.kind==="ladder"){const metal=new THREE.MeshStandardMaterial({color:0x78828b,metalness:.68,roughness:.45});const rail=(p.w??1.2)*.42;cube(group,metal,-rail,h/2,0,.08,h,.09);cube(group,metal,rail,h/2,0,.08,h,.09);const count=Math.ceil(h/.42),rise=h/count;for(let i=0;i<count;i++)cube(group,trim,0,(i+1)*rise-.07,0,(p.w??1.2)*.84,.14,(p.d??.16));for(let y=3;y<h-1;y+=3){const hoop=new THREE.Mesh(new THREE.TorusGeometry((p.w??1.2)*.78,.045,6,16),metal);hoop.position.y=y;hoop.rotation.x=Math.PI/2;group.add(hoop);}
       }else if(p.kind==="crane"){
         cube(group,masonry,0,h*1.3,0,1.4,h*2.6,1.4);
         cube(group,trim,w*.15,h*2.55,0,w*.95,.65,.8);
