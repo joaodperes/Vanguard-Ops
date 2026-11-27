@@ -21,7 +21,7 @@ describe("Forest Warfare and Breakwater route-design PoCs",()=>{
     expect(FOREST_TREE_STAIRS.every(t=>t.size[1]<=.091)).toBe(true);
     expect(FOREST_TREE_LADDERS.length).toBeGreaterThanOrEqual(50);
     const bwStairs=MAPS.shipyard.cover.filter(c=>c.kind==="stair");
-    const rampStairs=bwStairs.filter(c=>c.pos[0]>-51&&c.pos[0]<-37&&Math.abs(c.pos[2]+32)<2.3);
+    const rampStairs=bwStairs.filter(c=>c.pos[0]>33&&c.pos[0]<47&&Math.abs(c.pos[2]+48)<2.3);
     expect(bwStairs.filter(c=>!rampStairs.includes(c)).every(c=>c.size[1]<=.091)).toBe(true);
     expect(rampStairs.length).toBeGreaterThanOrEqual(7);
     expect(rampStairs.some(c=>c.size[1]>.1)).toBe(true);
@@ -63,7 +63,7 @@ describe("Forest Warfare and Breakwater route-design PoCs",()=>{
     expect(map.cover.filter(c=>c.kind==="stair").length).toBeGreaterThan(40);
     expect(map.environment.length).toBe(0);
     expect(map.props?.some(p=>p.kind==="ladder")).toBe(true);
-    expect(MAP_DOCUMENTS.shipyard.theme.props.some(p=>p.kind==="container"&&p.tilt!==undefined)).toBe(true);
+    expect(map.props?.some(p=>p.kind==="container"&&p.tilt!==undefined)).toBe(true);
     expect(map.cover.filter(c=>c.kind==="stair").length).toBeGreaterThan(70);
     expect(map.cover.some(c=>c.kind==="solid"&&Math.abs(c.pos[0]-13)<.1&&c.size[1]>=6)).toBe(true);
     expect(map.cover.some(c=>c.kind==="solid"&&c.size[1]>=10)).toBe(true);
